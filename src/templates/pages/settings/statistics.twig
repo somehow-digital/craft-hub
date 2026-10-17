@@ -1,0 +1,21 @@
+{#
+	The statistics tab of the settings page, switching the statistics panels of the index and detail pages, for admins.
+
+	Variables: settings (see Settings), overrides (names of the settings overridden by `config/hub.php`), readOnly
+#}
+{% extends 'hub/_layouts/settings' %}
+
+{% set fullPageForm = not readOnly %}
+{% set selectedTab = 'statistics' %}
+
+{% block content %}
+	{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/statistics' } %}
+		{% block fields %}
+			{% include 'hub/_components/setting' with { name: 'enableStatistics', field: {
+				first: true,
+				label: 'Statistics'|t('hub'),
+				instructions: 'Whether the index and detail pages have a statistics panel, summarizing their items.'|t('hub'),
+			} } %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

@@ -1,0 +1,232 @@
+<?php
+
+use craft\models\UserGroup;
+use SomehowDigital\Craft\Hub\models\EntryStatistics;
+use SomehowDigital\Craft\Hub\models\EntryTypeFilter;
+use SomehowDigital\Craft\Hub\models\FieldFilter;
+use SomehowDigital\Craft\Hub\models\SectionFilter;
+use SomehowDigital\Craft\Hub\models\UserGroupFilter;
+use SomehowDigital\Craft\Hub\models\VolumeFilter;
+use SomehowDigital\Craft\Hub\services\ListService;
+
+beforeEach(function () {
+	$this->createContentModel();
+
+	$this->lists = new ListService();
+});
+
+/**
+ * @template T of object
+ * @param class-string<T> $class
+ * @return T
+ */
+function listFilter(string $class, array $values): object
+{
+	$filter = new $class();
+
+	foreach ($values as $name => $value) {
+		$filter->$name = $value;
+	}
+
+	return $filter;
+}
+
+/**
+ * The handles of the listed items, in order.
+ *
+ * @return string[]
+ */
+function listed(array $items, string $property): array
+{
+	return array_values(array_map(fn (object $info) => $info->$property->handle, $items));
+}
+
+function withVolumes(): void
+{
+	test()->volume(2, 'documents', hasUrls: false, name: 'Documents');
+	test()->volume(3, 'videos', name: 'Videos');
+
+	test()->db()->respond('FROM {{%assets}} {{assets}}', [
+		['volumeId' => 1, 'kind' => 'image', 'total' => 4, 'used' => 2, 'images' => 4, 'missingAlt' => 3, 'size' => 3 * 1024 * 1024, 'lastUploaded' => '2024-02-10 12:00:00'],
+		['volumeId' => 2, 'kind' => 'pdf', 'total' => 2, 'used' => 0, 'images' => 0, 'missingAlt' => 0, 'size' => 1024 * 1024, 'lastUploaded' => '2024-01-01 00:00:00'],
+	]);
+}
+
+it('lists the sections by name', function () {
+	expect(listed($this->lists->getSections(new SectionFilter()), 'section'))->toBe(['archive', 'news', 'pages', 'settings'])
+		->and(listed($this->lists->getSections(new SectionFilter(), direction: SORT_DESC), 'section'))->toBe(['settings', 'pages', 'news', 'archive']);
+});
+
+it('filters the sections', function (array $values, array $handles) {
+	expect(listed($this->lists->getSections(listFilter(SectionFilter::class, $values)), 'section'))->toBe($handles);
+})->with([
+	'by name' => [['search' => 'NEW'], ['news']],
+	'by handle' => [['search' => 'sett'], ['settings']],
+	'by type' => [['types' => ['channel']], ['archive', 'news']],
+	'with URLs' => [['urls' => ListService::URLS_YES], ['news', 'pages']],
+	'without URLs' => [['urls' => ListService::URLS_NO], ['archive', 'settings']],
+	'by entries' => [['entriesMin' => 2, 'entriesMax' => 4], ['pages']],
+	'by references' => [['referencesMin' => 1], ['news', 'pages']],
+	'by activity' => [['activities' => [EntryStatistics::ACTIVITY_STALE, EntryStatistics::ACTIVITY_NONE]], ['archive', 'settings']],
+	'empty' => [['empty' => true], ['archive']],
+]);
+
+it('sorts the sections', function (string $sort, int $direction, array $handles) {
+	expect(listed($this->lists->getSections(new SectionFilter(), $sort, $direction), 'section'))->toBe($handles);
+})->with([
+	'by type' => [ListService::SORT_TYPE, SORT_ASC, ['archive', 'news', 'settings', 'pages']],
+	'by entries' => [ListService::SORT_ENTRIES, SORT_DESC, ['news', 'pages', 'settings', 'archive']],
+	'by references' => [ListService::SORT_REFERENCES, SORT_DESC, ['news', 'pages', 'archive', 'settings']],
+	'by last update' => [ListService::SORT_UPDATED, SORT_DESC, ['news', 'pages', 'settings', 'archive']],
+]);
+
+it('lists the entry types by name', function () {
+	expect(listed($this->lists->getEntryTypes(new EntryTypeFilter()), 'entryType'))->toBe(['article', 'block', 'empty', 'orphan', 'page']);
+});
+
+it('filters the entry types', function (array $values, array $handles) {
+	expect(listed($this->lists->getEntryTypes(listFilter(EntryTypeFilter::class, $values)), 'entryType'))->toBe($handles);
+})->with([
+	'by search' => [['search' => 'art'], ['article']],
+	'by kind' => [['kinds' => ['nested', 'unused']], ['block', 'orphan']],
+	'by entries' => [['entriesMin' => 5], ['article', 'block']],
+	'by sections and relations' => [['relationsMin' => 3], ['article', 'page']],
+	'by activity' => [['activities' => [EntryStatistics::ACTIVITY_NONE]], ['empty', 'orphan']],
+]);
+
+it('sorts the entry types', function (string $sort, array $handles) {
+	expect(listed($this->lists->getEntryTypes(new EntryTypeFilter(), $sort, SORT_DESC), 'entryType'))->toBe($handles);
+})->with([
+	'by entries' => [ListService::SORT_ENTRIES, ['block', 'article', 'page', 'empty', 'orphan']],
+	'by relations' => [ListService::SORT_RELATIONS, ['article', 'page', 'empty', 'block', 'orphan']],
+	'by last update' => [ListService::SORT_UPDATED, ['article', 'block', 'page', 'empty', 'orphan']],
+]);
+
+it('lists the fields by name', function () {
+	expect(listed($this->lists->getFields(new FieldFilter()), 'field'))->toBe(['blocks', 'cta', 'image', 'legacy', 'related', 'summary', 'teaserImage', 'teaserImg', 'unusedText']);
+});
+
+it('filters the fields', function (array $values, array $handles) {
+	expect(listed($this->lists->getFields(listFilter(FieldFilter::class, $values)), 'field'))->toBe($handles);
+})->with([
+	'by search' => [['search' => 'teaser'], ['teaserImage', 'teaserImg']],
+	'by type' => [['types' => ['matrix']], ['blocks', 'legacy']],
+	'by data kind' => [['kinds' => ['relational']], ['cta', 'image', 'related', 'teaserImage', 'teaserImg']],
+	'by owner' => [['owners' => ['volume', 'users']], ['summary']],
+	'by layouts' => [['layoutsMin' => 2], ['summary']],
+	'unused' => [['unused' => true], ['legacy', 'teaserImg', 'unusedText']],
+	'empty' => [['empty' => true, 'kinds' => ['nested']], []],
+]);
+
+it('sorts the fields', function (string $sort, int $direction, array $handles) {
+	expect(listed($this->lists->getFields(new FieldFilter(), $sort, $direction), 'field'))->toBe($handles);
+})->with([
+	'by type' => [ListService::SORT_TYPE, SORT_ASC, ['image', 'teaserImage', 'teaserImg', 'related', 'cta', 'blocks', 'legacy', 'summary', 'unusedText']],
+	'by layouts' => [ListService::SORT_LAYOUTS, SORT_DESC, ['summary', 'blocks', 'cta', 'image', 'related', 'teaserImage', 'legacy', 'teaserImg', 'unusedText']],
+	'by data' => [ListService::SORT_DATA, SORT_DESC, ['blocks', 'related', 'image', 'cta', 'teaserImage', 'teaserImg', 'legacy', 'summary', 'unusedText']],
+]);
+
+it('tells how much data fields hold', function () {
+	$structure = $this->hub()->structure;
+
+	expect($this->lists->getFieldData($structure->getField(2)))->toBe(7)
+		->and($this->lists->getFieldData($structure->getField(3)))->toBe(4)
+		->and($this->lists->getFieldData($structure->getField(1)))->toBeNull();
+});
+
+it('lists the volumes by name', function () {
+	withVolumes();
+
+	expect(listed($this->lists->getVolumes(new VolumeFilter()), 'volume'))->toBe(['documents', 'images', 'videos']);
+});
+
+it('filters the volumes', function (array $values, array $handles) {
+	withVolumes();
+
+	expect(listed($this->lists->getVolumes(listFilter(VolumeFilter::class, $values)), 'volume'))->toBe($handles);
+})->with([
+	'by search' => [['search' => 'doc'], ['documents']],
+	'by kind' => [['kinds' => ['image']], ['images']],
+	'with URLs' => [['urls' => ListService::URLS_YES], ['images', 'videos']],
+	'by assets' => [['assetsMin' => 1, 'assetsMax' => 3], ['documents']],
+	'by size' => [['sizeMin' => 2.5], ['images']],
+	'by missing alternative text' => [['altMin' => 1], ['images']],
+	'uploaded from' => [['uploadedFrom' => new DateTime('2024-02-10 18:00')], ['images']],
+	'uploaded until' => [['uploadedTo' => new DateTime('2024-01-01')], ['documents']],
+	'uploaded between' => [['uploadedFrom' => new DateTime('2024-01-02'), 'uploadedTo' => new DateTime('2024-02-09')], []],
+	'empty' => [['empty' => true], ['videos']],
+]);
+
+it('sorts the volumes', function (string $sort, array $handles) {
+	withVolumes();
+
+	expect(listed($this->lists->getVolumes(new VolumeFilter(), $sort, SORT_DESC), 'volume'))->toBe($handles);
+})->with([
+	'by filesystem' => [ListService::SORT_FILESYSTEM, ['videos', 'images', 'documents']],
+	'by assets' => [ListService::SORT_ASSETS, ['images', 'documents', 'videos']],
+	'by size' => [ListService::SORT_SIZE, ['images', 'documents', 'videos']],
+	'by missing alternative text' => [ListService::SORT_ALT, ['images', 'documents', 'videos']],
+	'by references' => [ListService::SORT_REFERENCES, ['images', 'documents', 'videos']],
+	'by last upload' => [ListService::SORT_UPLOADED, ['images', 'documents', 'videos']],
+]);
+
+/**
+ * User groups as {@see UserService::getGroups()} returns them.
+ *
+ * @return array<int,array{group:UserGroup,users:int,permissions:int,requires2fa:bool}>
+ */
+function userGroupInfos(): array
+{
+	$info = fn (int $id, string $handle, int $users, int $permissions, bool $requires2fa, ?string $description = null) => [
+		'group' => new UserGroup(['id' => $id, 'handle' => $handle, 'name' => ucfirst($handle), 'description' => $description]),
+		'users' => $users,
+		'permissions' => $permissions,
+		'requires2fa' => $requires2fa,
+	];
+
+	return [
+		1 => $info(1, 'editors', 4, 12, false, 'Write the news'),
+		2 => $info(2, 'admins', 1, 30, true),
+		3 => $info(3, 'guests', 0, 1, false),
+	];
+}
+
+/**
+ * @param array<int,array{group:UserGroup}> $groups
+ * @return string[]
+ */
+function groupHandles(array $groups): array
+{
+	return array_values(array_map(fn (array $info) => $info['group']->handle, $groups));
+}
+
+it('lists the user groups by name', function () {
+	expect(groupHandles($this->lists->getUserGroups(userGroupInfos(), new UserGroupFilter())))->toBe(['admins', 'editors', 'guests']);
+});
+
+it('filters the user groups', function (array $values, array $handles) {
+	expect(groupHandles($this->lists->getUserGroups(userGroupInfos(), listFilter(UserGroupFilter::class, $values))))->toBe($handles);
+})->with([
+	'by search' => [['search' => 'news'], ['editors']],
+	'by users' => [['usersMin' => 1, 'usersMax' => 3], ['admins']],
+	'by permissions' => [['permissionsMin' => 10], ['admins', 'editors']],
+	'requiring two-step verification' => [['twoFactor' => UserGroupFilter::TWO_FACTOR_REQUIRED], ['admins']],
+	'not requiring two-step verification' => [['twoFactor' => UserGroupFilter::TWO_FACTOR_OPTIONAL], ['editors', 'guests']],
+	'empty' => [['empty' => true], ['guests']],
+]);
+
+it('sorts the user groups', function (string $sort, array $handles) {
+	expect(groupHandles($this->lists->getUserGroups(userGroupInfos(), new UserGroupFilter(), $sort, SORT_DESC)))->toBe($handles);
+})->with([
+	'by name' => [ListService::SORT_NAME, ['guests', 'editors', 'admins']],
+	'by users' => [ListService::SORT_USERS, ['editors', 'admins', 'guests']],
+	'by permissions' => [ListService::SORT_PERMISSIONS, ['admins', 'editors', 'guests']],
+]);
+
+it('lists the sort columns with their default direction', function () {
+	expect($this->lists->getSectionSortColumns())->toBe(['name' => SORT_ASC, 'type' => SORT_ASC, 'entries' => SORT_DESC, 'references' => SORT_DESC, 'updated' => SORT_DESC])
+		->and($this->lists->getEntryTypeSortColumns())->toBe(['name' => SORT_ASC, 'relations' => SORT_DESC, 'entries' => SORT_DESC, 'updated' => SORT_DESC])
+		->and($this->lists->getFieldSortColumns())->toBe(['name' => SORT_ASC, 'type' => SORT_ASC, 'layouts' => SORT_DESC, 'data' => SORT_DESC])
+		->and(array_keys($this->lists->getVolumeSortColumns()))->toBe(['name', 'fs', 'assets', 'size', 'alt', 'references', 'uploaded'])
+		->and($this->lists->getUserGroupSortColumns())->toBe(['name' => SORT_ASC, 'users' => SORT_DESC, 'permissions' => SORT_DESC]);
+});

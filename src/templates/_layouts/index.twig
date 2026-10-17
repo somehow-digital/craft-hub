@@ -1,0 +1,36 @@
+{#
+	Index pages: a tab listing the elements, optionally further tabs and, while diagnostics are enabled, a diagnostics tab, each on
+	its own URL.
+
+	Variables: area (`data` or `structure`), page (path segment below the area, also the subnav item), title (the elements
+	listed), selectedTab (`list`, an extra tab's ID or `diagnostics`), siteScoped (whether the elements are scoped to the selected
+	sites, default true), extraTabs (labels of the tabs between the list and the diagnostics by their ID, which is their path segment),
+	diagnosticsEnabled (see Settings::$enableDiagnostics)
+#}
+{% extends 'hub/_layouts/hub' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set path = 'hub/' ~ area ~ '/' ~ page %}
+{% set selectedSubnavItem = page %}
+
+{% set tabs = { list: { label: title, url: url(path, { hubSite: hubSite }) } } %}
+{% for id, label in extraTabs ?? {} %}
+	{% set tabs = tabs|merge({ (id): { label: label, url: url(path ~ '/' ~ id, { hubSite: hubSite }) } }) %}
+{% endfor %}
+{% if diagnosticsEnabled ?? true %}
+	{% set tabs = tabs|merge({ diagnostics: { label: 'Diagnostics'|t('hub'), url: url(path ~ '/diagnostics', { hubSite: hubSite }) } }) %}
+{% endif %}
+
+{# The page title names the elements, which are kept in the document title along with the selected tab. #}
+{% set docTitle = (selectedTab != 'list' ? tabs[selectedTab].label ~ ' - ' : '') ~ title ~ ' - ' ~ (area == 'data' ? 'Data'|t('hub') : 'Structure'|t('hub')) %}
+
+{# The selected tab ends the crumbs, as on the detail pages, which start with the list they belong to. #}
+{% set crumbs = selectedTab != 'list'
+	? [tabs.list, tabs[selectedTab]|merge({ current: true })]
+	: [tabs.list|merge({ current: true })] %}
+
+{% block actionButton %}
+	{% if siteScoped ?? true %}
+		{{ hub.siteFilter() }}
+	{% endif %}
+{% endblock %}

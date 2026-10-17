@@ -1,0 +1,154 @@
+{% extends 'hub/_layouts/detail' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set volume = info.volume %}
+{% set fs = volume.fs %}
+
+{% set title = volume.name|t('site') %}
+{% set area = 'structure' %}
+{% set selectedSubnavItem = 'volumes' %}
+{% set listTabs = [{ id: 'assets', label: 'Assets'|t('hub') }] %}
+{% set path = 'hub/structure/volumes/' ~ volume.id %}
+{% set crumbs = [
+	{ label: 'Volumes'|t('hub'), url: url('hub/structure/volumes', { hubSite: hubSite }) },
+	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+] %}
+
+{% block pageTitle %}
+	{{ hub.pageTitle(volume, 'Volume'|t('app')) }}
+{% endblock %}
+
+{% block actionButton %}
+	<div class="flex">
+		{{ hub.siteFilter() }}
+		<a class="btn" href="{{ url('assets/' ~ volume.handle) }}">{{ 'View assets'|t('hub') }}</a>
+		{% if currentUser.admin %}
+			<a class="btn" href="{{ volume.cpEditUrl }}">
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('pen') }}</span>
+				<span>{{ 'Edit'|t('app') }}</span>
+			</a>
+		{% endif %}
+	</div>
+{% endblock %}
+
+{% block details %}
+	<dl class="meta read-only hub-details">
+		<div class="data">
+			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
+			<dd class="value"><code>{{ volume.handle }}</code></dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Filesystem'|t('app') }}</dt>
+			<dd class="value">{{ fs.name|t('site') }} <span class="hub-muted">{{ fs.displayName() }}</span></dd>
+		</div>
+		{% if volume.getSubpath(false) %}
+			<div class="data">
+				<dt class="heading">{{ 'Subpath'|t('app') }}</dt>
+				<dd class="value"><code>{{ volume.getSubpath(false) }}</code></dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'URLs'|t('hub') }}</dt>
+			<dd class="value">{% if info.hasUrls %}{{ hub.badge('Has URLs'|t('hub'), 'green', null, 'globe') }}{% else %}{{ hub.badge('No URLs'|t('hub')) }}{% endif %}</dd>
+		</div>
+		{% if volume.transformFsHandle %}
+			<div class="data">
+				<dt class="heading">{{ 'Transform Filesystem'|t('app') }}</dt>
+				<dd class="value">{{ volume.transformFs.name|t('site') }}</dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'Total size'|t('hub') }}</dt>
+			<dd class="value">{{ hub.size(info.stats.size) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Last upload'|t('hub') }}</dt>
+			<dd class="value">{{ hub.date(info.stats.lastUploaded) }}</dd>
+		</div>
+	</dl>
+{% endblock %}
+
+{% block overview %}
+	{% include 'hub/_components/summary-panel' with { cards: summary } %}
+
+	{% embed 'hub/_components/panel' with { heading: 'Types'|t('hub'), icon: 'file', count: info.kinds|length } %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{% if info.kinds|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Name'|t('app') }}</th>
+								<th class="hub-num" title="{{ 'With references / Without references'|t('hub') }}">{{ 'Assets'|t('app') }}</th>
+								<th class="hub-num">{{ 'Size'|t('app') }}</th>
+								<th>{{ 'Last upload'|t('hub') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for kind, stats in info.kinds %}
+								{% set fileKind = fileKinds[kind] %}
+								<tr>
+									<th>{{ hub.badge(fileKind.label, fileKind.color, null, fileKind.icon) }}</th>
+									<td class="hub-num">
+										{{ hub.dotNum(stats.used, 'green', 'With references'|t('hub')) }}
+										{{ hub.dotNum(stats.unused, 'orange', 'Without references'|t('hub')) }}
+									</td>
+									<td class="hub-num">{{ hub.size(stats.size) }}</td>
+									<td>{{ hub.date(stats.lastUploaded) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% else %}
+				<p class="hub-panel__empty">{{ 'No assets found.'|t('hub') }}</p>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+
+	{% set relationFields = info.assetFields|merge(info.linkFields) %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Relations'|t('hub'),
+		description: 'Assets and Link fields that can relate to assets from this volume.'|t('hub'),
+		icon: 'link',
+		color: 'teal',
+		count: relationFields|length,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{% if relationFields|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Field'|t('app') }}</th>
+								<th>{{ 'Type'|t('app') }}</th>
+								<th class="hub-num">{{ 'References'|t('hub') }}</th>
+								<th class="hub-num">{{ 'Referenced assets'|t('hub') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for field in relationFields %}
+								{% set references = statistics.sumReferences(siteIds, field.id, null, volume.id) %}
+								<tr{% if not references.references %} data-severity="orange"{% endif %}>
+									<th>{{ hub.name(field, 'teal') }}</th>
+									<td>{{ hub.fieldType(field, 'teal') }}</td>
+									<td class="hub-num">{{ hub.num(references.references) }}</td>
+									<td class="hub-num">{{ hub.num(references.targets) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% else %}
+				<p class="hub-panel__empty">{{ 'No Assets or Link field can relate to assets from this volume.'|t('hub') }}</p>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}
+
+{% block list %}
+	{% include 'hub/_components/file-list' %}
+{% endblock %}

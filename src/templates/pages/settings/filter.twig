@@ -1,0 +1,170 @@
+{#
+	Form of a saved filter of a list, offered to everyone who may view the list. Hub's predefined filters can be disabled
+	and renamed, and those with a threshold, like the size of large files, given another one. Custom ones have a name, what
+	they list, an icon, and match the items their condition matches, which the list applies along with its other filters;
+	they can be deleted from the menu of the save button. Whether it's enabled is switched in the details sidebar.
+
+	Variables: filter (see SavedFilter)
+#}
+{% extends 'hub/_layouts/settings-item' %}
+{% import '_includes/forms' as forms %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set tab = 'filters' %}
+{% set kind = filter.kind %}
+{% set title = filter.id ? filter.getName() : 'New filter'|t('hub') %}
+{% set kindLabel = '{list} filter'|t('hub', { list: kind.label() }) %}
+{% set type = filter.isPredefined() ? hub.badge('Predefined'|t('hub'), 'gray') : hub.badge('Custom'|t('hub'), 'violet') %}
+{% set icon = filter.getIcon() %}
+{% set color = 'blue' %}
+{% if not filter.isPredefined() %}
+	{% set mirror %} data-hub-mirror-icon="icon" data-hub-mirror-fallback="{{ iconSvg('filter')|e('html_attr') }}"{% endset %}
+{% endif %}
+
+{% if filter.id %}
+	{% set formActions = [
+		{
+			label: 'Save and continue editing'|t('app'),
+			redirect: ('hub/manage/settings/filters/' ~ filter.id)|hash,
+			shortcut: true,
+			retainScroll: true,
+		},
+		not filter.isPredefined() ? {
+			label: 'Delete filter'|t('hub'),
+			action: 'hub/filters/delete',
+			redirect: 'hub/manage/settings/filters'|hash,
+			params: { id: filter.id },
+			confirm: 'Are you sure you want to delete “{name}”?'|t('hub', { name: filter.getName() }),
+			destructive: true,
+		},
+	]|filter %}
+{% endif %}
+
+{% block content %}
+	{{ actionInput('hub/filters/save') }}
+	{% if filter.id %}{{ hiddenInput('filterId', filter.id) }}{% else %}{{ hiddenInput('kind', kind.value) }}{% endif %}
+
+	{% if filter.isPredefined() %}
+		<div class="hub-notice">
+			<span class="hub-notice__icon" aria-hidden="true">{{ iconSvg('lock') }}</span>
+			<div class="hub-notice__body">
+				<p class="hub-notice__title">{{ 'Predefined filter'|t('hub') }}</p>
+				<p>{{ filter.description }}</p>
+				<p>{{ 'This is one of Hub’s predefined filters. It can’t be deleted, but disabled, and given another name.'|t('hub') }}</p>
+			</div>
+		</div>
+	{% endif %}
+
+	{% embed 'hub/_components/panel' with { heading: 'Filter'|t('hub'), icon: 'filter', color: 'blue', collapsible: false } %}
+		{% block body %}
+			{% import '_includes/forms' as forms %}
+			<div class="hub-panel__fields">
+				{{ forms.textField({
+					first: true,
+					label: 'Name'|t('app'),
+					instructions: filter.isPredefined()
+						? 'Shown in the saved filters of the list. Leave blank to keep Hub’s name.'|t('hub')
+						: 'Shown in the saved filters of the list.'|t('hub'),
+					id: 'name',
+					name: 'name',
+					value: filter.name,
+					placeholder: filter.defaultName ?: null,
+					errors: filter.getErrors('name'),
+					autofocus: true,
+					required: not filter.isPredefined(),
+				}) }}
+
+				{% if filter.isPredefined() and filter.thresholdField %}
+					{% set field = filter.thresholdField %}
+					{{ forms.textField({
+						label: field.label,
+						instructions: field.instructions ~ ' ' ~ 'Leave blank to keep Hub’s threshold.'|t('hub'),
+						id: 'threshold',
+						name: 'threshold',
+						type: 'number',
+						min: 1,
+						size: 6,
+						unit: field.unit,
+						value: filter.threshold,
+						placeholder: field.default,
+						errors: filter.getErrors('threshold'),
+					}) }}
+				{% endif %}
+
+				{% if not filter.isPredefined() %}
+					<div class="hub-panel__columns">
+						{{ forms.textareaField({
+							label: 'Description'|t('app'),
+							instructions: 'What the filter lists, shown as its tooltip.'|t('hub'),
+							id: 'description',
+							name: 'description',
+							value: filter.description,
+							errors: filter.getErrors('description'),
+							rows: 2,
+						}) }}
+
+						{{ forms.iconPickerField({
+							label: 'Icon'|t('app'),
+							instructions: 'Leave blank for a funnel.'|t('hub'),
+							id: 'icon',
+							name: 'icon',
+							value: filter.icon,
+							errors: filter.getErrors('icon'),
+						}) }}
+					</div>
+				{% endif %}
+			</div>
+		{% endblock %}
+	{% endembed %}
+
+	{% if not filter.isPredefined() %}
+		{% embed 'hub/_components/panel' with {
+			heading: 'Matching'|t('hub'),
+			icon: 'sliders',
+			color: 'violet',
+			collapsible: false,
+		} %}
+			{% block body %}
+				{% import '_includes/forms' as forms %}
+				<div class="hub-panel__fields">
+					{{ forms.field({
+						first: true,
+						instructions: 'The list shows the {kind} matching these rules, along with its other filters.'|t('hub', { kind: kind.label()|lower }),
+						fieldClass: 'hub-condition',
+						errors: filter.getErrors('condition'),
+					}, filter.getCondition().getBuilderHtml()) }}
+				</div>
+			{% endblock %}
+		{% endembed %}
+	{% endif %}
+{% endblock %}
+
+{% block details %}
+	<div class="meta">
+		{{ forms.lightswitchField({
+			label: 'Enabled'|t('app'),
+			id: 'enabled',
+			name: 'enabled',
+			on: filter.enabled,
+		}) }}
+	</div>
+	<dl class="meta read-only hub-details">
+		<div class="data">
+			<dt class="heading">{{ 'List'|t('hub') }}</dt>
+			<dd class="value">{{ hub.icon(kind.icon(), 'gray', 'small') }} {{ kind.label() }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Type'|t('app') }}</dt>
+			<dd class="value">{{ type }}</dd>
+		</div>
+	</dl>
+	<p class="hub-details__note">{{ 'Disabled filters aren’t offered by the list.'|t('hub') }}</p>
+	{% if filter.id %}
+		<div class="hub-details__actions">
+			<a class="btn fullwidth" href="{{ url(kind.path(), filter.getListParams()) }}">
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('list') }}</span>
+				<span>{{ 'Show list'|t('hub') }}</span>
+			</a>
+		</div>
+	{% endif %}
+{% endblock %}

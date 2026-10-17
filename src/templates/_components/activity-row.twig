@@ -1,0 +1,119 @@
+{#
+	A row of the activity log. Batches toggle the rows of their first activities, which follow them hidden, and link to
+	all of them past those (see ActivityService::BATCH_PREVIEW). Their chevron, their number of changes and the row itself
+	toggle them.
+
+	Variables: activity (see Activity), columns, listPath, batched (whether the row is of an activity within a batch)
+#}
+{% import 'hub/_components/macros' as hub %}
+{% set action = activity.action %}
+{% set data = activity.data %}
+{% set positions = {
+	prepend: 'First within “{name}”',
+	append: 'Last within “{name}”',
+	placeBefore: 'Before “{name}”',
+	placeAfter: 'After “{name}”',
+} %}
+<tr
+	{%- if action.value in ['signInFailed', 'locked'] %} data-severity="red"{% endif %}
+	{%- if batched ?? false %} class="hub-activity-batched" data-hub-batch-of="{{ activity.batchId }}" hidden{% endif %}
+	{%- if activity.batchCount %} class="hub-activity-batch"{% endif %}>
+	<th>
+		<div class="hub-name">
+			{{ hub.icon(action.icon(), action.color()) }}
+			<div class="hub-name__text">
+				<span class="hub-name__title">
+					{%- if activity.url -%}
+						<a href="{{ activity.url }}">{{ activity.title }}</a>
+					{%- else -%}
+						<span>{{ activity.title }}</span>
+					{%- endif -%}
+				</span>
+				<span class="hub-name__meta">
+					{{- action.label() -}}
+					{%- if activity.batchCount %}
+						· <button type="button" class="hub-activity-toggle" aria-expanded="false" data-hub-batch="{{ activity.id }}">
+							{{- '{count, plural, =1{One change} other{# changes}}'|t('hub', { count: activity.batchCount }) -}}
+						</button>
+					{%- endif -%}
+				</span>
+			</div>
+		</div>
+	</th>
+	{% for column in columns %}
+		<td{{ hub.cellAttributes(column) }}>
+			{%- if not column.visible -%}
+			{%- elseif column.key == 'user' -%}
+				{% if activity.userId %}
+					<a class="hub-activity-user" href="{{ url(listPath, { user: activity.userId }) }}" title="{{ 'Show only their activity'|t('hub') }}">
+						{%- if activity.user %}{{ hub.avatar(activity.user, 'small') }}{% else %}{{ hub.icon('user-slash', 'gray', 'small') }}{% endif -%}
+						<span>{{ activity.user.name ?? activity.userName }}</span>
+					</a>
+					{%- if activity.impersonatorName %} {{ hub.badge('by {name}'|t('hub', { name: activity.impersonatorName }), 'orange', 'Impersonated'|t('hub'), 'user-secret') }}{% endif -%}
+				{% else %}
+					<span class="hub-muted" title="{{ 'Done by a guest, the system or on the command line'|t('hub') }}">{{ 'No user'|t('hub') }}</span>
+				{% endif %}
+			{%- elseif column.key == 'type' -%}
+				{{ hub.badge(data.type ?? activity.subject.label(), activity.subject.color(), null, activity.subject.icon()) }}
+			{%- elseif column.key == 'details' -%}
+				{% set changes = activity.changes %}
+				<span class="hub-badges">
+					{%- if data.draft ?? false %}{{ hub.badge('From draft “{name}”'|t('hub', { name: data.draft }), 'blue', null, 'pen-ruler') }}{% endif -%}
+					{%- if data.draftName ?? false %}{{ hub.badge(data.draftName, 'gray', 'Draft'|t('app'), 'pen-ruler') }}{% endif -%}
+					{%- if data.revision ?? false %}{{ hub.badge('To revision {num}'|t('hub', { num: data.revision }), 'blue', null, 'clock-rotate-left') }}{% endif -%}
+					{%- if data.duplicateOf ?? false %}{{ hub.badge('Duplicate of “{name}”'|t('hub', { name: data.duplicateOf }), 'blue', null, 'clone') }}{% endif -%}
+					{%- if data.merged ?? false %}{{ hub.badge('Merged with #{id}'|t('hub', { id: data.merged }), 'violet', null, 'code-merge') }}{% endif -%}
+					{%- if data.position ?? false %}{{ hub.badge(data.target ?? false ? (positions[data.position] ?? '{name}')|t('hub', { name: data.target }) : 'Top level'|t('hub'), 'blue', null, 'arrows-up-down-left-right') }}{% endif -%}
+					{%- if data.hardDelete ?? false %}{{ hub.badge('Permanently'|t('hub'), 'red', null, 'trash') }}{% endif -%}
+					{%- for name in data.added ?? [] %}{{ hub.badge(name|t('site'), 'green', 'Added'|t('hub'), 'plus') }}{% endfor -%}
+					{%- for name in data.removed ?? [] %}{{ hub.badge(name|t('site'), 'red', 'Removed'|t('hub'), 'minus') }}{% endfor -%}
+					{%- if data.granted ?? false %}{{ hub.badge('{count, plural, =1{One permission} other{# permissions}} granted'|t('hub', { count: data.granted|length }), 'green', data.granted|join(', '), 'key') }}{% endif -%}
+					{%- if data.revoked ?? false %}{{ hub.badge('{count, plural, =1{One permission} other{# permissions}} revoked'|t('hub', { count: data.revoked|length }), 'red', data.revoked|join(', '), 'key') }}{% endif -%}
+					{%- if data.transforms ?? false %}{{ hub.badge('{count, plural, =1{One transform} other{# transforms}}'|t('hub', { count: data.transforms|length }), 'red', data.transforms|join(', '), 'crop') }}{% endif -%}
+					{%- if (data.count ?? false) and activity.subjectTitle %}{{ hub.badge('{count, plural, =1{One item} other{# items}}'|t('hub', { count: data.count }), 'gray') }}{% endif -%}
+					{%- if data.method ?? false %}{{ hub.badge(data.method, 'gray', null, 'shield-halved') }}{% endif -%}
+					{%- if data.name ?? false %}<span class="hub-muted">{{ data.name }}</span>{% endif -%}
+					{%- if data.kind ?? false %}{{ hub.badge(data.kind, 'gray') }}{% endif -%}
+					{%- if data.exporter ?? false %}{{ hub.badge(data.exporter, 'gray', null, 'file-export') }}{% endif -%}
+					{%- if data.format ?? false %}<code>{{ data.format }}</code>{% endif -%}
+					{%- if data.version ?? false %}{{ hub.badge('To {version}'|t('hub', { version: data.version }), 'blue', null, 'circle-up') }}{% endif -%}
+					{%- for name in data.caches ?? [] %}<code>{{ name }}</code>{% endfor -%}
+					{%- for name in data.tags ?? [] %}<code>{{ name }}</code>{% endfor -%}
+					{%- for name in data.volumes ?? [] %}{{ hub.badge(name|t('site'), 'amber', null, 'folder-open') }}{% endfor -%}
+					{%- if data.find ?? false %}<code>{{ data.find }}</code> → <code>{{ data.replace ?? '' }}</code>{% endif -%}
+					{%- if data.filename ?? false %}<code>{{ data.filename }}</code>{% endif -%}
+					{%- if data.reason ?? false %}<code>{{ data.reason }}</code>{% endif -%}
+					{%- if data.handle ?? false %}<code>{{ data.handle }}</code>{% endif -%}
+					{%- if changes|length %}
+						<span class="hub-muted" title="{{ changes|join(', ') }}">
+							{{- changes|slice(0, 3)|join(', ') -}}
+							{%- if changes|length > 3 %} {{ '+{count, number}'|t('hub', { count: changes|length - 3 }) }}{% endif -%}
+						</span>
+					{%- endif -%}
+				</span>
+			{%- elseif column.key == 'site' -%}
+				{% if activity.site %}{{ activity.site.name|t('site') }}{% else %}<span class="hub-muted">—</span>{% endif %}
+			{%- elseif column.key == 'ip' -%}
+				{% if activity.ipAddress %}<code>{{ activity.ipAddress }}</code>{% else %}<span class="hub-muted">—</span>{% endif %}
+			{%- elseif column.key == 'date' -%}
+				<span title="{{ activity.dateCreated|datetime('short') }}">{{ activity.dateCreated|timestamp('short') }}</span>
+			{%- elseif column.key == 'batch' -%}
+				{%- if activity.batchCount -%}
+					<button type="button" class="hub-activity-chevron" aria-expanded="false" aria-label="{{ 'Show changes'|t('hub') }}" data-hub-batch="{{ activity.id }}">
+						{{- iconSvg('chevron-down') -}}
+					</button>
+				{%- endif -%}
+			{%- endif -%}
+		</td>
+	{% endfor %}
+</tr>
+{% for item in activity.batched %}
+	{% include 'hub/_components/activity-row' with { activity: item, batched: true } %}
+{% endfor %}
+{% if activity.batchCount > activity.batched|length %}
+	<tr class="hub-activity-batched" data-hub-batch-of="{{ activity.id }}" hidden>
+		<td colspan="{{ columns|length + 1 }}">
+			<a href="{{ url(listPath, { batch: activity.id }) }}">{{ 'Show all {count, number} changes'|t('hub', { count: activity.batchCount }) }}</a>
+		</td>
+	</tr>
+{% endif %}

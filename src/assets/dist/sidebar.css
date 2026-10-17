@@ -1,0 +1,92 @@
+/* Relations (entry edit sidebar) */
+
+.hub-references {
+	padding-block: var(--s, 12px);
+	padding-inline: var(--m, 24px);
+}
+
+.hub-references__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-block-end: 12px;
+}
+
+.hub-references__header h2 {
+	margin: 0;
+	font-size: 1em;
+}
+
+.hub-references__header .hub-pill {
+	margin-inline-start: auto;
+}
+
+.hub-references__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+/* Each relating element, separated by a divider */
+.hub-references__item {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+	padding-block: 10px;
+}
+
+.hub-references__item:first-child {
+	padding-block-start: 0;
+}
+
+.hub-references__item + .hub-references__item {
+	border-block-start: 1px solid var(--hairline-color, var(--gray-200));
+}
+
+.hub-references__element {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.hub-references__element .chip {
+	max-width: 100%;
+}
+
+.hub-references__type {
+	display: flex;
+	min-width: 0;
+}
+
+/* Field type badge and path, aligned in two columns */
+.hub-references__paths {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: 4px 8px;
+	align-items: start;
+	margin: 0;
+	padding: 6px 8px;
+	border-radius: 6px;
+	background-color: var(--gray-050);
+	list-style: none;
+}
+
+.hub-references__paths li {
+	display: contents;
+}
+
+.hub-references__path {
+	line-height: 20px;
+	overflow-wrap: anywhere;
+}
+
+.hub-references__path,
+.hub-references__empty,
+.hub-references__more {
+	margin: 0;
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 11px;
+}

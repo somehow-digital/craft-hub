@@ -1,0 +1,789 @@
+{% macro badge(label, color, title, icon) %}
+	<span class="hub-badge"{% if color %} data-color="{{ color }}"{% endif %}{% if title %} title="{{ title }}"{% endif %}>
+		{%- if icon %}<span class="hub-badge__icon" aria-hidden="true">{{ iconSvg(icon) }}</span>{% endif -%}
+		{{ label }}
+	</span>
+{%- endmacro %}
+
+{% macro kinds(kinds) %}
+	<span class="hub-badges">
+		{%- for kind in kinds %}
+			{{ _self.badge(kind.label(), kind.color(), kind.description(), kind.icon()) }}
+		{%- endfor -%}
+	</span>
+{%- endmacro %}
+
+{% macro sectionType(section) %}
+	{%- set type = enum('SomehowDigital\\Craft\\Hub\\enums\\SectionType').from(section.type) -%}
+	{{ _self.badge(type.label(), type.color(), null, type.icon()) }}
+{%- endmacro %}
+
+{# Field type badge, using the field type's icon. #}
+{% macro fieldType(field, color, title) %}
+	{{- _self.badge(field.displayName(), color ?? 'gray', title, field.getIcon() ?: 'pen-to-square') -}}
+{%- endmacro %}
+
+{# Field status: unused (not placed), empty (placed without data), or in use. Pass `warningsOnly` to skip the “In use” badge. #}
+{% macro fieldStatus(info, warningsOnly) %}
+	{%- if info.isUnused() -%}
+		{{ _self.badge('Unused'|t('hub'), 'red', null, 'ghost') }}
+	{%- elseif info.isEmpty() -%}
+		{{ _self.badge('Empty'|t('hub'), 'orange', null, 'link-slash') }}
+	{%- elseif not warningsOnly -%}
+		{{ _self.badge('In use'|t('hub'), 'green', null, 'circle-check') }}
+	{%- endif -%}
+{%- endmacro %}
+
+{# File kind badges, optionally limited to the first few. #}
+{% macro fileKinds(kinds, limit) %}
+	{%- if kinds|length -%}
+		<span class="hub-badges">
+			{%- for kind in limit ? kinds|slice(0, limit) : kinds %}
+				{{ _self.badge(kind.label, kind.color, null, kind.icon) }}
+			{%- endfor -%}
+			{%- if limit and kinds|length > limit %}
+				<span class="hub-muted">{{ '+{count, number}'|t('hub', { count: kinds|length - limit }) }}</span>
+			{%- endif -%}
+		</span>
+	{%- else -%}
+		<span class="hub-muted">—</span>
+	{%- endif -%}
+{%- endmacro %}
+
+{# Badge shown for a usage without any entries. #}
+{% macro noEntriesHere() %}
+	{{- _self.badge('No entries here'|t('hub'), 'orange', null, 'box-open') -}}
+{%- endmacro %}
+
+{% macro icon(icon, color, size) %}
+	<span class="hub-icon{% if size %} hub-icon--{{ size }}{% endif %}" data-color="{{ color ?? 'gray' }}" aria-hidden="true">{{ iconSvg(icon) }}</span>
+{%- endmacro %}
+
+{# Icon tile representing an item: its section type, entry type icon or field type icon. #}
+{% macro itemIcon(item, color, size) %}
+	{%- if item is instance of('craft\\models\\Section') -%}
+		{%- set type = enum('SomehowDigital\\Craft\\Hub\\enums\\SectionType').from(item.type) -%}
+		{{ _self.icon(type.icon(), type.color(), size) }}
+	{%- elseif item is instance of('craft\\models\\EntryType') -%}
+		{{ _self.icon(item.icon ?: 'shapes', item.color.value ?? 'gray', size) }}
+	{%- elseif item is instance of('craft\\models\\Volume') -%}
+		{{ _self.icon('folder-open', 'amber', size) }}
+	{%- else -%}
+		{{ _self.icon(item.getIcon() ?: 'pen-to-square', color ?? 'gray', size) }}
+	{%- endif -%}
+{%- endmacro %}
+
+{# Thumbnail tile of an asset, falling back to its file type icon. #}
+{% macro thumb(asset, size) %}
+	{%- set pixels = { small: 18, large: 40 }[size] ?? 28 -%}
+	<span class="hub-thumb{% if size %} hub-thumb--{{ size }}{% endif %}" aria-hidden="true">
+		<img src="{{ craft.app.assets.getThumbUrl(asset, pixels * 2, pixels * 2) }}" alt="" loading="lazy" width="{{ pixels }}" height="{{ pixels }}">
+	</span>
+{%- endmacro %}
+
+{# Name cell of a file: thumbnail, linked title with its labels (see `labels`) and filename. #}
+{% macro fileName(asset, labels) %}
+	<div class="hub-name">
+		{{ _self.thumb(asset) }}
+		<div class="hub-name__text">
+			<span class="hub-name__title"><a href="{{ _self.url(asset) }}">{{ asset.title }}</a>{{ labels }}</span>
+			<code>{{ asset.filename }}</code>
+		</div>
+	</div>
+{%- endmacro %}
+
+{# Title of an element, or a placeholder for elements without one, like many nested entries, so their links stay clickable. #}
+{% macro elementTitle(element) %}
+	{%- if element.title|trim|length -%}
+		{{ element.title }}
+	{%- else -%}
+		<span class="hub-untitled">{{ 'Untitled'|t('hub') }}</span>
+	{%- endif -%}
+{%- endmacro %}
+
+{# Photo of a user, falling back to a user icon. #}
+{% macro avatar(user, size) %}
+	{%- set pixels = { small: 18, large: 40 }[size] ?? 28 -%}
+	{%- set photo = user.photo -%}
+	{%- if photo -%}
+		<span class="hub-thumb hub-thumb--round{% if size %} hub-thumb--{{ size }}{% endif %}" aria-hidden="true">
+			<img src="{{ craft.app.assets.getThumbUrl(photo, pixels * 2, pixels * 2) }}" alt="" loading="lazy" width="{{ pixels }}" height="{{ pixels }}">
+		</span>
+	{%- else -%}
+		{{ _self.icon(user.admin ? 'user-crown' : 'user', user.admin ? 'violet' : 'gray', size) }}
+	{%- endif -%}
+{%- endmacro %}
+
+{# Name cell of a user: photo, linked name with their labels (see `labels`) and username. #}
+{% macro userName(user, suffix, labels) %}
+	<div class="hub-name">
+		{{ _self.avatar(user) }}
+		<div class="hub-name__text">
+			<span class="hub-name__title">{{ _self.link(_self.url(user), user.name) }}{{ labels }}{{ suffix }}</span>
+			<code>{{ user.username }}</code>
+		</div>
+	</div>
+{%- endmacro %}
+
+{# Status of a user, along with whether they are locked, as locked users are still active. #}
+{% macro userStatus(user) %}
+	{%- set status = user.status -%}
+	<span class="hub-badges">
+		{{- _self.badge(user.statuses()[status].label ?? status, { active: 'green', pending: 'orange', suspended: 'red' }[status] ?? 'gray') -}}
+		{%- if user.locked %}{{ _self.badge('Locked'|t('app'), 'red', null, 'lock') }}{% endif -%}
+	</span>
+{%- endmacro %}
+
+{# Name cell: icon tile, linked name with its labels (see `labels`) and handle. #}
+{% macro name(item, color, suffix, labels) %}
+	<div class="hub-name">
+		{{ _self.itemIcon(item, color) }}
+		<div class="hub-name__text">
+			<span class="hub-name__title">{{ _self.link(_self.url(item), item.name|t('site')) }}{{ labels }}{{ suffix }}</span>
+			<code>{{ item.handle }}</code>
+		</div>
+	</div>
+{%- endmacro %}
+
+{# A label: its icon in its color, its name as tooltip. #}
+{% macro label(label) %}
+	<span class="hub-label" data-color="{{ label.getColor() }}" data-hub-label="{{ label.id }}" title="{{ label.name }}" role="img" aria-label="{{ label.name }}">{{ iconSvg(label.getIcon()) }}</span>
+{%- endmacro %}
+
+{#
+	Labels of an item of a list, following its title. With `editable`, they're edited from the item's context menu (see the
+	`bulk` component), which shows them as they change; lists are editable while there are labels or the user can create some.
+#}
+{% macro labels(labels, id, name, editable) %}
+	{%- if labels|length or editable -%}
+		<span class="hub-labels" data-hub-labels="{{ id }}"{% if editable %} data-hub-labels-editable{% endif %}>
+			{%- for label in labels %}{{ _self.label(label) }}{% endfor -%}
+		</span>
+	{%- endif -%}
+{%- endmacro %}
+
+{#
+	Labels of the items selected in a list in the `bulk` component, in a modal dialog opened by its labels action: each label is checked while
+	all of them are labeled with it, and partly checked while some are; checking a label adds it to all of them, unchecking it
+	removes it from all of them, and a partly checked one can be left as it was. The changes are applied by its button.
+#}
+{% macro bulkLabels(labels, canManage) %}
+	{% set dialogId = 'hub-labels-bulk-' ~ random() %}
+	<dialog class="hub-preview-dialog hub-labels__bulk" aria-labelledby="{{ dialogId }}-title" data-hub-bulk-labels-dialog>
+		<h2 class="hub-popover__title hub-preview-dialog__title" id="{{ dialogId }}-title" data-hub-bulk-labels-name data-some="{{ 'Labels of {count} selected items'|t('hub') }}">{{ 'Labels'|t('hub') }}</h2>
+		<div class="hub-preview-dialog__body" aria-live="polite">
+			<fieldset class="hub-dropdown__part">
+				<legend class="visually-hidden">{{ 'Labels'|t('hub') }}</legend>
+				<div class="hub-dropdown__options">
+					{% for label in labels %}
+						<label class="hub-dropdown__option">
+							<input type="checkbox" value="{{ label.id }}" disabled>
+							{{ _self.icon(label.getIcon(), label.getColor(), 'small') }}
+							<span class="hub-dropdown__text">{{ label.name }}</span>
+						</label>
+					{% else %}
+						<p class="hub-muted">{{ 'No labels exist yet.'|t('hub') }}</p>
+					{% endfor %}
+				</div>
+			</fieldset>
+		</div>
+		<div class="hub-preview-dialog__footer">
+			{% if canManage %}
+				<a class="btn hub-labels__manage" href="{{ url('hub/manage/settings/labels') }}">
+					<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('tags') }}</span>
+					<span>{{ 'Manage labels'|t('hub') }}</span>
+				</a>
+			{% endif %}
+			<button type="button" class="btn" data-hub-bulk-labels-cancel>{{ 'Cancel'|t('app') }}</button>
+			{% if labels|length %}
+				<button type="submit" class="btn submit disabled" name="bulkAction" value="labels" disabled data-hub-bulk-labels-apply>
+					<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('tags') }}</span>
+					<span>{{ 'Apply'|t('app') }}</span>
+				</button>
+			{% endif %}
+		</div>
+	</dialog>
+{%- endmacro %}
+
+{# Filters a list by the labels of its items, or unlabeled ones; only offered while there are labels. #}
+{% macro labelFilter(options, selected) %}
+	{%- if options|length -%}
+		{{ _self.dropdown('Labels'|t('hub'), 'tags', _self.choices('label', options, selected)) }}
+	{%- endif -%}
+{%- endmacro %}
+
+{#
+	Page title for detail pages: icon tile, kind with an optional type badge, and name. The handle is shown in the details sidebar.
+	Replaces the `pageTitle` block of the CP layout.
+#}
+{% macro pageTitle(item, kind, type, color) %}
+	<div class="hub-title">
+		{{ _self.itemIcon(item, color, 'large') }}
+		<div class="hub-title__text">
+			{{ _self.titleKind(kind, type) }}
+			<h1 id="page-heading" class="screen-title" title="{{ item.name|t('site') }}">{{ item.name|t('site') }}</h1>
+		</div>
+	</div>
+	<div id="revision-indicators"></div>
+{%- endmacro %}
+
+{# What kind of item a detail page shows, set small above its title, followed by an optional type badge. #}
+{% macro titleKind(label, type) %}
+	<div class="hub-title__kind">
+		<span class="hub-title__kind-label">{{ label }}</span>
+		{%- if type|default('')|trim|length %}{{ type }}{% endif -%}
+	</div>
+{%- endmacro %}
+
+{# Compact chip with a small icon, linked unless the user may not open its page. #}
+{% macro chip(item, color) %}
+	{%- set content -%}
+		{{- _self.itemIcon(item, color, 'small') -}}
+		<span>{{ item.name|t('site') }}</span>
+	{%- endset -%}
+	{{ _self.link(_self.url(item), content, 'hub-chip') }}
+{%- endmacro %}
+
+{% macro chips(items, color) %}
+	{%- if items|length -%}
+		<span class="hub-chips">
+			{%- for item in items %}{{ _self.chip(item, color) }}{% endfor -%}
+		</span>
+	{%- else -%}
+		<span class="hub-muted">—</span>
+	{%- endif -%}
+{% endmacro %}
+
+{% macro num(value) %}
+	<span{% if not value %} class="hub-muted"{% endif %}>{{ value|number }}</span>
+{%- endmacro %}
+
+{# File size in bytes, with the exact size as title. #}
+{% macro size(bytes) %}
+	{%- if bytes -%}
+		<span title="{{ bytes|number }} B">{{ bytes|filesize(1) }}</span>
+	{%- else -%}
+		<span class="hub-muted">—</span>
+	{%- endif -%}
+{%- endmacro %}
+
+{# Number prefixed with a dot colored like the matching summary card legend. #}
+{% macro dotNum(value, color, label) %}
+	<span class="hub-dot-num" title="{{ label }}">
+		<span class="hub-legend__dot" data-color="{{ color }}" aria-hidden="true"></span>
+		{{- _self.num(value) -}}
+	</span>
+{%- endmacro %}
+
+{% macro card(card) %}
+	<section class="hub-card">
+		<header class="hub-card__header">
+			<span class="hub-card__icon" aria-hidden="true">{{ iconSvg(card.icon) }}</span>
+			<h2 class="hub-card__label">{{ card.label }}</h2>
+		</header>
+
+		<div class="hub-card__body">
+			<p class="hub-card__value">
+				{%- if card.url ?? false %}<a href="{{ card.url }}">{{ card.total|number }}</a>{% else %}{{ card.total|number }}{% endif -%}
+			</p>
+
+			{% if card.segments|length %}
+				{# Largest first, in both the bar and the legend, except for segments marked to come last, like the rest of a top card. #}
+				{% set segments = card.segments|sort((a, b) => ((a.last ?? false) <=> (b.last ?? false)) ?: (b.value <=> a.value)) %}
+				{% set barSegments = segments|filter(s => s.bar ?? true) %}
+				<div class="hub-bar" role="img" aria-label="{{ barSegments|map(s => s.label ~ ': ' ~ s.value)|join(', ') }}">
+					{% for segment in barSegments|filter(s => s.value > 0) %}
+						<span class="hub-bar__segment" data-color="{{ segment.color }}" style="flex-grow: {{ segment.value }};" title="{{ segment.label }}: {{ segment.value|number }}"></span>
+					{% else %}
+						<span class="hub-bar__segment"></span>
+					{% endfor %}
+				</div>
+
+				<ul class="hub-legend">
+					{% for segment in segments %}
+						<li>
+							{% set inner %}
+								<span class="hub-legend__dot" data-color="{{ segment.color }}" aria-hidden="true"></span>
+								<span class="hub-legend__label">{{ segment.label }}</span>
+								<span class="hub-legend__value">{{ segment.value|number }}</span>
+							{% endset %}
+							{% if segment.url ?? false %}
+								<a class="hub-legend__item" href="{{ segment.url }}">{{ inner }}</a>
+							{% else %}
+								<span class="hub-legend__item">{{ inner }}</span>
+							{% endif %}
+						</li>
+					{% endfor %}
+				</ul>
+			{% endif %}
+
+			{% if card.note ?? false %}
+				<p class="hub-card__note">{{ card.note }}</p>
+			{% endif %}
+		</div>
+	</section>
+{%- endmacro %}
+
+{% macro summary(cards, modifier) %}
+	<div class="hub-summary{% if modifier %} hub-summary--{{ modifier }}{% endif %}">
+		{%- for card in cards %}{{ _self.card(card) }}{% endfor -%}
+	</div>
+{%- endmacro %}
+
+{# Hub page of an item, or one of its tabs; nothing if the user may not open it. #}
+{% macro url(item, tab) %}
+	{%- set plugin = craft.app.plugins.getPlugin('hub') -%}
+	{%- set params = { hubSite: plugin.getSiteParam() } -%}
+	{%- if not plugin.canViewPageOf(item) -%}
+	{%- elseif item is instance of('craft\\models\\Section') -%}
+		{%- set path = 'hub/structure/sections/' ~ item.id -%}
+	{%- elseif item is instance of('craft\\models\\EntryType') -%}
+		{%- set path = 'hub/structure/entry-types/' ~ item.id -%}
+	{%- elseif item is instance of('craft\\base\\FieldInterface') -%}
+		{%- set path = 'hub/structure/fields/' ~ item.id -%}
+	{%- elseif item is instance of('craft\\models\\Volume') -%}
+		{%- set path = 'hub/structure/volumes/' ~ item.id -%}
+	{%- elseif item is instance of('craft\\elements\\Entry') -%}
+		{%- set path = 'hub/data/entries/' ~ item.id -%}
+	{%- elseif item is instance of('craft\\elements\\Asset') -%}
+		{%- set path = 'hub/data/assets/' ~ item.id -%}
+	{%- elseif item is instance of('craft\\elements\\User') -%}
+		{%- set path = 'hub/data/users/' ~ item.id -%}
+	{%- endif -%}
+	{%- if path is defined -%}
+		{{ url(path ~ (tab ? '/' ~ tab : ''), params) }}
+	{%- endif -%}
+{% endmacro %}
+
+{# Link to a Hub page (see `url`), or just its content without one. #}
+{% macro link(url, content, class) %}
+	{%- if url|trim -%}
+		<a{% if class %} class="{{ class }}"{% endif %} href="{{ url }}">{{ content }}</a>
+	{%- else -%}
+		<span{% if class %} class="{{ class }}"{% endif %}>{{ content }}</span>
+	{%- endif -%}
+{% endmacro %}
+
+{# Chip of an element, linking entries, assets and users to their hub page instead of their edit page. #}
+{% macro element(element) %}
+	{%- set hubUrl = element is instance of('craft\\elements\\Entry') or element is instance of('craft\\elements\\Asset') or element is instance of('craft\\elements\\User') ? _self.url(element) : null -%}
+	{{- elementChip(element, { hyperlink: true, attributes: hubUrl|trim ? { data: { 'cp-url': hubUrl } } : {} }) -}}
+{%- endmacro %}
+
+{# Opens an element's public URL in a new tab, for elements that have one. #}
+{#
+	Link to the public URL of an element. Entries link to the preview targets of their section instead, through a menu when there are several,
+	falling back to their URL when their section has none.
+#}
+{% macro visit(element, label) %}
+	{%- set targets = element is instance of('craft\\elements\\Entry') ? element.previewTargets : [] -%}
+	{%- if targets|length > 1 -%}
+		{%- set id = 'hub-visit-' ~ random() -%}
+		<button type="button" class="hub-visit" popovertarget="{{ id }}" aria-haspopup="menu" title="{{ label }}" aria-label="{{ label }}">{{ iconSvg('arrow-up-right-from-square') }}</button>
+		{{- _self.previewTargets(targets, id, label) -}}
+	{%- elseif targets|length or element.url -%}
+		{%- set target = targets|first -%}
+		{%- set title = target ? label ~ ': ' ~ target.label : label -%}
+		<a class="hub-visit" href="{{ target ? target.url : element.url }}" target="_blank" rel="noopener" title="{{ title }}" aria-label="{{ title }}">{{ iconSvg('arrow-up-right-from-square') }}</a>
+	{%- endif -%}
+{%- endmacro %}
+
+{# Menu of the preview targets of an entry, opened by the button with `popovertarget` set to `id`. #}
+{% macro previewTargets(targets, id, label) %}
+	<div class="hub-dropdown__popover hub-context" id="{{ id }}" popover role="menu" aria-label="{{ label }}" data-hub-visit>
+		<div class="hub-popover__title">{{ label }}</div>
+		<div class="hub-menu__group" role="group" aria-labelledby="{{ id }}-targets">
+			<h6 class="hub-menu__heading" id="{{ id }}-targets">{{ 'Preview targets'|t('hub') }}</h6>
+			{%- for target in targets %}
+				<a class="hub-bulk__action" role="menuitem" href="{{ target.url }}" target="_blank" rel="noopener">
+					<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('arrow-up-right-from-square') }}</span>
+					<span>{{ target.label }}</span>
+				</a>
+			{%- endfor %}
+		</div>
+	</div>
+{%- endmacro %}
+
+{# Link to the native settings of a section, entry type, field, volume or user group, for the settings column of their list. #}
+{% macro settings(item) %}
+	{%- set label = 'Edit settings'|t('hub') -%}
+	<a class="hub-visit" href="{{ item.cpEditUrl }}" title="{{ label }}" aria-label="{{ label }}">{{ iconSvg('pen') }}</a>
+{%- endmacro %}
+
+{% macro date(date) %}
+	{%- if date -%}
+		<span title="{{ date|datetime('short') }}">{{ date|timestamp('short') }}</span>
+	{%- else -%}
+		<span class="hub-muted">—</span>
+	{%- endif -%}
+{% endmacro %}
+
+{# Date, prefixed with a dot colored by activity (recent, stale, none). #}
+{% macro activity(date, activity) %}
+	{%- set labels = {
+		recent: 'Recently edited'|t('hub'),
+		stale: 'Stale'|t('hub'),
+		none: 'No entries'|t('hub'),
+	} -%}
+	<span class="hub-activity" data-activity="{{ activity }}" title="{{ labels[activity] ?? '' }}">
+		<span class="hub-activity__dot" aria-hidden="true"></span>
+		{{- _self.date(date) -}}
+	</span>
+{%- endmacro %}
+
+{% macro search(placeholder, value) %}
+	<div class="texticon has-filter-btn">
+		<span class="texticon-icon search icon" aria-hidden="true"></span>
+		<input type="search" class="text fullwidth" name="q" data-hub-filter placeholder="{{ placeholder }}" aria-label="{{ 'Search'|t('app') }}" autocomplete="off"{% if value %} value="{{ value }}"{% endif %}>
+	</div>
+{%- endmacro %}
+
+{#
+	Filter dropdown: a button summarizing the selection, opening a popover with the given parts (`choices`, `range`).
+	Changes apply right away, by loading the results of the list filtered on the server.
+#}
+{% macro dropdown(label, icon, parts) %}
+	{%- set id = 'hub-dropdown-' ~ random() -%}
+	<div class="hub-dropdown" data-hub-dropdown>
+		<button type="button" class="btn hub-dropdown__toggle" popovertarget="{{ id }}" aria-haspopup="dialog">
+			{%- if icon %}<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg(icon) }}</span>{% endif -%}
+			<span class="hub-dropdown__label">{{ label }}</span>
+			<span class="hub-dropdown__value" data-hub-dropdown-value></span>
+		</button>
+		{#- Removes the filter in bars offering to add filters. #}
+		<button type="button" class="btn hub-dropdown__remove" title="{{ 'Remove filter'|t('hub') }}" aria-label="{{ 'Remove filter'|t('hub') }}: {{ label }}" data-hub-dropdown-remove>{{ iconSvg('xmark') }}</button>
+		<div class="hub-dropdown__popover" id="{{ id }}" popover role="dialog" aria-label="{{ label }}">
+			<div class="hub-popover__title hub-dropdown__head">
+				<span class="hub-dropdown__title">{{ label }}</span>
+				<button type="button" class="btn small hub-dropdown__clear" data-hub-dropdown-clear>{{ 'Clear'|t('app') }}</button>
+			</div>
+			{# Parts joined with `~` lose their markup status, so they are output raw; each part escapes its own values. #}
+			{{ parts|raw }}
+		</div>
+	</div>
+{%- endmacro %}
+
+{#
+	Options of a dropdown, picked by checkboxes; the picked values are kept comma-separated in a hidden input named `name`.
+	Options map values to labels or to `{ label, color, icon, user }`, a user being shown by their photo. Long lists get a search field.
+	Settings: `multiple` (default true), `label` naming the part, and `site` marking the site scope, which fetches the page content instead of filtering.
+#}
+{% macro choices(name, options, selected, settings) %}
+	{%- set settings = { multiple: true, label: null, site: false }|merge(settings ?? {}) -%}
+	{%- set selected = (selected is iterable ? selected : (selected is null or selected == '' ? [] : [selected]))|map(value => value ~ '') -%}
+	<fieldset class="hub-dropdown__part" data-hub-choices{% if not settings.multiple %} data-hub-single{% endif %}>
+		{%- if settings.label %}<legend class="hub-dropdown__legend">{{ settings.label }}</legend>{% endif %}
+		{%- if settings.site %}
+			<input type="hidden" name="{{ name }}" value="{{ selected|join(',') }}" data-hub-site>
+		{%- else %}
+			<input type="hidden" name="{{ name }}" value="{{ selected|join(',') }}" data-hub-filter>
+		{%- endif %}
+		{% if options|length > 8 %}
+			<div class="texticon hub-dropdown__search">
+				<span class="texticon-icon search icon" aria-hidden="true"></span>
+				<input type="search" class="text fullwidth" placeholder="{{ 'Search'|t('app') }}" aria-label="{{ 'Search'|t('app') }}" autocomplete="off" data-hub-dropdown-search>
+			</div>
+		{% endif %}
+		<div class="hub-dropdown__options">
+			{% for value, option in options %}
+				{% set option = option is iterable ? option : { label: option } %}
+				<label class="hub-dropdown__option">
+					<input type="checkbox" value="{{ value }}"{% if (value ~ '') in selected %} checked{% endif %}>
+					{%- if option.user ?? false %}
+						{{ _self.avatar(option.user, 'small') }}
+					{%- elseif option.icon ?? false %}
+						{{ _self.icon(option.icon, option.color ?? null, 'small') }}
+					{%- elseif option.color ?? false %}
+						<span class="hub-legend__dot" data-color="{{ option.color }}" aria-hidden="true"></span>
+					{%- endif %}
+					<span class="hub-dropdown__text">{{ option.label }}</span>
+				</label>
+			{% else %}
+				<p class="hub-muted">{{ 'Nothing to choose from.'|t('hub') }}</p>
+			{% endfor %}
+		</div>
+	</fieldset>
+{%- endmacro %}
+
+{#
+	Range of a dropdown, where either bound may be left empty. The inputs are named `{name}Min` and `{name}Max`, or `{name}From` and `{name}To` for dates.
+	Settings: `type` (`number` or `date`), `unit`, `step`, and `filter` and `scale` (row value per unit) for lists filtered in the browser.
+#}
+{% macro range(name, label, min, max, settings) %}
+	{%- set settings = { type: 'number', unit: null, step: 1 }|merge(settings ?? {}) -%}
+	{%- set date = settings.type == 'date' -%}
+	{%- set bounds = [
+		{ name: name ~ (date ? 'From' : 'Min'), value: min, label: date ? 'From'|t('hub') : 'Min'|t('hub') },
+		{ name: name ~ (date ? 'To' : 'Max'), value: max, label: date ? 'To'|t('hub') : 'Max'|t('hub') },
+	] -%}
+	<fieldset class="hub-dropdown__part" data-hub-range data-label="{{ label }}"{% if settings.unit %} data-unit="{{ settings.unit }}"{% endif %}>
+		<legend class="hub-dropdown__legend">{{ label }}</legend>
+		<div class="hub-range">
+			{% for bound in bounds %}
+				{% if not loop.first %}<span class="hub-range__dash" aria-hidden="true">–</span>{% endif %}
+				<input type="{{ settings.type }}" class="text" name="{{ bound.name }}"
+					{%- if bound.value is not null %} value="{{ date ? bound.value|date('Y-m-d') : bound.value }}"{% endif %}
+					{%- if not date %} min="0" step="{{ settings.step }}" inputmode="decimal" placeholder="{{ bound.label }}"{% endif %}
+					aria-label="{{ label }}: {{ bound.label }}" data-hub-filter>
+			{% endfor %}
+			{% if settings.unit %}<span class="hub-range__unit">{{ settings.unit }}</span>{% endif %}
+		</div>
+	</fieldset>
+{%- endmacro %}
+
+{# Filters list items by how recently their entries were updated. #}
+{% macro activityFilter(selected) %}
+	{{ _self.dropdown('Activity'|t('hub'), 'clock', _self.choices('activity', {
+		recent: { label: 'Recently edited'|t('hub'), color: 'green' },
+		stale: { label: 'Stale'|t('hub'), color: 'orange' },
+		none: { label: 'No entries'|t('hub'), color: 'gray' },
+	}, selected)) }}
+{%- endmacro %}
+
+{# Site scope; fetches the page content for the selected sites as soon as it changes, since lists are filtered on the server. #}
+{% macro siteFilter() %}
+	{%- set sites = craft.app.sites.getEditableSites() -%}
+	{%- if sites|length > 1 -%}
+		{%- set options = {} -%}
+		{%- for option in sites -%}
+			{%- set options = options|merge({ (option.handle): option.name|t('site') }) -%}
+		{%- endfor -%}
+		{{ _self.dropdown('Site'|t('app'), 'globe', _self.choices('hubSite', options, craft.app.plugins.getPlugin('hub').getSites()|map(site => site.handle), { site: true })) }}
+	{%- endif -%}
+{%- endmacro %}
+
+{# Checkbox filter, styled like a dropdown button with the checkbox in place of the chevron. #}
+{% macro toggle(name, label, checked) %}
+	<label class="btn hub-toggle">
+		<span class="hub-toggle__label">{{ label }}</span>
+		<input type="checkbox" class="hub-toggle__box" name="{{ name }}" value="1" data-hub-filter{% if checked %} checked{% endif %}>
+	</label>
+{%- endmacro %}
+
+{#
+	Keeps the bar to the filters set: the dropdowns and checkbox filters of the bar not set are hidden and offered by its menu instead,
+	which shows the one picked and opens it, or checks it. Without scripts, all filters are shown and the menu isn't.
+#}
+{% macro addFilter() %}
+	{%- set id = 'hub-add-' ~ random() -%}
+	<div class="hub-add" data-hub-add hidden>
+		<button type="button" class="btn hub-add__toggle" popovertarget="{{ id }}" aria-haspopup="dialog">
+			<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('plus') }}</span>
+			<span>{{ 'Filter'|t('hub') }}</span>
+		</button>
+		<div class="hub-dropdown__popover hub-add__popover" id="{{ id }}" popover role="dialog" aria-label="{{ 'Add filter'|t('hub') }}">
+			<div class="hub-popover__title">{{ 'Add filter'|t('hub') }}</div>
+			<div data-hub-add-menu></div>
+		</div>
+	</div>
+{%- endmacro %}
+
+{# Resets all filters of the bar; shown while any is set. #}
+{% macro clearFilters() %}
+	<button type="button" class="btn hub-filters__clear" data-hub-clear hidden>{{ 'Clear filters'|t('hub') }}</button>
+{%- endmacro %}
+
+{# Diagnostic checks of a detail page: failed checks with what to do and the affected items, then the passed ones and why. #}
+{% macro checks(checks) %}
+	<ul class="hub-checks">
+		{% for check in checks %}
+			{% set color = check.passed ? 'green' : check.severity.color() %}
+			<li class="hub-check{% if check.passed %} hub-check--passed{% endif %}">
+				<span class="hub-check__icon" data-color="{{ color }}" aria-hidden="true">{{ iconSvg(check.passed ? 'circle-check' : check.icon) }}</span>
+				<div class="hub-check__body">
+					<div class="hub-check__heading">
+						<h3>{{ check.heading }}</h3>
+						{% if not check.passed %}
+							{% if check.count %}<span class="hub-pill">{{ check.count|number }}</span>{% endif %}
+							{{ _self.badge(check.severity.label(), color) }}
+						{% endif %}
+					</div>
+					{% if check.passed %}
+						<p>{{ check.passedDescription }}</p>
+					{% else %}
+						<p>{{ check.description }}</p>
+						{% if check.items|length %}
+							<div class="hub-chips">
+								{% for item in check.items %}
+									{% if item is instance of('craft\\base\\ElementInterface') %}
+										{%- set content -%}
+											{%- if item is instance of('craft\\elements\\Asset') %}{{ _self.thumb(item, 'small') }}{% endif -%}
+											<span>{{ _self.elementTitle(item) }}</span>
+										{%- endset -%}
+										{{ _self.link(_self.url(item), content, 'hub-chip') }}
+									{% else %}
+										{{ _self.chip(item) }}
+									{% endif %}
+								{% endfor %}
+							</div>
+						{% endif %}
+					{% endif %}
+				</div>
+				{% if not check.passed and check.url %}
+					<a class="btn small hub-check__link" href="{{ check.url }}">
+						<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('arrow-right') }}</span>
+						{{ check.action ?? 'Show list'|t('hub') }}
+					</a>
+				{% endif %}
+			</li>
+		{% endfor %}
+	</ul>
+{%- endmacro %}
+
+{# Header cell selecting all rows of a table in the `bulk` component; nothing without actions, as no row is selectable. #}
+{% macro bulkAll(actions) %}
+	{%- if actions|length -%}
+		<th class="hub-check-cell">
+			<input type="checkbox" aria-label="{{ 'Select all'|t('app') }}" title="{{ 'Select all'|t('app') }}" data-hub-bulk-all>
+		</th>
+	{%- endif -%}
+{%- endmacro %}
+
+{#
+	Pages of the items of a preview in the dialog of the bulk actions (see the `deletion-preview` and `download-preview`
+	components), loaded in place, as its totals cover the items of all pages; nothing with a single page.
+#}
+{% macro previewPages(pageInfo) %}
+	{%- if pageInfo.totalPages > 1 -%}
+		<footer class="hub-deletion__pages" data-hub-preview-pages="{{ pageInfo.currentPage }}">
+			{% include '_includes/pagination' with { pageInfo: pageInfo } %}
+			<p class="hub-deletion__more">{{ 'The totals above cover the items of all pages.'|t('hub') }}</p>
+		</footer>
+	{%- endif -%}
+{%- endmacro %}
+
+{#
+	Modal dialog previewing what an action takes along before it is applied (see the `deletion-preview`,
+	`download-preview` and `transforms-preview` components), opened by the `bulk` component for its actions, or by a link
+	applying it to a single item (`data-hub-preview-open`, naming the dialog's `id`). The `action` has a label and icon,
+	downloads (`file`) or deletes, and may have its own `titles` naming the item (`one`) or the number of items (`some`),
+	and its own action loading the preview (`previewAction`), rather than BulkController::actionPreview().
+#}
+{% macro previewDialog(key, action, id) %}
+	{% set id = id ?? 'hub-preview-' ~ random() %}
+	{% set download = action.file ?? false %}
+	<dialog class="hub-preview-dialog" id="{{ id }}" aria-labelledby="{{ id }}-title" data-hub-preview-dialog="{{ key }}"
+		{%- if action.previewAction ?? false %} data-hub-preview-action="{{ action.previewAction }}"{% endif %}>
+		<h2 class="hub-popover__title hub-preview-dialog__title" id="{{ id }}-title" data-hub-preview-title
+			data-one="{{ action.titles.one ?? (download ? 'Download “{name}”?'|t('hub') : 'Delete “{name}”?'|t('hub')) }}"
+			data-some="{{ action.titles.some ?? (download ? 'Download {count} selected items?'|t('hub') : 'Delete {count} selected items?'|t('hub')) }}"></h2>
+		<div class="hub-preview-dialog__body" aria-live="polite" data-hub-preview-body data-loading="{{ download ? 'Checking which files are downloaded…'|t('hub') : 'Checking what is deleted along with them…'|t('hub') }}"></div>
+		<div class="hub-preview-dialog__footer">
+			<button type="button" class="btn" data-hub-preview-cancel>{{ 'Cancel'|t('app') }}</button>
+			<button type="button" class="btn {{ download ? 'submit' : 'hub-btn--danger' }}" disabled data-hub-preview-confirm>
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg(action.icon) }}</span>
+				<span>{{ action.label }}</span>
+			</button>
+		</div>
+	</dialog>
+{%- endmacro %}
+
+{#
+	First cell of a row of a table in the `bulk` component, selecting the item by its ID; nothing without actions.
+	Lists keeping their selection on the server submit it from there; others submit the checkboxes by their `name`.
+	The `states` of the item leave the actions out of its context menu that are `unless` in one of them, see
+	BulkService::getActions().
+#}
+{% macro bulkItem(actions, value, label, name, states) %}
+	{%- if actions|length -%}
+		<td class="hub-check-cell">
+			<input type="checkbox"{% if name %} name="{{ name }}"{% endif %} value="{{ value }}" aria-label="{{ 'Select {name}'|t('hub', { name: label }) }}" data-hub-bulk-item data-hub-bulk-name="{{ label }}"
+				{%- if states ?? false %} data-hub-bulk-states="{{ states|join(' ') }}"{% endif %}>
+		</td>
+	{%- endif -%}
+{%- endmacro %}
+
+{#
+	Message of a list without results: none match its filters, or, while reviewing its selection (see the `bulk`
+	component), none is selected, offering to go back to the list.
+#}
+{% macro emptyList(selection) %}
+	{%- if selection.review ?? false -%}
+		<div class="hub-panel__empty hub-bulk__empty">
+			<p>{{ 'Nothing is selected.'|t('hub') }}</p>
+			<a class="btn" href="{{ selection.listUrl }}">
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('arrow-left') }}</span>
+				<span>{{ 'Back to the list'|t('hub') }}</span>
+			</a>
+		</div>
+	{%- else -%}
+		<p class="hub-panel__empty">{{ 'Nothing matches the current filters.'|t('hub') }}</p>
+	{%- endif -%}
+{%- endmacro %}
+
+{# Column header linking to the list sorted by it, for lists sorted on the server. `headers` holds each column's `url` and current `direction`. #}
+{% macro sortHeader(label, column, headers, class, title) %}
+	{%- set header = headers[column] -%}
+	<th data-hub-sort="{{ column }}"
+		{%- if class %} class="{{ class }}"{% endif %}
+		{%- if title %} title="{{ title }}"{% endif %}
+		{%- if header.direction %} data-hub-direction="{{ header.direction }}" aria-sort="{{ header.direction == 'asc' ? 'ascending' : 'descending' }}"{% endif %}>
+		<a href="{{ header.url }}">{{ label }}</a>
+	</th>
+{%- endmacro %}
+
+{#
+	Headers of the columns users can show, hide and reorder (see ColumnService::getColumns()), sortable ones linking like `sortHeader`.
+	Hidden columns are rendered too, so the column picker can show them right away; their cells are left empty,
+	as their data isn't loaded, so the results are loaded again once one of them is shown.
+	With `list`, the header of the last column shown holds the list's column picker; it's usually a fixed one without a visible label.
+#}
+{% macro columnHeaders(columns, headers, list) %}
+	{%- set pickerKey = list ? ((columns|filter(column => column.visible)|last).key ?? (columns|last).key) : null -%}
+	{%- for column in columns %}
+		{%- set header = headers[column.key] ?? null -%}
+		{%- set label = column.labelHidden ? '<span class="visually-hidden">' ~ column.label|e ~ '</span>' : column.label|e -%}
+		<th data-hub-column="{{ column.key }}"
+			{%- if header %} data-hub-sort="{{ column.key }}"{% endif %}
+			{%- if column.class %} class="{{ column.class }}"{% endif %}
+			{%- if column.title %} title="{{ column.title }}"{% endif %}
+			{%- if header.direction ?? false %} data-hub-direction="{{ header.direction }}" aria-sort="{{ header.direction == 'asc' ? 'ascending' : 'descending' }}"{% endif %}
+			{%- if not column.visible %} hidden{% endif %}>
+			{%- if header %}<a href="{{ header.url }}">{{ label|raw }}</a>{% else %}{{ label|raw }}{% endif -%}
+			{%- if column.key == pickerKey %}{{ _self.columnPicker(list, columns) }}{% endif -%}
+		</th>
+	{%- endfor %}
+{%- endmacro %}
+
+{# Attributes of a cell of one of the columns of `columnHeaders`; cells of hidden columns are left empty, as their data isn't loaded. #}
+{% macro cellAttributes(column) %}
+	{{- ' ' }}data-hub-column="{{ column.key }}"
+	{%- if column.class %} class="{{ column.class }}"{% endif %}
+	{%- if not column.visible %} hidden data-hub-unloaded{% endif %}
+{%- endmacro %}
+
+{#
+	Column picker of a list: shows, hides and reorders its columns right away, by dragging them or with their buttons,
+	and keeps them in the user's preferences. The column naming the rows always comes first and fixed columns always come last,
+	so they aren't offered. It sits in the table's header row, so its toggle only shows an icon.
+#}
+{% macro columnPicker(list, columns) %}
+	{%- set id = 'hub-columns-' ~ random() -%}
+	<div class="hub-columns" data-hub-columns="{{ list }}">
+		<button type="button" class="btn small hub-columns__toggle" popovertarget="{{ id }}" aria-haspopup="dialog" title="{{ 'Columns'|t('hub') }}" aria-label="{{ 'Columns'|t('hub') }}">
+			<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('table-columns') }}</span>
+		</button>
+		<div class="hub-dropdown__popover" id="{{ id }}" popover role="dialog" aria-label="{{ 'Columns'|t('hub') }}">
+			<div class="hub-popover__title">{{ 'Columns'|t('hub') }}</div>
+			<div class="hub-dropdown__part">
+				<p class="hub-dropdown__legend">{{ 'Show and order'|t('hub') }}</p>
+				<ol class="hub-columns__list">
+					{% for column in columns|filter(column => not column.fixed) %}
+						<li class="hub-columns__item" draggable="true" data-hub-column="{{ column.key }}">
+							<span class="hub-columns__handle" aria-hidden="true">{{ iconSvg('grip-dots-vertical') }}</span>
+							<label class="hub-dropdown__option">
+								<input type="checkbox"{% if column.visible %} checked{% endif %}>
+								<span class="hub-dropdown__text">{{ column.label }}</span>
+							</label>
+							<button type="button" class="hub-columns__move" data-hub-move="-1" title="{{ 'Move up'|t('app') }}" aria-label="{{ 'Move {name} up'|t('hub', { name: column.label }) }}">{{ iconSvg('arrow-up') }}</button>
+							<button type="button" class="hub-columns__move" data-hub-move="1" title="{{ 'Move down'|t('app') }}" aria-label="{{ 'Move {name} down'|t('hub', { name: column.label }) }}">{{ iconSvg('arrow-down') }}</button>
+						</li>
+					{% endfor %}
+				</ol>
+			</div>
+			<div class="hub-dropdown__actions">
+				<button type="button" class="btn small" data-hub-columns-reset>{{ 'Reset'|t('app') }}</button>
+			</div>
+		</div>
+	</div>
+{%- endmacro %}
