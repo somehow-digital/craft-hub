@@ -1,0 +1,88 @@
+{% extends 'hub/_layouts/index' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set area = 'structure' %}
+{% set page = 'entry-types' %}
+{% set title = 'Entry Types'|t('hub') %}
+{% set selectedTab = 'list' %}
+
+{% set kindOptions = {} %}
+{% for kind in kinds %}
+	{% set kindOptions = kindOptions|merge({ (kind.value): { label: kind.label(), icon: kind.icon(), color: kind.color() } }) %}
+{% endfor %}
+
+{% block content %}
+	{% include 'hub/_components/summary-panel' %}
+
+	{% embed 'hub/_components/panel' %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<form method="get" class="hub-filters" action="{{ url('hub/structure/entry-types') }}" data-hub-submit>
+				{{ hub.dropdown('Usage'|t('hub'), 'diagram-nested', hub.choices('kind', kindOptions, filter.kinds)) }}
+				{{ hub.dropdown('Numbers'|t('hub'), 'hashtag', hub.range('relations', 'Relations'|t('hub'), filter.relationsMin, filter.relationsMax)
+					~ hub.range('entries', 'Entries'|t('app'), filter.entriesMin, filter.entriesMax)) }}
+				{{ hub.activityFilter(filter.activities) }}
+				{{ hub.search('Search by name or handle'|t('hub'), filter.search) }}
+				{{ hub.clearFilters() }}
+				{{ hiddenInput('sort', sort) }}
+				{{ hiddenInput('dir', dir) }}
+				{{ hub.columnPicker('entryTypes', columns) }}
+			</form>
+
+			{% if entryTypes|length %}
+				{% embed 'hub/_components/bulk' with { bulkList: 'entryTypes', bulkNone: 'No entry types selected'|t('hub') } %}
+					{% block table %}
+						{% import 'hub/_components/macros' as hub %}
+						<div class="hub-table">
+							<table class="data fullwidth">
+								<thead>
+									<tr>
+										{{ hub.bulkAll(bulkActions) }}
+										{{ hub.sortHeader('Name'|t('app'), 'name', sortHeaders) }}
+										{{ hub.columnHeaders(columns, sortHeaders) }}
+									</tr>
+								</thead>
+								<tbody>
+									{% for info in entryTypes %}
+										{% set entryType = info.entryType %}
+										{% set severity = 'unused' in info.kindValues ? 'red' : ('empty' in info.kindValues ? 'orange' : null) %}
+										<tr{% if severity %} data-severity="{{ severity }}"{% endif %}>
+											{{ hub.bulkItem(bulkActions, entryType.id, entryType.name|t('site')) }}
+											<th>{{ hub.name(entryType) }}</th>
+											{% for column in columns %}
+												<td{{ hub.cellAttributes(column) }}>
+													{%- if not column.visible -%}
+													{%- elseif column.key == 'usage' -%}
+														{{ hub.kinds(info.kinds|filter(kind => kind in kinds)) }}
+													{%- elseif column.key == 'relations' -%}
+														{{ hub.num(info.sections|length + info.relationCount) }}
+													{%- elseif column.key == 'entries' -%}
+														{{ hub.num(info.stats.total) }}
+													{%- elseif column.key == 'updated' -%}
+														{{ hub.activity(info.stats.lastUpdated, activities[entryType.id]) }}
+													{%- elseif column.key == 'settings' -%}
+														{{ hub.settings(entryType) }}
+													{%- endif -%}
+												</td>
+											{% endfor %}
+										</tr>
+									{% endfor %}
+								</tbody>
+							</table>
+						</div>
+					{% endblock %}
+				{% endembed %}
+
+				<footer class="hub-panel__footer">
+					{% include '_includes/pagination' with {
+						pageInfo: pageInfo,
+						itemLabel: 'entry type'|t('hub'),
+						itemsLabel: 'entry types'|t('hub'),
+					} %}
+				</footer>
+			{% else %}
+				<p class="hub-panel__empty">{{ 'Nothing matches the current filters.'|t('hub') }}</p>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

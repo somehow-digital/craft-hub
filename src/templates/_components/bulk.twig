@@ -1,0 +1,59 @@
+{#
+	Form around the table of a list, whose rows are selected for bulk actions: by their checkbox, or by clicking them,
+	shift selecting a range and ctrl or cmd adding to the selection, or by the buttons selecting all, none or the others.
+	The actions are offered in a menu while any is selected.
+	Without actions, the user can change none of the items, so the rows aren't selectable either.
+	The table starts its header row with `hub.bulkAll(bulkActions)` and its rows with `hub.bulkItem(bulkActions, id, name)`.
+
+	Variables: bulkActions (see BulkService::getActions()), bulkList, bulkNone (the label while none is selected),
+	bulkAction and bulkParams, for actions of other controllers than BulkController
+	Blocks: table
+#}
+{% set selectable = bulkActions|length > 0 %}
+
+{% if selectable %}
+	<form method="post" accept-charset="UTF-8" data-hub-bulk>
+		{{ csrfInput() }}
+		{{ actionInput(bulkAction ?? 'hub/bulk/apply') }}
+		{{ redirectInput(craft.app.request.url) }}
+		{% for name, value in bulkParams ?? { list: bulkList } %}
+			{{ hiddenInput(name, value) }}
+		{% endfor %}
+		{% set menuId = 'hub-bulk-' ~ random() %}
+		<div class="hub-filters hub-bulk__bar">
+			<span class="hub-bulk__count" data-hub-bulk-count data-none="{{ bulkNone }}" data-some="{{ '{count} selected'|t('hub') }}">{{ bulkNone }}</span>
+			<div class="btngroup hub-bulk__select" role="group" aria-label="{{ 'Selection'|t('hub') }}">
+				<button type="button" class="btn" data-hub-bulk-select="all" title="{{ 'Select all'|t('app') }}">
+					<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('square-check') }}</span>
+					<span>{{ 'All'|t('app') }}</span>
+				</button>
+				<button type="button" class="btn" data-hub-bulk-select="none" title="{{ 'Select none'|t('hub') }}">
+					<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('square') }}</span>
+					<span>{{ 'None'|t('app') }}</span>
+				</button>
+				<button type="button" class="btn" data-hub-bulk-select="invert" title="{{ 'Invert selection'|t('hub') }}">
+					<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('right-left') }}</span>
+					<span>{{ 'Invert'|t('hub') }}</span>
+				</button>
+			</div>
+			<button type="button" class="btn hub-dropdown__toggle hub-bulk__toggle" popovertarget="{{ menuId }}" aria-haspopup="menu" disabled data-hub-bulk-toggle>
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('gear') }}</span>
+				<span>{{ 'Actions'|t('hub') }}</span>
+			</button>
+			<div class="hub-dropdown__popover hub-bulk__menu" id="{{ menuId }}" popover role="menu" aria-label="{{ 'Actions'|t('hub') }}">
+				{% for key, action in bulkActions %}
+					<button type="submit" class="hub-bulk__action{% if action.confirm ?? false %} error{% endif %}" role="menuitem" name="bulkAction" value="{{ key }}"
+						{%- if action.confirm ?? false %} data-hub-confirm="{{ action.confirm }}"{% endif %}>
+						<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg(action.icon) }}</span>
+						<span>{{ action.label }}</span>
+					</button>
+				{% endfor %}
+			</div>
+		</div>
+{% endif %}
+
+{% block table %}{% endblock %}
+
+{% if selectable %}
+	</form>
+{% endif %}

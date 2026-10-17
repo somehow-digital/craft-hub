@@ -1,0 +1,10 @@
+{#
+	Variables: area (`data` or `structure`), which starts the crumbs
+#}
+{% extends '_layouts/cp' %}
+
+{% do view.registerAssetBundle('SomehowDigital\\Craft\\Hub\\assets\\HubAsset') %}
+
+{% set crumbs = [
+	{ label: area == 'data' ? 'Data'|t('hub') : 'Structure'|t('hub'), url: url('hub/' ~ area, { hubSite: hubSite }) },
+]|merge(crumbs ?? []) %}
