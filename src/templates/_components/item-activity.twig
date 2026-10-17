@@ -1,0 +1,56 @@
+{#
+	Panel with the latest activity of an item, for users who may view the activity log, linking to all of it there.
+
+	Variables: subject (value of ActivitySubject), id
+#}
+{% set activityLog = craft.app.plugins.getPlugin('hub').activity %}
+
+{% if activityLog.canView() %}
+	{% set activities = activityLog.getItemActivities(enum('SomehowDigital\\Craft\\Hub\\enums\\ActivitySubject').from(subject), id) %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Activity'|t('hub'),
+		description: 'What was last done to this item, newest first.'|t('hub'),
+		icon: 'clock-rotate-left',
+		color: 'blue',
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{% if activities|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Action'|t('hub') }}</th>
+								<th>{{ 'User'|t('app') }}</th>
+								<th>{{ 'Date'|t('app') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for activity in activities %}
+								<tr>
+									<th>{{ hub.badge(activity.action.label(), activity.action.color(), null, activity.action.icon()) }}</th>
+									<td>
+										{%- if activity.user -%}
+											{{ hub.element(activity.user) }}
+										{%- elseif activity.userName -%}
+											{{ activity.userName }}
+										{%- else -%}
+											<span class="hub-muted">—</span>
+										{%- endif -%}
+									</td>
+									<td>{{ hub.date(activity.dateCreated) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+				<footer class="hub-panel__footer">
+					<a href="{{ url('hub/manage/activity', { type: subject, item: id }) }}">{{ 'Show all activity'|t('hub') }}</a>
+				</footer>
+			{% else %}
+				{{ hub.emptyState('clock-rotate-left', 'No activity recorded yet.'|t('hub')) }}
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endif %}

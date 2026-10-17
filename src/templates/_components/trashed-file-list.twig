@@ -1,0 +1,102 @@
+{#
+	Panel with the filterable list of trashed files, to restore them or delete them permanently.
+	Trashed files have no detail page, so they aren't linked. Only files whose file was kept when they were deleted can be
+	restored, so the others are flagged and aren't offered to be restored.
+
+	Variables: assets, pageInfo, deleters (see TrashService::getDeleters()), volumes, fileKinds, kindOptions (the kinds picked, the
+	others are loaded as the dropdown opens), optionsUrls, filter, filtered (whether any filter is set), listPath, columns, sortHeaders, sort, dir, and those of the bulk actions (see ListSelection::variables())
+#}
+{% set volumeOptions = {} %}
+{% for volume in volumes %}
+	{% set volumeOptions = volumeOptions|merge({ (volume.handle): { label: volume.name|t('site'), icon: 'folder-open', color: 'amber' } }) %}
+{% endfor %}
+
+{% embed 'hub/_components/panel' %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		<form method="get" class="hub-filters" action="{{ url(listPath) }}" data-hub-submit{% if bulkSelection.review ?? false %} hidden{% endif %}>
+			{{ hub.search('Search by filename or title'|t('hub'), filter.search) }}
+			{{ hub.dropdown('Volume'|t('app'), 'folder-open', hub.choices('volume', volumeOptions, filter.volumes)) }}
+			{{ hub.dropdown('Type'|t('app'), 'file', hub.choices('kind', kindOptions, filter.kinds, { label: 'Kind'|t('hub'), lazy: optionsUrls.kind })) }}
+			{{ hub.dropdown('File'|t('hub'), 'file-circle-check', hub.choices('file', {
+				kept: { label: 'Kept'|t('hub'), color: 'green' },
+				deleted: { label: 'Deleted'|t('hub'), color: 'red' },
+			}, filter.file, { multiple: false, label: 'File'|t('hub') })) }}
+			{{ hub.dropdown('Deleted'|t('hub'), 'calendar', hub.range('deleted', 'Deletion date'|t('hub'), filter.deletedFrom, filter.deletedTo, { type: 'date' })) }}
+			{{ hub.addFilter() }}
+			{{ hiddenInput('sort', sort) }}
+			{{ hiddenInput('dir', dir) }}
+			{{ hiddenInput('selection', (bulkSelection.review ?? false) ? 1 : null) }}
+			{{ hub.clearFilters() }}
+		</form>
+
+		{% if assets|length %}
+			{% embed 'hub/_components/bulk' with { bulkList: 'trashedFiles', bulkNone: 'No files selected'|t('hub') } %}
+				{% block table %}
+					{% import 'hub/_components/macros' as hub %}
+					<div class="hub-table">
+						<table class="data fullwidth">
+							<thead>
+								<tr>
+									{{ hub.bulkAll(bulkActions) }}
+									{{ hub.sortHeader('File'|t('hub'), 'file', sortHeaders) }}
+									{{ hub.columnHeaders(columns, sortHeaders, 'trashedFiles') }}
+								</tr>
+							</thead>
+							<tbody>
+								{% for asset in assets %}
+									{% set kind = fileKinds[asset.kind] ?? null %}
+									<tr>
+										{{ hub.bulkItem(bulkActions, asset.id, asset.filename, null, asset.keptFile ? [] : ['unrestorable']) }}
+										<th>
+											<div class="hub-name">
+												{{ hub.icon(kind.icon ?? 'file', kind.color ?? 'gray') }}
+												<div class="hub-name__text">
+													<span class="hub-name__title">{{ asset.title }}</span>
+													<code>{{ asset.filename }}</code>
+												</div>
+											</div>
+										</th>
+										{% for column in columns %}
+											<td{{ hub.cellAttributes(column) }}>
+												{%- if not column.visible -%}
+												{%- elseif column.key == 'volume' -%}
+													{{ hub.chip(asset.volume) }}
+												{%- elseif column.key == 'kind' -%}
+													{% if kind %}{{ hub.badge(kind.label, kind.color, null, kind.icon) }}{% else %}{{ asset.kind }}{% endif %}
+												{%- elseif column.key == 'size' -%}
+													{{ hub.size(asset.size) }}
+												{%- elseif column.key == 'file' -%}
+													{%- if asset.keptFile -%}
+														{{ hub.badge('Kept'|t('hub'), 'green', 'The file was kept, so the asset can be restored.'|t('hub'), 'file-circle-check') }}
+													{%- else -%}
+														{{ hub.badge('Deleted'|t('hub'), 'red', 'The file was deleted along with the asset, so it can’t be restored.'|t('hub'), 'file-circle-xmark') }}
+													{%- endif -%}
+												{%- elseif column.key == 'deleted' -%}
+													{{ hub.date(asset.dateDeleted) }}
+												{%- elseif column.key == 'deleter' -%}
+													{{ hub.deleter(deleters[asset.id] ?? null) }}
+												{%- endif -%}
+											</td>
+										{% endfor %}
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				{% endblock %}
+				{% block footer %}
+					{% include '_includes/pagination' with {
+						pageInfo: pageInfo,
+						itemLabel: 'file'|t('hub'),
+						itemsLabel: 'files'|t('hub'),
+					} %}
+				{% endblock %}
+			{% endembed %}
+		{% elseif filtered or (bulkSelection.review ?? false) %}
+			{{ hub.emptyList(bulkSelection ?? null) }}
+		{% else %}
+			{{ hub.emptyState('trash', 'The trash is empty.'|t('hub'), 'Deleted files are listed here, until they’re restored or deleted permanently.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

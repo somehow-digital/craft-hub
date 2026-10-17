@@ -1,0 +1,115 @@
+{#
+	The activity log, below the "Hub" navigation item: what users did, as Craft's own events tell it, newest first.
+	There can be many activities, so they are filtered, sorted and paginated on the server. Subjects that still exist link
+	to their Hub page, or their edit page; users link to the log filtered by them. Activities of a batch are listed within
+	it (see _components/activity-row), or on their own, by the batch. Sorted by date, they are grouped by their day.
+
+	Variables: activities (see ActivityService::populate()), pageInfo, filter (see ActivityFilter), batch (the batch whose
+	activities are listed, if any), userOptions (the users filtered by, the others are loaded as the dropdown opens), optionsUrls, actions, subjects (the cases of ActivityGroup
+	and ActivitySubject), retentionDays (see Settings::$activityRetentionDays), listPath, columns, sortHeaders, sort, dir
+#}
+{% extends '_layouts/cp' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% do view.registerAssetBundle('SomehowDigital\\Craft\\Hub\\assets\\HubAsset') %}
+
+{% set title = 'Activity'|t('hub') %}
+{% set docTitle = title ~ ' - ' ~ 'Hub'|t('hub') %}
+{% set selectedSubnavItem = 'activity' %}
+{% set crumbs = [
+	{ label: 'Hub'|t('hub'), url: url('hub/manage') },
+	{ label: title, url: url(listPath), current: not batch },
+] %}
+{% if batch %}
+	{% set crumbs = crumbs|merge([{ label: batch.title, url: url(listPath, { batch: batch.id }), current: true }]) %}
+{% endif %}
+
+{% set actionOptions = {} %}
+{% for action in actions %}
+	{% set actionOptions = actionOptions|merge({ (action.value): { label: action.label(), icon: action.icon(), color: action.color() } }) %}
+{% endfor %}
+
+{% set typeOptions = {} %}
+{% for subject in subjects %}
+	{% set typeOptions = typeOptions|merge({ (subject.value): { label: subject.label(), icon: subject.icon(), color: subject.color() } }) %}
+{% endfor %}
+
+{% block content %}
+	<p class="hub-activity-summary">
+		{% if batch %}
+			{{ 'What was done by “{name}” ({action}), {date}.'|t('hub', { name: batch.title, action: batch.action.label(), date: batch.dateCreated|datetime('short') }) }}
+			<a href="{{ url(listPath) }}">{{ 'Show all activity'|t('hub') }}</a>
+		{% elseif filter.item %}
+			{{ 'What was done to a single item.'|t('hub') }}
+			<a href="{{ url(listPath) }}">{{ 'Show all activity'|t('hub') }}</a>
+		{% else %}
+			{{ retentionDays
+				? 'What users did, as Craft tells it, kept for {days, plural, =1{one day} other{# days}}.'|t('hub', { days: retentionDays })
+				: 'What users did, as Craft tells it, kept forever.'|t('hub') }}
+		{% endif %}
+	</p>
+
+	{% embed 'hub/_components/panel' %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<form method="get" class="hub-filters" action="{{ url(listPath) }}" data-hub-submit>
+				{{ hub.search('Search by name or IP address'|t('hub'), filter.search) }}
+				{{ hub.dropdown('Action'|t('hub'), 'bolt', hub.choices('event', actionOptions, filter.actions)) }}
+				{{ hub.dropdown('Type'|t('app'), 'shapes', hub.choices('type', typeOptions, filter.subjects)) }}
+				{{ hub.dropdown('User'|t('app'), 'user', hub.choices('user', userOptions, filter.users, { lazy: optionsUrls.user })) }}
+				{{ hub.dropdown('Date'|t('app'), 'calendar', hub.range('date', 'Date'|t('app'), filter.dateFrom, filter.dateTo, { type: 'date' })) }}
+				{{ hub.addFilter() }}
+				{{ hiddenInput('sort', sort) }}
+				{{ hiddenInput('dir', dir) }}
+				{% if batch %}{{ hiddenInput('batch', batch.id) }}{% endif %}
+				{% if filter.item %}{{ hiddenInput('item', filter.item) }}{% endif %}
+				{{ hub.clearFilters() }}
+			</form>
+
+			{% if activities|length %}
+				{% embed 'hub/_components/bulk' with { bulkActions: [], bulkList: 'activity' } %}
+					{% block table %}
+						{% import 'hub/_components/macros' as hub %}
+						<div class="hub-table">
+							<table class="data fullwidth">
+								<thead>
+									<tr>
+										{{ hub.sortHeader('Subject'|t('hub'), 'subject', sortHeaders) }}
+										{{ hub.columnHeaders(columns, sortHeaders, 'activity') }}
+									</tr>
+								</thead>
+								<tbody>
+									{% set groupByDay = not sort or sort == 'date' %}
+									{% set today = now|date('Y-m-d') %}
+									{% set yesterday = now|date_modify('-1 day')|date('Y-m-d') %}
+									{% set currentDay = null %}
+									{% for activity in activities %}
+										{% set day = activity.dateCreated|date('Y-m-d') %}
+										{% if groupByDay and day != currentDay %}
+											{% set currentDay = day %}
+											<tr class="hub-activity-day">
+												<td colspan="{{ columns|length + 1 }}">
+													{{- day == today ? 'Today'|t('app') : (day == yesterday ? 'Yesterday'|t('app') : activity.dateCreated|date('full')) -}}
+												</td>
+											</tr>
+										{% endif %}
+										{% include 'hub/_components/activity-row' with { batched: false } %}
+									{% endfor %}
+								</tbody>
+							</table>
+						</div>
+					{% endblock %}
+					{% block footer %}
+						{% include '_includes/pagination' with {
+							pageInfo: pageInfo,
+							itemLabel: 'activity'|t('hub'),
+							itemsLabel: 'activities'|t('hub'),
+						} %}
+					{% endblock %}
+				{% endembed %}
+			{% else %}
+				{{ hub.emptyList() }}
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

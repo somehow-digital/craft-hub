@@ -1,0 +1,47 @@
+{#
+	Labels of an item, which users who may label it check and uncheck right here, saved at once (see sidebar.js). Its
+	parent carries `data-hub-sidebar-labels` with the list and `data-hub-sidebar-id` with the ID of the item.
+
+	Variables: labels (Label[] of the item), allLabels (Label[] to pick from, null unless the user may label it), canManageLabels
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{% macro labelBadge(label) %}
+	{% import 'hub/_components/macros' as hub %}
+	<li data-hub-label="{{ label.id }}">{{ hub.badge(label.name, label.getColor(), label.description, label.getIcon()) }}</li>
+{%- endmacro %}
+
+<div class="hub-sidebar__labels">
+	<ul class="hub-badges hub-sidebar__badges" data-hub-sidebar-labels-list>
+		{%- for label in labels %}{{ _self.labelBadge(label) }}{% endfor -%}
+	</ul>
+	<p class="hub-sidebar__empty" data-hub-sidebar-labels-empty{% if labels|length %} hidden{% endif %}>{{ 'Not labeled.'|t('hub') }}</p>
+	{% if allLabels is not null %}
+		<button type="button" class="hub-sidebar__edit" aria-expanded="false" data-hub-sidebar-labels-toggle>
+			<span class="hub-sidebar__glyph" aria-hidden="true">{{ iconSvg('pen') }}</span>
+			<span>{{ 'Edit'|t('app') }}</span>
+		</button>
+	{% endif %}
+</div>
+
+{% if allLabels is not null %}
+	{# Unnamed, so the element editor doesn't take them for changes of the element. #}
+	<fieldset class="hub-sidebar__options" hidden data-hub-sidebar-labels-options>
+		<legend class="visually-hidden">{{ 'Labels'|t('hub') }}</legend>
+		{% for label in allLabels %}
+			<label class="hub-sidebar__option"{% if label.description %} title="{{ label.description }}"{% endif %}>
+				<input type="checkbox" value="{{ label.id }}"{% if label.id in labels|column('id') %} checked{% endif %}>
+				{{ hub.icon(label.getIcon(), label.getColor(), 'small') }}
+				<span class="hub-sidebar__option-name">{{ label.name }}</span>
+			</label>
+		{% else %}
+			<p class="hub-sidebar__empty">{{ 'No labels exist yet.'|t('hub') }}</p>
+		{% endfor %}
+		{% if canManageLabels %}
+			<a class="hub-sidebar__link" href="{{ url('hub/manage/settings/labels') }}">{{ 'Manage labels'|t('hub') }}</a>
+		{% endif %}
+	</fieldset>
+	<template data-hub-sidebar-labels-template>
+		{%- for label in allLabels %}{{ _self.labelBadge(label) }}{% endfor -%}
+	</template>
+{% endif %}

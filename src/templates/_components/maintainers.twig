@@ -1,0 +1,81 @@
+{#
+	Panel with the maintainers of a section, entry type, field or volume, on its detail page, while maintainers are enabled,
+	with a form setting them for users who may manage them.
+
+	Variables: list (see ColumnService::LIST_*), item, path (of the page, which saving leads back to)
+#}
+{% import '_includes/forms.twig' as forms %}
+
+{% set service = craft.app.plugins.getPlugin('hub').maintainers %}
+
+{% if service.isEnabled() %}
+	{% set maintainers = service.getMaintainers(list, item.id) %}
+	{% set count = maintainers.users|length + maintainers.groups|length %}
+	{% set canManage = service.canManage(list) %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Maintainers'|t('hub'),
+		description: 'Who to ask for help with this item.'|t('hub'),
+		icon: 'users',
+		color: 'violet',
+		count: count,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{% import '_includes/forms.twig' as forms %}
+			{% if count %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Maintainer'|t('hub') }}</th>
+								<th>{{ 'Type'|t('app') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{{ hub.maintainerRows(maintainers) }}
+						</tbody>
+					</table>
+				</div>
+			{% else %}
+				{{ hub.emptyState('users', 'No maintainers yet.'|t('hub')) }}
+			{% endif %}
+
+			{% if canManage %}
+				<div class="hub-maintainers">
+					<details class="hub-maintainers__edit">
+						<summary class="btn">{{ 'Edit'|t('app') }}</summary>
+						<form method="post" accept-charset="UTF-8">
+							{{ actionInput('hub/maintainers/save') }}
+							{{ csrfInput() }}
+							{{ redirectInput(url(path, { hubSite: hubSite })) }}
+							{{ hiddenInput('list', list) }}
+							{{ hiddenInput('id', item.id) }}
+
+							{{ forms.elementSelectField({
+								label: 'Users'|t('app'),
+								name: 'users',
+								elementType: 'craft\\elements\\User',
+								elements: maintainers.users,
+								selectionLabel: 'Add a user'|t('hub'),
+								fieldClass: 'first',
+							}) }}
+
+							{% set groups = craft.app.userGroups.getAllGroups() %}
+							{% if groups|length %}
+								{{ forms.checkboxGroupField({
+									label: 'User Groups'|t('app'),
+									name: 'groups',
+									options: groups|map(group => { label: group.name|t('site'), value: group.id }),
+									values: maintainers.groups|column('id'),
+								}) }}
+							{% endif %}
+
+							<button type="submit" class="btn submit">{{ 'Save'|t('app') }}</button>
+						</form>
+					</details>
+				</div>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endif %}

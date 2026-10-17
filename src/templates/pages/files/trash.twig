@@ -1,0 +1,10 @@
+{% extends 'hub/_layouts/index' %}
+
+{% set area = 'data' %}
+{% set page = 'assets' %}
+{% set title = 'Assets'|t('app') %}
+{% set selectedTab = 'trash' %}
+
+{% block content %}
+	{% include 'hub/_components/trashed-file-list' %}
+{% endblock %}

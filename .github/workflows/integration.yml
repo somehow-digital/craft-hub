@@ -1,0 +1,64 @@
+name: Integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: ${{ matrix.driver }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - driver: mysql
+            port: 3306
+            user: root
+          - driver: pgsql
+            port: 5432
+            user: postgres
+
+    services:
+      mysql:
+        image: ${{ matrix.driver == 'mysql' && 'mysql:8.0' || '' }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: craft
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=5s --health-retries=10
+      postgres:
+        image: ${{ matrix.driver == 'pgsql' && 'postgres:16' || '' }}
+        env:
+          POSTGRES_PASSWORD: root
+          POSTGRES_DB: craft
+        ports:
+          - 5432:5432
+        options: --health-cmd=pg_isready --health-interval=5s --health-timeout=5s --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: intl, gd, pdo_mysql, pdo_pgsql
+          coverage: none
+
+      - name: Run Hub's queries against ${{ matrix.driver }}
+        run: tests/Integration/run.sh "$RUNNER_TEMP/craft"
+        env:
+          CRAFT_DB_DRIVER: ${{ matrix.driver }}
+          CRAFT_DB_SERVER: 127.0.0.1
+          CRAFT_DB_PORT: ${{ matrix.port }}
+          CRAFT_DB_DATABASE: craft
+          CRAFT_DB_USER: ${{ matrix.user }}
+          CRAFT_DB_PASSWORD: root
+          CRAFT_DB_SCHEMA: public

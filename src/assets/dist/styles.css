@@ -1,0 +1,3043 @@
+th[data-hub-sort]::after {
+	content: "↕";
+	margin-inline-start: 4px;
+	opacity: .3;
+}
+
+th[data-hub-direction="asc"]::after {
+	content: "↑";
+	opacity: 1;
+}
+
+th[data-hub-direction="desc"]::after {
+	content: "↓";
+	opacity: 1;
+}
+
+/* Sortable headers link to the sorted list; the link covers the whole cell. */
+th[data-hub-sort] {
+	position: relative;
+}
+
+th[data-hub-sort] > a {
+	color: inherit;
+}
+
+th[data-hub-sort] > a::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+}
+
+table.data td.hub-num,
+table.data th.hub-num {
+	text-align: end;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Shared */
+
+.hub-dot-num {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.hub-dot-num + .hub-dot-num {
+	margin-inline-start: 10px;
+}
+
+.hub-inline {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.hub-btn-icon {
+	display: inline-flex;
+	width: 12px;
+	height: 12px;
+	margin-inline-end: 6px;
+	opacity: .7;
+}
+
+/* Buttons that delete are red with white text. */
+.btn.hub-btn--danger,
+.btn.hub-btn--danger:is(:hover, :focus-visible, :active) {
+	color: var(--white, #fff);
+	background-color: var(--red-600, #dc2626);
+}
+
+.btn.hub-btn--danger:is(:hover, :focus-visible) {
+	background-color: var(--red-700, #b91c1c);
+}
+
+.btn.hub-btn--danger .hub-btn-icon {
+	opacity: 1;
+}
+
+/* File thumbnails, sized like the icon tiles */
+
+.hub-thumb {
+	display: inline-flex;
+	flex: none;
+	overflow: hidden;
+	width: 28px;
+	height: 28px;
+	border-radius: var(--medium-border-radius);
+	background-color: var(--hub-hover, var(--gray-050));
+}
+
+.hub-thumb--small {
+	width: 18px;
+	height: 18px;
+	border-radius: 4px;
+}
+
+.hub-thumb--large {
+	width: 40px;
+	height: 40px;
+}
+
+.hub-thumb--round {
+	border-radius: 50%;
+}
+
+.hub-thumb img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.hub-preview {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var(--m) var(--l);
+	background-image: repeating-conic-gradient(var(--hub-hover, var(--gray-050)) 0 25%, transparent 0 50%);
+	background-size: 16px 16px;
+}
+
+.hub-preview img,
+.hub-preview video {
+	max-width: 100%;
+	max-height: 400px;
+	object-fit: contain;
+}
+
+/* Long paths and URLs wrap within the narrow details sidebar. Craft lays out values as a flex row, which drops the space
+   between a value and its muted note, so they are spaced by a gap and wrap onto a new line where they do not fit. */
+.hub-details .value {
+	flex-wrap: wrap;
+	gap: 2px 6px;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.hub-details .value > .status {
+	margin-inline-end: 0;
+}
+
+.hub-list--plain {
+	gap: 4px;
+	padding: 0;
+}
+
+/* Detail page title */
+
+.hub-title {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+}
+
+.hub-title__text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.hub-title__kind {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 14px;
+}
+
+.hub-title__kind-label {
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 14px;
+	letter-spacing: .05em;
+	text-transform: uppercase;
+}
+
+/* A compact badge, so the type does not make the kind line taller. */
+.hub-title__kind .hub-badge {
+	padding: 0 6px;
+	font-size: 10px;
+	line-height: 14px;
+}
+
+#header .hub-title h1 {
+	margin: 0;
+	line-height: 1.2;
+}
+
+/* Forms of the items of the settings page, like filters, labels and checks */
+
+/* The fields of a panel sit within its padding. */
+.hub-panel__fields {
+	padding: var(--l);
+}
+
+/* Short fields side by side, wrapping below each other where there's no room. */
+.hub-panel__columns {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+	gap: 24px var(--xl);
+	margin-block: 24px;
+}
+
+.hub-panel__columns:last-child {
+	margin-bottom: 0;
+}
+
+.hub-panel__columns > .field {
+	margin: 0;
+}
+
+/* A single item in a panel, like the filter of a default check. */
+.hub-panel__item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: var(--m) var(--l);
+}
+
+/* Shows how an item looks where it's used, on the panel's surface. */
+.hub-panel__preview {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--m) var(--xl);
+	padding: var(--l);
+}
+
+.hub-panel__preview .hub-dropdown__option {
+	pointer-events: none;
+}
+
+/* What can't be changed about an item, above its form. */
+.hub-notice {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	margin-bottom: var(--m);
+	padding: var(--m) var(--l);
+	border: 1px solid var(--hairline-color, var(--gray-200));
+	border-radius: var(--large-border-radius);
+	background-color: var(--gray-050);
+}
+
+.hub-notice__icon {
+	display: inline-flex;
+	flex: none;
+	width: 14px;
+	height: 14px;
+	margin-top: 3px;
+	color: var(--light-text-color, var(--gray-500));
+}
+
+.hub-notice__icon svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+.hub-notice__body p {
+	margin: 0;
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+#content .hub-notice__body .hub-notice__title {
+	margin-bottom: 2px;
+	color: var(--text-color);
+	font-size: 14px;
+	font-weight: 500;
+}
+
+/* Links of the details sidebar, below its settings. */
+.hub-details__actions {
+	margin-bottom: var(--m);
+}
+
+/* Explains the settings of the details sidebar below them. */
+.hub-details__note {
+	margin: 0 0 var(--m);
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+/* Names */
+
+.hub-name {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 180px;
+}
+
+.hub-name__text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.hub-name__title {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 2px 8px;
+	font-weight: 500;
+}
+
+.hub-name__text code {
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 11px;
+	font-weight: 400;
+}
+
+/* Secondary line of a name that isn't a handle, like the type of an activity's subject. */
+.hub-name__meta {
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 11px;
+	font-weight: 400;
+}
+
+/* Labels following a name. */
+
+.hub-labels {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+/* Lists a label is used in on the labels settings page, each with the number of its items labeled with it. */
+.hub-labels-summary {
+	margin-bottom: 16px;
+	color: var(--light-text-color, var(--gray-550));
+}
+
+/* The activity log, below the "Hub" navigation item. */
+.hub-activity-summary {
+	margin-bottom: 16px;
+	color: var(--light-text-color, var(--gray-550));
+}
+
+/* Activities sorted by date are grouped below the days they happened on. */
+.hub-table table.data tbody tr.hub-activity-day > *,
+.hub-table table.data tbody tr.hub-activity-day:hover > * {
+	padding-block: 6px;
+	background-color: var(--gray-050);
+	color: var(--medium-text-color, var(--gray-550));
+	font-size: 12px;
+	font-weight: 600;
+}
+
+/* The type of a subject filters the log by it, without standing out from the line it's on. */
+.hub-activity-type {
+	color: inherit;
+}
+
+.hub-activity-type:hover {
+	color: var(--link-color);
+	text-decoration: underline;
+}
+
+/* Batches toggle the rows of their activities, which are indented below them. */
+.hub-activity-toggle {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--link-color);
+	font: inherit;
+	cursor: pointer;
+}
+
+.hub-activity-toggle:hover {
+	text-decoration: underline;
+}
+
+/* Batches expand when clicked anywhere, with a chevron at the end of their row like the toggles of collapsible panels. */
+.hub-activity-batch {
+	cursor: pointer;
+}
+
+.hub-activity-chevron {
+	display: inline-flex;
+	vertical-align: middle;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: 0;
+	border-radius: var(--small-border-radius, 4px);
+	background: none;
+	color: var(--light-text-color, var(--gray-500));
+	cursor: pointer;
+}
+
+.hub-activity-chevron:hover {
+	background-color: var(--gray-100);
+	color: var(--medium-text-color, var(--gray-600));
+}
+
+.hub-activity-chevron svg {
+	width: 12px;
+	height: 12px;
+	fill: currentColor;
+	transition: transform 0.15s ease;
+}
+
+.hub-activity-chevron[aria-expanded="true"] svg {
+	transform: rotate(180deg);
+}
+
+/* Rows of a batch's activities are set apart by a tint, a guide line below the icon of their batch and tighter, indented cells. */
+.hub-table table.data tbody tr.hub-activity-batched > * {
+	padding-block: 6px;
+	background-color: color-mix(in srgb, var(--gray-050) 60%, transparent);
+}
+
+.hub-table table.data tbody tr.hub-activity-batched:hover > * {
+	background-color: var(--hub-hover, var(--gray-050));
+}
+
+.hub-table table.data tr.hub-activity-batched > :first-child {
+	padding-inline-start: calc(var(--l) + 30px);
+	background-image: linear-gradient(var(--gray-200), var(--gray-200));
+	background-position: calc(var(--l) + 13px) 0;
+	background-size: 2px 100%;
+	background-repeat: no-repeat;
+}
+
+.hub-table table.data tr.hub-activity-batched .hub-name__title {
+	font-weight: 400;
+}
+
+.hub-activity-user {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	white-space: nowrap;
+}
+
+/* The labels on the labels tab of the settings page, in a panel like the checks of the diagnostics tab. */
+.hub-labels-settings__unused {
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.hub-labels-table .hub-name {
+	min-width: 200px;
+}
+
+.hub-labels-table td.thin:has(> .move) {
+	padding-inline-end: 0;
+}
+
+/* Number of items labeled with a label, over a bar in its color set against the most used label's. */
+.hub-label-row__items {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 96px;
+	max-width: 160px;
+}
+
+.hub-label-row__count {
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+}
+
+.hub-label-row__meter {
+	display: block;
+	height: 4px;
+	overflow: hidden;
+	border-radius: 2px;
+	background-color: var(--hub-divider, var(--gray-100));
+}
+
+.hub-label-row__fill {
+	display: block;
+	height: 100%;
+	border-radius: inherit;
+	background-color: var(--hub-strong, var(--gray-300));
+	transition: width .3s ease;
+}
+
+/* Unused labels stay in place, so they can be reordered, but recede. */
+.hub-label-row--unused .hub-label-row__count {
+	color: var(--light-text-color, var(--gray-500));
+	font-weight: 400;
+}
+
+/* The checks of each kind on the diagnostics tab of the settings page, each in a collapsible panel of its own. */
+.hub-checks-settings__disabled {
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.hub-checks-table .hub-name {
+	align-items: flex-start;
+	min-width: 240px;
+}
+
+.hub-checks-table .hub-name__text {
+	gap: 2px;
+}
+
+.hub-check-row__description {
+	max-width: 60ch;
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 12px;
+	font-weight: 400;
+	line-height: 1.4;
+}
+
+.hub-check-row__severity {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 2px;
+	white-space: nowrap;
+}
+
+.hub-check-row__severity .hub-muted {
+	font-size: 11px;
+}
+
+/* Disabled checks stay in place, so they can be reordered, but recede. */
+.hub-check-row--disabled .hub-check-row__name,
+.hub-check-row--disabled .hub-check-row__severity {
+	opacity: 0.55;
+}
+
+.hub-checks-table td.thin:has(> .move) {
+	padding-inline-end: 0;
+}
+
+/* The condition builders of the form of a custom check. */
+.hub-condition .condition-container {
+	margin-top: 4px;
+}
+
+.hub-chip--count {
+	padding-left: 8px;
+}
+
+.hub-chip .hub-chip__count {
+	color: var(--light-text-color, var(--gray-550));
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+}
+
+.hub-activity {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	white-space: nowrap;
+}
+
+.hub-activity__dot {
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background-color: var(--gray-300);
+}
+
+.hub-activity[data-activity="recent"] .hub-activity__dot { background-color: var(--green-500); }
+.hub-activity[data-activity="stale"] .hub-activity__dot { background-color: var(--orange-400); }
+
+/* Panels */
+
+.hub-panel {
+	margin-bottom: var(--m);
+	/* Clips to the rounded corners without becoming a scroll container, so footers can stick. */
+	overflow: clip;
+}
+
+.hub-panel__header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: var(--m) var(--l);
+	border-bottom: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+/* Collapsible panels: the header toggles the body and loses its divider while closed. */
+summary.hub-panel__header {
+	cursor: pointer;
+	list-style: none;
+	user-select: none;
+}
+
+summary.hub-panel__header::-webkit-details-marker {
+	display: none;
+}
+
+summary.hub-panel__header:hover {
+	background-color: var(--hub-hover);
+}
+
+summary.hub-panel__header:focus-visible {
+	outline: 2px solid var(--focus-ring-color, var(--blue-500));
+	outline-offset: -2px;
+}
+
+.hub-panel__details:not([open]) > .hub-panel__header {
+	border-bottom: 0;
+}
+
+.hub-panel__toggle {
+	display: inline-flex;
+	flex: none;
+	width: 12px;
+	height: 12px;
+	color: var(--light-text-color, var(--gray-500));
+	transition: transform 0.15s ease;
+}
+
+.hub-panel__toggle svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+.hub-panel__details[open] > .hub-panel__header .hub-panel__toggle {
+	transform: rotate(180deg);
+}
+
+/* Placeholder of a lazy panel's body until it is loaded, or telling it couldn't be. */
+.hub-panel__loading {
+	display: flex;
+	justify-content: center;
+	padding: var(--l);
+	color: var(--light-text-color, var(--gray-500));
+}
+
+.hub-panel__title {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+#content .hub-panel__title h2 {
+	margin: 0;
+	font-size: 15px;
+}
+
+/* Panel descriptions: an info button next to the heading, opening a popover in the top layer */
+.hub-panel__info {
+	display: inline-flex;
+	flex: none;
+	width: 14px;
+	height: 14px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	color: var(--light-text-color, var(--gray-500));
+	background: none;
+	cursor: pointer;
+}
+
+.hub-panel__info:hover,
+.hub-panel__info[aria-expanded="true"] {
+	color: var(--text-color);
+}
+
+.hub-panel__info:focus-visible {
+	outline: 2px solid var(--focus-ring-color, var(--blue-500));
+	outline-offset: 2px;
+}
+
+.hub-panel__info svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+.hub-panel__description {
+	position: fixed;
+	inset: auto;
+	box-sizing: border-box;
+	width: max-content;
+	max-width: min(320px, calc(100vw - 16px));
+	margin: 0;
+	padding: 8px 12px;
+	border: 1px solid var(--hairline-color, var(--gray-200));
+	border-radius: var(--large-border-radius);
+	color: var(--text-color);
+	background-color: var(--white, #fff);
+	box-shadow: 0 0 0 1px rgb(31 41 51 / 4%), 0 8px 24px rgb(31 41 51 / 16%);
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.hub-panel__empty {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0;
+	padding: var(--m) var(--l);
+	color: var(--light-text-color, var(--gray-500));
+}
+
+.hub-panel__empty .spinner {
+	flex: none;
+}
+
+.hub-panel__empty[hidden] {
+	display: none;
+}
+
+/* Message in place of a list without items, see the `emptyState` macro. */
+.hub-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	padding: calc(var(--xl) * 1.5) var(--l);
+	text-align: center;
+}
+
+.hub-empty.hidden {
+	display: none;
+}
+
+.hub-empty p {
+	max-width: 48ch;
+	margin: 0;
+}
+
+.hub-empty .btn {
+	margin-top: 8px;
+}
+
+#content .hub-empty__title {
+	margin-top: 4px;
+	font-size: 15px;
+	font-weight: 600;
+}
+
+/* Stays near the bottom of the viewport, as far from it as the panel's padding, while the list above it is scrolled through. */
+.hub-panel__footer {
+	position: sticky;
+	bottom: var(--l);
+	z-index: 1;
+	display: flex;
+	padding: 10px var(--l);
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+	background-color: var(--hub-surface);
+}
+
+/* Lets the caps of the footer and the filters reach over the panel's border, to hide its sides in the gap beside them when stuck. */
+.hub-panel:has(.hub-panel__footer, .hub-filters) {
+	overflow-clip-margin: 1px;
+}
+
+/*
+	The panel's bottom edge, drawn by the footer so it ends there when stuck; the shadow,
+	cut off at the cap's top, covers everything below in the content pane's white.
+	When not stuck it lies exactly over the panel's own bottom edge.
+*/
+.hub-panel__footer::after {
+	content: "";
+	position: absolute;
+	inset-inline: -1px;
+	top: calc(100% - var(--large-border-radius) + 1px);
+	box-sizing: border-box;
+	height: var(--large-border-radius);
+	border: 1px solid var(--hairline-color, var(--gray-200));
+	border-top: 0;
+	border-radius: 0 0 var(--large-border-radius) var(--large-border-radius);
+	/* Opaque, so no seam between the footer and the cap shows at fractional positions. */
+	background-color: var(--hub-surface);
+	box-shadow: 0 0 0 100vh var(--white, #fff);
+	clip-path: inset(0 -100vw -100vh);
+	pointer-events: none;
+}
+
+/* Stays near the top of the viewport, below Craft's fixed header, as far from it as the footer is from the bottom. */
+.hub-filters {
+	position: sticky;
+	top: calc(var(--hub-header-height, 0px) + var(--l));
+	z-index: 1;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--s) var(--m);
+	padding: var(--m) var(--l);
+	border-bottom: 1px solid var(--hub-divider, var(--gray-100));
+	background-color: var(--hub-hover, var(--gray-050));
+}
+
+/* The panel's top edge, drawn by the filters like the footer's cap, covering everything above them when stuck. */
+.hub-filters::before {
+	content: "";
+	position: absolute;
+	inset-inline: -1px;
+	bottom: calc(100% - var(--large-border-radius) + 1px);
+	box-sizing: border-box;
+	height: var(--large-border-radius);
+	border: 1px solid var(--hairline-color, var(--gray-200));
+	border-bottom: 0;
+	border-radius: var(--large-border-radius) var(--large-border-radius) 0 0;
+	background-color: var(--hub-hover, var(--gray-050));
+	box-shadow: 0 0 0 100vh var(--white, #fff);
+	clip-path: inset(-100vh -100vw 0);
+	pointer-events: none;
+}
+
+.hub-filters .texticon {
+	flex: 1 1 240px;
+	max-width: 400px;
+}
+
+/* Checkbox filters: a button like the dropdowns, with a checkbox in place of the chevron */
+
+.hub-filters label.hub-toggle {
+	gap: 0;
+	white-space: nowrap;
+	cursor: pointer;
+	user-select: none;
+}
+
+.hub-toggle__box {
+	position: relative;
+	flex: none;
+	box-sizing: border-box;
+	width: 12px;
+	height: 12px;
+	margin: 0 0 0 8px;
+	border: 1.5px solid currentColor;
+	border-radius: 3px;
+	appearance: none;
+	opacity: .6;
+	cursor: inherit;
+}
+
+.hub-toggle__box:checked {
+	border-color: var(--blue-600, var(--link-color));
+	background-color: var(--blue-600, var(--link-color));
+	opacity: 1;
+}
+
+.hub-toggle__box:checked::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 2.5px;
+	width: 3px;
+	height: 6px;
+	border: solid var(--white, #fff);
+	border-width: 0 1.5px 1.5px 0;
+	transform: rotate(45deg);
+}
+
+.hub-toggle__box:focus-visible {
+	outline: none;
+}
+
+.hub-filters label.hub-toggle:has(.hub-toggle__box:focus-visible) {
+	outline: 2px solid var(--focus-ring-color, var(--blue-500));
+	outline-offset: 1px;
+}
+
+.hub-filters label.hub-toggle:has(.hub-toggle__box:checked) {
+	color: var(--blue-800, var(--link-color));
+	background-color: var(--blue-050);
+	box-shadow: inset 0 0 0 1px var(--blue-300);
+}
+
+/* Lists reviewing their selection hide their filters, which don't apply then. */
+.hub-filters[hidden] {
+	display: none;
+}
+
+/* Clearing the filters sits at the end of the bar, apart from them. */
+.hub-filters__clear {
+	margin-inline-start: auto;
+}
+
+/*
+	Bars offering to add filters show only those set, hiding the others as soon as their scripts run;
+	until then the filters set are told by the values they were rendered with, so the bar doesn't shift.
+*/
+.hub-filters > [hidden] {
+	display: none;
+}
+
+@media (scripting: enabled) {
+	.hub-filters:has(> [data-hub-add]):not(.is-ready) > :is([data-hub-dropdown], .hub-toggle):not(:has(input[data-hub-filter]:not([type="checkbox"])[value]:not([value=""]), input:checked)) {
+		display: none;
+	}
+}
+
+/* Dropdowns of these bars are removed by a button joined to their own, like a chip. */
+.hub-filters > .hub-dropdown:not([hidden]) {
+	display: flex;
+}
+
+.hub-dropdown__remove {
+	display: none;
+}
+
+.hub-filters.is-ready:has(> [data-hub-add]) > .hub-dropdown .hub-dropdown__remove {
+	display: inline-flex;
+	box-sizing: border-box;
+	width: 30px;
+	padding: 0 9px;
+	border-start-start-radius: 0;
+	border-end-start-radius: 0;
+}
+
+.hub-filters:has(> [data-hub-add]) > .hub-dropdown.is-active .hub-dropdown__remove {
+	color: var(--blue-800, var(--link-color));
+	background-color: var(--blue-050);
+	box-shadow: inset 0 0 0 1px var(--blue-300);
+}
+
+.hub-filters:has(> [data-hub-add]) > .hub-dropdown.is-active .hub-dropdown__remove:hover {
+	background-color: var(--blue-100, var(--blue-050));
+}
+
+.hub-dropdown__remove svg {
+	width: 10px;
+	height: 10px;
+	fill: currentColor;
+}
+
+.hub-filters.is-ready:has(> [data-hub-add]) > .hub-dropdown .hub-dropdown__toggle {
+	margin-inline-end: -1px;
+	border-start-end-radius: 0;
+	border-end-end-radius: 0;
+}
+
+/* The menu of the filters to add: their names, with their icon, or the checkbox of checkbox filters. */
+.hub-add__popover {
+	min-width: 200px;
+}
+
+.hub-add__item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 7px 8px;
+	border: 0;
+	border-radius: var(--medium-border-radius);
+	color: var(--text-color);
+	background: none;
+	font: inherit;
+	text-align: start;
+	cursor: pointer;
+}
+
+.hub-add__item:hover,
+.hub-add__item:focus-visible {
+	background-color: var(--gray-050);
+}
+
+.hub-add__item:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 2px var(--focus-ring-color, var(--blue-500));
+}
+
+.hub-add__item .hub-btn-icon {
+	flex: none;
+	margin: 0;
+	color: var(--light-text-color, var(--gray-550));
+	opacity: 1;
+}
+
+.hub-add__item .hub-toggle__box {
+	margin: 0 2px;
+}
+
+.hub-add__label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hub-filters__clear[hidden] {
+	display: none;
+}
+
+/* Filter dropdowns: a button summarizing the selection, opening a popover in the top layer */
+
+.hub-dropdown__toggle {
+	gap: 0;
+	max-width: 320px;
+}
+
+.hub-dropdown__toggle::after {
+	content: "";
+	flex: none;
+	width: 5px;
+	height: 5px;
+	margin-inline-start: 8px;
+	border: solid currentColor;
+	border-width: 0 1.5px 1.5px 0;
+	opacity: .6;
+	transform: translateY(-2px) rotate(45deg);
+}
+
+.hub-dropdown__value {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hub-dropdown__value:empty {
+	display: none;
+}
+
+.hub-dropdown__value::before {
+	content: ":";
+	margin-inline-end: 4px;
+}
+
+.hub-dropdown.is-active .hub-dropdown__toggle {
+	color: var(--blue-800, var(--link-color));
+	background-color: var(--blue-050);
+	box-shadow: inset 0 0 0 1px var(--blue-300);
+}
+
+.hub-dropdown.is-active .hub-dropdown__value {
+	font-weight: 600;
+}
+
+.hub-dropdown__popover {
+	position: fixed;
+	inset: auto;
+	box-sizing: border-box;
+	width: max-content;
+	min-width: 220px;
+	max-width: min(340px, calc(100vw - 16px));
+	max-height: min(480px, calc(100vh - 80px));
+	margin: 0;
+	padding: 0;
+	overflow-y: auto;
+	border: 1px solid var(--hairline-color, var(--gray-200));
+	border-radius: var(--large-border-radius);
+	color: var(--text-color);
+	background-color: var(--white, #fff);
+	box-shadow: 0 0 0 1px rgb(31 41 51 / 4%), 0 8px 24px rgb(31 41 51 / 16%);
+}
+
+/* Popovers open with a title band naming what they're for, then group their contents under headings like Craft's menus. */
+.hub-popover__title {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	overflow: hidden;
+	padding: 10px 14px 9px;
+	border-bottom: 1px solid var(--gray-100);
+	color: var(--text-color);
+	background-color: var(--gray-050);
+	font-weight: 600;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hub-popover__title:empty {
+	display: none;
+}
+
+/* Filter dropdowns offer to clear their filter in the title band, while it's set. */
+.hub-dropdown__head {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.hub-dropdown__title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* The button reaches into the band's padding, so the band keeps its height. */
+.hub-dropdown__clear {
+	flex: none;
+	margin-block: -4px;
+	font-weight: 400;
+}
+
+.hub-dropdown:not(.is-active) .hub-dropdown__clear {
+	display: none;
+}
+
+/* Groups of menu entries, divided from each other. */
+.hub-menu__group {
+	padding: 4px 6px;
+}
+
+.hub-menu__group[hidden] {
+	display: none;
+}
+
+.hub-menu__group:is(:last-child, :has(+ .hub-menu__group[hidden]:last-child)) {
+	padding-bottom: 6px;
+}
+
+.hub-menu__group + .hub-menu__group {
+	border-top: 1px solid var(--gray-100);
+}
+
+.hub-menu__group:not(:has(.hub-menu__heading)) {
+	padding-top: 6px;
+}
+
+.hub-menu__heading,
+.hub-dropdown__legend {
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .03em;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+.hub-menu__heading {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+	margin: 0;
+	padding: 6px 8px 4px;
+}
+
+/* A link beside a heading, like managing the labels apart from the labels themselves. */
+.hub-menu__link {
+	border-radius: var(--small-border-radius, 3px);
+	color: var(--link-color, var(--blue-600));
+	font-weight: 500;
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+.hub-menu__link:hover {
+	text-decoration: underline;
+}
+
+.hub-menu__link:focus-visible {
+	outline: 2px solid var(--focus-ring-color, var(--blue-500));
+	outline-offset: 1px;
+}
+
+.hub-dropdown__part {
+	margin: 0;
+	padding: 10px 12px;
+	border: 0;
+	border-bottom: 1px solid var(--gray-100);
+}
+
+.hub-dropdown__legend {
+	float: left;
+	width: 100%;
+	margin-bottom: 6px;
+	padding: 0;
+}
+
+.hub-dropdown__legend + * {
+	clear: both;
+}
+
+.hub-dropdown__search {
+	margin-bottom: 6px;
+}
+
+.hub-dropdown__options {
+	display: grid;
+	max-height: 260px;
+	margin-inline: -6px;
+	overflow-y: auto;
+}
+
+.hub-dropdown__status:not(:empty) {
+	display: flex;
+	justify-content: center;
+	padding: 4px 0;
+}
+
+.hub-dropdown__option {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 6px;
+	border-radius: var(--medium-border-radius);
+	cursor: pointer;
+	user-select: none;
+}
+
+.hub-dropdown__option[hidden] {
+	display: none;
+}
+
+.hub-dropdown__option:hover {
+	background-color: var(--gray-050);
+}
+
+.hub-dropdown__option input {
+	flex: none;
+	margin: 0;
+}
+
+.hub-dropdown__text {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hub-dropdown__actions {
+	position: sticky;
+	bottom: 0;
+	display: flex;
+	justify-content: flex-end;
+	gap: 6px;
+	padding: 8px 12px;
+	background-color: var(--gray-050);
+}
+
+
+/* Saved filters: a menu at the start of a list's filter bar, picking filters offered to everyone or the user's own ones */
+
+.hub-saved__popover {
+	min-width: 260px;
+}
+
+.hub-saved__item {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	padding: 7px 8px;
+	border-radius: var(--medium-border-radius);
+	color: var(--text-color);
+	text-decoration: none;
+}
+
+.hub-saved__item:hover,
+.hub-saved__item:focus-visible {
+	background-color: var(--gray-050);
+	text-decoration: none;
+}
+
+.hub-saved__item:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 2px var(--focus-ring-color, var(--blue-500));
+}
+
+.hub-saved__item[hidden] {
+	display: none;
+}
+
+.hub-saved__item .hub-btn-icon {
+	flex: none;
+	margin: 0;
+	color: var(--light-text-color, var(--gray-550));
+	opacity: 1;
+}
+
+.hub-saved__name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* The filter the list shows is checked. */
+.hub-saved__check {
+	display: inline-flex;
+	flex: none;
+	width: 12px;
+	height: 12px;
+	color: var(--blue-600, var(--link-color));
+	visibility: hidden;
+}
+
+.hub-saved__check svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+.hub-saved__item[aria-current] {
+	color: var(--blue-800, var(--link-color));
+	font-weight: 600;
+}
+
+.hub-saved__item[aria-current] .hub-saved__check {
+	visibility: visible;
+}
+
+/* The user's own filters can be renamed and deleted by the buttons following them, shown while their row is hovered or focused. */
+.hub-saved__row {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.hub-saved__action {
+	display: inline-flex;
+	flex: none;
+	box-sizing: border-box;
+	width: 26px;
+	height: 26px;
+	padding: 7px;
+	border: 0;
+	border-radius: var(--medium-border-radius);
+	color: var(--light-text-color, var(--gray-550));
+	background: none;
+	cursor: pointer;
+	opacity: 0;
+}
+
+.hub-saved__action svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+.hub-saved__row:is(:hover, :focus-within) .hub-saved__action {
+	opacity: 1;
+}
+
+.hub-saved__action:hover,
+.hub-saved__action:focus-visible {
+	color: var(--text-color);
+	background-color: var(--gray-050);
+}
+
+.hub-saved__action:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 2px var(--focus-ring-color, var(--blue-500));
+}
+
+.hub-saved__action--danger:is(:hover, :focus-visible) {
+	color: var(--error-color, var(--red-600));
+	background-color: var(--red-050, #fef2f2);
+}
+
+.hub-saved__rename {
+	flex: 1;
+	min-width: 0;
+	margin-block: 2px;
+}
+
+.hub-saved__empty {
+	margin: 0;
+	padding: 4px 8px 6px;
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 12px;
+}
+
+/* Saving the filters the list shows ends the menu, sticking to its bottom like the actions of the filter dropdowns. */
+.hub-saved__save {
+	position: sticky;
+	bottom: 0;
+	display: grid;
+	gap: 6px;
+	padding: 8px 12px;
+	border-top: 1px solid var(--gray-100);
+	background-color: var(--gray-050);
+}
+
+.hub-saved__fields {
+	display: flex;
+	gap: 6px;
+}
+
+.hub-saved__fields .btn {
+	flex: none;
+}
+
+.hub-saved__hint {
+	margin: 0;
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 12px;
+}
+
+.hub-saved__hint[hidden] {
+	display: none;
+}
+
+/* Column pickers: the columns of a list, shown or hidden by their checkbox and ordered by dragging them or with their buttons */
+
+/* Sits in a header cell, at its end after the label if it shows one, above the link of a sortable header. */
+.hub-columns {
+	position: relative;
+	z-index: 1;
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.hub-table th:not(.hub-visit-cell) .hub-columns {
+	float: inline-end;
+	margin-inline-start: 6px;
+}
+
+.hub-columns__toggle .hub-btn-icon {
+	margin-inline-end: 0;
+}
+
+.hub-columns__list {
+	display: grid;
+	margin: 0 -6px;
+	padding: 0;
+	list-style: none;
+}
+
+.hub-columns__item {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	border-radius: var(--medium-border-radius);
+	background-color: var(--white, #fff);
+}
+
+.hub-columns__item.is-dragging {
+	opacity: .5;
+}
+
+.hub-columns__item .hub-dropdown__option {
+	flex: 1;
+	min-width: 0;
+}
+
+.hub-columns__handle {
+	display: inline-flex;
+	flex: none;
+	width: 12px;
+	padding-inline-start: 4px;
+	color: var(--light-text-color, var(--gray-550));
+	cursor: grab;
+}
+
+.hub-columns__handle svg,
+.hub-columns__move svg {
+	width: 100%;
+	height: 12px;
+	fill: currentColor;
+}
+
+.hub-columns__move {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0 5px;
+	border: 0;
+	border-radius: var(--small-border-radius, 4px);
+	color: var(--light-text-color, var(--gray-550));
+	background: none;
+	cursor: pointer;
+}
+
+.hub-columns__move:hover {
+	color: var(--text-color);
+	background-color: var(--gray-050);
+}
+
+/* The first column can't move up, nor the last one down; they keep their place to line up with the others. */
+.hub-columns__item:first-child [data-hub-move="-1"],
+.hub-columns__item:last-child [data-hub-move="1"] {
+	visibility: hidden;
+}
+
+/* Hidden columns are rendered to be shown again right away. */
+.hub-table :is(th, td)[hidden] {
+	display: none;
+}
+
+.hub-range {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.hub-range input.text {
+	flex: 1;
+	width: 0;
+	min-width: 80px;
+}
+
+.hub-range input[type="date"] {
+	min-width: 130px;
+}
+
+.hub-range__dash,
+.hub-range__unit {
+	flex: none;
+	color: var(--light-text-color, var(--gray-550));
+}
+
+.hub-list {
+	display: grid;
+	gap: 10px;
+	margin: 0;
+	padding: var(--m) var(--l);
+	list-style: none;
+}
+
+.hub-layout-tab + .hub-layout-tab {
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+#content .hub-layout-tab__heading {
+	margin: 0;
+	padding: 10px var(--l) 0;
+	color: var(--medium-text-color, var(--gray-550));
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+}
+
+.hub-field {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 16px;
+}
+
+/* Tables inside panels */
+
+/* Isolated, so stacked parts of its content, like Craft's chip borders, stay below the sticky filters and footer. */
+.hub-table {
+	overflow-x: auto;
+	isolation: isolate;
+}
+
+.hub-table table.data th,
+.hub-table table.data td {
+	padding-block: 10px;
+	vertical-align: middle;
+}
+
+.hub-table table.data thead th {
+	padding-block: 8px;
+	color: var(--medium-text-color, var(--gray-550));
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.hub-table table.data tr > :first-child {
+	padding-inline-start: var(--l);
+}
+
+.hub-table table.data tr > :last-child {
+	padding-inline-end: var(--l);
+}
+
+/* Rows are highlighted while hovered, or while their context menu is open. */
+.hub-table table.data tbody :is(tr:hover, tr.is-context) > * {
+	background-color: var(--hub-hover, var(--gray-050));
+}
+
+.hub-table table.data tbody tr[data-severity] > :first-child {
+	box-shadow: inset 3px 0 0 var(--hub-strong);
+}
+
+.hub-table table.data tbody tr[data-severity="red"] { --hub-strong: var(--red-500); }
+.hub-table table.data tbody tr[data-severity="orange"] { --hub-strong: var(--orange-400); }
+
+/* Columns of the checkboxes selecting rows for bulk actions only take the room of their checkbox. */
+.hub-table table.data :is(th, td).hub-check-cell {
+	width: 1px;
+	padding-inline-end: 0;
+}
+
+.hub-check-cell input {
+	display: block;
+	margin: 0;
+}
+
+/* Lists the user may not bulk-edit keep the checkboxes for their context menus only. */
+[data-hub-bulk-single] .hub-check-cell {
+	display: none;
+}
+
+[data-hub-bulk-single] .hub-table table.data tbody tr[data-severity] > .hub-check-cell + * {
+	box-shadow: inset 3px 0 0 var(--hub-strong);
+}
+
+/* Selected rows are tinted lightly, unlike Craft's `sel` rows of element indexes. */
+.hub-table table.data tbody tr.is-selected > * {
+	background-color: var(--blue-050);
+}
+
+/* The bulk action bar names the selection and offers the actions for it in a menu */
+
+.hub-bulk__count {
+	color: var(--light-text-color, var(--gray-550));
+	font-variant-numeric: tabular-nums;
+}
+
+/* Sits in the footer after the pagination, wrapping below it when there's no room beside it. */
+.hub-bulk__footer {
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--s) var(--m);
+}
+
+.hub-bulk__bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--s) var(--m);
+	margin-inline-start: auto;
+}
+
+.hub-bulk__select {
+	flex-wrap: nowrap;
+}
+
+.hub-bulk__select .btn {
+	white-space: nowrap;
+}
+
+.hub-bulk__toggle {
+	white-space: nowrap;
+}
+
+.hub-bulk__menu {
+	min-width: 200px;
+}
+
+.hub-bulk__action {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 7px 8px;
+	border: 0;
+	border-radius: var(--medium-border-radius);
+	color: var(--text-color);
+	background: none;
+	font: inherit;
+	text-align: start;
+	cursor: pointer;
+}
+
+.hub-bulk__action:hover,
+.hub-bulk__action:focus-visible {
+	background-color: var(--gray-050);
+}
+
+.hub-bulk__action.error {
+	color: var(--error-color, var(--red-600));
+}
+
+.hub-bulk__action:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 2px var(--focus-ring-color, var(--blue-500));
+}
+
+.hub-bulk__action .hub-btn-icon {
+	color: var(--light-text-color, var(--gray-550));
+	opacity: 1;
+}
+
+/* Destructive actions keep their color on the icon, and tint the row while hovered. */
+.hub-bulk__action.error .hub-btn-icon {
+	color: inherit;
+}
+
+.hub-bulk__action.error:is(:hover, :focus-visible) {
+	background-color: var(--red-050, #fef2f2);
+}
+
+.hub-bulk__action:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.hub-bulk__action:disabled:hover {
+	background: none;
+}
+
+.hub-bulk__action[hidden] {
+	display: none;
+}
+
+/* Context menus of rows, naming the item their actions apply to. */
+.hub-context {
+	min-width: 220px;
+	max-width: min(300px, calc(100vw - 16px));
+}
+
+/* Labels of the item in its context menu, checked as it is labeled with them. */
+.hub-context__label {
+	padding: 6px 8px;
+}
+
+.hub-context__label:focus-within {
+	background-color: var(--gray-050);
+}
+
+.hub-context__label:has(input:focus-visible) {
+	box-shadow: inset 0 0 0 2px var(--focus-ring-color, var(--blue-500));
+}
+
+.hub-context__empty {
+	margin: 0;
+	padding: 6px 8px;
+}
+
+/* Labels of the selection, in a dialog narrower than the previews, whose body scrolls rather than the labels; managing them
+   is offered apart from applying the changes. */
+.hub-labels__bulk {
+	width: min(420px, calc(100vw - 32px));
+}
+
+.hub-labels__bulk .hub-dropdown__part {
+	padding: 0;
+	border: 0;
+}
+
+.hub-labels__bulk .hub-dropdown__options {
+	max-height: none;
+	overflow-y: visible;
+}
+
+.hub-labels__bulk .hub-labels__manage {
+	margin-inline-end: auto;
+}
+
+.hub-bulk__status {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0 var(--s);
+}
+
+/* Selected items the filters leave out, which only the review shows. */
+.hub-bulk__outside {
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 12px;
+	cursor: help;
+}
+
+.hub-bulk__outside::before {
+	content: "·";
+	margin-inline-end: var(--s);
+}
+
+.hub-bulk__review-link {
+	white-space: nowrap;
+}
+
+/* While reviewing, the actions are offered in a menu in place of the filters, applying to the whole selection. */
+.hub-bulk__apply {
+	flex: none;
+	white-space: nowrap;
+}
+
+/* The review takes the place of the filters, sticking like them, and names what is listed. */
+.hub-bulk__review {
+	flex-wrap: wrap;
+	gap: var(--m);
+}
+
+.hub-bulk__review,
+.hub-bulk__review::before {
+	background-color: var(--blue-050);
+}
+
+.hub-bulk__review-icon {
+	display: inline-flex;
+	flex: none;
+	width: 20px;
+	height: 20px;
+	color: var(--blue-600, var(--link-color));
+}
+
+.hub-bulk__review-text {
+	display: flex;
+	flex: 1 1 240px;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.hub-bulk__review-text span {
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 12px;
+}
+
+.hub-bulk__back {
+	white-space: nowrap;
+}
+
+/* Rows unselected while reviewing stay until the list is loaded again, faded, so they can be selected again. */
+form[data-hub-bulk-review] .hub-table table.data tbody tr:not(.is-selected) > * {
+	opacity: 0.5;
+}
+
+/* Deleting and downloading ask in a modal dialog, previewing what is deleted along with the items, or downloaded. */
+.hub-preview-dialog {
+	box-sizing: border-box;
+	width: min(640px, calc(100vw - 32px));
+	max-height: min(760px, calc(100vh - 32px));
+	padding: 0;
+	overflow: hidden;
+	border: 1px solid var(--hairline-color, var(--gray-200));
+	border-radius: var(--large-border-radius);
+	color: var(--text-color);
+	background-color: var(--white, #fff);
+	box-shadow: 0 0 0 1px rgb(31 41 51 / 4%), 0 16px 48px rgb(31 41 51 / 24%);
+}
+
+.hub-preview-dialog[open] {
+	display: flex;
+	flex-direction: column;
+}
+
+.hub-preview-dialog::backdrop {
+	background-color: rgb(31 41 51 / 40%);
+}
+
+.hub-preview-dialog__title {
+	flex: none;
+	margin: 0;
+	font-size: 15px;
+}
+
+/* Only the list of items scrolls, so the notice and totals stay in view along with the title and footer. */
+.hub-preview-dialog__body {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
+	padding: 16px;
+	overflow-y: auto;
+}
+
+.hub-preview-dialog__body > .hub-deletion,
+.hub-preview-dialog__body .hub-deletion__section {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.hub-preview-dialog__body .hub-deletion__items {
+	flex: 0 1 auto;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+.hub-preview-dialog__body.is-loading {
+	flex-direction: row;
+	align-items: center;
+	gap: var(--s);
+	min-height: 120px;
+	justify-content: center;
+}
+
+.hub-preview-dialog__footer {
+	display: flex;
+	flex: none;
+	justify-content: flex-end;
+	gap: var(--s);
+	padding: 10px 16px;
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+	background-color: var(--gray-050);
+}
+
+/* Confirmations ask in a dialog like the previews, rather than the browser's own (see confirmDialog() of the scripts). */
+.hub-confirm-dialog {
+	width: min(480px, calc(100vw - 32px));
+}
+
+.hub-confirm-dialog__body {
+	gap: var(--xs, 4px);
+	overflow-wrap: anywhere;
+}
+
+.hub-confirm-dialog__body p {
+	margin: 0;
+	white-space: pre-line;
+}
+
+.hub-confirm-dialog__body p[hidden] {
+	display: none;
+}
+
+.hub-deletion {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+/* The notice names what is deleted and whether it can be restored, tinted by it. */
+.hub-deletion__notice {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 10px 12px;
+	border-radius: var(--large-border-radius);
+	color: var(--hub-fg);
+	background-color: var(--hub-bg);
+	box-shadow: inset 0 0 0 1px var(--hub-soft);
+	font-size: 13px;
+	line-height: 18px;
+}
+
+.hub-export__fields {
+	display: grid;
+	gap: 12px;
+	margin-top: 14px;
+}
+
+.hub-export__fields .field {
+	margin: 0;
+}
+
+.hub-deletion__notice p {
+	margin: 0;
+}
+
+.hub-deletion__notice strong {
+	margin-inline-end: 2px;
+	font-weight: 600;
+}
+
+.hub-deletion__notice-icon {
+	display: inline-flex;
+	flex: none;
+	width: 14px;
+	height: 14px;
+	margin-top: 2px;
+	color: var(--hub-strong);
+}
+
+.hub-deletion__skipped {
+	margin-inline-start: 4px;
+	opacity: .75;
+	cursor: help;
+}
+
+.hub-deletion__skipped::before {
+	content: "· ";
+}
+
+/* Totals of all items, colored by whether they're deleted too, changed or kept. */
+.hub-deletion__totals {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.hub-deletion__total {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 3px 10px 3px 8px;
+	border-radius: 12px;
+	color: var(--hub-fg, var(--gray-700));
+	background-color: var(--hub-bg, var(--gray-050));
+	box-shadow: inset 0 0 0 1px var(--hub-soft, var(--gray-100));
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.hub-deletion__total strong {
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-deletion__total-icon,
+.hub-deletion__impact-icon,
+.hub-deletion__chevron {
+	display: inline-flex;
+	flex: none;
+	width: 11px;
+	height: 11px;
+}
+
+.hub-deletion__total-icon {
+	color: var(--hub-strong, currentColor);
+}
+
+:is(.hub-deletion__notice-icon, .hub-deletion__total-icon, .hub-deletion__impact-icon, .hub-deletion__group-icon, .hub-deletion__chevron) svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+.hub-deletion__section {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.hub-deletion__heading {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+}
+
+.hub-deletion__heading .hub-pill {
+	min-width: 0;
+	padding: 0 7px;
+	font-size: 11px;
+	letter-spacing: 0;
+}
+
+.hub-deletion__toggle {
+	margin-inline-start: auto;
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+/* The items, each expanding to what deleting it takes along. */
+.hub-deletion__items {
+	overflow: hidden;
+	border: 1px solid var(--hub-divider, var(--gray-100));
+	border-radius: var(--large-border-radius);
+}
+
+.hub-deletion__item + .hub-deletion__item {
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+.hub-deletion__summary {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 12px 8px 10px;
+	list-style: none;
+}
+
+summary.hub-deletion__summary {
+	cursor: pointer;
+}
+
+summary.hub-deletion__summary::-webkit-details-marker {
+	display: none;
+}
+
+summary.hub-deletion__summary:hover,
+.hub-deletion__item[open] > summary {
+	background-color: var(--hub-hover, var(--gray-050));
+}
+
+summary.hub-deletion__summary:focus-visible {
+	box-shadow: inset 0 0 0 2px var(--focus-ring-color, var(--blue-500));
+	outline: none;
+}
+
+.hub-deletion__chevron {
+	width: 10px;
+	height: 10px;
+	color: var(--light-text-color, var(--gray-550));
+	transition: transform .15s ease;
+}
+
+.hub-deletion__item[open] .hub-deletion__chevron {
+	transform: rotate(90deg);
+}
+
+.hub-deletion__name {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.hub-deletion__title {
+	overflow: hidden;
+	font-weight: 500;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hub-deletion__meta {
+	overflow: hidden;
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 11px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hub-deletion__meta:empty {
+	display: none;
+}
+
+.hub-deletion__meta code {
+	font-size: 11px;
+}
+
+/* What deleting an item takes along, counted at a glance in its row. */
+.hub-deletion__impacts {
+	display: flex;
+	flex: none;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 4px;
+	font-size: 12px;
+}
+
+.hub-deletion__impact {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 7px;
+	border-radius: 10px;
+	color: var(--hub-fg, var(--gray-700));
+	background-color: var(--hub-soft, var(--gray-100));
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 18px;
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-deletion__impact-icon {
+	width: 10px;
+	height: 10px;
+}
+
+/* Groups with nothing in them still count, faintly, so each item counts the same. */
+.hub-deletion__impact[data-empty] {
+	color: var(--light-text-color, var(--gray-550));
+	background-color: var(--gray-050);
+	font-weight: 500;
+}
+
+/* The groups line up under the name of the item, past its chevron. */
+.hub-deletion__groups {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 10px 12px 12px 30px;
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+.hub-deletion__group {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.hub-deletion__group-heading {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0;
+	color: var(--text-color);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.hub-deletion__group-icon {
+	display: inline-flex;
+	flex: none;
+	width: 11px;
+	height: 11px;
+	color: var(--hub-strong);
+}
+
+.hub-deletion__group-label {
+	flex: 1;
+	min-width: 0;
+}
+
+.hub-deletion__group-count {
+	color: var(--hub-fg);
+	font-variant-numeric: tabular-nums;
+}
+
+/* Each element sits in a row of its own, with what tells it apart to the end. */
+.hub-deletion__elements {
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	padding: 0 0 0 17px;
+	border-inline-start: 2px solid var(--hub-soft);
+	margin-inline-start: 4px;
+	list-style: none;
+}
+
+.hub-deletion__element {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 4px 12px;
+	min-width: 0;
+	min-height: 26px;
+	font-size: 12px;
+}
+
+.hub-deletion__element + .hub-deletion__element {
+	border-top: 1px dashed var(--hub-divider, var(--gray-100));
+}
+
+.hub-deletion__element > .chip,
+.hub-deletion__element > .element {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.hub-deletion__element-meta {
+	display: inline-flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 4px 6px;
+	min-width: 0;
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 11px;
+	text-align: end;
+}
+
+.hub-deletion__element-meta:empty {
+	display: none;
+}
+
+.hub-deletion__more {
+	margin: 0;
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 12px;
+}
+
+/* The pages of the items stay below them, as only the items scroll. */
+.hub-deletion__pages {
+	display: flex;
+	flex: none;
+	flex-direction: column;
+	gap: 6px;
+}
+
+/* A page loading keeps the one shown, dimmed. */
+.hub-preview-dialog__body[aria-busy="true"] {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+/* The last column links to the public URL, so it only takes the room of its icon, or of the column picker in its header. */
+.hub-table table.data :is(th, td).hub-visit-cell {
+	width: 1px;
+	text-align: end;
+}
+
+.hub-visit {
+	display: inline-flex;
+	box-sizing: border-box;
+	width: 28px;
+	height: 28px;
+	padding: 7px;
+	border-radius: var(--medium-border-radius);
+	color: var(--light-text-color, var(--gray-550));
+	vertical-align: middle;
+}
+
+/* Entries with several preview targets open a menu of them instead of linking. */
+button.hub-visit {
+	border: 0;
+	background: none;
+	cursor: pointer;
+}
+
+.hub-visit:hover,
+.hub-visit:focus-visible {
+	color: var(--link-color, var(--blue-600));
+	background-color: var(--gray-100);
+}
+
+.hub-visit svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+.hub-legend__item {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: 8px;
+	margin: -2px -6px;
+	padding: 2px 6px;
+	border-radius: 4px;
+	color: inherit;
+}
+
+a.hub-legend__item:hover,
+a.hub-legend__item:focus-visible,
+a.hub-legend__item[aria-current="true"] {
+	background-color: var(--hub-hover, var(--gray-050));
+	text-decoration: none;
+}
+
+a.hub-legend__item[aria-current="true"] .hub-legend__label {
+	color: var(--text-color, var(--gray-800));
+	font-weight: 600;
+}
+
+a.hub-legend__item:hover .hub-legend__label {
+	color: var(--link-color, var(--blue-600));
+}
+
+.hub-bar__segment[data-color],
+.hub-legend__dot[data-color] {
+	background-color: var(--hub-strong);
+}
+
+.hub-task__icon[data-color],
+.hub-check__icon[data-color] {
+	color: var(--hub-fg);
+	background-color: var(--hub-bg);
+}
+
+/* Surfaces */
+
+.hub-panel {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	border: 1px solid var(--hairline-color, var(--gray-200));
+	border-radius: var(--large-border-radius);
+	background-color: var(--hub-surface);
+	box-shadow: 0 1px 2px rgb(31 41 51 / 6%);
+
+	/* Light gray surface, so panels stand out from the white content pane; nested tints step up one shade. */
+	--hub-surface: var(--gray-050);
+	--hub-hover: var(--gray-100);
+	--hub-divider: var(--gray-150);
+}
+
+/* Tinted tiles and pills take their stronger shade on the gray surface. */
+.hub-panel .hub-icon,
+.hub-task__icon[data-color],
+.hub-check__icon[data-color] {
+	background-color: var(--hub-soft, var(--gray-100));
+}
+
+.hub-panel .hub-pill {
+	background-color: var(--gray-150);
+}
+
+/* Table headers blend into the surface instead of Craft's own gray. */
+.hub-table table.data thead th {
+	background-color: transparent;
+}
+
+/* Item rows stay light, so only the surrounding chrome is tinted. */
+.hub-table table.data tbody,
+.hub-list:not(.hub-list--plain),
+.hub-task-group__list,
+.hub-checks {
+	background-color: var(--white);
+
+	--hub-hover: var(--gray-050);
+	--hub-divider: var(--gray-100);
+}
+
+.hub-btn-icon svg,
+.hub-task__icon svg,
+.hub-task__chevron svg,
+.hub-check__icon svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+/* Statistics: a panel per summary card, its header showing the total and a bar at a glance. */
+
+.hub-bar {
+	display: flex;
+	gap: 2px;
+	height: 6px;
+	overflow: hidden;
+	border-radius: 3px;
+	background-color: var(--hub-divider, var(--gray-100));
+}
+
+.hub-bar__segment {
+	flex: 1 1 0;
+	min-width: 4px;
+	background-color: var(--hub-divider, var(--gray-100));
+}
+
+.hub-legend {
+	display: grid;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	font-size: 12px;
+}
+
+.hub-legend li {
+	display: flex;
+}
+
+.hub-legend__dot {
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+}
+
+.hub-legend__label {
+	flex: 1;
+	color: var(--medium-text-color, var(--gray-550));
+}
+
+.hub-legend__value {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-bar--large {
+	height: 10px;
+	border-radius: 5px;
+}
+
+/* The bar in the header only gives a glance, so it gives way to the heading on narrow screens. */
+.hub-statistics__glance {
+	flex: 0 1 160px;
+	min-width: 60px;
+}
+
+@media (max-width: 599px) {
+	.hub-statistics__glance {
+		display: none;
+	}
+}
+
+/* The change of the total over the range of the chart: whether a change is good depends on the card, so it isn't colored. */
+.hub-trend {
+	flex: none;
+	color: var(--medium-text-color, var(--gray-550));
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+/* Chart of a statistics card over time, see statistics-chart.twig: its range and lines are picked above it. */
+.hub-chart {
+	display: flex;
+	flex-direction: column;
+	gap: var(--s);
+	padding: var(--m) var(--l);
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+	transition: opacity 0.15s;
+}
+
+/* Reloading keeps the frame. */
+.hub-chart[aria-busy="true"] {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+/* Gray is too light for a line. */
+.hub-chart [data-color="gray"] {
+	--hub-strong: var(--gray-400);
+}
+
+.hub-chart__toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--s) var(--m);
+}
+
+.hub-chart__controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--s);
+}
+
+.hub-chart__ranges {
+	display: inline-flex;
+	padding: 2px;
+	border-radius: var(--small-border-radius, 4px);
+	background-color: var(--hub-hover, var(--gray-050));
+	box-shadow: inset 0 0 0 1px var(--hub-divider, var(--gray-100));
+}
+
+.hub-chart__range {
+	padding: 3px 10px;
+	border: 0;
+	border-radius: 3px;
+	background: none;
+	color: var(--medium-text-color, var(--gray-550));
+	font-size: 12px;
+	font-weight: 500;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.hub-chart__range:hover {
+	color: var(--text-color, var(--gray-800));
+}
+
+.hub-chart__range[aria-pressed="true"] {
+	color: var(--text-color, var(--gray-800));
+	background-color: var(--white, #fff);
+	box-shadow: 0 0 0 1px var(--hub-divider, var(--gray-100)), 0 1px 2px rgb(0 0 0 / 6%);
+}
+
+.hub-chart__legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.hub-chart__series {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 3px 8px;
+	border: 0;
+	border-radius: var(--small-border-radius, 4px);
+	color: var(--text-color, var(--gray-800));
+	background: none;
+	font-size: 12px;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.hub-chart__series:hover {
+	background-color: var(--hub-hover, var(--gray-050));
+}
+
+/* Hidden lines are listed muted, with a hollow key. */
+.hub-chart__series[aria-pressed="false"] {
+	color: var(--light-text-color, var(--gray-500));
+}
+
+.hub-chart__series[aria-pressed="false"] .hub-chart__key {
+	opacity: 0.35;
+}
+
+/* Key of a line: a short stroke of its color, dashed for those not part of the total. */
+.hub-chart__key {
+	flex: none;
+	width: 14px;
+	height: 0;
+	border-top: 2px solid var(--hub-strong, var(--text-color, var(--gray-800)));
+	border-radius: 1px;
+}
+
+.hub-chart__key:not([data-color]) {
+	border-top-color: var(--text-color, var(--gray-800));
+}
+
+.hub-chart__key[data-dashed] {
+	border-top-style: dashed;
+}
+
+.hub-chart__plot {
+	position: relative;
+	min-width: 0;
+	height: 220px;
+	border-radius: var(--small-border-radius, 4px);
+}
+
+.hub-chart__plot:focus-visible {
+	outline: 2px solid var(--focus-ring-color, var(--blue-500));
+	outline-offset: 2px;
+}
+
+.hub-chart__svg {
+	display: block;
+	overflow: visible;
+	touch-action: pan-y;
+}
+
+.hub-chart__grid {
+	stroke: var(--hub-divider, var(--gray-100));
+	stroke-width: 1;
+	shape-rendering: crispEdges;
+}
+
+.hub-chart__tick {
+	fill: var(--light-text-color, var(--gray-500));
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-chart__line {
+	fill: none;
+	stroke: var(--text-color, var(--gray-800));
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.hub-chart__line[data-color] {
+	stroke: var(--hub-strong);
+}
+
+.hub-chart__line[data-dashed] {
+	stroke-dasharray: 4 4;
+}
+
+/* The ring in the surface color keeps dots apart from the lines they cross. */
+.hub-chart__dot {
+	fill: var(--text-color, var(--gray-800));
+	stroke: var(--white, #fff);
+	stroke-width: 2;
+}
+
+.hub-chart__dot[data-color] {
+	fill: var(--hub-strong);
+}
+
+.hub-chart__grid--zero {
+	stroke: var(--gray-300);
+}
+
+.hub-chart__crosshair line {
+	stroke: var(--medium-text-color, var(--gray-550));
+	stroke-width: 1;
+	shape-rendering: crispEdges;
+}
+
+.hub-chart__tooltip {
+	position: absolute;
+	top: 8px;
+	z-index: 1;
+	display: grid;
+	gap: 2px;
+	min-width: 140px;
+	padding: 8px 10px;
+	border-radius: var(--medium-border-radius, 6px);
+	background-color: var(--white, #fff);
+	box-shadow: 0 0 0 1px var(--hub-divider, var(--gray-100)), 0 4px 12px rgb(0 0 0 / 10%);
+	font-size: 12px;
+	pointer-events: none;
+}
+
+.hub-chart__tooltip[hidden] {
+	display: none;
+}
+
+.hub-chart__tooltip p {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0;
+	white-space: nowrap;
+}
+
+/* The values lead, as the lines are known by their keys. */
+.hub-chart__tooltip strong {
+	min-width: 4ch;
+	color: var(--text-color, var(--gray-800));
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-chart__tooltip span:last-child {
+	color: var(--medium-text-color, var(--gray-550));
+}
+
+.hub-chart__date {
+	margin-bottom: 4px !important;
+	color: var(--light-text-color, var(--gray-500));
+}
+
+.hub-chart__empty {
+	margin: 0;
+	padding: var(--l) 0;
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 13px;
+	text-align: center;
+}
+
+.hub-chart__data summary {
+	color: var(--medium-text-color, var(--gray-550));
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.hub-chart__data .hub-table {
+	max-height: 280px;
+	margin-top: var(--s);
+	overflow: auto;
+}
+
+.hub-statistics__body {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+	gap: var(--m) var(--xl);
+	padding: var(--m) var(--l) var(--l);
+}
+
+.hub-statistics__overview {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	min-width: 0;
+}
+
+.hub-statistics__value {
+	margin: 0;
+	font-size: 32px;
+	font-weight: 700;
+	line-height: 1.1;
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-statistics__value a {
+	color: inherit;
+}
+
+.hub-statistics__value a:hover {
+	color: var(--link-color, var(--blue-600));
+	text-decoration: none;
+}
+
+.hub-statistics__breakdown {
+	font-size: 13px;
+}
+
+.hub-statistics__share {
+	min-width: 4.5ch;
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+}
+
+/* Details: label and value pairs, in as many columns as fit. */
+.hub-statistics__details {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+	align-content: start;
+	gap: var(--s) var(--m);
+	margin: 0;
+}
+
+.hub-statistics__details > div {
+	padding: 10px 12px;
+	border-radius: var(--medium-border-radius);
+	background-color: var(--white);
+}
+
+.hub-statistics__details dt {
+	color: var(--medium-text-color, var(--gray-550));
+	font-size: 12px;
+}
+
+.hub-statistics__details dd {
+	margin: 2px 0 0;
+	font-size: 16px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-statistics__details dd a {
+	color: inherit;
+}
+
+.hub-statistics__details dd a:hover {
+	color: var(--link-color, var(--blue-600));
+}
+
+.hub-statistics__table {
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+.hub-statistics__caption {
+	margin: 0;
+	padding: 10px var(--l) 0;
+	color: var(--medium-text-color, var(--gray-550));
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+}
+
+:is(.hub-statistics__table, .hub-chart__data) table.data tbody th {
+	font-weight: normal;
+}
+
+.hub-statistics__row-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+
+:is(.hub-statistics__table, .hub-chart__data) :is(th, td).hub-statistics__number {
+	text-align: end;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.hub-statistics__table :is(th, td).hub-statistics__share-cell {
+	width: 160px;
+	white-space: nowrap;
+}
+
+/* Share of a row in the sum of the rows, as a meter next to its percentage. */
+.hub-statistics__meter {
+	display: inline-block;
+	width: 96px;
+	height: 6px;
+	margin-inline-end: 8px;
+	overflow: hidden;
+	border-radius: 3px;
+	background-color: var(--gray-100);
+	vertical-align: middle;
+}
+
+.hub-statistics__meter > span {
+	display: block;
+	height: 100%;
+	min-width: 2px;
+	background-color: var(--hub-strong, var(--gray-300));
+}
+
+.hub-statistics__table .hub-statistics__share {
+	display: inline-block;
+}
+
+.hub-statistics__note {
+	margin: 0;
+	padding: 10px var(--l);
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 12px;
+}
+
+
+/* Overview */
+
+.hub-heading {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: var(--m);
+	margin-bottom: var(--m);
+}
+
+#content .hub-heading h2 {
+	margin: 0 0 2px;
+}
+
+.hub-heading p {
+	margin: 0;
+}
+
+/* Diagnostics: the list of a tab's checks, with the counts worth reviewing, linking to the matching lists. */
+.hub-task-group__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+.hub-task-group__list li + li {
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+.hub-task {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px var(--l);
+	color: inherit;
+}
+
+a.hub-task:hover,
+a.hub-task:focus-visible {
+	background-color: var(--hub-hover, var(--gray-050));
+	text-decoration: none;
+}
+
+.hub-task__icon {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 7px;
+	box-sizing: border-box;
+	border-radius: var(--medium-border-radius);
+}
+
+.hub-task__body {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.hub-task__label {
+	font-weight: 600;
+}
+
+.hub-task__description {
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.hub-task__value {
+	flex: none;
+	font-size: 16px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Cleared items are compact and muted, as there is nothing to do. */
+.hub-task--clear {
+	padding-block: 6px;
+}
+
+.hub-task--clear .hub-task__label {
+	color: var(--medium-text-color, var(--gray-550));
+	font-weight: 500;
+}
+
+.hub-task--clear .hub-task__description {
+	display: none;
+}
+
+.hub-task--clear .hub-task__value {
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.hub-task__chevron {
+	display: inline-flex;
+	flex: none;
+	width: 10px;
+	height: 10px;
+	color: var(--gray-300);
+}
+
+a.hub-task:hover .hub-task__chevron {
+	color: var(--gray-500);
+}
+
+/* Review checks */
+
+.hub-checks {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.hub-check {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	padding: var(--m) var(--l);
+}
+
+.hub-check + .hub-check {
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+/* Passed checks are compact, as there is nothing to do. */
+.hub-check--passed {
+	padding-block: 10px;
+}
+
+.hub-check__icon {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 28px;
+	height: 28px;
+	padding: 7px;
+	border-radius: var(--medium-border-radius);
+}
+
+.hub-check__body {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+}
+
+.hub-check__heading {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+#content .hub-check__heading h3 {
+	margin: 0;
+	font-size: 14px;
+}
+
+.hub-check--passed .hub-check__heading h3 {
+	color: var(--medium-text-color, var(--gray-550));
+	font-weight: 500;
+}
+
+.hub-check__body p {
+	margin: 0;
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+/* Next step of a failed check, at the end of the row. */
+.hub-check__link {
+	flex: none;
+	align-self: center;
+}
+
+/* Results of lists filtered on the server, and content scoped to other sites, while they load. */
+[aria-busy="true"] > form[data-hub-submit] ~ *,
+#content[aria-busy="true"] > :not(#content-header) {
+	opacity: 0.5;
+	transition: opacity 0.15s 0.15s;
+}

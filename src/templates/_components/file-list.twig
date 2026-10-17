@@ -1,0 +1,124 @@
+{#
+	Panel with the filterable list of files, on the files page and on volume and user pages.
+	There can be many files, so they are filtered, sorted and paginated on the server.
+	The volume or uploader a detail page is limited to (`listFixed`) is neither offered nor shown.
+
+	Variables: see BaseController::fileListVariables()
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{# Items can be labeled while there are labels, or the user can create some. #}
+{% set labelable = canApplyLabels and (labels|length > 0 or canManageLabels) %}
+
+{% set volumeOptions = {} %}
+{% for volume in volumes %}
+	{% set volumeOptions = volumeOptions|merge({ (volume.handle): { label: volume.name|t('site'), icon: 'folder-open', color: 'amber' } }) %}
+{% endfor %}
+
+{% embed 'hub/_components/panel' %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		<form method="get" class="hub-filters" action="{{ url(listPath) }}" data-hub-submit{% if bulkSelection.review ?? false %} hidden{% endif %}>
+			{% include 'hub/_components/saved-filters' %}
+			{{ hub.search('Search by filename or title'|t('hub'), filter.search) }}
+			{% if listFixed != 'volume' %}
+				{{ hub.dropdown('Volume'|t('app'), 'folder-open', hub.choices('volume', volumeOptions, filter.volumes)) }}
+			{% endif %}
+			{{ hub.dropdown('Type'|t('app'), 'file', hub.choices('kind', kindOptions, filter.kinds, { label: 'Kind'|t('hub'), lazy: optionsUrls.kind })
+				~ hub.choices('extension', extensionOptions, filter.extensions, { label: 'Extension'|t('hub'), lazy: optionsUrls.extension })) }}
+			{{ hub.dropdown('Dimensions'|t('app'), 'ruler-combined', hub.range('width', 'Width'|t('app'), filter.widthMin, filter.widthMax, { unit: 'px' })
+				~ hub.range('height', 'Height'|t('app'), filter.heightMin, filter.heightMax, { unit: 'px' })
+				~ hub.choices('orientation', {
+					landscape: { label: 'Landscape'|t('hub'), icon: 'rectangle-wide' },
+					portrait: { label: 'Portrait'|t('hub'), icon: 'rectangle-vertical' },
+					square: { label: 'Square'|t('hub'), icon: 'square' },
+				}, filter.orientations, { label: 'Orientation'|t('hub') })) }}
+			{{ hub.dropdown('Size'|t('app'), 'weight-hanging', hub.range('size', 'Size'|t('app'), filter.sizeMin, filter.sizeMax, { unit: 'MB', step: 'any' })) }}
+			{{ hub.dropdown('References'|t('hub'), 'link', hub.choices('usage', {
+				used: { label: 'With references'|t('hub'), color: 'green' },
+				unused: { label: 'Without references'|t('hub'), color: 'orange' },
+			}, filter.usage, { multiple: false, label: 'Usage'|t('hub') })
+				~ hub.range('references', 'Number of references'|t('hub'), filter.referencesMin, filter.referencesMax)) }}
+			{{ hub.dropdown('Uploaded'|t('hub'), 'calendar', hub.range('uploaded', 'Upload date'|t('hub'), filter.uploadedFrom, filter.uploadedTo, { type: 'date' })
+				~ (listFixed != 'uploader' ? hub.choices('uploader', uploaderOptions, filter.uploaders, { label: 'Uploaded by'|t('app'), lazy: optionsUrls.uploader }) : '')) }}
+			{{ hub.labelFilter(labelOptions, filter.labels) }}
+			{{ hub.toggle('alt', 'Missing alt text only'|t('hub'), filter.missingAlt) }}
+			{{ hub.toggle('oversized', 'Oversized images only'|t('hub'), filter.oversized) }}
+			{{ hub.addFilter() }}
+			{{ hiddenInput('sort', sort) }}
+			{{ hiddenInput('dir', dir) }}
+			{{ hiddenInput('selection', (bulkSelection.review ?? false) ? 1 : null) }}
+			{{ hub.clearFilters() }}
+		</form>
+
+		{% if assets|length %}
+			{% embed 'hub/_components/bulk' with { bulkList: 'files', bulkNone: 'No files selected'|t('hub') } %}
+				{% block table %}
+					{% import 'hub/_components/macros' as hub %}
+					<div class="hub-table">
+						<table class="data fullwidth">
+							<thead>
+								<tr>
+									{{ hub.bulkAll(bulkActions) }}
+									{{ hub.sortHeader('File'|t('hub'), 'file', sortHeaders) }}
+									{{ hub.columnHeaders(columns, sortHeaders, 'files') }}
+								</tr>
+							</thead>
+							<tbody>
+								{% for asset in assets %}
+									{% set references = referenceCounts[asset.id] ?? 0 %}
+									{% set kind = fileKinds[asset.kind] ?? null %}
+									<tr>
+										{{ hub.bulkItem(bulkActions, asset.id, asset.filename) }}
+										<th>{{ hub.fileName(asset, hub.labels(itemLabels[asset.id] ?? [], asset.id, asset.filename, labelable)) }}</th>
+										{% for column in columns %}
+											<td{{ hub.cellAttributes(column) }}>
+												{%- if not column.visible -%}
+												{%- elseif column.key == 'volume' -%}
+													{{ hub.chip(asset.volume) }}
+												{%- elseif column.key == 'kind' -%}
+													{% if kind %}{{ hub.badge(kind.label, kind.color, null, kind.icon) }}{% else %}{{ asset.kind }}{% endif %}
+												{%- elseif column.key == 'dimensions' -%}
+													{% if asset.width and asset.height %}{{ asset.width|number }} × {{ asset.height|number }}{% else %}<span class="hub-muted">—</span>{% endif %}
+												{%- elseif column.key == 'size' -%}
+													{{ hub.size(asset.size) }}
+												{%- elseif column.key == 'references' -%}
+													{{ hub.num(references) }}
+												{%- elseif column.key == 'uploaded' -%}
+													{{ hub.date(asset.dateCreated) }}
+												{%- elseif column.key == 'uploader' -%}
+													{% if asset.uploader %}{{ hub.element(asset.uploader) }}{% else %}<span class="hub-muted">—</span>{% endif %}
+												{%- elseif column.key == 'maintainers' -%}
+													{{ hub.elementMaintainers(asset) }}
+												{%- elseif column.key == 'url' -%}
+													{%- if canDownload -%}
+														{%- set label = 'Download file'|t('hub') -%}
+														<a class="hub-visit" href="{{ actionUrl('hub/files/download', { id: asset.id }) }}" title="{{ label }}" aria-label="{{ label }}">{{ iconSvg('download') }}</a>
+													{%- endif -%}
+												{%- elseif column.key == 'edit' -%}
+													{%- if asset.canView(currentUser) -%}
+														{%- set label = 'Edit asset'|t('hub') -%}
+														<a class="hub-visit" href="{{ asset.cpEditUrl }}" title="{{ label }}" aria-label="{{ label }}">{{ iconSvg('pen') }}</a>
+													{%- endif -%}
+												{%- endif -%}
+											</td>
+										{% endfor %}
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				{% endblock %}
+				{% block footer %}
+					{% include '_includes/pagination' with {
+						pageInfo: pageInfo,
+						itemLabel: 'file'|t('hub'),
+						itemsLabel: 'files'|t('hub'),
+					} %}
+				{% endblock %}
+			{% endembed %}
+		{% else %}
+			{{ hub.emptyList(bulkSelection ?? null) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

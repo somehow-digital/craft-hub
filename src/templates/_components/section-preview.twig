@@ -1,0 +1,26 @@
+{#
+	What moving entries to a section does, shown in the dialog of the bulk actions before they're moved (see the
+	`action-preview` component): the number of entries that can be moved, and the section picked, each naming how many of
+	them it takes (see EntryService::getSectionTargets()). Entries it doesn't take are left where they are.
+
+	Variables: targets (the sections the entries can be moved to, with the number each takes), total, skipped
+#}
+{% extends 'hub/_components/action-preview' %}
+{% import '_includes/forms' as forms %}
+
+{% set noun = '{count, plural, =1{One entry} other{# entries}}' %}
+{% set notice = { color: 'blue', icon: 'arrow-right-arrow-left', text: '{count, plural, =1{is} other{are}} moved to the section picked below, if it has {count, plural, =1{its entry type} other{their entry types}}.'|t('hub', { count: total }) } %}
+{% set empty = { title: 'Nothing to move:'|t('hub'), text: 'None of the selected entries can be moved to another section.'|t('hub') } %}
+{% set skippedText = '{count, plural, =1{One entry is} other{# entries are}} skipped, as no other section has {count, plural, =1{its entry type} other{their entry types}}, you may not move {count, plural, =1{it} other{them}}, or {count, plural, =1{it is} other{they are}} nested or in a single.'|t('hub', { count: skipped }) %}
+
+{% block fields %}
+	{{ forms.selectField({
+		label: 'Section'|t('app'),
+		name: 'sectionId',
+		options: targets|map(target => {
+			label: target.count == total ? target.section.name|t('site') : '{section} ({count} of {total})'|t('hub', { section: target.section.name|t('site'), count: target.count, total: total }),
+			value: target.section.id,
+		})|values,
+		class: 'fullwidth',
+	}) }}
+{% endblock %}

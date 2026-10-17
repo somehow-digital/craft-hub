@@ -1,0 +1,177 @@
+{% extends 'hub/_layouts/detail' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set entryType = info.entryType %}
+
+{% set title = entryType.name|t('site') %}
+{% set area = 'structure' %}
+{% set selectedSubnavItem = 'entry-types' %}
+{# Entry types used by no section or field have no entries to list. #}
+{% set listTabs = info.sections|length or info.nestedFields|length ? [{ id: 'entries', label: 'Entries'|t('app') }] : [] %}
+{% set statisticsTab = true %}
+{% set path = 'hub/structure/entry-types/' ~ entryType.id %}
+{% set crumbs = [
+	{ label: 'Entry Types'|t('hub'), url: url('hub/structure/entry-types', { hubSite: hubSite }) },
+	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+] %}
+
+{% block pageTitle %}
+	{{ hub.pageTitle(entryType, 'Entry Type'|t('app')) }}
+{% endblock %}
+
+{% block actionButton %}
+	<div class="flex">
+		{{ hub.siteFilter() }}
+		{% if currentUser.admin %}
+			<a class="btn" href="{{ entryType.cpEditUrl }}">
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('pen') }}</span>
+				<span>{{ 'Edit'|t('app') }}</span>
+			</a>
+		{% endif %}
+	</div>
+{% endblock %}
+
+{% block details %}
+	<dl class="meta read-only hub-details">
+		{% include 'hub/_components/detail-labels' with { list: 'entryTypes', id: entryType.id } %}
+		<div class="data">
+			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
+			<dd class="value"><code>{{ entryType.handle }}</code></dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Usage'|t('hub') }}</dt>
+			<dd class="value">{{ hub.kinds(info.kinds) }}</dd>
+		</div>
+		{% if entryType.description %}
+			<div class="data">
+				<dt class="heading">{{ 'Description'|t('app') }}</dt>
+				<dd class="value">{{ entryType.description }}</dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'Title field'|t('hub') }}</dt>
+			<dd class="value">{{ entryType.hasTitleField ? 'Yes'|t('app') : 'No'|t('app') }}</dd>
+		</div>
+		{% if entryType.hasTitleField %}
+			<div class="data">
+				<dt class="heading">{{ '{name} Translation Method'|t('app', { name: 'Title'|t('app') }) }}</dt>
+				<dd class="value">{{ hub.translationMethod(entryType.titleTranslationMethod) }}</dd>
+			</div>
+			<div class="data">
+				<dt class="heading">{{ 'Allow line breaks in titles'|t('app') }}</dt>
+				<dd class="value">{{ entryType.allowLineBreaksInTitles ? 'Yes'|t('app') : 'No'|t('app') }}</dd>
+			</div>
+		{% elseif entryType.titleFormat %}
+			<div class="data">
+				<dt class="heading">{{ 'Title format'|t('hub') }}</dt>
+				<dd class="value"><code>{{ entryType.titleFormat }}</code></dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'UI Label Format'|t('app') }}</dt>
+			<dd class="value"><code>{{ entryType.uiLabelFormat }}</code></dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Show the Slug field'|t('app') }}</dt>
+			<dd class="value">{{ entryType.showSlugField ? 'Yes'|t('app') : 'No'|t('app') }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ '{name} Translation Method'|t('app', { name: 'Slug'|t('app') }) }}</dt>
+			<dd class="value">{{ hub.translationMethod(entryType.slugTranslationMethod) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Show the Status field'|t('app') }}</dt>
+			<dd class="value">{{ entryType.showStatusField ? 'Yes'|t('app') : 'No'|t('app') }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Last updated'|t('hub') }}</dt>
+			<dd class="value">{{ hub.date(info.stats.lastUpdated) }}</dd>
+		</div>
+		{{ hub.identifiers(entryType) }}
+	</dl>
+{% endblock %}
+
+{% block overview %}
+	{% include 'hub/_components/maintainers' with { list: 'entryTypes', item: entryType } %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Relations'|t('hub'),
+		description: 'Sections and nested entry fields using this entry type, and Entries and Link fields that can relate to its entries.'|t('hub'),
+		icon: 'link',
+		color: 'teal',
+		count: info.sections|length + info.relationCount,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
+			{% if info.sections|length or info.relationCount %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Name'|t('app') }}</th>
+								<th>{{ 'Relation'|t('hub') }}</th>
+								<th>{{ 'Type'|t('app') }}</th>
+								<th class="hub-num">{{ 'Entries'|t('app') }}</th>
+								<th>{{ 'Last updated'|t('hub') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% set kind = usageKind.from('section') %}
+							{% for section in info.sections %}
+								{% set stats = statistics.sumEntries(siteIds, section.id, entryType.id) %}
+								<tr{% if not stats.total %} data-severity="orange"{% endif %}>
+									<th>{{ hub.name(section, null, not stats.total ? hub.noEntriesHere()) }}</th>
+									<td>{{ hub.badge(kind.label(), kind.color(), kind.description(), kind.icon()) }}</td>
+									<td>{{ hub.sectionType(section) }}</td>
+									<td class="hub-num">{{ hub.num(stats.total) }}</td>
+									<td>{{ hub.date(stats.lastUpdated) }}</td>
+								</tr>
+							{% endfor %}
+							{% set kind = usageKind.from('nested') %}
+							{% for field in info.nestedFields %}
+								{% set stats = statistics.sumEntries(siteIds, null, entryType.id, field.id) %}
+								<tr{% if not stats.total %} data-severity="orange"{% endif %}>
+									<th>{{ hub.name(field, 'violet', not stats.total ? hub.noEntriesHere()) }}</th>
+									<td>{{ hub.badge(kind.label(), kind.color(), kind.description(), kind.icon()) }}</td>
+									<td>{{ hub.fieldType(field, 'violet') }}</td>
+									<td class="hub-num">{{ hub.num(stats.total) }}</td>
+									<td>{{ hub.date(stats.lastUpdated) }}</td>
+								</tr>
+							{% endfor %}
+							{% set kind = usageKind.from('reference') %}
+							{% for field in info.referenceFields %}
+								<tr>
+									<th>{{ hub.name(field, 'teal') }}</th>
+									<td>{{ hub.badge(kind.label(), kind.color(), kind.description(), kind.icon()) }}</td>
+									<td>{{ hub.fieldType(field, 'teal') }}</td>
+									<td></td>
+									<td></td>
+								</tr>
+							{% endfor %}
+							{% for field in info.linkFields %}
+								<tr>
+									<th>{{ hub.name(field, 'cyan') }}</th>
+									<td>{{ hub.badge(kind.label(), kind.color(), 'Can be referenced through a Link field.'|t('hub'), kind.icon()) }}</td>
+									<td>{{ hub.fieldType(field, 'cyan') }}</td>
+									<td></td>
+									<td></td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% else %}
+				{{ hub.emptyState('link-slash', 'This entry type is not used by any section or field.'|t('hub')) }}
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+
+	{% include 'hub/_components/field-layout' with { layout: entryType.getFieldLayout() } %}
+
+	{% include 'hub/_components/item-activity' with { subject: 'entryType', id: entryType.id } %}
+{% endblock %}
+
+{% block list %}
+	{% include 'hub/_components/entry-list' %}
+{% endblock %}

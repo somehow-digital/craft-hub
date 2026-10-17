@@ -1,0 +1,49 @@
+{#
+	Panel with the elements an element references, along with the fields it references them through.
+
+	Variables: referenced (EntryReference[])
+#}
+{% embed 'hub/_components/panel' with {
+	heading: 'Referenced elements'|t('hub'),
+	description: 'Elements this one references through a relation field or a link in rich text, in its nested entries too.'|t('hub'),
+	icon: 'arrow-up-right-from-square',
+	color: 'teal',
+	count: referenced|reduce((total, reference) => total + reference.paths|length, 0),
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
+		{% if referenced|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Element'|t('hub') }}</th>
+							<th>{{ 'Field'|t('app') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for reference in referenced %}
+							{% for path in reference.paths %}
+								<tr>
+									<td>{{ hub.element(reference.element) }}</td>
+									<td>
+										<span class="hub-inline">
+											{% if path.field %}
+												{% set kind = usageKind.from(path.field is instance of('craft\\fields\\Link') ? 'link' : 'reference') %}
+												{{ hub.fieldType(path.field, kind.color()) }}
+											{% endif %}
+											<span>{{ path.label }}</span>
+										</span>
+									</td>
+								</tr>
+							{% endfor %}
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% else %}
+			{{ hub.emptyState('link-slash', 'This element references no other elements.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

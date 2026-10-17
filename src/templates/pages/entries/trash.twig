@@ -1,0 +1,10 @@
+{% extends 'hub/_layouts/index' %}
+
+{% set area = 'data' %}
+{% set page = 'entries' %}
+{% set title = 'Entries'|t('app') %}
+{% set selectedTab = 'trash' %}
+
+{% block content %}
+	{% include 'hub/_components/trashed-entry-list' %}
+{% endblock %}
