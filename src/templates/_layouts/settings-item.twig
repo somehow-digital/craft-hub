@@ -1,0 +1,39 @@
+{#
+	Form of an item managed on a tab of the settings page, like a filter, a label or a check: its title shows the item's
+	icon and what kind of item it is, its fields are grouped in panels, and the details sidebar sums it up.
+
+	Variables: tab (`filters`, `labels` or `diagnostics`), title, kindLabel (what kind of item it is, set small above the
+	title), type (badge after the kind, if any), icon, color, mirror (attributes making the icon follow the fields of the
+	form as they're changed, see `data-hub-mirror` in the scripts)
+	Blocks: content, details
+#}
+{% extends '_layouts/cp' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% do view.registerAssetBundle('SomehowDigital\\Craft\\Hub\\assets\\HubAsset') %}
+
+{% set fullPageForm = true %}
+{% set selectedSubnavItem = 'settings' %}
+
+{% set tabLabel = {
+	filters: 'Filters'|t('hub'),
+	labels: 'Labels'|t('hub'),
+	diagnostics: 'Diagnostics'|t('hub'),
+}[tab] %}
+
+{% set docTitle = title ~ ' - ' ~ tabLabel ~ ' - ' ~ 'Settings'|t('hub') %}
+{% set crumbs = [
+	{ label: 'Hub'|t('hub'), url: url('hub/manage') },
+	{ label: 'Settings'|t('hub'), url: url('hub/manage/settings') },
+	{ label: tabLabel, url: url('hub/manage/settings/' ~ tab) },
+] %}
+
+{% block pageTitle %}
+	<div class="hub-title">
+		<span class="hub-icon hub-icon--large" data-color="{{ color }}"{{ mirror ?? '' }} aria-hidden="true">{{ iconSvg(icon) }}</span>
+		<div class="hub-title__text">
+			{{ hub.titleKind(kindLabel, type ?? null) }}
+			<h1 id="page-heading" class="screen-title" title="{{ title }}">{{ title }}</h1>
+		</div>
+	</div>
+{% endblock %}

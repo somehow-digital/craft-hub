@@ -1,0 +1,75 @@
+{#
+	Saved filters of a list, opening from the start of its filter bar: the filters offered to everyone, Hub's predefined and
+	the custom ones, and the user's own ones, which they save from the filters the list shows, rename and delete here.
+	Picking one sets the list's filters to those it saved, the sorting kept, and loads the results like any filter; the one
+	the list shows, and the custom one it applies, are named on the button. Custom filters apply their condition by the
+	hidden `filter` input, a filter of the bar like the others, so other filters can be set along with them.
+	Without scripts, the filters link to the list showing them.
+
+	Variables: savedFilters (see FilterService::getMenu()), hubSite
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{% set menu = savedFilters %}
+{% set id = 'hub-saved-' ~ random() %}
+{% set siteParams = hubSite ? { hubSite: hubSite } : {} %}
+
+{% macro item(item, path, siteParams) %}
+	<a class="hub-saved__item" href="{{ url(path, item.params|merge(siteParams)) }}" data-hub-saved-item data-params="{{ item.params|json_encode }}"
+		{%- if item.custom %} data-custom="{{ item.custom }}"{% endif %}
+		{%- if item.description %} title="{{ item.description }}"{% endif %}>
+		<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg(item.icon) }}</span>
+		<span class="hub-saved__name" data-hub-saved-name>{{ item.name }}</span>
+		<span class="hub-saved__check" aria-hidden="true">{{ iconSvg('check') }}</span>
+	</a>
+{%- endmacro %}
+
+<div class="hub-dropdown hub-saved" data-hub-saved data-kind="{{ menu.kind }}" data-path="{{ menu.path }}">
+	<input type="hidden" name="filter" value="{{ menu.current }}" data-hub-filter data-hub-saved-current>
+	<button type="button" class="btn hub-dropdown__toggle" popovertarget="{{ id }}" aria-haspopup="dialog">
+		<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('bookmark') }}</span>
+		<span class="hub-dropdown__label">{{ 'Saved filters'|t('hub') }}</span>
+		<span class="hub-dropdown__value" data-hub-saved-value></span>
+	</button>
+	<div class="hub-dropdown__popover hub-saved__popover" id="{{ id }}" popover role="dialog" aria-label="{{ 'Saved filters'|t('hub') }}">
+		<div class="hub-popover__title">{{ 'Saved filters'|t('hub') }}</div>
+
+		{% if menu.shared|length or menu.canManage %}
+			<div class="hub-menu__group" role="group" aria-labelledby="{{ id }}-shared">
+				<h6 class="hub-menu__heading" id="{{ id }}-shared">
+					<span>{{ 'Filters'|t('hub') }}</span>
+					{% if menu.canManage %}
+						<a class="hub-menu__link" href="{{ url(menu.manageUrl) }}">{{ 'Manage'|t('hub') }}</a>
+					{% endif %}
+				</h6>
+				{% for item in menu.shared %}
+					{{ _self.item(item, menu.path, siteParams) }}
+				{% else %}
+					<p class="hub-saved__empty">{{ 'No filters are enabled.'|t('hub') }}</p>
+				{% endfor %}
+			</div>
+		{% endif %}
+
+		<div class="hub-menu__group" role="group" aria-labelledby="{{ id }}-own">
+			<h6 class="hub-menu__heading" id="{{ id }}-own">{{ 'My filters'|t('hub') }}</h6>
+			{% for item in menu.own %}
+				<div class="hub-saved__row" data-hub-saved-own="{{ item.id }}">
+					{{ _self.item(item, menu.path, siteParams) }}
+					<button type="button" class="hub-saved__action" title="{{ 'Rename'|t('app') }}" aria-label="{{ 'Rename'|t('app') }}: {{ item.name }}" data-hub-saved-rename>{{ iconSvg('pen') }}</button>
+					<button type="button" class="hub-saved__action hub-saved__action--danger" title="{{ 'Delete'|t('app') }}" aria-label="{{ 'Delete'|t('app') }}: {{ item.name }}" data-hub-saved-delete>{{ iconSvg('trash') }}</button>
+				</div>
+			{% else %}
+				<p class="hub-saved__empty">{{ 'Save the filters the list shows, to apply them again in one go.'|t('hub') }}</p>
+			{% endfor %}
+		</div>
+
+		{# Not named, so they aren't filters of the list. #}
+		<div class="hub-saved__save">
+			<div class="hub-saved__fields">
+				<input type="text" class="text fullwidth" maxlength="255" autocomplete="off" placeholder="{{ 'Name'|t('app') }}" aria-label="{{ 'Name of the filter'|t('hub') }}" data-hub-saved-input>
+				<button type="button" class="btn submit small" data-hub-saved-save data-save="{{ 'Save'|t('app') }}" data-update="{{ 'Update'|t('app') }}" disabled>{{ 'Save'|t('app') }}</button>
+			</div>
+			<p class="hub-saved__hint" data-hub-saved-hint data-empty="{{ 'Set some filters first.'|t('hub') }}" data-update="{{ 'Replaces the filters of “{name}”.'|t('hub') }}" hidden></p>
+		</div>
+	</div>
+</div>

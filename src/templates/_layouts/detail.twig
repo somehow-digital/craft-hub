@@ -1,0 +1,64 @@
+{#
+	Detail pages: an overview tab, optionally tabs listing the page's entries, files or transforms, a statistics tab with its
+	summary cards, while statistics are enabled, and a diagnostics tab listing the checks, while diagnostics are enabled, each on
+	its own URL below that of the page.
+
+	Variables: path (of the page, which is its overview), checks, selectedTab (`overview`, a list tab's ID, `statistics` or
+	`diagnostics`), listTabs (`id` and `label` of each list tab, if any, its ID being its path segment), statisticsTab (whether
+	the page has a statistics tab), summary (its cards, on that tab), statisticsEnabled (see Settings::$enableStatistics),
+	diagnosticsEnabled (see Settings::$enableDiagnostics)
+	Blocks: overview, list (of the selected list tab)
+#}
+{% extends 'hub/_layouts/hub' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set failedChecks = checks|filter(check => not check.passed)|length %}
+
+{# The tabs listing entries or assets are left out for users who may not view their pages. #}
+{% set plugin = craft.app.plugins.getPlugin('hub') %}
+{% set listTabs = (listTabs ?? [])|filter(listTab => listTab.id not in ['entries', 'assets'] or plugin.canView(listTab.id)) %}
+
+{% set tabs = { overview: { label: 'Overview'|t('hub'), url: url(path, { hubSite: hubSite }) } } %}
+{% for listTab in listTabs %}
+	{% set tabs = tabs|merge({ (listTab.id): { label: listTab.label, url: url(path ~ '/' ~ listTab.id, { hubSite: hubSite }) } }) %}
+{% endfor %}
+{% if (statisticsTab ?? false) and (statisticsEnabled ?? true) %}
+	{% set tabs = tabs|merge({ statistics: { label: 'Statistics'|t('hub'), url: url(path ~ '/statistics', { hubSite: hubSite }) } }) %}
+{% endif %}
+{% if diagnosticsEnabled ?? true %}
+	{% set tabs = tabs|merge({ diagnostics: {
+			label: failedChecks ? 'Diagnostics ({count, number})'|t('hub', { count: failedChecks }) : 'Diagnostics'|t('hub'),
+			url: url(path ~ '/diagnostics', { hubSite: hubSite }),
+		} }) %}
+{% endif %}
+
+{# Tabs other than the overview end the crumbs and start the document title, as on the index pages. #}
+{% if selectedTab != 'overview' %}
+	{% set tabLabel = selectedTab == 'diagnostics' ? 'Diagnostics'|t('hub') : tabs[selectedTab].label %}
+	{% set docTitle = tabLabel ~ ' - ' ~ title %}
+	{% set crumbs = crumbs|map(crumb => crumb|merge({ current: false }))
+		|merge([{ label: tabLabel, url: tabs[selectedTab].url, current: true }]) %}
+{% endif %}
+
+{% block content %}
+	{% if selectedTab == 'diagnostics' %}
+		{% embed 'hub/_components/panel' with {
+			heading: 'Checks'|t('hub'),
+			description: 'Things to clean up or improve, most urgent first.'|t('hub'),
+			icon: 'list-check',
+			color: failedChecks ? 'orange' : 'green',
+			count: failedChecks,
+		} %}
+			{% block body %}
+				{% import 'hub/_components/macros' as hub %}
+				{{ hub.checks(checks) }}
+			{% endblock %}
+		{% endembed %}
+	{% elseif selectedTab == 'statistics' %}
+		{% include 'hub/_components/statistics' with { cards: summary } %}
+	{% elseif selectedTab in listTabs|column('id') %}
+		{% block list %}{% endblock %}
+	{% else %}
+		{% block overview %}{% endblock %}
+	{% endif %}
+{% endblock %}
