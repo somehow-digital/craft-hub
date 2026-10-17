@@ -1,0 +1,454 @@
+/* Hub panel (edit sidebar of entries, assets and users) */
+
+.hub-sidebar {
+	--hub-sidebar-indent: 26px;
+	padding-block: var(--xs, 6px) var(--s, 12px);
+	padding-inline: var(--m, 24px);
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+.hub-sidebar a:not(.chip *) {
+	text-decoration: none;
+}
+
+.hub-sidebar a:not(.chip *):hover {
+	text-decoration: underline;
+}
+
+.hub-sidebar p {
+	margin: 0;
+}
+
+/* Icons of the panel's own, filling their box; those of Craft's chips are left alone */
+:is(.hub-sidebar__glyph, .hub-sidebar__section-icon, .hub-sidebar__ok, .hub-sidebar__check-icon, .hub-sidebar__field) svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+.hub-sidebar__glyph {
+	display: inline-flex;
+	flex: none;
+	width: 10px;
+	height: 10px;
+}
+
+.hub-sidebar__note,
+.hub-sidebar__empty {
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 11px;
+}
+
+.hub-sidebar__link {
+	display: inline-block;
+	margin-block-start: 8px;
+	font-size: 11px;
+}
+
+/* Footer, linking to the element's Hub page */
+
+.hub-sidebar__footer {
+	display: flex;
+	justify-content: flex-end;
+	padding-block-start: var(--s, 12px);
+	border-block-start: 1px solid var(--hairline-color, var(--gray-200));
+}
+
+.hub-sidebar__open {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+	border-radius: 10px;
+	background-color: var(--gray-100);
+	color: var(--medium-text-color, var(--gray-600));
+	font-size: 11px;
+	font-weight: 500;
+	line-height: 18px;
+}
+
+.hub-sidebar .hub-sidebar__open:hover,
+.hub-sidebar .hub-sidebar__open:focus-visible {
+	background-color: var(--gray-200);
+	color: var(--text-color, var(--gray-800));
+	text-decoration: none;
+}
+
+/* Sections: a heading row toggling a body indented to its title */
+
+.hub-sidebar__section + .hub-sidebar__section {
+	border-block-start: 1px solid var(--hairline-color, var(--gray-200));
+}
+
+.hub-sidebar__summary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 36px;
+	margin-inline: -6px;
+	padding-inline: 6px;
+	border-radius: 6px;
+	list-style: none;
+	cursor: pointer;
+	user-select: none;
+}
+
+.hub-sidebar__summary::-webkit-details-marker {
+	display: none;
+}
+
+.hub-sidebar__summary:hover {
+	background-color: var(--gray-050);
+}
+
+.hub-sidebar__summary:focus-visible {
+	box-shadow: var(--focus-ring);
+	outline: none;
+}
+
+.hub-sidebar__section-icon {
+	display: inline-flex;
+	flex: none;
+	width: 14px;
+	height: 14px;
+	margin-inline-end: 4px;
+	color: var(--gray-400);
+}
+
+.hub-sidebar__title {
+	flex: 1;
+	min-width: 0;
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.hub-sidebar__status {
+	display: inline-flex;
+	align-items: center;
+}
+
+/* Statuses repeating what the section shows are only shown while it's collapsed */
+.hub-sidebar__section[open] .hub-sidebar__status--collapsed {
+	display: none;
+}
+
+/* Number of items: gray, or tinted by the color it is given */
+.hub-sidebar__count {
+	min-width: 20px;
+	padding: 0 6px;
+	box-sizing: border-box;
+	border-radius: 10px;
+	background-color: var(--hub-soft, var(--gray-100));
+	color: var(--hub-fg, var(--medium-text-color, var(--gray-600)));
+	font-size: 11px;
+	font-weight: 700;
+	line-height: 18px;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-sidebar__count[hidden] {
+	display: none;
+}
+
+.hub-sidebar__ok {
+	display: inline-flex;
+	width: 14px;
+	height: 14px;
+	color: var(--hub-strong);
+}
+
+.hub-sidebar__chevron {
+	flex: none;
+	width: 6px;
+	height: 6px;
+	margin-inline: 4px 2px;
+	border-block-end: 1.5px solid currentColor;
+	border-inline-end: 1.5px solid currentColor;
+	color: var(--gray-400);
+	transform: translateY(-2px) rotate(45deg);
+	transition: transform 0.1s ease-out;
+}
+
+.hub-sidebar__section:not([open]) .hub-sidebar__chevron {
+	transform: rotate(-45deg);
+}
+
+:dir(rtl) .hub-sidebar__section:not([open]) .hub-sidebar__chevron {
+	transform: rotate(135deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.hub-sidebar__chevron {
+		transition: none;
+	}
+}
+
+.hub-sidebar__body {
+	padding-block: 2px var(--s, 12px);
+	padding-inline-start: var(--hub-sidebar-indent);
+}
+
+/* Labels */
+
+.hub-sidebar__labels {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+}
+
+.hub-sidebar__badges {
+	flex: 1;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.hub-sidebar__badges:empty {
+	display: none;
+}
+
+.hub-sidebar__labels .hub-sidebar__empty {
+	flex: 1;
+	line-height: 20px;
+}
+
+.hub-sidebar__edit {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 6px;
+	border: 0;
+	border-radius: 4px;
+	background: none;
+	color: var(--link-color);
+	font-size: 11px;
+	line-height: 18px;
+	cursor: pointer;
+}
+
+.hub-sidebar__edit:hover,
+.hub-sidebar__edit[aria-expanded="true"] {
+	background-color: var(--gray-050);
+}
+
+/* Labels to pick from, shown while editing them */
+.hub-sidebar__options {
+	display: flex;
+	flex-direction: column;
+	margin: 8px 0 0;
+	padding: 4px;
+	border: 1px solid var(--hairline-color, var(--gray-200));
+	border-radius: 6px;
+}
+
+.hub-sidebar__options[hidden] {
+	display: none;
+}
+
+.hub-sidebar__option {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	padding: 4px 6px;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.hub-sidebar__option:hover {
+	background-color: var(--gray-050);
+}
+
+.hub-sidebar__option input {
+	margin: 0;
+}
+
+.hub-sidebar__option-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hub-sidebar__options > .hub-sidebar__empty {
+	padding: 4px 6px;
+}
+
+.hub-sidebar__options > .hub-sidebar__link {
+	margin: 4px 6px 2px;
+}
+
+/* Diagnostics: each failed check a card tinted by its severity */
+
+.hub-sidebar__checks {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.hub-sidebar__check {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 8px 10px;
+	border-inline-start: 3px solid var(--hub-strong);
+	border-radius: 2px 6px 6px 2px;
+	background-color: var(--hub-bg);
+}
+
+:dir(rtl) .hub-sidebar__check {
+	border-radius: 6px 2px 2px 6px;
+}
+
+.hub-sidebar__severity,
+.hub-sidebar__passed {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--hub-fg);
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.hub-sidebar__check-icon {
+	display: inline-flex;
+	flex: none;
+	width: 11px;
+	height: 11px;
+}
+
+.hub-sidebar__check-heading {
+	font-size: 13px;
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+
+.hub-sidebar__check-text {
+	color: var(--medium-text-color, var(--gray-600));
+	font-size: 11px;
+	line-height: 1.45;
+}
+
+.hub-sidebar__passed {
+	padding: 8px 10px;
+	border-radius: 6px;
+	background-color: var(--hub-bg);
+	font-weight: 500;
+}
+
+/* Last edited: label and value side by side, like Craft's metadata */
+
+.hub-sidebar__facts {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: 6px 12px;
+	align-items: center;
+	margin: 0;
+}
+
+.hub-sidebar__fact {
+	display: contents;
+}
+
+.hub-sidebar__fact dt {
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 11px;
+}
+
+.hub-sidebar__fact dd {
+	min-width: 0;
+	margin: 0;
+	font-size: 12px;
+}
+
+.hub-sidebar__fact .chip {
+	max-width: 100%;
+}
+
+/* References: the referencing element, and the fields it references the element through below it */
+
+.hub-sidebar__references {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.hub-sidebar__reference {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+	padding-block: 8px;
+}
+
+.hub-sidebar__reference:first-child {
+	padding-block-start: 0;
+}
+
+.hub-sidebar__reference + .hub-sidebar__reference {
+	border-block-start: 1px dashed var(--hairline-color, var(--gray-200));
+}
+
+.hub-sidebar__reference-element {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.hub-sidebar__reference-element .chip {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.hub-sidebar__type {
+	flex: none;
+	max-width: 40%;
+	margin-inline-start: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hub-sidebar__paths {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin: 0;
+	padding-inline-start: 8px;
+	border-inline-start: 2px solid var(--gray-100);
+	list-style: none;
+}
+
+.hub-sidebar__path {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 11px;
+	line-height: 16px;
+	overflow-wrap: anywhere;
+}
+
+.hub-sidebar__field {
+	display: inline-flex;
+	flex: none;
+	box-sizing: border-box;
+	width: 16px;
+	height: 16px;
+	padding: 3px;
+	border-radius: 4px;
+	background-color: var(--hub-soft, var(--gray-100));
+	color: var(--hub-fg, var(--gray-600));
+}
+
+.hub-sidebar__more {
+	padding-block-start: 8px;
+	border-block-start: 1px dashed var(--hairline-color, var(--gray-200));
+}

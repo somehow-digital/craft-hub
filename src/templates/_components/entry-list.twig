@@ -1,0 +1,147 @@
+{#
+	Panel with the filterable list of section and nested entries, on the entries page and on section, entry type and field pages.
+	There can be many entries, so they are filtered, sorted and paginated on the server.
+	Sections, nested entry fields and entry types are offered as far as they are used together; the one a detail page is limited to (`listFixed`), or its author, is neither offered nor shown.
+	The user filters offer `me` first, the user viewing the list, so saved filters list each user's own items.
+
+	Variables: see BaseController::entryListVariables()
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{# Items can be labeled while there are labels, or the user can create some. #}
+{% set labelable = canApplyLabels and (labels|length > 0 or canManageLabels) %}
+
+{% set sectionOptions = {} %}
+{% for info in sections %}
+	{% set sectionType = enum('SomehowDigital\\Craft\\Hub\\enums\\SectionType').from(info.section.type) %}
+	{% set sectionOptions = sectionOptions|merge({ (info.section.handle): { label: info.section.name|t('site'), icon: sectionType.icon(), color: sectionType.color() } }) %}
+{% endfor %}
+
+{% set fieldOptions = {} %}
+{% for info in nestedFields %}
+	{% set fieldOptions = fieldOptions|merge({ (info.field.handle): { label: info.field.name|t('site'), icon: info.field.getIcon() ?: 'pen-to-square', color: 'violet' } }) %}
+{% endfor %}
+
+{% set typeOptions = {} %}
+{% for info in entryTypes %}
+	{% set typeOptions = typeOptions|merge({ (info.entryType.handle): { label: info.entryType.name|t('site'), icon: info.entryType.icon ?: 'shapes', color: info.entryType.color.value ?? 'gray' } }) %}
+{% endfor %}
+
+{% embed 'hub/_components/panel' %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		<form method="get" class="hub-filters" action="{{ url(listPath) }}" data-hub-submit{% if bulkSelection.review ?? false %} hidden{% endif %}>
+			{% include 'hub/_components/saved-filters' %}
+			{{ hub.search('Search by title or slug'|t('hub'), filter.search) }}
+			{{ hub.dropdown('Status'|t('app'), 'circle-half-stroke', hub.choices('status', statuses|map((label, status) => { label: label, color: { live: 'green', pending: 'orange', expired: 'red' }[status] ?? 'gray' }), filter.statuses)) }}
+			{% if listFixed != 'type' %}
+				{{ hub.dropdown('Entry Type'|t('app'), 'shapes', hub.choices('type', typeOptions, filter.types)) }}
+			{% endif %}
+			{% if listFixed not in ['section', 'field'] and (sections|length or nestedFields|length) %}
+				{# Choosing between section and nested entries only matters where there are both. #}
+				{{ hub.dropdown('Origin'|t('hub'), 'diagram-nested', (sections|length and nestedFields|length ? hub.choices('origin', {
+					section: { label: 'Section entries'|t('hub'), icon: 'layer-group', color: 'blue' },
+					nested: { label: 'Nested entries'|t('hub'), icon: 'diagram-nested', color: 'violet' },
+				}, filter.origin, { multiple: false, label: 'Origin'|t('hub') }) : '')
+					~ (sections|length ? hub.choices('section', sectionOptions, filter.sections, { label: 'Sections'|t('app') }) : '')
+					~ (nestedFields|length ? hub.choices('field', fieldOptions, filter.fields, { label: 'Nested entry fields'|t('hub') }) : '')) }}
+			{% endif %}
+			{% if listFixed != 'author' %}
+				{{ hub.dropdown('Author'|t('app'), 'user', hub.choices('author', authorOptions, filter.authors)) }}
+			{% endif %}
+			{{ hub.dropdown('Last edited by'|t('hub'), 'user-pen', hub.choices('editor', editorOptions, filter.editors)) }}
+			{{ hub.dropdown('References'|t('hub'), 'link', hub.choices('usage', {
+				referenced: { label: 'Referenced'|t('hub'), color: 'green' },
+				unreferenced: { label: 'Unreferenced'|t('hub'), color: 'orange' },
+			}, filter.usage, { multiple: false, label: 'Usage'|t('hub') })
+				~ hub.range('references', 'Number of references'|t('hub'), filter.referencesMin, filter.referencesMax)) }}
+			{{ hub.dropdown('Dates'|t('hub'), 'calendar', hub.range('posted', 'Post Date'|t('app'), filter.postedFrom, filter.postedTo, { type: 'date' })
+				~ hub.range('updated', 'Last edited'|t('hub'), filter.updatedFrom, filter.updatedTo, { type: 'date' })) }}
+			{{ hub.labelFilter(labelOptions, filter.labels) }}
+			{{ hub.toggle('stale', 'Stale only'|t('hub'), filter.staleMonths is not null) }}
+			{{ hub.toggle('drafts', 'With drafts only'|t('hub'), filter.drafts) }}
+			{{ hub.toggle('myDrafts', 'With my drafts only'|t('hub'), filter.myDrafts) }}
+			{{ hub.addFilter() }}
+			{{ hiddenInput('sort', sort) }}
+			{{ hiddenInput('dir', dir) }}
+			{{ hiddenInput('selection', (bulkSelection.review ?? false) ? 1 : null) }}
+			{{ hub.clearFilters() }}
+		</form>
+
+		{% if entries|length %}
+			{% embed 'hub/_components/bulk' with { bulkList: 'entries', bulkNone: 'No entries selected'|t('hub') } %}
+				{% block table %}
+					{% import 'hub/_components/macros' as hub %}
+					<div class="hub-table">
+						<table class="data fullwidth">
+							<thead>
+								<tr>
+									{{ hub.bulkAll(bulkActions) }}
+									{{ hub.sortHeader('Title'|t('app'), 'title', sortHeaders) }}
+									{{ hub.columnHeaders(columns, sortHeaders, 'entries') }}
+								</tr>
+							</thead>
+							<tbody>
+								{% for entry in entries %}
+									{% set references = referenceCounts[entry.id] ?? 0 %}
+									<tr>
+										{{ hub.bulkItem(bulkActions, entry.id, entry.title ?: entry.slug, null, entry.enabled ? (entry.enabledForSite ? ['enabled'] : []) : ['disabled']) }}
+										<th>
+											<div class="hub-name">
+												{{ hub.itemIcon(entry.type) }}
+												<div class="hub-name__text">
+													<span class="hub-name__title"><a href="{{ hub.url(entry) }}">{{ hub.elementTitle(entry) }}</a>{{ hub.labels(itemLabels[entry.id] ?? [], entry.id, entry.title ?: entry.slug, labelable) }}</span>
+													<code>{{ entry.slug }}</code>
+												</div>
+											</div>
+										</th>
+										{% for column in columns %}
+											<td{{ hub.cellAttributes(column) }}>
+												{%- if not column.visible -%}
+												{%- elseif column.key == 'origin' -%}
+													{% if entry.section %}{{ hub.chip(entry.section) }}{% elseif entry.field %}{{ hub.chip(entry.field, 'violet') }}{% else %}<span class="hub-muted">—</span>{% endif %}
+												{%- elseif column.key == 'owner' -%}
+													{% if entry.owner %}{{ hub.element(entry.owner) }}{% else %}<span class="hub-muted">—</span>{% endif %}
+												{%- elseif column.key == 'creator' -%}
+													{% if entry.authors|length %}<span class="hub-chips">{% for author in entry.authors %}{{ hub.element(author) }}{% endfor %}</span>{% else %}<span class="hub-muted">—</span>{% endif %}
+												{%- elseif column.key == 'type' -%}
+													{{ hub.chip(entry.type) }}
+												{%- elseif column.key == 'status' -%}
+													<span class="status {{ entry.status }}" aria-hidden="true"></span>{{ entry.statuses()[entry.status] ?? entry.status }}
+												{%- elseif column.key == 'references' -%}
+													{{ hub.num(references) }}
+												{%- elseif column.key == 'posted' -%}
+													{{ hub.date(entry.postDate) }}
+												{%- elseif column.key == 'updated' -%}
+													{{ hub.date(lastEdited[entry.id] ?? null) }}
+												{%- elseif column.key == 'maintainers' -%}
+													{{ hub.elementMaintainers(entry) }}
+												{%- elseif column.key == 'url' -%}
+													{{ hub.visit(entry, 'View entry'|t('hub')) }}
+												{%- elseif column.key == 'edit' -%}
+													{%- if entry.canView(currentUser) -%}
+														{%- set label = 'Edit entry'|t('hub') -%}
+														<a class="hub-visit" href="{{ entry.cpEditUrl }}" title="{{ label }}" aria-label="{{ label }}">{{ iconSvg('pen') }}</a>
+													{%- endif -%}
+												{%- endif -%}
+											</td>
+										{% endfor %}
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				{% endblock %}
+				{% block footer %}
+					{% include '_includes/pagination' with {
+						pageInfo: pageInfo,
+						itemLabel: 'entry'|t('app'),
+						itemsLabel: 'entries'|t('app'),
+					} %}
+				{% endblock %}
+			{% endembed %}
+		{% else %}
+			{{ hub.emptyList(bulkSelection ?? null) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

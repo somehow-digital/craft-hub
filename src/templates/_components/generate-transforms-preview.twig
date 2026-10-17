@@ -1,0 +1,23 @@
+{#
+	What generating the transforms of files does, shown in the dialog of the bulk actions before they're generated (see the
+	`action-preview` component): the number of images Craft can transform, and the image transforms picked, generated in
+	the queue (see FileService::generateTransforms()). Transforms already generated are left as they are.
+
+	Variables: transforms (ImageTransform[], by handle, see FileService::getNamedTransforms()), total, skipped
+#}
+{% extends 'hub/_components/action-preview' %}
+{% import '_includes/forms' as forms %}
+
+{% set noun = '{count, plural, =1{One image} other{# images}}' %}
+{% set notice = { color: 'green', icon: 'wand-magic-sparkles', text: '{count, plural, =1{gets} other{get}} the transforms picked below generated in the queue, unless they are already.'|t('hub', { count: total }) } %}
+{% set empty = { title: 'Nothing to generate:'|t('hub'), text: 'None of the selected files can be transformed, or no image transforms are defined.'|t('hub') } %}
+{% set skippedText = '{count, plural, =1{One file is} other{# files are}} skipped, as {count, plural, =1{it is} other{they are}} no image Craft can transform or you may not view {count, plural, =1{it} other{them}}.'|t('hub', { count: skipped }) %}
+
+{% block fields %}
+	{{ forms.checkboxGroupField({
+		label: 'Image Transforms'|t('app'),
+		name: 'transforms',
+		options: transforms|map((transform, handle) => { label: transform.name|t('site'), value: handle })|values,
+		values: transforms|keys,
+	}) }}
+{% endblock %}

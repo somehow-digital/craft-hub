@@ -1,0 +1,21 @@
+{#
+	What restoring trashed items with their relations restores, shown in the dialog of the bulk actions before they're
+	restored (see the `action-preview` component): the trashed entries and files restored along with all items, and the
+	items of the page shown, each expanding to the trashed elements related to it (see BulkService::getRestoredRelations()).
+
+	Variables: items (the items of the page shown, with their related trashed elements), pageInfo (of all items restored),
+	entries and files (number of the trashed entries and files restored along with them), total, skipped
+#}
+{% extends 'hub/_components/action-preview' %}
+
+{% set noun = '{count, plural, =1{One item} other{# items}}' %}
+{% set notice = entries or files
+	? { color: 'green', icon: 'diagram-project', text: '{count, plural, =1{is} other{are}} restored, along with the trashed elements related to {count, plural, =1{it} other{them}}.'|t('hub', { count: total }) }
+	: { color: 'green', icon: 'trash-arrow-up', text: '{count, plural, =1{is} other{are}} restored. No trashed elements you may restore are related to {count, plural, =1{it} other{them}}.'|t('hub', { count: total }) } %}
+{% set empty = { title: 'Nothing to restore:'|t('hub'), text: 'None of the selected items can be restored.'|t('hub') } %}
+{% set skippedText = '{count, plural, =1{One item is} other{# items are}} skipped, as you may not restore {count, plural, =1{it} other{them}} or {count, plural, =1{its file was} other{their files were}} not kept.'|t('hub', { count: skipped }) %}
+{% set totals = [
+	{ icon: 'file-lines', value: entries, label: '{count, plural, =1{Related entry} other{Related entries}}'|t('hub', { count: entries }), color: 'green' },
+	{ icon: 'image', value: files, label: '{count, plural, =1{Related file} other{Related files}}'|t('hub', { count: files }), color: 'green' },
+]|filter(item => item.value) %}
+{% set itemsHeading = 'Restored'|t('hub') %}

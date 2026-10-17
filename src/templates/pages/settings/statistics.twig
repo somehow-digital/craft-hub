@@ -1,0 +1,41 @@
+{#
+	The statistics tab of the settings page, switching the statistics tabs of the index and detail pages and setting how
+	often snapshots of the statistics are taken and how long they're kept, for admins.
+
+	Variables: settings (see Settings), overrides (names of the settings overridden by `config/hub.php`), readOnly
+#}
+{% extends 'hub/_layouts/settings' %}
+
+{% set fullPageForm = not readOnly %}
+{% set selectedTab = 'statistics' %}
+
+{% block content %}
+	{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/statistics' } %}
+		{% block fields %}
+			{% include 'hub/_components/setting' with { name: 'enableStatistics', field: {
+				first: true,
+				label: 'Statistics'|t('hub'),
+				instructions: 'Whether the index and detail pages have a statistics tab, summarizing their items.'|t('hub'),
+			} } %}
+
+			{% include 'hub/_components/setting' with { name: 'enableSnapshots', field: {
+				label: 'Snapshots'|t('hub'),
+				instructions: 'Whether snapshots of the statistics are taken, so the statistics tabs show how they changed. They’re taken in the queue once due, or by `./craft hub/snapshots`, e.g. from a cron job.'|t('hub'),
+			} } %}
+
+			{% include 'hub/_components/setting' with { name: 'snapshotInterval', field: {
+				label: 'Snapshot Interval'|t('hub'),
+				instructions: 'A snapshot is taken every this many days.'|t('hub'),
+				min: 1,
+				unit: 'days'|t('hub'),
+			} } %}
+
+			{% include 'hub/_components/setting' with { name: 'snapshotRetentionDays', field: {
+				label: 'Snapshot Retention'|t('hub'),
+				instructions: 'Snapshots are kept for this many days, then deleted along with Craft’s garbage. Set it to 0 to keep them forever.'|t('hub'),
+				min: 0,
+				unit: 'days'|t('hub'),
+			} } %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

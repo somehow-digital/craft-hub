@@ -1,0 +1,32 @@
+{#
+	What deleting users takes along, shown in the dialog of the bulk actions before they're deleted (see the
+	`action-preview` component): the entries they're an author of, the users of the page shown, each with the number of
+	those, and the user their content is transferred to, if any, as Craft offers when deleting a user.
+
+	Variables: items (the users of the page shown, with their entries), pageInfo (of all users deleted), entries (number of
+	the entries they're an author of), inheritors (User[], those their content can be transferred to), total, skipped
+#}
+{% extends 'hub/_components/action-preview' %}
+{% import '_includes/forms' as forms %}
+
+{% set noun = '{count, plural, =1{One user} other{# users}}' %}
+{% set notice = { color: 'green', icon: 'trash-arrow-up', text: '{count, plural, =1{is} other{are}} moved to the trash, from which {count, plural, =1{it} other{they}} can be restored.'|t('hub', { count: total }) } %}
+{% set empty = { title: 'Nothing to delete:'|t('hub'), text: 'None of the selected users can be deleted.'|t('hub') } %}
+{% set skippedText = '{count, plural, =1{One user is} other{# users are}} skipped, as you may not delete them, like yourself, or they no longer exist.'|t('hub', { count: skipped }) %}
+{% set totals = [{ icon: 'file-lines', value: entries, label: '{count, plural, =1{Entry authored} other{Entries authored}}'|t('hub', { count: entries }), color: 'orange' }] %}
+{% set itemsHeading = 'Deleted'|t('hub') %}
+{% set countIcon = 'file-lines' %}
+{% set countLabel = '{count, plural, =1{Entry authored} other{Entries authored}}' %}
+{% set countColor = 'orange' %}
+
+{% block fields %}
+	{% if entries %}
+		{{ forms.selectField({
+			label: 'Transfer their content to'|t('hub'),
+			instructions: 'The entries they’re an author of are transferred to this user. Otherwise, they keep them as their author.'|t('hub'),
+			name: 'inheritorId',
+			options: [{ label: 'Nobody'|t('hub'), value: '' }, ...inheritors|map(user => { label: user.name ~ ' (' ~ user.username ~ ')', value: user.id })],
+			class: 'fullwidth',
+		}) }}
+	{% endif %}
+{% endblock %}

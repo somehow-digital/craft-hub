@@ -1,0 +1,21 @@
+{#
+	The maintainers tab of the settings page, switching the maintainers of sections, entry types, fields and volumes, for admins.
+
+	Variables: settings (see Settings), overrides (names of the settings overridden by `config/hub.php`), readOnly
+#}
+{% extends 'hub/_layouts/settings' %}
+
+{% set fullPageForm = not readOnly %}
+{% set selectedTab = 'maintainers' %}
+
+{% block content %}
+	{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/maintainers' } %}
+		{% block fields %}
+			{% include 'hub/_components/setting' with { name: 'enableMaintainers', field: {
+				first: true,
+				label: 'Maintainers'|t('hub'),
+				instructions: 'Whether sections, entry types, fields and volumes can have maintainers, who are shown there and on the entries and assets in them, so editors know who to ask for help. Maintainers have no permissions of their own, and are set on the pages of those items by users who may manage them.'|t('hub'),
+			} } %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

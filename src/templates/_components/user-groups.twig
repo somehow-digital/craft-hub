@@ -1,0 +1,97 @@
+{#
+	Panel with the filterable list of user groups, each linking to the users list filtered by it.
+
+	Variables: groups (see UserService::getGroups()), pageInfo, filter, listPath, columns, sortHeaders, sort, dir, and those of
+	the labels (see BaseController::labelVariables())
+#}
+{% set labelable = canApplyLabels and (labels|length > 0 or canManageLabels) %}
+
+{% embed 'hub/_components/panel' %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		<form method="get" class="hub-filters" action="{{ url(listPath) }}" data-hub-submit{% if bulkSelection.review ?? false %} hidden{% endif %}>
+			{{ hub.search('Search by name, handle or description'|t('hub'), filter.search) }}
+			{{ hub.dropdown('Users'|t('app'), 'user', hub.range('users', 'Number of users'|t('hub'), filter.usersMin, filter.usersMax)) }}
+			{{ hub.dropdown('Permissions'|t('app'), 'key', hub.range('permissions', 'Number of permissions'|t('hub'), filter.permissionsMin, filter.permissionsMax)) }}
+			{{ hub.dropdown('Two-step verification'|t('hub'), 'shield-halved', hub.choices('twoFactor', {
+				required: { label: 'Required'|t('hub'), color: 'green' },
+				optional: { label: 'Optional'|t('hub'), color: 'gray' },
+			}, filter.twoFactor, { multiple: false })) }}
+			{{ hub.labelFilter(labelOptions, filter.labels) }}
+			{{ hub.toggle('empty', 'Empty only'|t('hub'), filter.empty) }}
+			{{ hub.addFilter() }}
+			{{ hiddenInput('sort', sort) }}
+			{{ hiddenInput('dir', dir) }}
+			{{ hiddenInput('selection', (bulkSelection.review ?? false) ? 1 : null) }}
+			{{ hub.clearFilters() }}
+		</form>
+
+		{% if groups|length %}
+			{% embed 'hub/_components/bulk' with { bulkList: 'userGroups', bulkNone: 'No user groups selected'|t('hub') } %}
+				{% block table %}
+					{% import 'hub/_components/macros' as hub %}
+					<div class="hub-table">
+						<table class="data fullwidth">
+							<thead>
+								<tr>
+									{{ hub.bulkAll(bulkActions) }}
+									{{ hub.sortHeader('Group'|t('hub'), 'name', sortHeaders) }}
+									{{ hub.columnHeaders(columns, sortHeaders, 'userGroups') }}
+								</tr>
+							</thead>
+							<tbody>
+								{% for info in groups %}
+									{% set group = info.group %}
+									<tr>
+										{{ hub.bulkItem(bulkActions, group.id, group.name|t('site')) }}
+										<th>
+											<div class="hub-name">
+												{{ hub.icon('users', 'violet') }}
+												<div class="hub-name__text">
+													<span class="hub-name__title">
+														<a href="{{ url('hub/data/users', { hubSite: hubSite, group: group.handle }) }}">{{ group.name|t('site') }}</a>
+														{{- hub.labels(itemLabels[group.id] ?? [], group.id, group.name|t('site'), labelable) -}}
+													</span>
+													<code>{{ group.handle }}</code>
+												</div>
+											</div>
+										</th>
+										{% for column in columns %}
+											<td{{ hub.cellAttributes(column) }}>
+												{%- if not column.visible -%}
+												{%- elseif column.key == 'description' -%}
+													{% if group.description %}{{ group.description|t('site') }}{% else %}<span class="hub-muted">—</span>{% endif %}
+												{%- elseif column.key == 'users' -%}
+													{{ hub.num(info.users) }}
+												{%- elseif column.key == 'permissions' -%}
+													{{ hub.num(info.permissions) }}
+												{%- elseif column.key == 'twoFactor' -%}
+													{%- if info.requires2fa -%}
+														{{ hub.badge('Required'|t('hub'), 'green', null, 'shield-halved') }}
+													{%- else -%}
+														<span class="hub-muted">{{ 'Optional'|t('hub') }}</span>
+													{%- endif -%}
+												{%- elseif column.key == 'settings' -%}
+													{{ hub.settings(group) }}
+												{%- endif -%}
+											</td>
+										{% endfor %}
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				{% endblock %}
+				{% block footer %}
+					{% include '_includes/pagination' with {
+						pageInfo: pageInfo,
+						itemLabel: 'group'|t('hub'),
+						itemsLabel: 'groups'|t('hub'),
+					} %}
+				{% endblock %}
+			{% endembed %}
+		{% else %}
+			{{ hub.emptyList(bulkSelection ?? null) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

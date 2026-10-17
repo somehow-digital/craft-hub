@@ -1,0 +1,32 @@
+{#
+	What changing the groups of users does, shown in the dialog of the bulk actions before they're changed (see the
+	`action-preview` component): the number of users whose groups are changed, and what is done with each group the user may
+	assign, naming how many of the users are in it (see BulkService::GROUP_*). Groups are kept as they are by default.
+
+	Variables: groups (UserGroup[], by ID, see UserService::getAssignableGroups()), counts (number of the users in each group,
+	by its ID), total, skipped
+#}
+{% extends 'hub/_components/action-preview' %}
+{% import '_includes/forms' as forms %}
+
+{% set noun = '{count, plural, =1{One user} other{# users}}' %}
+{% set notice = { color: 'violet', icon: 'users', text: '{count, plural, =1{is} other{are}} added to or removed from the groups as picked below.'|t('hub', { count: total }) } %}
+{% set empty = { title: 'Nothing to change:'|t('hub'), text: 'You may change the groups of none of the selected users, or assign no groups.'|t('hub') } %}
+{% set skippedText = '{count, plural, =1{One user is} other{# users are}} skipped, as you may not change them, like yourself, or they no longer exist.'|t('hub', { count: skipped }) %}
+
+{% block fields %}
+	{% for group in groups %}
+		{% set count = counts[group.id] ?? 0 %}
+		{{ forms.selectField({
+			label: group.name|t('site'),
+			instructions: count == total ? 'All of them are in it.'|t('hub') : (count ? '{count, number} of them {count, plural, =1{is} other{are}} in it.'|t('hub', { count: count }) : 'None of them are in it.'|t('hub')),
+			name: 'groups[' ~ group.id ~ ']',
+			options: [
+				{ label: 'Keep as it is'|t('hub'), value: '' },
+				{ label: 'Add them to it'|t('hub'), value: constant('SomehowDigital\\Craft\\Hub\\services\\BulkService::GROUP_ADD') },
+				{ label: 'Remove them from it'|t('hub'), value: constant('SomehowDigital\\Craft\\Hub\\services\\BulkService::GROUP_REMOVE') },
+			],
+			class: 'fullwidth',
+		}) }}
+	{% endfor %}
+{% endblock %}

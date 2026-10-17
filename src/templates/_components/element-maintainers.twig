@@ -1,0 +1,22 @@
+{#
+	Panel with the maintainers of what an element is stored in, on its detail page, while it has any.
+
+	Variables: element
+#}
+{% set sources = craft.app.plugins.getPlugin('hub').maintainers.getSources(element, true) %}
+
+{% if sources|length %}
+	{% embed 'hub/_components/panel' with {
+		heading: 'Maintainers'|t('hub'),
+		description: 'Who to ask for help with this item, by where it’s stored.'|t('hub'),
+		icon: 'users',
+		color: 'violet',
+		count: sources|length,
+		open: true,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{{ hub.maintainerSources(sources) }}
+		{% endblock %}
+	{% endembed %}
+{% endif %}

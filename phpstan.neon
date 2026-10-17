@@ -1,0 +1,17 @@
+includes:
+	- vendor/craftcms/phpstan/phpstan.neon
+
+parameters:
+	level: 6
+	ignoreErrors:
+		# Craft's queries are generic by their rows, which Hub's own code doesn't depend on.
+		- identifier: missingType.generics
+	paths:
+		- src
+	earlyTerminatingMethodCalls:
+		Craft:
+			- dd
+		yii\base\Application:
+			- end
+		yii\base\ErrorHandler:
+			- convertExceptionToError

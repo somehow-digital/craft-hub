@@ -1,0 +1,202 @@
+{#
+	Sidebar panel on the edit pages of entries, assets and users, with what Hub knows of the element: its maintainers, its
+	labels, which users who may label it check and uncheck right here, the checks it fails, when an entry was last edited and
+	by whom, and the elements referencing it. Users who may not view its Hub page only get the maintainers, the others being null. Each section is collapsed, so the page doesn't shift as the panel loads, and expands by its
+	heading, which sums it up while collapsed; the sections the user expanded are expanded again (see sidebar.js).
+
+	Variables: element (canonical), list (see ColumnService::LIST_*), maintainers (MaintainerSource[]), labels (Label[] of the element, null while labels are
+	disabled), allLabels (Label[] to pick from, null unless the user may label it), canManageLabels, checks (Check[], null while
+	diagnostics are disabled), lastEdit (of entries, see EditService::getLastEdit(), null otherwise), references
+	(EntryReference[], null unless the user may view its Hub page)
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{% set hubUrl = hub.url(element) %}
+{% set failed = (checks ?? [])|filter(check => not check.passed) %}
+{% set referenceLimit = 25 %}
+{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
+
+{% macro labelBadge(label) %}
+	{% import 'hub/_components/macros' as hub %}
+	<li data-hub-label="{{ label.id }}">{{ hub.badge(label.name, label.getColor(), null, label.getIcon()) }}</li>
+{%- endmacro %}
+
+{# Heading of a section, toggling it: its icon, its name and what sums it up (`status`), e.g. its number of items, shown
+   only while it's collapsed with `collapsedOnly`, as it repeats what the section shows. #}
+{% macro summary(icon, heading, status, collapsedOnly) %}
+	<summary class="hub-sidebar__summary">
+		<span class="hub-sidebar__section-icon" aria-hidden="true">{{ iconSvg(icon) }}</span>
+		<h3 class="hub-sidebar__title">{{ heading }}</h3>
+		<span class="hub-sidebar__status{% if collapsedOnly %} hub-sidebar__status--collapsed{% endif %}">{{ status }}</span>
+		<span class="hub-sidebar__chevron" aria-hidden="true"></span>
+	</summary>
+{%- endmacro %}
+
+{# Number of items of a section, hidden while there are none. #}
+{% macro count(count, color, attribute) %}
+	<span class="hub-sidebar__count"{% if color %} data-color="{{ color }}"{% endif %}{% if attribute %} {{ attribute }}{% endif %}{% if not count %} hidden{% endif %}>{{ count|number }}</span>
+{%- endmacro %}
+
+<section class="meta hub-sidebar" aria-label="{{ 'Hub'|t('hub') }}">
+	{% if maintainers|length %}
+		<details class="hub-sidebar__section" data-hub-sidebar-section="maintainers">
+			{{ _self.summary('users', 'Maintainers'|t('hub'), _self.count(maintainers|length)) }}
+			<div class="hub-sidebar__body">
+				{{ hub.maintainerSources(maintainers) }}
+			</div>
+		</details>
+	{% endif %}
+
+	{% if labels is not null and (labels|length or allLabels is not null) %}
+		<details class="hub-sidebar__section" data-hub-sidebar-section="labels" data-hub-sidebar-labels="{{ list }}" data-hub-sidebar-id="{{ element.id }}">
+			{{ _self.summary('tags', 'Labels'|t('hub'), _self.count(labels|length, null, 'data-hub-sidebar-labels-count')) }}
+			<div class="hub-sidebar__body">
+				<div class="hub-sidebar__labels">
+					<ul class="hub-badges hub-sidebar__badges" data-hub-sidebar-labels-list>
+						{%- for label in labels %}{{ _self.labelBadge(label) }}{% endfor -%}
+					</ul>
+					<p class="hub-sidebar__empty" data-hub-sidebar-labels-empty{% if labels|length %} hidden{% endif %}>{{ 'Not labeled.'|t('hub') }}</p>
+					{% if allLabels is not null %}
+						<button type="button" class="hub-sidebar__edit" aria-expanded="false" data-hub-sidebar-labels-toggle>
+							<span class="hub-sidebar__glyph" aria-hidden="true">{{ iconSvg('pen') }}</span>
+							<span>{{ 'Edit'|t('app') }}</span>
+						</button>
+					{% endif %}
+				</div>
+
+				{% if allLabels is not null %}
+					{# Unnamed, so the element editor doesn't take them for changes of the element. #}
+					<fieldset class="hub-sidebar__options" hidden data-hub-sidebar-labels-options>
+						<legend class="visually-hidden">{{ 'Labels'|t('hub') }}</legend>
+						{% for label in allLabels %}
+							<label class="hub-sidebar__option">
+								<input type="checkbox" value="{{ label.id }}"{% if label.id in labels|column('id') %} checked{% endif %}>
+								{{ hub.icon(label.getIcon(), label.getColor(), 'small') }}
+								<span class="hub-sidebar__option-name">{{ label.name }}</span>
+							</label>
+						{% else %}
+							<p class="hub-sidebar__empty">{{ 'No labels exist yet.'|t('hub') }}</p>
+						{% endfor %}
+						{% if canManageLabels %}
+							<a class="hub-sidebar__link" href="{{ url('hub/manage/settings/labels') }}">{{ 'Manage labels'|t('hub') }}</a>
+						{% endif %}
+					</fieldset>
+					<template data-hub-sidebar-labels-template>
+						{%- for label in allLabels %}{{ _self.labelBadge(label) }}{% endfor -%}
+					</template>
+				{% endif %}
+			</div>
+		</details>
+	{% endif %}
+
+	{% if checks|length %}
+		{# Checks come most urgent first, so the first failed one tells the color of the count. #}
+		{% set status = failed|length
+			? _self.count(failed|length, (failed|first).severity.color())
+			: '<span class="hub-sidebar__ok" data-color="green">' ~ iconSvg('circle-check') ~ '</span>' %}
+		<details class="hub-sidebar__section" data-hub-sidebar-section="diagnostics">
+			{{ _self.summary('list-check', 'Diagnostics'|t('hub'), status|raw) }}
+			<div class="hub-sidebar__body">
+				{% if failed|length %}
+					<ul class="hub-sidebar__checks">
+						{% for check in failed %}
+							<li class="hub-sidebar__check" data-color="{{ check.severity.color() }}">
+								<p class="hub-sidebar__severity">
+									<span class="hub-sidebar__check-icon" aria-hidden="true">{{ iconSvg(check.icon) }}</span>
+									<span>{{ check.severity.label() }}</span>
+								</p>
+								<p class="hub-sidebar__check-heading">{{ check.heading }}</p>
+								<p class="hub-sidebar__check-text">{{ check.description }}</p>
+							</li>
+						{% endfor %}
+					</ul>
+				{% else %}
+					<p class="hub-sidebar__passed" data-color="green">
+						<span class="hub-sidebar__check-icon" aria-hidden="true">{{ iconSvg('circle-check') }}</span>
+						<span>{{ 'Passes all {count, plural, =1{# check} other{# checks}}.'|t('hub', { count: checks|length }) }}</span>
+					</p>
+				{% endif %}
+				{% if hubUrl|trim %}
+					<a class="hub-sidebar__link" href="{{ hub.url(element, 'diagnostics') }}">{{ 'Show all checks'|t('hub') }}</a>
+				{% endif %}
+			</div>
+		</details>
+	{% endif %}
+
+	{% if lastEdit and lastEdit.date %}
+		{% set status %}<span class="hub-sidebar__note">{{ lastEdit.date|timestamp('short') }}</span>{% endset %}
+		<details class="hub-sidebar__section" data-hub-sidebar-section="lastEdit">
+			{{ _self.summary('clock', 'Last edited'|t('hub'), status, true) }}
+			<div class="hub-sidebar__body">
+				<dl class="hub-sidebar__facts" title="{{ 'Last saved with changes by a signed-in user.'|t('hub') }}">
+					<div class="hub-sidebar__fact">
+						<dt>{{ 'Date'|t('app') }}</dt>
+						<dd>{{ lastEdit.date|datetime('short') }}</dd>
+					</div>
+					<div class="hub-sidebar__fact">
+						<dt>{{ 'By'|t('hub') }}</dt>
+						<dd>
+							{% if lastEdit.user %}
+								{{ elementChip(lastEdit.user, { hyperlink: true }) }}
+							{% else %}
+								<span class="hub-muted">{{ 'Unknown'|t('hub') }}</span>
+							{% endif %}
+						</dd>
+					</div>
+				</dl>
+			</div>
+		</details>
+	{% endif %}
+
+	{% if references is not null %}
+		<details class="hub-sidebar__section" data-hub-sidebar-section="references">
+			{{ _self.summary('link', 'References'|t('hub'), _self.count(references|length)) }}
+			<div class="hub-sidebar__body">
+				{% if references|length %}
+					<ul class="hub-sidebar__references">
+						{% for reference in references|slice(0, referenceLimit) %}
+							{% set referencing = reference.element %}
+							<li class="hub-sidebar__reference">
+								<div class="hub-sidebar__reference-element">
+									{{ elementChip(referencing, { hyperlink: true }) }}
+									{% if referencing is instance of('craft\\elements\\Entry') and referencing.type %}
+										<span class="hub-sidebar__note hub-sidebar__type">{{ referencing.type.name|t('site') }}</span>
+									{% endif %}
+								</div>
+								<ul class="hub-sidebar__paths">
+									{% for path in reference.paths %}
+										<li class="hub-sidebar__path">
+											{% if path.field %}
+												{# Colored by usage kind, as on the entry type pages #}
+												{% set kind = usageKind.from(path.field is instance of('craft\\fields\\Link') ? 'link' : 'reference') %}
+												<span class="hub-sidebar__field" data-color="{{ kind.color() }}" title="{{ path.field.displayName() }}">{{ iconSvg(path.field.getIcon() ?: 'pen-to-square') }}</span>
+											{% else %}
+												<span class="hub-sidebar__field" title="{{ 'Reference tag'|t('hub') }}">{{ iconSvg('code') }}</span>
+											{% endif %}
+											<span>{{ path.label }}</span>
+										</li>
+									{% endfor %}
+								</ul>
+							</li>
+						{% endfor %}
+					</ul>
+
+					{% if references|length > referenceLimit %}
+						<p class="hub-sidebar__note hub-sidebar__more">{{ '{count, number} more'|t('hub', { count: references|length - referenceLimit }) }}</p>
+					{% endif %}
+				{% else %}
+					<p class="hub-sidebar__empty">{{ 'No other elements reference this {type}.'|t('hub', { type: element.lowerDisplayName() }) }}</p>
+				{% endif %}
+			</div>
+		</details>
+	{% endif %}
+
+	{% if hubUrl|trim %}
+		<footer class="hub-sidebar__footer">
+			<a class="hub-sidebar__open" href="{{ hubUrl }}">
+				<span>{{ 'Open in Hub'|t('hub') }}</span>
+				<span class="hub-sidebar__glyph" aria-hidden="true">{{ iconSvg('arrow-right') }}</span>
+			</a>
+		</footer>
+	{% endif %}
+</section>
