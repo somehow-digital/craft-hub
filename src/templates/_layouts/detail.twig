@@ -1,0 +1,52 @@
+{#
+	Detail pages: an overview tab, optionally a tab listing the page's entries, files or transforms, and a diagnostics tab listing the
+	checks, each on its own URL below that of the page.
+
+	Variables: path (of the page, which is its overview), checks, selectedTab (`overview`, the list tab's ID or
+	`diagnostics`), listTab (`id` and `label` of the list tab, if any, its ID being its path segment)
+	Blocks: overview, list, diagnostics (below the checks)
+#}
+{% extends 'hub/_layouts/hub' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set failedChecks = checks|filter(check => not check.passed)|length %}
+
+{% set listTab = listTab ?? null %}
+
+{% set tabs = { overview: { label: 'Overview'|t('hub'), url: url(path, { hubSite: hubSite }) } }
+	|merge(listTab ? { (listTab.id): { label: listTab.label, url: url(path ~ '/' ~ listTab.id, { hubSite: hubSite }) } } : {})
+	|merge({ diagnostics: {
+		label: failedChecks ? 'Diagnostics ({count, number})'|t('hub', { count: failedChecks }) : 'Diagnostics'|t('hub'),
+		url: url(path ~ '/diagnostics', { hubSite: hubSite }),
+	} }) %}
+
+{# Tabs other than the overview end the crumbs and start the document title, as on the index pages. #}
+{% if selectedTab != 'overview' %}
+	{% set tabLabel = selectedTab == 'diagnostics' ? 'Diagnostics'|t('hub') : listTab.label %}
+	{% set docTitle = tabLabel ~ ' - ' ~ title %}
+	{% set crumbs = crumbs|map(crumb => crumb|merge({ current: false }))
+		|merge([{ label: tabLabel, url: tabs[selectedTab].url, current: true }]) %}
+{% endif %}
+
+{% block content %}
+	{% if selectedTab == 'diagnostics' %}
+		{% embed 'hub/_components/panel' with {
+			heading: 'Checks'|t('hub'),
+			description: 'Things to clean up or improve, most urgent first.'|t('hub'),
+			icon: 'list-check',
+			color: failedChecks ? 'orange' : 'green',
+			count: failedChecks,
+		} %}
+			{% block body %}
+				{% import 'hub/_components/macros' as hub %}
+				{{ hub.checks(checks) }}
+			{% endblock %}
+		{% endembed %}
+
+		{% block diagnostics %}{% endblock %}
+	{% elseif listTab and selectedTab == listTab.id %}
+		{% block list %}{% endblock %}
+	{% else %}
+		{% block overview %}{% endblock %}
+	{% endif %}
+{% endblock %}

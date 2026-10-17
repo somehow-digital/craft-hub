@@ -1,0 +1,28 @@
+{#
+	Index pages: a tab listing the elements and a diagnostics tab, each on its own URL.
+
+	Variables: area (`data` or `structure`), page (path segment below the area, also the subnav item), title (the elements
+	listed), selectedTab (`list` or `diagnostics`)
+#}
+{% extends 'hub/_layouts/hub' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set path = 'hub/' ~ area ~ '/' ~ page %}
+{% set selectedSubnavItem = page %}
+
+{% set tabs = {
+	list: { label: title, url: url(path, { hubSite: hubSite }) },
+	diagnostics: { label: 'Diagnostics'|t('hub'), url: url(path ~ '/diagnostics', { hubSite: hubSite }) },
+} %}
+
+{# The page title names the elements, which are kept in the document title along with the selected tab. #}
+{% set docTitle = (selectedTab == 'diagnostics' ? tabs.diagnostics.label ~ ' - ' : '') ~ title ~ ' - ' ~ (area == 'data' ? 'Data'|t('hub') : 'Structure'|t('hub')) %}
+
+{# The selected tab ends the crumbs, as on the detail pages, which start with the list they belong to. #}
+{% set crumbs = selectedTab == 'diagnostics'
+	? [tabs.list, tabs.diagnostics|merge({ current: true })]
+	: [tabs.list|merge({ current: true })] %}
+
+{% block actionButton %}
+	{{ hub.siteFilter() }}
+{% endblock %}

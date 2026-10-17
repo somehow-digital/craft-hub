@@ -1,0 +1,1277 @@
+th[data-hub-sort]::after {
+	content: "↕";
+	margin-inline-start: 4px;
+	opacity: .3;
+}
+
+th[data-hub-direction="asc"]::after {
+	content: "↑";
+	opacity: 1;
+}
+
+th[data-hub-direction="desc"]::after {
+	content: "↓";
+	opacity: 1;
+}
+
+/* Sortable headers link to the sorted list; the link covers the whole cell. */
+th[data-hub-sort] {
+	position: relative;
+}
+
+th[data-hub-sort] > a {
+	color: inherit;
+}
+
+th[data-hub-sort] > a::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+}
+
+table.data td.hub-num,
+table.data th.hub-num {
+	text-align: end;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Shared */
+
+.hub-dot-num {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.hub-dot-num + .hub-dot-num {
+	margin-inline-start: 10px;
+}
+
+.hub-inline {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.hub-btn-icon {
+	display: inline-flex;
+	width: 12px;
+	height: 12px;
+	margin-inline-end: 6px;
+	opacity: .7;
+}
+
+/* File thumbnails, sized like the icon tiles */
+
+.hub-thumb {
+	display: inline-flex;
+	flex: none;
+	overflow: hidden;
+	width: 28px;
+	height: 28px;
+	border-radius: var(--medium-border-radius);
+	background-color: var(--hub-hover, var(--gray-050));
+}
+
+.hub-thumb--small {
+	width: 18px;
+	height: 18px;
+	border-radius: 4px;
+}
+
+.hub-thumb--large {
+	width: 40px;
+	height: 40px;
+}
+
+.hub-thumb img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.hub-preview {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: var(--m) var(--l);
+	background-image: repeating-conic-gradient(var(--hub-hover, var(--gray-050)) 0 25%, transparent 0 50%);
+	background-size: 16px 16px;
+}
+
+.hub-preview img {
+	max-width: 100%;
+	max-height: 400px;
+	object-fit: contain;
+}
+
+/* Long paths and URLs wrap within the narrow details sidebar. */
+.hub-details .value {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.hub-list--plain {
+	gap: 4px;
+	padding: 0;
+}
+
+/* Detail page title */
+
+.hub-title {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+}
+
+.hub-title__text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.hub-title__kind {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 14px;
+}
+
+.hub-title__kind-label {
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 14px;
+	letter-spacing: .05em;
+	text-transform: uppercase;
+}
+
+/* A compact badge, so the type does not make the kind line taller. */
+.hub-title__kind .hub-badge {
+	padding: 0 6px;
+	font-size: 10px;
+	line-height: 14px;
+}
+
+#header .hub-title h1 {
+	margin: 0;
+	line-height: 1.2;
+}
+
+/* Names */
+
+.hub-name {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-width: 180px;
+}
+
+.hub-name__text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.hub-name__title {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 2px 8px;
+	font-weight: 500;
+}
+
+.hub-name__text code {
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 11px;
+	font-weight: 400;
+}
+
+.hub-activity {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	white-space: nowrap;
+}
+
+.hub-activity__dot {
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background-color: var(--gray-300);
+}
+
+.hub-activity[data-activity="recent"] .hub-activity__dot { background-color: var(--green-500); }
+.hub-activity[data-activity="stale"] .hub-activity__dot { background-color: var(--orange-400); }
+
+/* Panels */
+
+.hub-panel {
+	margin-bottom: var(--m);
+	overflow: hidden;
+}
+
+.hub-panel__header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: var(--m) var(--l);
+	border-bottom: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+/* Collapsible panels: the header toggles the body and loses its divider while closed. */
+summary.hub-panel__header {
+	cursor: pointer;
+	list-style: none;
+	user-select: none;
+}
+
+summary.hub-panel__header::-webkit-details-marker {
+	display: none;
+}
+
+summary.hub-panel__header:hover {
+	background-color: var(--hub-hover);
+}
+
+summary.hub-panel__header:focus-visible {
+	outline: 2px solid var(--focus-ring-color, var(--blue-500));
+	outline-offset: -2px;
+}
+
+.hub-panel__details:not([open]) > .hub-panel__header {
+	border-bottom: 0;
+}
+
+.hub-panel__toggle {
+	display: inline-flex;
+	flex: none;
+	width: 12px;
+	height: 12px;
+	color: var(--light-text-color, var(--gray-500));
+	transition: transform 0.15s ease;
+}
+
+.hub-panel__toggle svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+.hub-panel__details:not([open]) .hub-panel__toggle {
+	transform: rotate(-90deg);
+}
+
+.hub-panel__title {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+#content .hub-panel__title h2 {
+	margin: 0;
+	font-size: 15px;
+}
+
+/* Panel descriptions: an info button next to the heading, opening a popover in the top layer */
+.hub-panel__info {
+	display: inline-flex;
+	flex: none;
+	width: 14px;
+	height: 14px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	color: var(--light-text-color, var(--gray-500));
+	background: none;
+	cursor: pointer;
+}
+
+.hub-panel__info:hover,
+.hub-panel__info[aria-expanded="true"] {
+	color: var(--text-color);
+}
+
+.hub-panel__info:focus-visible {
+	outline: 2px solid var(--focus-ring-color, var(--blue-500));
+	outline-offset: 2px;
+}
+
+.hub-panel__info svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+.hub-panel__description {
+	position: fixed;
+	inset: auto;
+	box-sizing: border-box;
+	width: max-content;
+	max-width: min(320px, calc(100vw - 16px));
+	margin: 0;
+	padding: 8px 12px;
+	border: 1px solid var(--hairline-color, var(--gray-200));
+	border-radius: var(--large-border-radius);
+	color: var(--text-color);
+	background-color: var(--white, #fff);
+	box-shadow: 0 0 0 1px rgb(31 41 51 / 4%), 0 8px 24px rgb(31 41 51 / 16%);
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.hub-panel__empty {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0;
+	padding: var(--m) var(--l);
+	color: var(--light-text-color, var(--gray-500));
+}
+
+.hub-panel__empty[hidden] {
+	display: none;
+}
+
+.hub-panel__footer {
+	display: flex;
+	padding: 10px var(--l);
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+.hub-filters {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--s) var(--m);
+	padding: var(--m) var(--l);
+	border-bottom: 1px solid var(--hub-divider, var(--gray-100));
+	background-color: var(--hub-hover, var(--gray-050));
+}
+
+.hub-filters .texticon {
+	flex: 1 1 240px;
+	max-width: 400px;
+}
+
+/* Checkbox filters: a button like the dropdowns, with a checkbox in place of the chevron */
+
+.hub-filters label.hub-toggle {
+	gap: 0;
+	white-space: nowrap;
+	cursor: pointer;
+	user-select: none;
+}
+
+.hub-toggle__box {
+	position: relative;
+	flex: none;
+	box-sizing: border-box;
+	width: 12px;
+	height: 12px;
+	margin: 0 0 0 8px;
+	border: 1.5px solid currentColor;
+	border-radius: 3px;
+	appearance: none;
+	opacity: .6;
+	cursor: inherit;
+}
+
+.hub-toggle__box:checked {
+	border-color: var(--blue-600, var(--link-color));
+	background-color: var(--blue-600, var(--link-color));
+	opacity: 1;
+}
+
+.hub-toggle__box:checked::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 2.5px;
+	width: 3px;
+	height: 6px;
+	border: solid #fff;
+	border-width: 0 1.5px 1.5px 0;
+	transform: rotate(45deg);
+}
+
+.hub-toggle__box:focus-visible {
+	outline: none;
+}
+
+.hub-filters label.hub-toggle:has(.hub-toggle__box:focus-visible) {
+	outline: 2px solid var(--focus-ring-color, var(--blue-500));
+	outline-offset: 1px;
+}
+
+.hub-filters label.hub-toggle:has(.hub-toggle__box:checked) {
+	color: var(--blue-800, var(--link-color));
+	background-color: var(--blue-050);
+	box-shadow: inset 0 0 0 1px var(--blue-300);
+}
+
+.hub-filters .hub-count {
+	margin-inline-start: auto;
+	color: var(--light-text-color, var(--gray-550));
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-filters__hint {
+	flex-basis: 100%;
+	margin: 0;
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 12px;
+}
+
+.hub-filters__clear[hidden] {
+	display: none;
+}
+
+/* Filter dropdowns: a button summarizing the selection, opening a popover in the top layer */
+
+.hub-dropdown__toggle {
+	gap: 0;
+	max-width: 320px;
+}
+
+.hub-dropdown__toggle::after {
+	content: "";
+	flex: none;
+	width: 5px;
+	height: 5px;
+	margin-inline-start: 8px;
+	border: solid currentColor;
+	border-width: 0 1.5px 1.5px 0;
+	opacity: .6;
+	transform: translateY(-2px) rotate(45deg);
+}
+
+.hub-dropdown__value {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hub-dropdown__value:empty {
+	display: none;
+}
+
+.hub-dropdown__value::before {
+	content: ":";
+	margin-inline-end: 4px;
+}
+
+.hub-dropdown.is-active .hub-dropdown__toggle {
+	color: var(--blue-800, var(--link-color));
+	background-color: var(--blue-050);
+	box-shadow: inset 0 0 0 1px var(--blue-300);
+}
+
+.hub-dropdown.is-active .hub-dropdown__value {
+	font-weight: 600;
+}
+
+.hub-dropdown__popover {
+	position: fixed;
+	inset: auto;
+	box-sizing: border-box;
+	width: max-content;
+	min-width: 220px;
+	max-width: min(340px, calc(100vw - 16px));
+	max-height: min(480px, calc(100vh - 80px));
+	margin: 0;
+	padding: 0;
+	overflow-y: auto;
+	border: 1px solid var(--hairline-color, var(--gray-200));
+	border-radius: var(--large-border-radius);
+	color: var(--text-color);
+	background-color: var(--white, #fff);
+	box-shadow: 0 0 0 1px rgb(31 41 51 / 4%), 0 8px 24px rgb(31 41 51 / 16%);
+}
+
+.hub-dropdown__part {
+	margin: 0;
+	padding: 10px 12px;
+	border: 0;
+	border-bottom: 1px solid var(--gray-100);
+}
+
+.hub-dropdown__legend {
+	float: left;
+	width: 100%;
+	margin-bottom: 6px;
+	padding: 0;
+	color: var(--light-text-color, var(--gray-550));
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .03em;
+	text-transform: uppercase;
+}
+
+.hub-dropdown__legend + * {
+	clear: both;
+}
+
+.hub-dropdown__search {
+	margin-bottom: 6px;
+}
+
+.hub-dropdown__options {
+	display: grid;
+	max-height: 260px;
+	margin-inline: -6px;
+	overflow-y: auto;
+}
+
+.hub-dropdown__option {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 6px;
+	border-radius: var(--medium-border-radius);
+	cursor: pointer;
+	user-select: none;
+}
+
+.hub-dropdown__option[hidden] {
+	display: none;
+}
+
+.hub-dropdown__option:hover {
+	background-color: var(--gray-050);
+}
+
+.hub-dropdown__option input {
+	flex: none;
+	margin: 0;
+}
+
+.hub-dropdown__text {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hub-dropdown__actions {
+	position: sticky;
+	bottom: 0;
+	display: flex;
+	justify-content: flex-end;
+	gap: 6px;
+	padding: 8px 12px;
+	background-color: var(--white, #fff);
+}
+
+/* Column pickers: the columns of a list, shown or hidden by their checkbox and ordered by dragging them or with their buttons */
+
+.hub-columns__toggle {
+	white-space: nowrap;
+}
+
+.hub-columns__list {
+	display: grid;
+	margin: 0 -6px;
+	padding: 0;
+	list-style: none;
+}
+
+.hub-columns__item {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	border-radius: var(--medium-border-radius);
+	background-color: var(--white, #fff);
+}
+
+.hub-columns__item.is-dragging {
+	opacity: .5;
+}
+
+.hub-columns__item .hub-dropdown__option {
+	flex: 1;
+	min-width: 0;
+}
+
+.hub-columns__handle {
+	display: inline-flex;
+	flex: none;
+	width: 12px;
+	padding-inline-start: 4px;
+	color: var(--light-text-color, var(--gray-550));
+	cursor: grab;
+}
+
+.hub-columns__handle svg,
+.hub-columns__move svg {
+	width: 100%;
+	height: 12px;
+	fill: currentColor;
+}
+
+.hub-columns__move {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0 5px;
+	border: 0;
+	border-radius: var(--small-border-radius, 4px);
+	color: var(--light-text-color, var(--gray-550));
+	background: none;
+	cursor: pointer;
+}
+
+.hub-columns__move:hover {
+	color: var(--text-color);
+	background-color: var(--gray-050);
+}
+
+/* The first column can't move up, nor the last one down; they keep their place to line up with the others. */
+.hub-columns__item:first-child [data-hub-move="-1"],
+.hub-columns__item:last-child [data-hub-move="1"] {
+	visibility: hidden;
+}
+
+/* Hidden columns are rendered to be shown again right away. */
+.hub-table :is(th, td)[hidden] {
+	display: none;
+}
+
+.hub-range {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.hub-range input.text {
+	flex: 1;
+	width: 0;
+	min-width: 80px;
+}
+
+.hub-range input[type="date"] {
+	min-width: 130px;
+}
+
+.hub-range__dash,
+.hub-range__unit {
+	flex: none;
+	color: var(--light-text-color, var(--gray-550));
+}
+
+.hub-list {
+	display: grid;
+	gap: 10px;
+	margin: 0;
+	padding: var(--m) var(--l);
+	list-style: none;
+}
+
+.hub-layout-tab + .hub-layout-tab {
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+#content .hub-layout-tab__heading {
+	margin: 0;
+	padding: 10px var(--l) 0;
+	color: var(--medium-text-color, var(--gray-550));
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+}
+
+.hub-field {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 16px;
+}
+
+/* Tables inside panels */
+
+.hub-table {
+	overflow-x: auto;
+}
+
+.hub-table table.data th,
+.hub-table table.data td {
+	padding-block: 10px;
+	vertical-align: middle;
+}
+
+.hub-table table.data thead th {
+	padding-block: 8px;
+	color: var(--medium-text-color, var(--gray-550));
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.hub-table table.data tr > :first-child {
+	padding-inline-start: var(--l);
+}
+
+.hub-table table.data tr > :last-child {
+	padding-inline-end: var(--l);
+}
+
+.hub-table table.data tbody tr:hover > * {
+	background-color: var(--hub-hover, var(--gray-050));
+}
+
+.hub-table table.data tbody tr[data-severity] > :first-child {
+	box-shadow: inset 3px 0 0 var(--hub-strong);
+}
+
+.hub-table table.data tbody tr[data-severity="red"] { --hub-strong: var(--red-500); }
+.hub-table table.data tbody tr[data-severity="orange"] { --hub-strong: var(--orange-400); }
+
+/* Columns of the checkboxes selecting rows for bulk actions only take the room of their checkbox. */
+.hub-table table.data :is(th, td).hub-check-cell {
+	width: 1px;
+	padding-inline-end: 0;
+}
+
+.hub-check-cell input {
+	display: block;
+	margin: 0;
+}
+
+/* Selected rows are tinted lightly, unlike Craft's `sel` rows of element indexes. */
+.hub-table table.data tbody tr.is-selected > * {
+	background-color: var(--blue-050);
+}
+
+/* The bulk action bar names the selection and offers the actions for it in a menu */
+
+.hub-bulk__count {
+	color: var(--light-text-color, var(--gray-550));
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-bulk__toggle {
+	white-space: nowrap;
+}
+
+.hub-bulk__menu {
+	min-width: 160px;
+	padding: 6px;
+}
+
+.hub-bulk__action {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 6px 8px;
+	border: 0;
+	border-radius: var(--medium-border-radius);
+	color: var(--text-color);
+	background: none;
+	font: inherit;
+	text-align: start;
+	cursor: pointer;
+}
+
+.hub-bulk__action:hover,
+.hub-bulk__action:focus-visible {
+	background-color: var(--gray-050);
+}
+
+.hub-bulk__action.error {
+	color: var(--error-color, var(--red-600));
+}
+
+/* The last column links to the public URL, so it only takes the room of its icon. */
+.hub-table table.data td.hub-visit-cell {
+	width: 1px;
+	text-align: end;
+}
+
+.hub-visit {
+	display: inline-flex;
+	box-sizing: border-box;
+	width: 28px;
+	height: 28px;
+	padding: 7px;
+	border-radius: var(--medium-border-radius);
+	color: var(--light-text-color, var(--gray-550));
+	vertical-align: middle;
+}
+
+.hub-visit:hover,
+.hub-visit:focus-visible {
+	color: var(--link-color, var(--blue-600));
+	background-color: var(--gray-100);
+}
+
+.hub-visit svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+.hub-legend__item {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: 8px;
+	margin: -2px -6px;
+	padding: 2px 6px;
+	border-radius: 4px;
+	color: inherit;
+}
+
+a.hub-legend__item:hover,
+a.hub-legend__item:focus-visible,
+a.hub-legend__item[aria-current="true"] {
+	background-color: var(--hub-hover, var(--gray-050));
+	text-decoration: none;
+}
+
+a.hub-legend__item[aria-current="true"] .hub-legend__label {
+	color: var(--text-color, var(--gray-800));
+	font-weight: 600;
+}
+
+a.hub-legend__item:hover .hub-legend__label {
+	color: var(--link-color, var(--blue-600));
+}
+
+.hub-bar__segment[data-color],
+.hub-legend__dot[data-color] {
+	background-color: var(--hub-strong);
+}
+
+.hub-task__icon[data-color],
+.hub-task__count[data-color],
+.hub-check__icon[data-color] {
+	color: var(--hub-fg);
+	background-color: var(--hub-bg);
+}
+
+/* Summary cards */
+
+.hub-summary {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: var(--m);
+	margin-bottom: calc(var(--xl) * 1.5);
+}
+
+/* Six cards split into two even rows instead of four and two. */
+@media (min-width: 768px) {
+	.hub-summary--thirds {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+.hub-card,
+.hub-panel,
+.hub-task-group {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	border: 1px solid var(--hairline-color, var(--gray-200));
+	border-radius: var(--large-border-radius);
+	background-color: var(--hub-surface);
+	box-shadow: 0 1px 2px rgb(31 41 51 / 6%);
+
+	/* Light gray surface, so cards stand out from the white content pane; nested tints step up one shade. */
+	--hub-surface: var(--gray-050);
+	--hub-hover: var(--gray-100);
+	--hub-divider: var(--gray-150);
+}
+
+/* Tinted tiles and pills take their stronger shade on the gray surface. */
+.hub-card .hub-icon,
+.hub-panel .hub-icon,
+.hub-task__icon[data-color],
+.hub-task__count[data-color],
+.hub-check__icon[data-color] {
+	background-color: var(--hub-soft, var(--gray-100));
+}
+
+.hub-panel .hub-pill {
+	background-color: var(--gray-150);
+}
+
+/* Table headers blend into the surface instead of Craft's own gray. */
+.hub-table table.data thead th {
+	background-color: transparent;
+}
+
+/* Item rows stay light, so only the surrounding chrome is tinted. */
+.hub-table table.data tbody,
+.hub-list:not(.hub-list--plain),
+.hub-task-group__list,
+.hub-checks {
+	background-color: var(--white);
+
+	--hub-hover: var(--gray-050);
+	--hub-divider: var(--gray-100);
+}
+
+.hub-card {
+	overflow: hidden;
+}
+
+/* The header sits in its own row, one shade darker than the card surface. */
+.hub-card__header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px var(--l);
+	border-bottom: 1px solid var(--hub-divider, var(--gray-100));
+	background-color: var(--gray-100);
+}
+
+.hub-card__body {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 10px;
+	padding: var(--m) var(--l) var(--l);
+}
+
+.hub-card__icon {
+	display: inline-flex;
+	width: 14px;
+	height: 14px;
+	color: var(--gray-400);
+}
+
+.hub-card__icon svg,
+.hub-btn-icon svg,
+.hub-task__icon svg,
+.hub-task__chevron svg,
+.hub-check__icon svg {
+	width: 100%;
+	height: 100%;
+	fill: currentColor;
+}
+
+#content .hub-card__label {
+	margin: 0;
+	color: var(--medium-text-color, var(--gray-550));
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+}
+
+.hub-card__value {
+	margin: 0;
+	font-size: 32px;
+	font-weight: 700;
+	line-height: 1.1;
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-card__value a {
+	color: inherit;
+}
+
+.hub-card__value a:hover {
+	color: var(--link-color, var(--blue-600));
+	text-decoration: none;
+}
+
+.hub-bar {
+	display: flex;
+	gap: 2px;
+	height: 6px;
+	overflow: hidden;
+	border-radius: 3px;
+	background-color: var(--hub-divider, var(--gray-100));
+}
+
+.hub-bar__segment {
+	flex: 1 1 0;
+	min-width: 4px;
+	background-color: var(--hub-divider, var(--gray-100));
+}
+
+.hub-legend {
+	display: grid;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	font-size: 12px;
+}
+
+.hub-legend li {
+	display: flex;
+}
+
+.hub-legend__dot {
+	flex: none;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+}
+
+.hub-legend__label {
+	flex: 1;
+	color: var(--medium-text-color, var(--gray-550));
+}
+
+.hub-legend__value {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-card__note {
+	margin: auto 0 0;
+	padding-top: 10px;
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 12px;
+}
+
+
+/* Overview */
+
+.hub-heading {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: var(--m);
+	margin-bottom: var(--m);
+}
+
+#content .hub-heading h2 {
+	margin: 0 0 2px;
+}
+
+.hub-heading p {
+	margin: 0;
+}
+
+/* Diagnostics: the check summary cards, directly followed by the to do panels. */
+.hub-diagnostics .hub-summary {
+	margin-bottom: var(--m);
+}
+
+/* To do: a panel per area, listing the counts worth reviewing with links to the matching lists. */
+.hub-tasks {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+	gap: var(--m);
+	align-items: start;
+	margin-bottom: calc(var(--xl) * 1.5);
+}
+
+.hub-task-group {
+	overflow: hidden;
+}
+
+.hub-task-group__header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: var(--m) var(--l);
+}
+
+.hub-task-group__header .hub-card__label {
+	flex: 1;
+}
+
+.hub-task-group__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+.hub-task-group__list li + li {
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+.hub-task {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px var(--l);
+	color: inherit;
+}
+
+a.hub-task:hover,
+a.hub-task:focus-visible {
+	background-color: var(--hub-hover, var(--gray-050));
+	text-decoration: none;
+}
+
+.hub-task__icon {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 7px;
+	box-sizing: border-box;
+	border-radius: var(--medium-border-radius);
+}
+
+.hub-task__body {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.hub-task__label {
+	font-weight: 600;
+}
+
+.hub-task__description {
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.hub-task__value {
+	flex: none;
+	font-size: 16px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Cleared items are compact and muted, as there is nothing to do. */
+.hub-task--clear {
+	padding-block: 6px;
+}
+
+.hub-task--clear .hub-task__label {
+	color: var(--medium-text-color, var(--gray-550));
+	font-weight: 500;
+}
+
+.hub-task--clear .hub-task__description {
+	display: none;
+}
+
+.hub-task--clear .hub-task__value {
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.hub-task__count {
+	flex: none;
+	min-width: 28px;
+	padding: 2px 8px;
+	border-radius: 12px;
+	box-sizing: border-box;
+	font-size: 12px;
+	font-weight: 700;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-task__chevron {
+	display: inline-flex;
+	flex: none;
+	width: 10px;
+	height: 10px;
+	color: var(--gray-300);
+}
+
+a.hub-task:hover .hub-task__chevron {
+	color: var(--gray-500);
+}
+
+/* Review checks */
+
+.hub-checks {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.hub-check {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	padding: var(--m) var(--l);
+}
+
+.hub-check + .hub-check {
+	border-top: 1px solid var(--hub-divider, var(--gray-100));
+}
+
+/* Passed checks are compact, as there is nothing to do. */
+.hub-check--passed {
+	padding-block: 10px;
+}
+
+.hub-check__icon {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 28px;
+	height: 28px;
+	padding: 7px;
+	border-radius: var(--medium-border-radius);
+}
+
+.hub-check__body {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+}
+
+.hub-check__heading {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+#content .hub-check__heading h3 {
+	margin: 0;
+	font-size: 14px;
+}
+
+.hub-check--passed .hub-check__heading h3 {
+	color: var(--medium-text-color, var(--gray-550));
+	font-weight: 500;
+}
+
+.hub-check__body p {
+	margin: 0;
+	color: var(--light-text-color, var(--gray-500));
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+/* Next step of a failed check, at the end of the row. */
+.hub-check__link {
+	flex: none;
+	align-self: center;
+}
+
+/* Results of lists filtered on the server, and content scoped to other sites, while they load. */
+[aria-busy="true"] > form[data-hub-submit] ~ *,
+#content[aria-busy="true"] > :not(#content-header) {
+	opacity: 0.5;
+	transition: opacity 0.15s 0.15s;
+}

@@ -1,0 +1,130 @@
+{#
+	Panel with the filterable list of section and nested entries, on the entries page and on section, entry type and field pages.
+	There can be many entries, so they are filtered, sorted and paginated on the server.
+	Sections, nested entry fields and entry types are offered as far as they are used together; the one a detail page is limited to (`listFixed`) is neither offered nor shown.
+
+	Variables: see BaseController::entryListVariables()
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{% set sectionOptions = {} %}
+{% for info in sections %}
+	{% set sectionOptions = sectionOptions|merge({ (info.section.handle): { label: info.section.name|t('site') } }) %}
+{% endfor %}
+
+{% set fieldOptions = {} %}
+{% for info in nestedFields %}
+	{% set fieldOptions = fieldOptions|merge({ (info.field.handle): { label: info.field.name|t('site'), icon: info.field.getIcon() ?: 'pen-to-square', color: 'violet' } }) %}
+{% endfor %}
+
+{% set typeOptions = {} %}
+{% for info in entryTypes %}
+	{% set typeOptions = typeOptions|merge({ (info.entryType.handle): { label: info.entryType.name|t('site'), icon: info.entryType.icon ?: 'shapes', color: info.entryType.color.value ?? 'gray' } }) %}
+{% endfor %}
+
+{% embed 'hub/_components/panel' %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		<form method="get" class="hub-filters" action="{{ url(listPath) }}" data-hub-submit>
+			{{ hub.search('Search by title or slug'|t('hub'), filter.search) }}
+			{{ hub.dropdown('Status'|t('app'), 'circle-half-stroke', hub.choices('status', statuses|map((label, status) => { label: label, color: { live: 'green', pending: 'orange', expired: 'red' }[status] ?? 'gray' }), filter.statuses)) }}
+			{% if listFixed != 'type' %}
+				{{ hub.dropdown('Entry Type'|t('app'), 'shapes', hub.choices('type', typeOptions, filter.types)) }}
+			{% endif %}
+			{% if listFixed not in ['section', 'field'] %}
+				{% if sections|length %}
+					{{ hub.dropdown('Section'|t('app'), 'layer-group', hub.choices('section', sectionOptions, filter.sections)) }}
+				{% endif %}
+				{% if nestedFields|length %}
+					{# Choosing between section and nested entries only matters where there are both. #}
+					{{ hub.dropdown('Origin'|t('hub'), 'diagram-nested', (sections|length ? hub.choices('origin', {
+						section: { label: 'Section entries'|t('hub'), icon: 'layer-group', color: 'blue' },
+						nested: { label: 'Nested entries'|t('hub'), icon: 'diagram-nested', color: 'violet' },
+					}, filter.origin, { multiple: false, label: 'Origin'|t('hub') }) : '')
+						~ hub.choices('field', fieldOptions, filter.fields, { label: 'Nested entry fields'|t('hub') })) }}
+				{% endif %}
+			{% endif %}
+			{{ hub.dropdown('Author'|t('app'), 'user', hub.choices('author', authors|map(author => { label: author.user.name }), filter.authors)) }}
+			{{ hub.dropdown('References'|t('hub'), 'link', hub.choices('usage', {
+				referenced: { label: 'Referenced'|t('hub'), color: 'green' },
+				unreferenced: { label: 'Unreferenced'|t('hub'), color: 'orange' },
+			}, filter.usage, { multiple: false, label: 'Usage'|t('hub') })
+				~ hub.range('references', 'Number of references'|t('hub'), filter.referencesMin, filter.referencesMax)) }}
+			{{ hub.dropdown('Dates'|t('hub'), 'calendar', hub.range('posted', 'Post Date'|t('app'), filter.postedFrom, filter.postedTo, { type: 'date' })
+				~ hub.range('updated', 'Last updated'|t('hub'), filter.updatedFrom, filter.updatedTo, { type: 'date' })) }}
+			{{ hub.diagnosticsFilter(filter.diagnoses) }}
+			{{ hub.toggle('stale', 'Stale only'|t('hub'), filter.staleMonths is not null) }}
+			{{ hub.toggle('drafts', 'With drafts only'|t('hub'), filter.drafts) }}
+			{{ hub.clearFilters() }}
+			{{ hiddenInput('sort', sort) }}
+			{{ hiddenInput('dir', dir) }}
+			<span class="hub-count">{{ '{count, plural, =1{One entry} other{# entries}}'|t('hub', { count: pageInfo.total }) }}</span>
+			{{ hub.columnPicker('entries', columns) }}
+		</form>
+
+		{% if entries|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							{{ hub.sortHeader('Title'|t('app'), 'title', sortHeaders) }}
+							{{ hub.columnHeaders(columns, sortHeaders) }}
+						</tr>
+					</thead>
+					<tbody>
+						{% for entry in entries %}
+							{% set references = referenceCounts[entry.id] ?? 0 %}
+							<tr>
+								<th>
+									<div class="hub-name">
+										{{ hub.itemIcon(entry.type) }}
+										<div class="hub-name__text">
+											<span class="hub-name__title"><a href="{{ hub.url(entry) }}">{{ entry.title ?: entry.slug }}</a></span>
+											<code>{{ entry.slug }}</code>
+										</div>
+									</div>
+								</th>
+								{% for column in columns %}
+									<td{{ hub.cellAttributes(column) }}>
+										{%- if not column.visible -%}
+										{%- elseif column.key == 'section' -%}
+											{% if entry.section %}{{ hub.chip(entry.section) }}{% else %}<span class="hub-muted">—</span>{% endif %}
+										{%- elseif column.key == 'field' -%}
+											{% if entry.field %}{{ hub.chip(entry.field, 'violet') }}{% else %}<span class="hub-muted">—</span>{% endif %}
+										{%- elseif column.key == 'owner' -%}
+											{% if entry.owner %}{{ hub.element(entry.owner) }}{% else %}<span class="hub-muted">—</span>{% endif %}
+										{%- elseif column.key == 'type' -%}
+											{{ hub.chip(entry.type) }}
+										{%- elseif column.key == 'status' -%}
+											<span class="status {{ entry.status }}" aria-hidden="true"></span>{{ entry.statuses()[entry.status] ?? entry.status }}
+										{%- elseif column.key == 'references' -%}
+											{{ hub.num(references) }}
+										{%- elseif column.key == 'posted' -%}
+											{{ hub.date(entry.postDate) }}
+										{%- elseif column.key == 'updated' -%}
+											{{ hub.date(entry.dateUpdated) }}
+										{%- elseif column.key == 'diagnostics' -%}
+											{{ hub.diagnostics(diagnostics[entry.id], entry) }}
+										{%- elseif column.key == 'url' -%}
+											{{ hub.visit(entry, 'View entry'|t('hub')) }}
+										{%- endif -%}
+									</td>
+								{% endfor %}
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+
+			<footer class="hub-panel__footer">
+				{% include '_includes/pagination' with {
+					pageInfo: pageInfo,
+					itemLabel: 'entry'|t('app'),
+					itemsLabel: 'entries'|t('app'),
+				} %}
+			</footer>
+		{% else %}
+			<p class="hub-panel__empty">{{ 'Nothing matches the current filters.'|t('hub') }}</p>
+		{% endif %}
+	{% endblock %}
+{% endembed %}

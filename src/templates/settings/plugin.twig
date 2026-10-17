@@ -1,0 +1,53 @@
+{% import '_includes/forms.twig' as forms %}
+
+{% macro configWarning(setting) -%}
+	{{ 'This is being overridden by the {setting} setting in {file}.'|t('hub', {
+		setting: '<code>' ~ setting ~ '</code>',
+		file: '<code>config/hub.php</code>',
+	})|raw }}
+{%- endmacro %}
+
+{% from _self import configWarning %}
+
+{{ forms.textField({
+	first: true,
+	label: 'Stale Threshold'|t('hub'),
+	instructions: 'Entries not updated within this many months are listed as stale.'|t('hub'),
+	id: 'staleThresholdMonths',
+	name: 'staleThresholdMonths',
+	value: settings.staleThresholdMonths,
+	type: 'number',
+	min: 1,
+	size: 5,
+	unit: 'months'|t('hub'),
+	warning: 'staleThresholdMonths' in overrides ? configWarning('staleThresholdMonths'),
+	errors: settings.getErrors('staleThresholdMonths'),
+}) }}
+
+{{ forms.textField({
+	label: 'Large File Threshold'|t('hub'),
+	instructions: 'Files larger than this many megabytes are listed as large.'|t('hub'),
+	id: 'largeFileThresholdMb',
+	name: 'largeFileThresholdMb',
+	value: settings.largeFileThresholdMb,
+	type: 'number',
+	min: 1,
+	size: 5,
+	unit: 'MB',
+	warning: 'largeFileThresholdMb' in overrides ? configWarning('largeFileThresholdMb'),
+	errors: settings.getErrors('largeFileThresholdMb'),
+}) }}
+
+{{ forms.textField({
+	label: 'Large Image Threshold'|t('hub'),
+	instructions: 'Images wider or taller than this many pixels are listed as oversized.'|t('hub'),
+	id: 'largeImageThresholdPx',
+	name: 'largeImageThresholdPx',
+	value: settings.largeImageThresholdPx,
+	type: 'number',
+	min: 1,
+	size: 5,
+	unit: 'px',
+	warning: 'largeImageThresholdPx' in overrides ? configWarning('largeImageThresholdPx'),
+	errors: settings.getErrors('largeImageThresholdPx'),
+}) }}

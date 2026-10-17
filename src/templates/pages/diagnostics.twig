@@ -1,0 +1,66 @@
+{#
+	Diagnostics tab of an index page: how the elements fare in their checks, if they have any, and what there is to do.
+
+	Variables: area, page, title (see the index layout), card (summary of the checks, or null), tasks (items to do)
+#}
+{% extends 'hub/_layouts/index' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set selectedTab = 'diagnostics' %}
+
+{% block content %}
+	{% set open = tasks|filter(item => item.value)|length %}
+	{% set review = card ? card.total - card.passed : 0 %}
+
+	<header class="hub-heading">
+		<div>
+			<h2>{{ 'Diagnostics'|t('hub') }}</h2>
+			<p class="hub-muted">
+				{%- if selectedSites -%}
+					{{ 'Failed checks and things worth a closer look on {site}.'|t('hub', { site: selectedSites|map(site => site.name|t('site'))|join(', ') }) }}
+				{%- else -%}
+					{{ 'Failed checks and things worth a closer look across all sites.'|t('hub') }}
+				{%- endif -%}
+			</p>
+		</div>
+		<span class="hub-badges">
+			{%- if review %}{{ hub.badge('{count, plural, =1{# item to review} other{# items to review}}'|t('hub', { count: review }), 'orange') }}{% endif -%}
+			{%- if open %}{{ hub.badge('{count, number} to do'|t('hub', { count: open }), 'orange') }}{% endif -%}
+			{%- if not review and not open %}{{ hub.badge('All clear'|t('hub'), 'green') }}{% endif -%}
+		</span>
+	</header>
+
+	<div class="hub-tasks">
+		{% if card %}{{ hub.card(card) }}{% endif %}
+
+		<section class="hub-task-group">
+			<header class="hub-task-group__header">
+				<span class="hub-card__icon" aria-hidden="true">{{ iconSvg('list-check') }}</span>
+				<h3 class="hub-card__label">{{ 'To do'|t('hub') }}</h3>
+				<span class="hub-task__count" data-color="{{ open ? 'orange' : 'green' }}" title="{{ 'Open'|t('hub') }}">{{ open|number }}</span>
+			</header>
+
+			<ul class="hub-task-group__list">
+				{% for item in tasks %}
+					{% set color = item.value ? item.severity.color() : 'green' %}
+					{% set inner %}
+						<span class="hub-task__icon" data-color="{{ color }}" aria-hidden="true">{{ iconSvg(item.value ? item.icon : 'circle-check') }}</span>
+						<span class="hub-task__body">
+							<span class="hub-task__label">{{ item.label }}</span>
+							<span class="hub-task__description">{{ item.description }}</span>
+						</span>
+						<span class="hub-task__value">{{ item.value|number }}</span>
+						<span class="hub-task__chevron" aria-hidden="true">{% if item.value and item.url %}{{ iconSvg('chevron-right') }}{% endif %}</span>
+					{% endset %}
+					<li>
+						{% if item.value and item.url %}
+							<a class="hub-task" href="{{ item.url }}">{{ inner }}</a>
+						{% else %}
+							<div class="hub-task{% if not item.value %} hub-task--clear{% endif %}">{{ inner }}</div>
+						{% endif %}
+					</li>
+				{% endfor %}
+			</ul>
+		</section>
+	</div>
+{% endblock %}

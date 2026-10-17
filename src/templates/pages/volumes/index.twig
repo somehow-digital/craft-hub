@@ -1,0 +1,97 @@
+{% extends 'hub/_layouts/index' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set area = 'structure' %}
+{% set page = 'volumes' %}
+{% set title = 'Volumes'|t('hub') %}
+{% set selectedTab = 'list' %}
+
+{% set kindOptions = fileKinds|map((kind, value) => { label: kind.label, icon: kind.icon, color: kind.color }) %}
+
+{% block content %}
+	{{ hub.summary(summary) }}
+
+	{% embed 'hub/_components/panel' %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<form method="get" class="hub-filters" action="{{ url('hub/structure/volumes') }}" data-hub-submit>
+				{{ hub.search('Search by name or handle'|t('hub'), filter.search) }}
+				{{ hub.dropdown('Types'|t('hub'), 'file', hub.choices('kind', kindOptions, filter.kinds)) }}
+				{{ hub.dropdown('URLs'|t('hub'), 'globe', hub.choices('urls', {
+					yes: { label: 'Has URLs'|t('hub') },
+					no: { label: 'No URLs'|t('hub') },
+				}, filter.urls, { multiple: false })) }}
+				{{ hub.dropdown('Assets'|t('app'), 'image', hub.range('assets', 'Number of assets'|t('hub'), filter.assetsMin, filter.assetsMax)
+					~ hub.range('size', 'Size'|t('app'), filter.sizeMin, filter.sizeMax, { unit: 'MB', step: 'any' })
+					~ hub.range('alt', 'Missing alt text'|t('hub'), filter.altMin, filter.altMax)) }}
+				{{ hub.dropdown('Last upload'|t('hub'), 'calendar', hub.range('uploaded', 'Last upload'|t('hub'), filter.uploadedFrom, filter.uploadedTo, { type: 'date' })) }}
+				{{ hub.diagnosticsFilter(filter.diagnoses) }}
+				{{ hub.toggle('empty', 'Empty only'|t('hub'), filter.empty) }}
+				{{ hub.clearFilters() }}
+				{{ hiddenInput('sort', sort) }}
+				{{ hiddenInput('dir', dir) }}
+				<span class="hub-count">{{ '{count, plural, =1{One volume} other{# volumes}}'|t('hub', { count: pageInfo.total }) }}</span>
+				{{ hub.columnPicker('volumes', columns) }}
+			</form>
+
+			{% if volumes|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								{{ hub.sortHeader('Name'|t('app'), 'name', sortHeaders) }}
+								{{ hub.columnHeaders(columns, sortHeaders) }}
+							</tr>
+						</thead>
+						<tbody>
+							{% for info in volumes %}
+								{% set volume = info.volume %}
+								{% set fs = volume.fs %}
+								<tr{% if info.isEmpty() %} data-severity="orange"{% endif %}>
+									<th>
+										{{ hub.name(volume, null, info.isEmpty() ? hub.badge('Empty'|t('hub'), 'orange', null, 'box-open')) }}
+									</th>
+									{% for column in columns %}
+										<td{{ hub.cellAttributes(column) }}>
+											{%- if not column.visible -%}
+											{%- elseif column.key == 'fs' -%}
+												{{ fs.name|t('site') }} <span class="hub-muted">{{ fs.displayName() }}</span>
+											{%- elseif column.key == 'types' -%}
+												{{ hub.fileKinds(info.kindValues|map(kind => fileKinds[kind]), 3) }}
+											{%- elseif column.key == 'uri' -%}
+												{% if info.hasUrls %}{{ hub.icon('circle-check', 'green') }}{% else %}<span class="hub-muted">—</span>{% endif %}
+											{%- elseif column.key == 'assets' -%}
+												{{ hub.dotNum(info.stats.used, 'green', 'With references'|t('hub')) }}
+												{{ hub.dotNum(info.stats.unused, 'orange', 'Without references'|t('hub')) }}
+											{%- elseif column.key == 'size' -%}
+												{{ hub.size(info.stats.size) }}
+											{%- elseif column.key == 'alt' -%}
+												{{ hub.num(info.stats.missingAlt) }}
+											{%- elseif column.key == 'references' -%}
+												{{ hub.num(info.references.references) }}
+											{%- elseif column.key == 'uploaded' -%}
+												{{ hub.date(info.stats.lastUploaded) }}
+											{%- elseif column.key == 'diagnostics' -%}
+												{{ hub.diagnostics(diagnostics[volume.id], volume) }}
+											{%- endif -%}
+										</td>
+									{% endfor %}
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+
+				<footer class="hub-panel__footer">
+					{% include '_includes/pagination' with {
+						pageInfo: pageInfo,
+						itemLabel: 'volume'|t('hub'),
+						itemsLabel: 'volumes'|t('hub'),
+					} %}
+				</footer>
+			{% else %}
+				<p class="hub-panel__empty">{{ 'Nothing matches the current filters.'|t('hub') }}</p>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

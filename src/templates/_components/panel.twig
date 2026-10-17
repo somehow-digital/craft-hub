@@ -1,0 +1,51 @@
+{#
+	Bordered panel with an icon header, used to group lists and details.
+	Panels with a heading collapse by clicking it; they start open unless their count is zero.
+	A toggled state is remembered per kind of page (not per element) and panel (keyed by `id` or the heading) in local storage.
+	Pass `collapsible: false` for panels holding filters, so they cannot be hidden.
+	A description is shown in a popover, opened by an info button next to the heading.
+
+	Variables: heading, icon, color, description, count, id, collapsible, open
+	Blocks: actions (header end), body
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{% set collapsible = (heading ?? false) and (collapsible ?? true) %}
+{% set open = open ?? ((count ?? null) is null or count > 0) %}
+{% set headerTag = collapsible ? 'summary' : 'header' %}
+{% set descriptionId = (heading ?? false) and (description ?? false) ? 'hub-panel-description-' ~ random() : null %}
+
+<section class="hub-panel"{% if id ?? false %} id="{{ id }}"{% endif %}>
+	{% if collapsible %}<details class="hub-panel__details" data-hub-panel="{{ id ?? heading|kebab }}"{% if open %} open{% endif %}>{% endif %}
+
+	{% if heading ?? false %}
+		<{{ headerTag }} class="hub-panel__header">
+			{% if icon ?? false %}
+				{{ hub.icon(icon, color ?? 'gray') }}
+			{% endif %}
+			<div class="hub-panel__title">
+				<h2>{{ heading }}</h2>
+				{% if descriptionId %}
+					<button type="button" class="hub-panel__info" popovertarget="{{ descriptionId }}" aria-label="{{ 'Info'|t('app') }}" title="{{ 'Info'|t('app') }}">{{ iconSvg('circle-info') }}</button>
+				{% endif %}
+			</div>
+			{% block actions %}
+				{% if (count ?? null) is not null %}
+					<span class="hub-pill">{{ count|number }}</span>
+				{% endif %}
+			{% endblock %}
+			{% if collapsible %}
+				<span class="hub-panel__toggle" aria-hidden="true">{{ iconSvg('chevron-down') }}</span>
+			{% endif %}
+		</{{ headerTag }}>
+	{% endif %}
+
+	{% block body %}{% endblock %}
+
+	{% if collapsible %}</details>{% endif %}
+
+	{# Outside the header, so clicks within it do not toggle the panel. #}
+	{% if descriptionId %}
+		<div class="hub-panel__description" id="{{ descriptionId }}" popover data-hub-info>{{ description }}</div>
+	{% endif %}
+</section>
