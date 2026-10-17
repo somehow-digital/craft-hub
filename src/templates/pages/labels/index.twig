@@ -1,0 +1,52 @@
+{#
+	The labels, the same for all lists, in their order, which they're shown in by the items labeled with them.
+	They can be reordered and deleted right in the table, deleting a label unlabeling all items labeled with it.
+
+	Variables: labels (see LabelService::getAllLabels()), usage (number of items labeled with each label, by its ID)
+#}
+{% extends '_layouts/cp' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% do view.registerAssetBundle('craft\\web\\assets\\admintable\\AdminTableAsset') %}
+{% do view.registerAssetBundle('SomehowDigital\\Craft\\Hub\\assets\\HubAsset') %}
+
+{% set title = 'Labels'|t('hub') %}
+{% set selectedSubnavItem = 'labels' %}
+{% set crumbs = [
+	{ label: 'Hub'|t('hub'), url: url('hub/manage') },
+] %}
+
+{% block actionButton %}
+	<a href="{{ url('hub/manage/labels/new') }}" class="btn submit add icon">{{ 'New label'|t('hub') }}</a>
+{% endblock %}
+
+{% block content %}
+	<div id="hub-labels-admin-table"></div>
+{% endblock %}
+
+{% set tableData = [] %}
+{% for label in labels %}
+	{% set tableData = tableData|merge([{
+		id: label.id,
+		title: label.name,
+		url: url('hub/manage/labels/' ~ label.id),
+		label: hub.label(label)|spaceless,
+		items: (usage[label.id] ?? 0)|number,
+	}]) %}
+{% endfor %}
+
+{% js %}
+new Craft.VueAdminTable({
+	columns: [
+		{ name: 'label', title: '', callback: (value) => value },
+		{ name: '__slot:title', title: Craft.t('app', 'Name') },
+		{ name: 'items', title: Craft.t('hub', 'Labeled items') },
+	],
+	container: '#hub-labels-admin-table',
+	deleteAction: 'hub/labels/delete',
+	deleteConfirmationMessage: Craft.t('hub', 'Are you sure you want to delete “{name}”? All items labeled with it are unlabeled.'),
+	emptyMessage: Craft.t('hub', 'No labels exist yet.'),
+	reorderAction: {{ (labels|length > 1 ? 'hub/labels/reorder' : '')|json_encode|raw }},
+	tableData: {{ tableData|json_encode|raw }},
+});
+{% endjs %}

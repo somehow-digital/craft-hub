@@ -1,0 +1,29 @@
+{#
+	Collapsible panel holding the summary cards of a page.
+	Index pages pass none: their cards take a while to compute, so they are only loaded once the panel is opened.
+	Detail pages pass the cards they computed already.
+
+	Variables: path (of the index page, see the index layout), cards (of a detail page)
+#}
+{% set cards = cards ?? null %}
+
+{% embed 'hub/_components/panel' with {
+	heading: 'Statistics'|t('hub'),
+	icon: 'chart-simple',
+	id: 'hub-summary',
+} %}
+	{% block body %}
+		{% if cards is not null %}
+			{% import 'hub/_components/macros' as hub %}
+			{{ hub.summary(cards) }}
+		{% else %}
+			<div class="hub-panel__lazy" data-hub-lazy="{{ url(path ~ '/summary', { hubSite: hubSite }) }}">
+				<p class="hub-panel__empty" data-hub-lazy-status>
+					<span class="spinner" aria-hidden="true"></span>
+					{{ 'Loading…'|t('hub') }}
+				</p>
+				<p class="hub-panel__empty" data-hub-lazy-error hidden>{{ 'The statistics could not be loaded.'|t('hub') }}</p>
+			</div>
+		{% endif %}
+	{% endblock %}
+{% endembed %}

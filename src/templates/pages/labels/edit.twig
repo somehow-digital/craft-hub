@@ -1,0 +1,49 @@
+{#
+	Form of a new label, or of an existing one: its name, shown as the tooltip of its icon, its icon and its color.
+
+	Variables: label (see Label)
+#}
+{% extends '_layouts/cp' %}
+{% import '_includes/forms' as forms %}
+
+{% set fullPageForm = true %}
+{% set title = label.id ? label.name : 'New label'|t('hub') %}
+{% set selectedSubnavItem = 'labels' %}
+{% set crumbs = [
+	{ label: 'Hub'|t('hub'), url: url('hub/manage') },
+	{ label: 'Labels'|t('hub'), url: url('hub/manage/labels') },
+] %}
+
+{% block content %}
+	{{ actionInput('hub/labels/save') }}
+	{{ redirectInput('hub/manage/labels') }}
+	{% if label.id %}{{ hiddenInput('labelId', label.id) }}{% endif %}
+
+	{{ forms.textField({
+		first: true,
+		label: 'Name'|t('app'),
+		instructions: 'Shown as the tooltip of the label’s icon.'|t('hub'),
+		id: 'name',
+		name: 'name',
+		value: label.name,
+		errors: label.getErrors('name'),
+		autofocus: true,
+		required: true,
+	}) }}
+
+	{{ forms.iconPickerField({
+		label: 'Icon'|t('app'),
+		id: 'icon',
+		name: 'icon',
+		value: label.icon,
+		errors: label.getErrors('icon'),
+	}) }}
+
+	{{ forms.colorSelectField({
+		label: 'Color'|t('app'),
+		id: 'color',
+		name: 'color',
+		value: label.color,
+		errors: label.getErrors('color'),
+	}) }}
+{% endblock %}

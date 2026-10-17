@@ -1,0 +1,307 @@
+<?php
+
+namespace SomehowDigital\Craft\Hub;
+
+use Craft;
+use craft\base\Element;
+use craft\base\Plugin;
+use craft\elements\Entry;
+use craft\helpers\UrlHelper;
+use craft\models\Site;
+use craft\services\Gc;
+use craft\services\UserPermissions;
+use craft\web\twig\variables\Cp;
+use craft\web\UrlManager;
+use SomehowDigital\Craft\Hub\handlers\DefineEntrySidebarHtmlHandler;
+use SomehowDigital\Craft\Hub\handlers\RegisterCpNavItemsHandler;
+use SomehowDigital\Craft\Hub\handlers\RegisterCpRoutesHandler;
+use SomehowDigital\Craft\Hub\handlers\RegisterPermissionsHandler;
+use SomehowDigital\Craft\Hub\models\Settings;
+use SomehowDigital\Craft\Hub\services\BulkService;
+use SomehowDigital\Craft\Hub\services\CheckService;
+use SomehowDigital\Craft\Hub\services\ColumnService;
+use SomehowDigital\Craft\Hub\services\EntryService;
+use SomehowDigital\Craft\Hub\services\FileService;
+use SomehowDigital\Craft\Hub\services\ListService;
+use SomehowDigital\Craft\Hub\services\QueryService;
+use SomehowDigital\Craft\Hub\services\ReferenceService;
+use SomehowDigital\Craft\Hub\services\ReviewService;
+use SomehowDigital\Craft\Hub\services\StatisticsService;
+use SomehowDigital\Craft\Hub\services\StructureService;
+use SomehowDigital\Craft\Hub\services\LabelService;
+use SomehowDigital\Craft\Hub\services\UserService;
+use SomehowDigital\Craft\Hub\services\VolumeService;
+use yii\base\Event;
+
+/**
+ * @property BulkService $bulk
+ * @property CheckService $checks
+ * @property ColumnService $columns
+ * @property EntryService $entries
+ * @property FileService $files
+ * @property ListService $lists
+ * @property QueryService $queries
+ * @property ReferenceService $references
+ * @property ReviewService $review
+ * @property StatisticsService $statistics
+ * @property StructureService $structure
+ * @property LabelService $labels
+ * @property UserService $users
+ * @property VolumeService $volumes
+ * @property Settings $settings
+ */
+class Hub extends Plugin
+{
+	public const PERMISSION_ACCESS = 'hub-access';
+	public const PERMISSION_MANAGE_LABELS = 'hub-manageLabels';
+	public const SITE_PARAM = 'hubSite';
+
+	public bool $hasCpSection = true;
+	public bool $hasCpSettings = true;
+	public string $schemaVersion = '1.1.0';
+
+	/** @var Site[]|null memoized, as the site scope is read for every count and link */
+	private ?array $sites = null;
+
+	/** @var int[]|null */
+	private ?array $siteIds = null;
+
+	public function init(): void
+	{
+		parent::init();
+
+		Craft::setAlias('@hub', $this->getBasePath());
+
+		$this->registerPermissions();
+		$this->registerGarbageCollection();
+
+		if (Craft::$app->getRequest()->getIsCpRequest()) {
+			$this->registerCpRoutes();
+			$this->registerCpNavItems();
+			$this->registerEntrySidebar();
+		}
+	}
+
+	public static function config(): array
+	{
+		return [
+			'components' => [
+				'bulk' => ['class' => BulkService::class],
+				'checks' => ['class' => CheckService::class],
+				'columns' => ['class' => ColumnService::class],
+				'entries' => ['class' => EntryService::class],
+				'files' => ['class' => FileService::class],
+				'lists' => ['class' => ListService::class],
+				'queries' => ['class' => QueryService::class],
+				'references' => ['class' => ReferenceService::class],
+				'review' => ['class' => ReviewService::class],
+				'statistics' => ['class' => StatisticsService::class],
+				'structure' => ['class' => StructureService::class],
+				'labels' => ['class' => LabelService::class],
+				'users' => ['class' => UserService::class],
+				'volumes' => ['class' => VolumeService::class],
+			],
+		];
+	}
+
+	/**
+	 * The sites selected via the comma-separated `hubSite` query param, like `?hubSite=en,de`; empty when all sites are in scope.
+	 *
+	 * @return Site[]
+	 */
+	public function getSites(): array
+	{
+		return $this->sites ??= $this->resolveSites();
+	}
+
+	/**
+	 * @return Site[]
+	 */
+	private function resolveSites(): array
+	{
+		$request = Craft::$app->getRequest();
+		$value = $request->getIsConsoleRequest() ? null : $request->getQueryParam(self::SITE_PARAM);
+		$handles = array_unique(array_filter(array_map('trim', explode(',', is_string($value) ? $value : '')), fn (string $handle) => $handle !== ''));
+		$editableIds = Craft::$app->getSites()->getEditableSiteIds();
+
+		// Kept in the order of the sites, so the same selection always reads the same.
+		return array_values(array_filter(
+			Craft::$app->getSites()->getAllSites(),
+			fn (Site $site) => in_array($site->handle, $handles, true) && in_array($site->id, $editableIds, false),
+		));
+	}
+
+	/**
+	 * The `hubSite` query param of the selected sites, or null when all sites are in scope.
+	 */
+	public function getSiteParam(): ?string
+	{
+		$sites = $this->getSites();
+
+		return $sites !== [] ? implode(',', array_map(fn (Site $site) => $site->handle, $sites)) : null;
+	}
+
+	/**
+	 * IDs of the sites counts are scoped to: the selected sites, or all editable sites.
+	 *
+	 * @return int[]
+	 */
+	public function getSiteIds(): array
+	{
+		if ($this->siteIds !== null) {
+			return $this->siteIds;
+		}
+
+		$sites = $this->getSites();
+		$siteIds = $sites !== [] ? array_map(fn (Site $site) => $site->id, $sites) : Craft::$app->getSites()->getEditableSiteIds();
+		sort($siteIds);
+
+		return $this->siteIds = $siteIds;
+	}
+
+	/**
+	 * The "Data" navigation item, listing the content. The "Structure" and "Hub" ones are added right after it.
+	 *
+	 * @see getStructureNavItem()
+	 * @see getManageNavItem()
+	 */
+	public function getCpNavItem(): ?array
+	{
+		if (!Craft::$app->getUser()->checkPermission(self::PERMISSION_ACCESS)) {
+			return null;
+		}
+
+		return [
+			'label' => Craft::t('hub', 'Data'),
+			'url' => 'hub/data',
+			'icon' => 'database',
+			'subnav' => $this->subnav('hub/data', [
+				'entries' => Craft::t('hub', 'Entries'),
+				'assets' => Craft::t('hub', 'Assets'),
+				'users' => Craft::t('hub', 'Users'),
+			]),
+		];
+	}
+
+	/**
+	 * The "Structure" navigation item, listing what holds the content.
+	 */
+	public function getStructureNavItem(): array
+	{
+		return [
+			'label' => Craft::t('hub', 'Structure'),
+			'url' => 'hub/structure',
+			'icon' => 'sitemap',
+			'subnav' => $this->subnav('hub/structure', [
+				'entry-types' => Craft::t('hub', 'Entry Types'),
+				'sections' => Craft::t('hub', 'Sections'),
+				'fields' => Craft::t('hub', 'Fields'),
+				'volumes' => Craft::t('hub', 'Volumes'),
+			]),
+		];
+	}
+
+	/**
+	 * The "Hub" navigation item, managing what Hub's pages share, like the labels of the lists; added after the "Structure"
+	 * one, for users who may manage any of it.
+	 */
+	public function getManageNavItem(): ?array
+	{
+		if (!Craft::$app->getUser()->checkPermission(self::PERMISSION_MANAGE_LABELS)) {
+			return null;
+		}
+
+		return [
+			'label' => Craft::t('hub', 'Hub'),
+			'url' => 'hub/manage',
+			'icon' => $this->getBasePath() . '/icon-mask.svg',
+			'subnav' => $this->subnav('hub/manage', [
+				'labels' => Craft::t('hub', 'Labels'),
+			]),
+		];
+	}
+
+	/**
+	 * @param array<string,string> $labels labels of the pages below the path, by their path segment
+	 * @return array<string,array{label:string,url:string,linkAttributes:array{href:string}}>
+	 */
+	private function subnav(string $path, array $labels): array
+	{
+		// Keep the selected sites when switching between Hub pages.
+		$params = Craft::$app->getRequest()->getSegment(1) === 'hub' ? [self::SITE_PARAM => $this->getSiteParam()] : [];
+
+		$items = [];
+		foreach ($labels as $segment => $label) {
+			// Craft only selects a subnav item whose URL is part of the request path, so it is the bare path, while the
+			// link itself carries the selected sites.
+			$items[$segment] = [
+				'label' => $label,
+				'url' => "$path/$segment",
+				'linkAttributes' => ['href' => UrlHelper::cpUrl("$path/$segment", $params)],
+			];
+		}
+
+		return $items;
+	}
+
+	protected function createSettingsModel(): Settings
+	{
+		return new Settings();
+	}
+
+	protected function settingsHtml(): ?string
+	{
+		return Craft::$app->getView()->renderTemplate('hub/settings/plugin', [
+			'settings' => $this->getSettings(),
+			'overrides' => array_keys(Craft::$app->getConfig()->getConfigFromFile($this->handle)),
+		]);
+	}
+
+	protected function registerCpRoutes(): void
+	{
+		Event::on(
+			UrlManager::class,
+			UrlManager::EVENT_REGISTER_CP_URL_RULES,
+			new RegisterCpRoutesHandler()
+		);
+	}
+
+	protected function registerCpNavItems(): void
+	{
+		Event::on(
+			Cp::class,
+			Cp::EVENT_REGISTER_CP_NAV_ITEMS,
+			new RegisterCpNavItemsHandler()
+		);
+	}
+
+	protected function registerEntrySidebar(): void
+	{
+		Event::on(
+			Entry::class,
+			Element::EVENT_DEFINE_SIDEBAR_HTML,
+			new DefineEntrySidebarHtmlHandler()
+		);
+	}
+
+	/**
+	 * Removes the labels of items deleted for good, along with Craft's garbage.
+	 */
+	protected function registerGarbageCollection(): void
+	{
+		Event::on(
+			Gc::class,
+			Gc::EVENT_RUN,
+			fn () => $this->labels->deleteOrphans()
+		);
+	}
+
+	protected function registerPermissions(): void
+	{
+		Event::on(
+			UserPermissions::class,
+			UserPermissions::EVENT_REGISTER_PERMISSIONS,
+			new RegisterPermissionsHandler()
+		);
+	}
+}

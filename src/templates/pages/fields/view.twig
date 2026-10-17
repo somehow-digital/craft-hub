@@ -1,0 +1,217 @@
+{% extends 'hub/_layouts/detail' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set field = info.field %}
+
+{% set title = field.name|t('site') %}
+{% set area = 'structure' %}
+{% set selectedSubnavItem = 'fields' %}
+{% set path = 'hub/structure/fields/' ~ field.id %}
+{# Only nested entry fields have entries to list. #}
+{% set listTabs = info.isNested ? [{ id: 'entries', label: 'Entries'|t('hub') }] : [] %}
+{% set crumbs = [
+	{ label: 'Fields'|t('hub'), url: url('hub/structure/fields', { hubSite: hubSite }) },
+	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+] %}
+
+{% block pageTitle %}
+	{{ hub.pageTitle(field, 'Field'|t('app'), hub.fieldType(field, info.dataKind.color(), info.dataKind.label()), info.dataKind.color()) }}
+{% endblock %}
+
+{% block actionButton %}
+	<div class="flex">
+		{{ hub.siteFilter() }}
+		{% if currentUser.admin %}
+			<a class="btn" href="{{ field.cpEditUrl }}">
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('pen') }}</span>
+				<span>{{ 'Edit'|t('app') }}</span>
+			</a>
+		{% endif %}
+	</div>
+{% endblock %}
+
+{% block details %}
+	<dl class="meta read-only hub-details">
+		<div class="data">
+			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
+			<dd class="value"><code>{{ field.handle }}</code></dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Data'|t('hub') }}</dt>
+			<dd class="value">{{ hub.badge(info.dataKind.label(), info.dataKind.color(), null, info.dataKind.icon()) }}</dd>
+		</div>
+		{% if field.instructions %}
+			<div class="data">
+				<dt class="heading">{{ 'Instructions'|t('app') }}</dt>
+				<dd class="value">{{ field.instructions }}</dd>
+			</div>
+		{% endif %}
+		{% if info.isNested %}
+			<div class="data">
+				<dt class="heading">{{ 'URLs'|t('hub') }}</dt>
+				<dd class="value">{% if info.hasUrls %}{{ hub.badge('Has URLs'|t('hub'), 'green', null, 'globe') }}{% else %}{{ hub.badge('No URLs'|t('hub')) }}{% endif %}</dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'Status'|t('app') }}</dt>
+			<dd class="value">{{ hub.fieldStatus(info) }}</dd>
+		</div>
+	</dl>
+{% endblock %}
+
+{% block overview %}
+	{% include 'hub/_components/summary-panel' with { cards: summary } %}
+
+	{% if info.isNested %}
+		{% embed 'hub/_components/panel' with {
+			heading: 'Entry Types'|t('hub'),
+			icon: 'shapes',
+			color: 'violet',
+			count: info.entryTypes|length,
+		} %}
+			{% block body %}
+				{% import 'hub/_components/macros' as hub %}
+				{% if info.entryTypes|length %}
+					<div class="hub-table">
+						<table class="data fullwidth">
+							<thead>
+								<tr>
+									<th>{{ 'Name'|t('app') }}</th>
+									<th>{{ 'Usage'|t('hub') }}</th>
+									<th class="hub-num">{{ 'Entries in this field'|t('hub') }}</th>
+									<th>{{ 'Last updated'|t('hub') }}</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for entryType in info.entryTypes %}
+									{% set stats = statistics.sumEntries(siteIds, null, entryType.id, field.id) %}
+									<tr{% if not stats.total %} data-severity="orange"{% endif %}>
+										<th>{{ hub.name(entryType, null, not stats.total ? hub.noEntriesHere()) }}</th>
+										<td>{{ hub.kinds(entryTypes[entryType.id].kinds ?? []) }}</td>
+										<td class="hub-num">{{ hub.num(stats.total) }}</td>
+										<td>{{ hub.date(stats.lastUpdated) }}</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				{% else %}
+					<p class="hub-panel__empty">{{ 'No entry types.'|t('hub') }}</p>
+				{% endif %}
+			{% endblock %}
+		{% endembed %}
+	{% endif %}
+
+	{% if info.sections|length %}
+		{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind').from(field is instance of('craft\\fields\\Link') ? 'link' : 'reference') %}
+		{% embed 'hub/_components/panel' with {
+			heading: 'Sections'|t('hub'),
+			description: 'Sections this field can reference entries from.'|t('hub'),
+			icon: usageKind.icon(),
+			color: usageKind.color(),
+			count: info.sections|length,
+		} %}
+			{% block body %}
+				{% import 'hub/_components/macros' as hub %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Section'|t('app') }}</th>
+								<th>{{ 'Type'|t('app') }}</th>
+								<th class="hub-num">{{ 'References'|t('hub') }}</th>
+								<th class="hub-num">{{ 'Referenced entries'|t('hub') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for section in info.sections %}
+								{% set references = statistics.sumReferences(siteIds, field.id, section.id) %}
+								<tr>
+									<th>{{ hub.name(section) }}</th>
+									<td>{{ hub.sectionType(section) }}</td>
+									<td class="hub-num">{{ hub.num(references.references) }}</td>
+									<td class="hub-num">{{ hub.num(references.targets) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% endblock %}
+		{% endembed %}
+	{% endif %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Relations'|t('hub'),
+		description: 'Field layouts that use this field.'|t('hub'),
+		icon: 'link',
+		color: 'teal',
+		count: info.layouts|length,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{% if info.layouts|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Name'|t('app') }}</th>
+								<th>{{ 'Type'|t('app') }}</th>
+								<th class="hub-num">{{ 'Instances'|t('hub') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for usage in info.layouts|sort((a, b) => a.ownerType ~ a.label <=> b.ownerType ~ b.label) %}
+								<tr>
+									<th>
+										{% if usage.model %}
+											{{ hub.name(usage.model, usage.color) }}
+										{% else %}
+											<div class="hub-name">
+												{{ hub.icon('table-layout') }}
+												<span class="hub-name__title">
+													{%- if usage.url and currentUser.admin -%}
+														<a href="{{ usage.url }}">{{ usage.label|t('site') }}</a>
+													{%- else -%}
+														{{ usage.label|t('site') }}
+													{%- endif -%}
+												</span>
+											</div>
+										{% endif %}
+									</th>
+									<td>{{ hub.badge(usage.ownerType) }}</td>
+									<td class="hub-num">{{ hub.num(usage.instances) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% else %}
+				<p class="hub-panel__empty">{{ 'This field is not placed in any field layout.'|t('hub') }}</p>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+
+	{% if field is instance of('craft\\fields\\ContentBlock') %}
+		{% include 'hub/_components/field-layout' with { layout: field.getFieldLayout() } %}
+	{% endif %}
+{% endblock %}
+
+{% block list %}
+	{% include 'hub/_components/entry-list' %}
+{% endblock %}
+
+{% block diagnostics %}
+	{% if info.isNested %}
+		{% embed 'hub/_components/panel' with {
+			heading: 'Entries to review'|t('hub'),
+			icon: 'broom',
+			color: 'orange',
+			collapsible: false,
+		} %}
+			{% block body %}
+				{% import 'hub/_components/macros' as hub %}
+				{{ hub.reviewList(reviewList, reviewMonths, reviewItems, reviewPageInfo, false, reviewUnreferenced) }}
+			{% endblock %}
+		{% endembed %}
+	{% endif %}
+{% endblock %}
