@@ -1,0 +1,27 @@
+{#
+	The trash tab of the settings page, switching the trash tabs of the entries and assets pages and whether the files of
+	trashed assets are kept, for admins.
+
+	Variables: settings (see Settings), overrides (names of the settings overridden by `config/hub.php`), readOnly
+#}
+{% extends 'hub/_layouts/settings' %}
+
+{% set fullPageForm = not readOnly %}
+{% set selectedTab = 'trash' %}
+
+{% block content %}
+	{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/trash' } %}
+		{% block fields %}
+			{% include 'hub/_components/setting' with { name: 'enableTrash', field: {
+				first: true,
+				label: 'Trash'|t('hub'),
+				instructions: 'Whether the entries and assets pages have a trash tab, listing what was deleted, to restore it or delete it permanently, for users who may view it.'|t('hub'),
+			} } %}
+
+			{% include 'hub/_components/setting' with { name: 'keepTrashedFiles', field: {
+				label: 'Keep Trashed Files'|t('hub'),
+				instructions: 'Whether the files of assets moved to the trash are kept, wherever they’re deleted, so the assets can be restored. They’re deleted once the assets are deleted permanently; until then, the files of public volumes stay reachable by their URLs.'|t('hub'),
+			} } %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

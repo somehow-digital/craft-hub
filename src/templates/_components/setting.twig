@@ -1,0 +1,25 @@
+{#
+	Field of one of the plugin's settings, warning when it's overridden by the config file: a lightswitch for a setting
+	that's switched on or off, a number field for any other.
+
+	Variables: name (of the setting), field (its label, instructions and any other config of the field), settings (see
+	Settings), overrides (names of the settings overridden by `config/hub.php`), readOnly
+#}
+{% import '_includes/forms.twig' as forms %}
+
+{% set config = {
+	id: name,
+	name: name,
+	warning: name in overrides ? 'This is being overridden by the {setting} setting in {file}.'|t('hub', {
+		setting: '<code>' ~ name ~ '</code>',
+		file: '<code>config/hub.php</code>',
+	}),
+	disabled: readOnly,
+	errors: settings.getErrors(name),
+}|merge(field) %}
+
+{% if settings[name] is same as(true) or settings[name] is same as(false) %}
+	{{ forms.lightswitchField(config|merge({ on: settings[name] })) }}
+{% else %}
+	{{ forms.textField({ type: 'number', size: 5 }|merge(config)|merge({ value: settings[name] })) }}
+{% endif %}

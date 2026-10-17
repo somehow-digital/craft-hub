@@ -1,0 +1,63 @@
+{#
+	Diagnostics tab of an index page: the checks of the items, each with the number of them failing it, linking to the
+	list of them, as its filter shows them.
+
+	Variables: area, page, title, siteScoped (see the index layout), tasks (checks, failed ones first)
+#}
+{% extends 'hub/_layouts/index' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set selectedTab = 'diagnostics' %}
+
+{% block content %}
+	{% set failed = tasks|filter(item => item.value)|length %}
+
+	<header class="hub-heading">
+		<div>
+			<h2>{{ 'Diagnostics'|t('hub') }}</h2>
+			<p class="hub-muted">
+				{%- if not (siteScoped ?? true) -%}
+					{{ 'Failed checks and things worth a closer look.'|t('hub') }}
+				{%- elseif selectedSites -%}
+					{{ 'Failed checks and things worth a closer look on {site}.'|t('hub', { site: selectedSites|map(site => site.name|t('site'))|join(', ') }) }}
+				{%- else -%}
+					{{ 'Failed checks and things worth a closer look across all sites.'|t('hub') }}
+				{%- endif -%}
+			</p>
+		</div>
+		<span class="hub-badges">
+			{%- if failed %}{{ hub.badge('{count, plural, =1{# check failed} other{# checks failed}}'|t('hub', { count: failed }), 'orange') }}{% else %}{{ hub.badge('All clear'|t('hub'), 'green') }}{% endif -%}
+		</span>
+	</header>
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Checks'|t('hub'),
+		icon: 'list-check',
+		color: failed ? 'orange' : 'green',
+		count: failed,
+	} %}
+		{% block body %}
+			<ul class="hub-task-group__list">
+				{% for item in tasks %}
+					{% set color = item.value ? item.severity.color() : 'green' %}
+					{% set inner %}
+						<span class="hub-task__icon" data-color="{{ color }}" aria-hidden="true">{{ iconSvg(item.value ? item.icon : 'circle-check') }}</span>
+						<span class="hub-task__body">
+							<span class="hub-task__label">{{ item.label }}</span>
+							<span class="hub-task__description">{{ item.description }}</span>
+						</span>
+						<span class="hub-task__value">{{ item.value|number }}</span>
+						<span class="hub-task__chevron" aria-hidden="true">{% if item.value and item.url %}{{ iconSvg('chevron-right') }}{% endif %}</span>
+					{% endset %}
+					<li>
+						{% if item.value and item.url %}
+							<a class="hub-task" href="{{ item.url }}">{{ inner }}</a>
+						{% else %}
+							<div class="hub-task{% if not item.value %} hub-task--clear{% endif %}">{{ inner }}</div>
+						{% endif %}
+					</li>
+				{% endfor %}
+			</ul>
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

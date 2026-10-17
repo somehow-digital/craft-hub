@@ -1,0 +1,25 @@
+{#
+	Tabs of the "My Work" page, below the "Hub" navigation item, each on its own URL.
+
+	Variables: selectedTab, workTabs (`label` and `url` of each tab, by its ID), workPath
+#}
+{% extends '_layouts/cp' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% do view.registerAssetBundle('SomehowDigital\\Craft\\Hub\\assets\\HubAsset') %}
+
+{% set title = 'My Work'|t('hub') %}
+{% set selectedSubnavItem = 'work' %}
+{% set tabs = workTabs %}
+{% set docTitle = (selectedTab != 'overview' ? tabs[selectedTab].label ~ ' - ' : '') ~ title ~ ' - ' ~ 'Hub'|t('hub') %}
+{% set crumbs = [
+	{ label: 'Hub'|t('hub'), url: url('hub/manage', { hubSite: hubSite }) },
+	{ label: title, url: tabs.overview.url, current: selectedTab == 'overview' },
+] %}
+{% if selectedTab != 'overview' %}
+	{% set crumbs = crumbs|merge([{ label: tabs[selectedTab].label, url: tabs[selectedTab].url, current: true }]) %}
+{% endif %}
+
+{% block actionButton %}
+	{{ hub.siteFilter() }}
+{% endblock %}

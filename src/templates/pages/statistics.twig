@@ -1,0 +1,13 @@
+{#
+	Statistics tab of an index page: a collapsible panel per summary card of its items.
+
+	Variables: area, page, title, siteScoped, extraTabs (see the index layout), cards
+#}
+{% extends 'hub/_layouts/index' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set selectedTab = 'statistics' %}
+
+{% block content %}
+	{% include 'hub/_components/statistics' %}
+{% endblock %}

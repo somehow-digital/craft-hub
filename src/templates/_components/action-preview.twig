@@ -1,0 +1,118 @@
+{#
+	What an action does to the selected items, shown in the dialog of the bulk actions before it's applied (see the `bulk`
+	component), styled like the `deletion-preview` component: a notice naming the items the action applies to and what it
+	does to them, the totals of all items, the items of the page shown, each expanding to what the action takes along with
+	it, and the fields picking how it's applied. The fields are sent along with the action, as the dialog is within its form.
+	The previews of the actions extend it, filling in its blocks.
+
+	Variables: total (number of the items the action applies to), skipped (number of the selected items left out), skippedText
+	(why they're left out), noun (the items, by their number), notice ({color, icon, text}, for some items), empty
+	({title, text}, for none), totals ([{icon, value, label, color?}], optional), items ([{element, meta?, count?,
+	children?: ElementInterface[]}], those of the page shown, optional), itemsHeading, pageInfo (of all items listed), and
+	for items with a count, countIcon, countLabel (by the count) and countColor (red by default)
+	Blocks: fields
+#}
+{% import 'hub/_components/macros' as hub %}
+
+<div class="hub-deletion">
+	{% set notice = total ? notice : { color: 'gray', icon: 'ban', title: empty.title, text: empty.text } %}
+	<div class="hub-deletion__notice" data-color="{{ notice.color }}">
+		<span class="hub-deletion__notice-icon" aria-hidden="true">{{ iconSvg(notice.icon) }}</span>
+		<p>
+			<strong>{{ notice.title ?? noun|t('hub', { count: total }) }}</strong>
+			{{ notice.text }}
+			{% if skipped %}
+				<span class="hub-deletion__skipped" title="{{ skippedText }}">{{ '{count, number} skipped'|t('hub', { count: skipped }) }}</span>
+			{% endif %}
+		</p>
+	</div>
+
+	{% if total and (totals ?? [])|length %}
+		<ul class="hub-deletion__totals" aria-label="{{ 'In total'|t('hub') }}">
+			{% for item in totals %}
+				<li class="hub-deletion__total"{% if item.color ?? false %} data-color="{{ item.color }}"{% endif %}>
+					<span class="hub-deletion__total-icon" aria-hidden="true">{{ iconSvg(item.icon) }}</span>
+					<strong>{{ item.value|number }}</strong>
+					<span>{{ item.label }}</span>
+				</li>
+			{% endfor %}
+		</ul>
+	{% endif %}
+
+	{% if total and (items ?? [])|length %}
+		{% set expandable = items|filter(item => (item.children ?? [])|length)|length %}
+		<section class="hub-deletion__section">
+			<header class="hub-deletion__heading">
+				<span>{{ itemsHeading }}</span>
+				<span class="hub-pill">{{ pageInfo.total|number }}</span>
+				{% if expandable > 1 %}
+					<button type="button" class="btn small hub-deletion__toggle" data-hub-deletion-toggle data-expand="{{ 'Expand all'|t('hub') }}" data-collapse="{{ 'Collapse all'|t('hub') }}">{{ 'Expand all'|t('hub') }}</button>
+				{% endif %}
+			</header>
+
+			<div class="hub-deletion__items">
+				{% for item in items %}
+					{% set children = item.children ?? [] %}
+					{% set summary %}
+						<span class="hub-deletion__chevron" aria-hidden="true">{% if children|length %}{{ iconSvg('chevron-right') }}{% endif %}</span>
+						{% if item.element is instance of('craft\\elements\\Asset') %}{{ hub.thumb(item.element) }}{% endif %}
+						<span class="hub-deletion__name">
+							<a class="hub-deletion__title" href="{{ hub.url(item.element) }}" target="_blank" rel="noopener">
+								{%- if item.element is instance of('craft\\elements\\User') %}{{ item.element.name }}{% else %}{{ hub.elementTitle(item.element) }}{% endif -%}
+							</a>
+							{% if item.meta ?? false %}<span class="hub-deletion__meta">{{ item.meta }}</span>{% endif %}
+						</span>
+						{% if item.count is defined %}
+							<span class="hub-deletion__impacts">
+								{% set label = countLabel|t('hub', { count: item.count }) %}
+								<span class="hub-deletion__impact" data-color="{{ item.count ? countColor ?? 'red' : 'gray' }}"{% if not item.count %} data-empty{% endif %} title="{{ label }}">
+									<span class="hub-deletion__impact-icon" aria-hidden="true">{{ iconSvg(countIcon) }}</span>
+									{{ item.count|number }}
+									<span class="visually-hidden">{{ label }}</span>
+								</span>
+							</span>
+						{% endif %}
+					{% endset %}
+					{% if children|length %}
+						<details class="hub-deletion__item"{% if items|length == 1 %} open{% endif %}>
+							<summary class="hub-deletion__summary">{{ summary }}</summary>
+							<div class="hub-deletion__groups">
+								<section class="hub-deletion__group">
+									<ul class="hub-deletion__elements">
+										{% for child in children %}
+											<li class="hub-deletion__element">
+												{{ hub.element(child) }}
+												<span class="hub-deletion__element-meta">
+													{%- if child.isDraft -%}
+														{{ child.draftName }}{% if child.creator %} · {{ child.creator.name }}{% endif %}{% if child.dateUpdated %} · {{ hub.date(child.dateUpdated) }}{% endif %}
+													{%- elseif child is instance of('craft\\elements\\Entry') -%}
+														{{ child.section.name ?? child.field.name ?? '' }}
+													{%- elseif child is instance of('craft\\elements\\Asset') -%}
+														{{ child.size|filesize(1) }}
+													{%- endif -%}
+												</span>
+											</li>
+										{% endfor %}
+									</ul>
+								</section>
+							</div>
+						</details>
+					{% else %}
+						<div class="hub-deletion__item">
+							<div class="hub-deletion__summary">{{ summary }}</div>
+						</div>
+					{% endif %}
+				{% endfor %}
+			</div>
+
+			{{ hub.previewPages(pageInfo) }}
+		</section>
+	{% endif %}
+
+	{% if total %}
+		{% set fields %}{% block fields %}{% endblock %}{% endset %}
+		{% if fields|trim %}
+			<div class="hub-export__fields">{{ fields }}</div>
+		{% endif %}
+	{% endif %}
+</div>

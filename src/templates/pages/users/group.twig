@@ -1,0 +1,151 @@
+{% extends 'hub/_layouts/detail' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set group = info.group %}
+
+{% set title = group.name|t('site') %}
+{% set area = 'data' %}
+{% set selectedSubnavItem = 'users' %}
+{% set checks = [] %}
+{% set diagnosticsTab = false %}
+{% set listTabs = [{ id: 'users', label: 'Users'|t('app') }] %}
+{% set path = 'hub/data/users/groups/' ~ group.id %}
+{% set crumbs = [
+	{ label: 'Users'|t('app'), url: url('hub/data/users', { hubSite: hubSite }) },
+	{ label: 'Groups'|t('app'), url: url('hub/data/users/groups', { hubSite: hubSite }) },
+	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+] %}
+
+{% block pageTitle %}
+	<div class="hub-title">
+		{{ hub.icon('users', 'violet', 'large') }}
+		<div class="hub-title__text">
+			{{ hub.titleKind('User Group'|t('app')) }}
+			<h1 id="page-heading" class="screen-title" title="{{ title }}">{{ title }}</h1>
+		</div>
+	</div>
+	<div id="revision-indicators"></div>
+{% endblock %}
+
+{% block actionButton %}
+	<div class="flex">
+		{% if currentUser.admin %}
+			<a class="btn" href="{{ group.cpEditUrl }}">
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('pen') }}</span>
+				<span>{{ 'Edit'|t('app') }}</span>
+			</a>
+		{% endif %}
+	</div>
+{% endblock %}
+
+{% block details %}
+	<dl class="meta read-only hub-details">
+		{% include 'hub/_components/detail-labels' with { list: 'userGroups', id: group.id } %}
+		<div class="data">
+			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
+			<dd class="value"><code>{{ group.handle }}</code></dd>
+		</div>
+		{% if group.description %}
+			<div class="data">
+				<dt class="heading">{{ 'Description'|t('app') }}</dt>
+				<dd class="value">{{ group.description|t('site') }}</dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'Users'|t('app') }}</dt>
+			<dd class="value">{{ hub.num(info.users) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Permissions'|t('app') }}</dt>
+			<dd class="value">{{ hub.num(info.permissions) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Two-step verification'|t('hub') }}</dt>
+			<dd class="value">
+				{%- if info.requires2fa -%}
+					{{ hub.badge('Required'|t('app'), 'green', null, 'shield-halved') }}
+				{%- else -%}
+					<span class="hub-muted">{{ 'Optional'|t('hub') }}</span>
+				{%- endif -%}
+			</dd>
+		</div>
+		{{ hub.identifiers(group) }}
+	</dl>
+{% endblock %}
+
+{% block overview %}
+	{% embed 'hub/_components/panel' with {
+		heading: 'Permissions'|t('app'),
+		description: 'What the users of this group may do.'|t('hub'),
+		icon: 'key',
+		color: 'violet',
+		count: info.permissions,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{% if permissions|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Permission'|t('hub') }}</th>
+							</tr>
+						</thead>
+						{% for heading in permissions %}
+							<tbody>
+								<tr>
+									<th class="hub-muted">{{ heading.heading }}</th>
+								</tr>
+								{% for permission in heading.permissions %}
+									<tr>
+										<td title="{{ permission.name }}">{{ permission.label }}</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						{% endfor %}
+					</table>
+				</div>
+			{% else %}
+				{{ hub.emptyState('key', 'The group grants no permissions.'|t('hub')) }}
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+
+	{% if maintained|length %}
+		{% embed 'hub/_components/panel' with {
+			heading: 'Maintains'|t('hub'),
+			description: 'Sections, entry types, fields and volumes the group maintains.'|t('hub'),
+			icon: 'users',
+			color: 'violet',
+			count: maintained|length,
+		} %}
+			{% block body %}
+				{% import 'hub/_components/macros' as hub %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Name'|t('app') }}</th>
+								<th>{{ 'Type'|t('app') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for source in maintained %}
+								<tr>
+									<th>{{ hub.chip(source.item) }}</th>
+									<td>{{ source.getKind() }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% endblock %}
+		{% endembed %}
+	{% endif %}
+
+	{% include 'hub/_components/item-activity' with { subject: 'userGroup', id: group.id } %}
+{% endblock %}
+
+{% block list %}
+	{% include 'hub/_components/user-list' %}
+{% endblock %}

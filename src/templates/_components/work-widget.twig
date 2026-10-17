@@ -1,0 +1,15 @@
+{#
+	Dashboard widget summing up the "My Work" page of the user, with the numbers of its overview.
+
+	Variables: sections (see WorkService::getSections())
+#}
+<table class="data fullwidth">
+	<tbody>
+		{% for section in sections|filter(section => section.count is not null) %}
+			<tr>
+				<th scope="row"><a href="{{ section.url }}">{{ section.label }}</a></th>
+				<td class="rightalign">{{ section.count|number }}</td>
+			</tr>
+		{% endfor %}
+	</tbody>
+</table>

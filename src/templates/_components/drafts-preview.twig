@@ -1,0 +1,17 @@
+{#
+	What deleting the drafts of entries deletes, shown in the dialog of the bulk actions before they're deleted (see the
+	`action-preview` component): the drafts of all entries, and the entries of the page shown, each expanding to its drafts.
+
+	Variables: items (the entries of the page shown, with their drafts), pageInfo (of all entries with drafts deleted),
+	drafts (number of all drafts deleted), total, skipped
+#}
+{% extends 'hub/_components/action-preview' %}
+
+{% set noun = '{count, plural, =1{The drafts of one entry} other{The drafts of # entries}}' %}
+{% set notice = { color: 'red', icon: 'eraser', text: 'are deleted permanently. Unsaved changes are kept.'|t('hub') } %}
+{% set empty = { title: 'Nothing to delete:'|t('hub'), text: 'None of the selected entries have drafts you may delete.'|t('hub') } %}
+{% set skippedText = '{count, plural, =1{One entry is} other{# entries are}} skipped, as {count, plural, =1{it has} other{they have}} no drafts you may delete.'|t('hub', { count: skipped }) %}
+{% set totals = [{ icon: 'pen-ruler', value: drafts, label: '{count, plural, =1{Draft} other{Drafts}}'|t('hub', { count: drafts }), color: 'red' }] %}
+{% set itemsHeading = 'Entries'|t('app') %}
+{% set countIcon = 'pen-ruler' %}
+{% set countLabel = '{count, plural, =1{Draft} other{Drafts}}' %}

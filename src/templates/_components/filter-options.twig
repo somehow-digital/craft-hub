@@ -1,0 +1,8 @@
+{#
+	Options of a filter loaded as its dropdown first opens, which the browser moves into the dropdown.
+	Which ones are picked is kept there, so none are here.
+
+	Variables: name, options (see the `choices` macro)
+#}
+{% import 'hub/_components/macros' as hub %}
+{{ hub.choices(name, options, []) }}

@@ -1,0 +1,14 @@
+{#
+	Hub's list of entries, fixed to those the user is an author of.
+
+	Variables: see BaseController::entryListVariables()
+#}
+{% extends 'hub/_layouts/work' %}
+
+{% set selectedTab = 'entries' %}
+
+{% block content %}
+	{% include 'hub/_components/entry-list' with {
+		fixedFilters: [{ label: 'Author'|t('app'), value: 'Me'|t('hub'), icon: 'user' }],
+	} %}
+{% endblock %}

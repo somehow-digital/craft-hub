@@ -1,0 +1,14 @@
+{% extends 'hub/_layouts/index' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set area = 'data' %}
+{% set page = 'users' %}
+{% set title = 'Users'|t('app') %}
+{% set selectedTab = 'list' %}
+
+{# Users aren't site-specific, so there is no site scope to choose. #}
+{% set siteScoped = false %}
+
+{% block content %}
+	{% include 'hub/_components/user-list' %}
+{% endblock %}

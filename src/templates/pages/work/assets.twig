@@ -1,0 +1,14 @@
+{#
+	Hub's list of assets, fixed to those the user uploaded.
+
+	Variables: see BaseController::fileListVariables()
+#}
+{% extends 'hub/_layouts/work' %}
+
+{% set selectedTab = 'assets' %}
+
+{% block content %}
+	{% include 'hub/_components/file-list' with {
+		fixedFilters: [{ label: 'Uploader'|t('hub'), value: 'Me'|t('hub'), icon: 'user' }],
+	} %}
+{% endblock %}

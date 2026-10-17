@@ -1,0 +1,67 @@
+{#
+	Panel listing the fields of a field layout, grouped by tab.
+
+	Variables: layout (craft\models\FieldLayout), fields (FieldInfo[] indexed by field ID)
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{% set tabs = layout.getTabs() %}
+
+{% embed 'hub/_components/panel' with {
+	heading: 'Field Layout'|t('app'),
+	icon: 'table-layout',
+	count: layout.getCustomFields()|length,
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% for tab in tabs %}
+			<div class="hub-layout-tab">
+				{% if tabs|length > 1 %}
+					<h3 class="hub-layout-tab__heading">{{ tab.name|t('site') }}</h3>
+				{% endif %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Field'|t('app') }}</th>
+								<th>{{ 'Type'|t('app') }}</th>
+								<th>{{ 'Required'|t('app') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for element in tab.getElements() %}
+								{% if element is instance of('craft\\fieldlayoutelements\\CustomField') %}
+									{% set field = craft.app.fields.getFieldByUid(element.getFieldUid()) %}
+									{% if field %}
+										{% set fieldInfo = fields[field.id] ?? null %}
+										{% set overrides = [
+											element.label and element.label != field.name ? element.label,
+											element.handle and element.handle != field.handle ? element.handle,
+										]|filter %}
+										{% set suffix %}
+											{%- if overrides %}<span class="hub-muted" title="{{ 'Overridden in this layout'|t('hub') }}">{{ overrides|join(' · ') }}</span>{% endif -%}
+										{% endset %}
+										<tr>
+											<th>
+												<div class="hub-field">
+													{{ hub.name(field, fieldInfo ? fieldInfo.dataKind.color() : null, suffix) }}
+													{% if fieldInfo and fieldInfo.entryTypes|length %}
+														<div class="hub-nested">{{ hub.chips(fieldInfo.entryTypes) }}</div>
+													{% endif %}
+												</div>
+											</th>
+											<td>{{ field.displayName() }}</td>
+											<td>{{ element.required ? hub.badge('Required'|t('app'), 'blue') : '' }}</td>
+										</tr>
+									{% endif %}
+								{% endif %}
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		{% else %}
+			{{ hub.emptyState('pen-to-square', 'No fields.'|t('hub')) }}
+		{% endfor %}
+	{% endblock %}
+{% endembed %}

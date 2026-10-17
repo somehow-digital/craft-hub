@@ -1,0 +1,96 @@
+{#
+	What deleting the transforms of files takes along, shown in the dialog of the bulk actions before they're deleted (see
+	the `bulk` component), styled like the `deletion-preview` component: a notice naming the transforms and that they're
+	generated again, the totals of all files, and the files of the page shown, each expanding to its transforms.
+
+	Variables: assets (Asset[], the files of the page shown), transforms (the transforms deleted of each file, by its ID),
+	pageInfo (of all files with transforms deleted), count (number of all transforms deleted), skipped (number of the
+	selected files left out)
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{% set total = pageInfo.total %}
+
+<div class="hub-deletion">
+	{% if not total %}
+		{% set notice = { color: 'gray', icon: 'ban', title: 'Nothing to delete:'|t('hub'), text: 'None of the selected transforms can be deleted.'|t('hub') } %}
+	{% else %}
+		{% set notice = { color: 'green', icon: 'rotate', text: '{count, plural, =1{is} other{are}} deleted, and generated again when {count, plural, =1{it is} other{they are}} next requested.'|t('hub', { count: count }) } %}
+	{% endif %}
+	<div class="hub-deletion__notice" data-color="{{ notice.color }}">
+		<span class="hub-deletion__notice-icon" aria-hidden="true">{{ iconSvg(notice.icon) }}</span>
+		<p>
+			<strong>{{ notice.title ?? '{count, plural, =1{One transform} other{# transforms}}'|t('hub', { count: count }) }}</strong>
+			{{ notice.text }}
+			{% if skipped %}
+				<span class="hub-deletion__skipped" title="{{ '{count, plural, =1{One file is} other{# files are}} skipped, as you may not change {count, plural, =1{it} other{them}} or {count, plural, =1{it has} other{they have}} no transforms.'|t('hub', { count: skipped }) }}">{{ '{count, number} skipped'|t('hub', { count: skipped }) }}</span>
+			{% endif %}
+		</p>
+	</div>
+
+	{% if total %}
+		<ul class="hub-deletion__totals" aria-label="{{ 'In total'|t('hub') }}">
+			<li class="hub-deletion__total" data-color="red">
+				<span class="hub-deletion__total-icon" aria-hidden="true">{{ iconSvg('crop') }}</span>
+				<strong>{{ count|number }}</strong>
+				<span>{{ '{count, plural, =1{Transform} other{Transforms}}'|t('hub', { count: count }) }}</span>
+			</li>
+			{% if total > 1 %}
+				<li class="hub-deletion__total">
+					<span class="hub-deletion__total-icon" aria-hidden="true">{{ iconSvg('image') }}</span>
+					<strong>{{ total|number }}</strong>
+					<span>{{ 'Files'|t('hub') }}</span>
+				</li>
+			{% endif %}
+		</ul>
+
+		<section class="hub-deletion__section">
+			<header class="hub-deletion__heading">
+				<span>{{ 'Files'|t('hub') }}</span>
+				<span class="hub-pill">{{ total|number }}</span>
+				{% if assets|length > 1 %}
+					<button type="button" class="btn small hub-deletion__toggle" data-hub-deletion-toggle data-expand="{{ 'Expand all'|t('hub') }}" data-collapse="{{ 'Collapse all'|t('hub') }}">{{ 'Expand all'|t('hub') }}</button>
+				{% endif %}
+			</header>
+
+			<div class="hub-deletion__items">
+				{% for asset in assets %}
+					{% set own = transforms[asset.id] %}
+					<details class="hub-deletion__item"{% if assets|length == 1 %} open{% endif %}>
+						<summary class="hub-deletion__summary">
+							<span class="hub-deletion__chevron" aria-hidden="true">{{ iconSvg('chevron-right') }}</span>
+							{{ hub.thumb(asset) }}
+							<span class="hub-deletion__name">
+								<a class="hub-deletion__title" href="{{ hub.url(asset) }}" target="_blank" rel="noopener">{{ hub.elementTitle(asset) }}</a>
+								<span class="hub-deletion__meta"><code>{{ asset.filename }}</code></span>
+							</span>
+							<span class="hub-deletion__impacts">
+								<span class="hub-deletion__impact" data-color="red" title="{{ '{count, plural, =1{Transform} other{Transforms}}'|t('hub', { count: own|length }) }}">
+									<span class="hub-deletion__impact-icon" aria-hidden="true">{{ iconSvg('crop') }}</span>
+									{{ own|length|number }}
+									<span class="visually-hidden">{{ '{count, plural, =1{Transform} other{Transforms}}'|t('hub', { count: own|length }) }}</span>
+								</span>
+							</span>
+						</summary>
+						<div class="hub-deletion__groups">
+							<section class="hub-deletion__group" data-color="red">
+								<h4 class="hub-deletion__group-heading">
+									<span class="hub-deletion__group-icon" aria-hidden="true">{{ iconSvg('crop') }}</span>
+									<span class="hub-deletion__group-label">{{ '{count, plural, =1{Transform} other{Transforms}}'|t('hub', { count: own|length }) }}</span>
+									<span class="hub-deletion__group-count">{{ own|length|number }}</span>
+								</h4>
+								<ul class="hub-deletion__elements">
+									{% for transform in own %}
+										<li class="hub-deletion__element"><code>{{ transform.transformString }}</code></li>
+									{% endfor %}
+								</ul>
+							</section>
+						</div>
+					</details>
+				{% endfor %}
+			</div>
+
+			{{ hub.previewPages(pageInfo) }}
+		</section>
+	{% endif %}
+</div>

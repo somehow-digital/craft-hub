@@ -1,0 +1,13 @@
+{% extends 'hub/_layouts/index' %}
+
+{% set area = 'data' %}
+{% set page = 'users' %}
+{% set title = 'Users'|t('app') %}
+{% set selectedTab = 'groups' %}
+
+{# Users aren't site-specific, so there is no site scope to choose. #}
+{% set siteScoped = false %}
+
+{% block content %}
+	{% include 'hub/_components/user-groups' %}
+{% endblock %}

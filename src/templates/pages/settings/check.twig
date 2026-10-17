@@ -1,0 +1,234 @@
+{#
+	Form of a check of the diagnostics tabs of a kind of pages, flagging the items a filter of the kind matches. Hub's
+	default checks, each of one of Hub's predefined filters, can be disabled and given another severity. Custom ones have a
+	name, what's wrong and what to do about it, a severity and an icon, and the filter whose items they flag, offered to
+	everyone; they can be deleted from the menu of the save button. A preview shows how the diagnostics tabs list the
+	check when it fails and when it passes, following the fields as they're changed; whether it's enabled and its
+	severity are set in the details sidebar.
+
+	Variables: check (see CheckDefinition), severities (see Severity::sorted()), filters (the filters of the kind offered
+	to everyone, see FilterService::getFilters())
+#}
+{% extends 'hub/_layouts/settings-item' %}
+{% import '_includes/forms' as forms %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set tab = 'diagnostics' %}
+{% set kind = check.kind %}
+{% set filter = check.getFilter() %}
+{% set severity = check.getSeverity() %}
+{% set title = check.id ? check.name : 'New check'|t('hub') %}
+{% set kindLabel = '{list} check'|t('hub', { list: kind.label() }) %}
+{% set type = check.isDefault() ? hub.badge('Default'|t('hub'), 'gray') : hub.badge('Custom'|t('hub'), 'violet') %}
+{% set icon = check.getIcon() %}
+{% set color = severity.color() %}
+
+{# The preview follows the severity, whose blank option is the default one's. #}
+{% set severityColors = { '': check.defaultSeverity.color() } %}
+{% set severityLabels = { '': check.defaultSeverity.label() } %}
+{% for item in severities %}
+	{% set severityColors = severityColors|merge({ (item.value): item.color() }) %}
+	{% set severityLabels = severityLabels|merge({ (item.value): item.label() }) %}
+{% endfor %}
+{% set mirror %}
+	{%- if not check.isDefault() %} data-hub-mirror-icon="icon" data-hub-mirror-fallback="{{ iconSvg(filter ? filter.getIcon() : 'list-check')|e('html_attr') }}"{% endif -%}
+	{{- ' ' }}data-hub-mirror-color="severity" data-hub-mirror-colors="{{ severityColors|json_encode }}"
+{%- endset %}
+
+{% if check.id %}
+	{% set formActions = [
+		{
+			label: 'Save and continue editing'|t('app'),
+			redirect: ('hub/manage/settings/diagnostics/' ~ check.id)|hash,
+			shortcut: true,
+			retainScroll: true,
+		},
+		not check.isDefault() ? {
+			label: 'Delete check'|t('hub'),
+			action: 'hub/checks/delete',
+			redirect: 'hub/manage/settings/diagnostics'|hash,
+			params: { id: check.id },
+			confirm: 'Are you sure you want to delete “{name}”?'|t('hub', { name: check.name }),
+			destructive: true,
+		},
+	]|filter %}
+{% endif %}
+
+{% block content %}
+	{{ actionInput('hub/checks/save') }}
+	{% if check.id %}{{ hiddenInput('checkId', check.id) }}{% else %}{{ hiddenInput('kind', kind.value) }}{% endif %}
+
+	{% if check.isDefault() %}
+		<div class="hub-notice">
+			<span class="hub-notice__icon" aria-hidden="true">{{ iconSvg('lock') }}</span>
+			<div class="hub-notice__body">
+				<p class="hub-notice__title">{{ 'Default check'|t('hub') }}</p>
+				<p>{{ 'This is one of Hub’s default checks. It can’t be deleted, but disabled, and given another severity. It flags the items of its predefined filter, whose threshold, if any, is set on the filters tab.'|t('hub') }}</p>
+			</div>
+		</div>
+	{% else %}
+		{% embed 'hub/_components/panel' with { heading: 'Check'|t('hub'), icon: 'list-check', color: 'gray', collapsible: false } %}
+			{% block body %}
+				{% import '_includes/forms' as forms %}
+				<div class="hub-panel__fields">
+					{{ forms.textField({
+						first: true,
+						label: 'Name'|t('app'),
+						instructions: 'Shown as the heading of the check.'|t('hub'),
+						id: 'name',
+						name: 'name',
+						value: check.name,
+						errors: check.getErrors('name'),
+						autofocus: true,
+						required: true,
+					}) }}
+
+					<div class="hub-panel__columns">
+						{{ forms.textareaField({
+							label: 'Description'|t('app'),
+							instructions: 'What’s wrong and what to do about it, shown when the check fails.'|t('hub'),
+							id: 'description',
+							name: 'description',
+							value: check.description,
+							errors: check.getErrors('description'),
+							rows: 2,
+							required: true,
+						}) }}
+
+						{{ forms.textareaField({
+							label: 'Passed description'|t('hub'),
+							instructions: 'Shown when the check passes. Leave blank for a generic text.'|t('hub'),
+							id: 'passedDescription',
+							name: 'passedDescription',
+							value: check.passedDescription,
+							errors: check.getErrors('passedDescription'),
+							rows: 2,
+						}) }}
+					</div>
+
+					{{ forms.iconPickerField({
+						label: 'Icon'|t('app'),
+						instructions: 'Leave blank for the icon of the filter.'|t('hub'),
+						id: 'icon',
+						name: 'icon',
+						value: check.icon,
+						errors: check.getErrors('icon'),
+					}) }}
+				</div>
+			{% endblock %}
+		{% endembed %}
+	{% endif %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Filter'|t('hub'),
+		description: check.isDefault() ? '{kind} the filter lists fail the check.'|t('hub', { kind: kind.label() }),
+		icon: 'filter',
+		color: 'blue',
+		collapsible: false,
+	} %}
+		{% block body %}
+			{% import '_includes/forms' as forms %}
+			{% import 'hub/_components/macros' as hub %}
+			{% if check.isDefault() %}
+				<div class="hub-panel__item">
+					{{ hub.icon(filter.getIcon(), 'blue') }}
+					<div class="hub-name__text">
+						<span class="hub-name__title">
+							{% if filter.id %}<a href="{{ url('hub/manage/settings/filters/' ~ filter.id) }}">{{ filter.getName() }}</a>{% else %}{{ filter.getName() }}{% endif %}
+						</span>
+						<span class="hub-check-row__description">{{ filter.description }}</span>
+					</div>
+				</div>
+			{% else %}
+				<div class="hub-panel__fields">
+					{{ forms.selectField({
+						first: true,
+						label: 'Filter'|t('hub'),
+						instructions: '{kind} the filter lists fail the check. Filters are managed on the filters tab.'|t('hub', { kind: kind.label() }),
+						id: 'filter',
+						name: 'filter',
+						value: check.filter,
+						options: [{ label: 'Choose a filter'|t('hub'), value: '' }]|merge(filters|map(item => {
+							label: item.getName() ~ (item.isPredefined() ? '' : ' (' ~ 'Custom'|t('hub') ~ ')'),
+							value: item.handle ?? item.uid,
+						})),
+						errors: check.getErrors('filter'),
+						required: true,
+					}) }}
+				</div>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Preview'|t('hub'),
+		description: 'How the diagnostics tabs list the check, when it fails and when it passes.'|t('hub'),
+		icon: 'eye',
+		color: 'gray',
+		collapsible: false,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<ul class="hub-checks">
+				<li class="hub-check">
+					<span class="hub-check__icon" data-color="{{ severity.color() }}"{{ mirror }} aria-hidden="true">{{ iconSvg(check.getIcon()) }}</span>
+					<div class="hub-check__body">
+						<div class="hub-check__heading">
+							<h3 data-hub-mirror="name" data-hub-mirror-fallback="{{ 'New check'|t('hub') }}">{{ title }}</h3>
+							<span class="hub-badge" data-color="{{ severity.color() }}" data-hub-mirror="severity" data-hub-mirror-labels="{{ severityLabels|json_encode }}" data-hub-mirror-color="severity" data-hub-mirror-colors="{{ severityColors|json_encode }}">{{ severity.label() }}</span>
+						</div>
+						<p data-hub-mirror="description">{{ check.description }}</p>
+					</div>
+				</li>
+				<li class="hub-check hub-check--passed">
+					<span class="hub-check__icon" data-color="green" aria-hidden="true">{{ iconSvg('circle-check') }}</span>
+					<div class="hub-check__body">
+						<div class="hub-check__heading">
+							<h3 data-hub-mirror="name" data-hub-mirror-fallback="{{ 'New check'|t('hub') }}">{{ title }}</h3>
+						</div>
+						<p data-hub-mirror="passedDescription" data-hub-mirror-fallback="{{ 'Not flagged by this check.'|t('hub') }}">{{ check.passedDescription ?: 'Not flagged by this check.'|t('hub') }}</p>
+					</div>
+				</li>
+			</ul>
+		{% endblock %}
+	{% endembed %}
+{% endblock %}
+
+{% block details %}
+	<div class="meta">
+		{{ forms.lightswitchField({
+			label: 'Enabled'|t('app'),
+			id: 'enabled',
+			name: 'enabled',
+			on: check.enabled,
+		}) }}
+
+		{{ forms.selectField({
+			label: 'Severity'|t('hub'),
+			id: 'severity',
+			name: 'severity',
+			value: check.severity.value ?? '',
+			options: (check.isDefault() ? [{ label: 'Default ({severity})'|t('hub', { severity: check.defaultSeverity.label() }), value: '' }] : [])
+				|merge(severities|map(item => { label: item.label(), value: item.value })),
+		}) }}
+	</div>
+	<dl class="meta read-only hub-details">
+		<div class="data">
+			<dt class="heading">{{ 'Checks'|t('hub') }}</dt>
+			<dd class="value">{{ hub.icon(kind.icon(), 'gray', 'small') }} {{ kind.label() }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Type'|t('app') }}</dt>
+			<dd class="value">{{ type }}</dd>
+		</div>
+	</dl>
+	<p class="hub-details__note">{{ 'Disabled checks are shown nowhere. The severity sets how urgent it is when the check fails.'|t('hub') }}</p>
+	{% if filter %}
+		<div class="hub-details__actions">
+			<a class="btn fullwidth" href="{{ url(kind.path(), filter.getListParams()) }}">
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('list') }}</span>
+				<span>{{ 'Show list'|t('hub') }}</span>
+			</a>
+		</div>
+	{% endif %}
+{% endblock %}

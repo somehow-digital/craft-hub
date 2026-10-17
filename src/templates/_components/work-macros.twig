@@ -1,0 +1,102 @@
+{# Parts of the "My Work" page, shared by its panels, which are embedded and can't reach macros of the pages themselves. #}
+
+{# Panel of the overview listing the entries of a section, what they are and when, scrolling past a few. #}
+{% macro entries(id, section, list) %}
+	{%- embed 'hub/_components/panel' with { heading: section.label, description: section.description, icon: section.icon, color: section.color, count: list.total, collapsible: false, id: 'hub-work-' ~ id, sectionId: id, section: section, list: list } %}
+		{% block body %}
+			{% import 'hub/_components/work-macros' as work %}
+			{% if list.items|length %}
+				<ul class="hub-work-rows hub-work-scroll">
+					{% for item in list.items %}
+						{{ work.row(item.element, item.note, item.date ? item.date|date('short')) }}
+					{% endfor %}
+				</ul>
+				{% if list.total > list.items|length %}
+					<div class="hub-work-footer">
+						<span class="hub-muted">{{ 'Showing {shown, number} of {total, number}'|t('hub', { shown: list.items|length, total: list.total }) }}</span>
+					</div>
+				{% endif %}
+			{% else %}
+				<p class="hub-work-empty">{{ work.empty(sectionId) }}</p>
+			{% endif %}
+		{% endblock %}
+	{% endembed -%}
+{%- endmacro %}
+
+{# Row of a compact list of the overview: an element linking to its edit page, what's known of it, and when. #}
+{% macro row(element, meta, date) %}
+	{%- import 'hub/_components/macros' as hub -%}
+	<li class="hub-work-row">
+		{{ hub.itemIcon(element.type ?? null) }}
+		<span class="hub-work-row__body">
+			{{ hub.link(element.cpEditUrl, hub.elementTitle(element), 'hub-work-row__title') }}
+			{%- if meta %}<span class="hub-muted">{{ meta }}</span>{% endif -%}
+		</span>
+		{%- if date %}<span class="hub-work-row__date hub-muted">{{ date }}</span>{% endif -%}
+	</li>
+{%- endmacro %}
+
+{# Footer of a panel of the overview, leading to the tab of its section. #}
+{% macro more(url) %}
+	<div class="hub-work-footer">
+		<a href="{{ url }}">{{ 'Show all'|t('hub') }}</a>
+	</div>
+{%- endmacro %}
+
+{# What a section with nothing in it says, by the ID of its tab. #}
+{% macro empty(id) %}
+	{{- {
+		diagnostics: 'No issues in your entries and assets.'|t('hub'),
+		drafts: 'You have no drafts in progress.'|t('hub'),
+		'coming-up': 'None of your entries publish or expire soon.'|t('hub'),
+	}[id] -}}
+{%- endmacro %}
+
+{# Whether what the user maintains has issues, as a badge. #}
+{% macro maintainedState(row) %}
+	{%- import 'hub/_components/macros' as hub -%}
+	{%- if row.failed -%}
+		{{ hub.badge('{count, plural, =1{One issue} other{# issues}}'|t('hub', { count: row.failed }), row.severity.color()) }}
+	{%- else -%}
+		{{ hub.badge('All clear'|t('hub'), 'green') }}
+	{%- endif -%}
+{%- endmacro %}
+
+{# Where an element is stored. #}
+{% macro place(element) %}
+	{%- import 'hub/_components/macros' as hub -%}
+	{%- if element is instance of('craft\\elements\\Asset') -%}
+		{{ hub.chip(element.volume) }}
+	{%- elseif element.section -%}
+		{{ hub.chip(element.section) }}
+	{%- elseif element.field -%}
+		{{ hub.chip(element.field, 'violet') }}
+	{%- else -%}
+		<span class="hub-muted">—</span>
+	{%- endif -%}
+{%- endmacro %}
+
+{# Menu snoozing an element for a check, for the days offered, or dismissing it for good. #}
+{% macro snooze(key, element, days, redirect) %}
+	{%- set id = 'hub-snooze-' ~ random() -%}
+	<div class="hub-work-menu" data-hub-work-menu>
+		<form id="{{ id }}-form" method="post" accept-charset="UTF-8">
+			{{ csrfInput() }}
+			{{ actionInput('hub/work/snooze') }}
+			{{ redirectInput(redirect) }}
+			{{ hiddenInput('check', key) }}
+			{{ hiddenInput('element', element.id) }}
+		</form>
+		<button type="button" class="btn small" popovertarget="{{ id }}" aria-haspopup="menu">
+			<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('clock') }}</span>
+			{{ 'Snooze'|t('hub') }}
+		</button>
+		<div class="hub-work-menu__popover" id="{{ id }}" popover role="menu">
+			{% for day in days %}
+				<button type="submit" form="{{ id }}-form" name="days" value="{{ day }}" role="menuitem">
+					{{- day ? 'For {days, plural, =1{one day} other{# days}}'|t('hub', { days: day }) : 'Dismiss for good'|t('hub') -}}
+				</button>
+			{% endfor %}
+		</div>
+	</div>
+{%- endmacro %}

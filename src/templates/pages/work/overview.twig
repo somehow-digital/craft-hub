@@ -1,0 +1,79 @@
+{#
+	Overview of "My Work": a panel per section, in one grid. Diagnostics lead to their tab, with the first of their items;
+	drafts, what's coming up and what's maintained have no other place, so they're listed here in full. The
+	panels of what the user has to deal with are always there, so the page keeps its shape as they empty.
+
+	Variables: workSections (see WorkService::getSections()), diagnostics (Check[], without their items), drafts, comingUp,
+	maintained (see WorkService), itemLimit, workPath, workTabs
+#}
+{% extends 'hub/_layouts/work' %}
+{% import 'hub/_components/macros' as hub %}
+{% import 'hub/_components/work-macros' as work %}
+
+{% set selectedTab = 'overview' %}
+
+{% block content %}
+	<div class="hub-work-grid">
+		{% if workSections.diagnostics is defined %}
+			{% set section = workSections.diagnostics %}
+			{% embed 'hub/_components/panel' with { heading: section.label, description: section.description, icon: section.icon, color: section.color, count: section.count, collapsible: false, id: 'hub-work-diagnostics' } %}
+				{% block body %}
+					{% import 'hub/_components/work-macros' as work %}
+					{% if diagnostics|length %}
+						<ul class="hub-task-group__list">
+							{% for check in diagnostics|slice(0, itemLimit) %}
+								<li>
+									<a class="hub-task" href="{{ url(workPath ~ '/diagnostics', { check: check.key, hubSite: hubSite }) }}">
+										<span class="hub-task__icon" data-color="{{ check.severity.color() }}" aria-hidden="true">{{ iconSvg(check.icon) }}</span>
+										<span class="hub-task__body">
+											<span class="hub-task__label">{{ check.heading }}</span>
+											<span class="hub-task__description">{{ check.description }}</span>
+										</span>
+										<span class="hub-task__value">{{ check.count|number }}</span>
+										<span class="hub-task__chevron" aria-hidden="true">{{ iconSvg('chevron-right') }}</span>
+									</a>
+								</li>
+							{% endfor %}
+						</ul>
+						{{ work.more(section.url) }}
+					{% else %}
+						<p class="hub-work-empty">{{ work.empty('diagnostics') }}</p>
+					{% endif %}
+				{% endblock %}
+			{% endembed %}
+		{% endif %}
+
+		{% if workSections.drafts is defined %}
+			{{ work.entries('drafts', workSections.drafts, drafts) }}
+		{% endif %}
+
+		{% if workSections['coming-up'] is defined %}
+			{{ work.entries('coming-up', workSections['coming-up'], comingUp) }}
+		{% endif %}
+
+		{% if maintained|length %}
+			{% set section = workSections.maintained %}
+			{% embed 'hub/_components/panel' with { heading: section.label, description: section.description, icon: section.icon, color: section.color, count: maintained|length, collapsible: false, id: 'hub-work-maintained' } %}
+				{% block body %}
+					{% import 'hub/_components/macros' as hub %}
+					{% import 'hub/_components/work-macros' as work %}
+					<ul class="hub-task-group__list hub-work-scroll">
+						{% for row in maintained %}
+							<li>
+								<a class="hub-task" href="{{ hub.url(row.source.item, row.failed ? 'diagnostics' : null) }}">
+									<span class="hub-task__icon" data-color="{{ row.severity ? row.severity.color() : 'green' }}" aria-hidden="true">{{ iconSvg(row.failed ? 'triangle-exclamation' : 'circle-check') }}</span>
+									<span class="hub-task__body">
+										<span class="hub-task__label">{{ row.source.item.name }}</span>
+										<span class="hub-task__description">{{ ([row.source.getKind()]|merge(row.source.groups|map(group => group.name)))|join(' · ') }}</span>
+									</span>
+									{{ work.maintainedState(row) }}
+									<span class="hub-task__chevron" aria-hidden="true">{{ iconSvg('chevron-right') }}</span>
+								</a>
+							</li>
+						{% endfor %}
+					</ul>
+				{% endblock %}
+			{% endembed %}
+		{% endif %}
+	</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{#
+	Fields of some of the plugin's settings, posted by the full page form of a tab of the settings page, which leads back
+	to it. They're kept in the project config, so they're read-only while admin changes aren't allowed.
+
+	Variables: path (of the tab), settings (see Settings), overrides (names of the settings overridden by `config/hub.php`),
+	readOnly
+	Blocks: fields (see the setting component)
+#}
+{% if readOnly %}
+	<p class="warning with-icon">{{ 'Admin changes aren’t allowed in this environment, so the settings can’t be changed here.'|t('hub') }}</p>
+{% else %}
+	{{ actionInput('hub/settings/save') }}
+	{{ redirectInput(path) }}
+{% endif %}
+
+{% namespace 'settings' %}
+	{% block fields %}{% endblock %}
+{% endnamespace %}

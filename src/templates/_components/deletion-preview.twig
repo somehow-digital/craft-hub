@@ -1,0 +1,178 @@
+{#
+	What deleting the items of a list takes along, shown in the dialog of the bulk actions before they're deleted (see the
+	`bulk` component): a notice naming the items and whether they can be restored, the totals of all items, colored by
+	whether they're deleted along with the items, changed or kept, and the items, each counting what deleting it takes
+	along, like its nested entries, drafts and the elements referencing it, and expanding to the groups with anything in
+	them.
+
+	Variables: preview (DeletionPreview), pageInfo (of the items of the page shown)
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{% set colors = { deleted: 'red', changed: 'orange', kept: 'gray' } %}
+
+{# The icon tile or thumbnail of an item, its linked title and what tells it apart. #}
+{% macro itemName(model) %}
+	{%- import 'hub/_components/macros' as hub -%}
+	{% if model is instance of('craft\\elements\\Asset') %}
+		{{ hub.thumb(model) }}
+	{% elseif model is instance of('craft\\elements\\Entry') %}
+		{{ model.type ? hub.itemIcon(model.type) : hub.icon('newspaper') }}
+	{% elseif model is instance of('craft\\models\\UserGroup') %}
+		{{ hub.icon('users', 'gray') }}
+	{% else %}
+		{{ hub.itemIcon(model) }}
+	{% endif %}
+	<span class="hub-deletion__name">
+		{% if model is instance of('craft\\base\\ElementInterface') %}
+			<a class="hub-deletion__title" href="{{ hub.url(model) }}" target="_blank" rel="noopener">{{ hub.elementTitle(model) }}</a>
+			<span class="hub-deletion__meta">
+				{%- if model is instance of('craft\\elements\\Asset') -%}
+					<code>{{ model.filename }}</code> · {{ model.size|filesize(1) }}
+				{%- else -%}
+					{{ [model.section.name ?? null, model.type.name ?? null]|filter|map(name => name|t('site'))|join(' · ') }}
+				{%- endif -%}
+			</span>
+		{% else %}
+			{% set url = model is instance of('craft\\models\\UserGroup') ? '' : hub.url(model) %}
+			{% if url|trim %}
+				<a class="hub-deletion__title" href="{{ url }}" target="_blank" rel="noopener">{{ model.name|t('site') }}</a>
+			{% else %}
+				<span class="hub-deletion__title">{{ model.name|t('site') }}</span>
+			{% endif %}
+			<span class="hub-deletion__meta"><code>{{ model.handle }}</code></span>
+		{% endif %}
+	</span>
+{%- endmacro %}
+
+{# An element, reference, model or name a group of an item is about. #}
+{% macro groupItem(entry) %}
+	{%- import 'hub/_components/macros' as hub -%}
+	{% if entry is instance of('SomehowDigital\\Craft\\Hub\\models\\EntryReference') %}
+		{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
+		<li class="hub-deletion__element">
+			{{ hub.element(entry.element) }}
+			<span class="hub-deletion__element-meta">
+				{% for path in entry.paths %}
+					{% if path.field %}
+						{{ hub.fieldType(path.field, usageKind.from(path.field is instance of('craft\\fields\\Link') ? 'link' : 'reference').color()) }}
+					{% endif %}
+					<span>{{ path.label }}</span>
+				{% endfor %}
+			</span>
+		</li>
+	{% elseif entry is instance of('craft\\base\\ElementInterface') %}
+		<li class="hub-deletion__element">
+			{{ hub.element(entry) }}
+			<span class="hub-deletion__element-meta">
+				{%- if entry.isDraft -%}
+					{{ entry.draftName }}{% if entry.creator %} · {{ entry.creator.name }}{% endif %} · {{ hub.date(entry.dateUpdated) }}
+				{%- elseif entry is instance of('craft\\elements\\Entry') and entry.field -%}
+					{{ entry.field.name|t('site') }}{% if entry.type %} · {{ entry.type.name|t('site') }}{% endif %}
+				{%- elseif entry is instance of('craft\\elements\\Asset') -%}
+					{{ entry.size|filesize(1) }}
+				{%- elseif entry is instance of('craft\\elements\\User') -%}
+					{{ entry.email }}
+				{%- endif -%}
+			</span>
+		</li>
+	{% elseif entry is string %}
+		<li class="hub-deletion__element"><code>{{ entry }}</code></li>
+	{% else %}
+		<li class="hub-deletion__element">{{ hub.chip(entry) }}</li>
+	{% endif %}
+{%- endmacro %}
+
+<div class="hub-deletion">
+	{% if not preview.total %}
+		{% set notice = { color: 'gray', icon: 'ban', title: 'Nothing to delete:'|t('hub'), text: 'None of the selected items can be deleted.'|t('hub') } %}
+	{% else %}
+		{% set notice = { color: 'green', icon: 'trash-arrow-up', text: '{count, plural, =1{is} other{are}} moved to the trash, from which {count, plural, =1{it} other{they}} can be restored with what is deleted with {count, plural, =1{it} other{them}}.'|t('hub', { count: preview.total }) } %}
+	{% endif %}
+	<div class="hub-deletion__notice" data-color="{{ notice.color }}">
+		<span class="hub-deletion__notice-icon" aria-hidden="true">{{ iconSvg(notice.icon) }}</span>
+		<p>
+			<strong>{{ notice.title ?? preview.label|t('hub', { count: preview.total }) }}</strong>
+			{{ notice.text }}
+			{% if preview.skipped %}
+				<span class="hub-deletion__skipped" title="{{ '{count, plural, =1{One item is} other{# items are}} skipped, as you may not delete {count, plural, =1{it} other{them}} or {count, plural, =1{it no longer exists} other{they no longer exist}}.'|t('hub', { count: preview.skipped }) }}">{{ '{count, number} skipped'|t('hub', { count: preview.skipped }) }}</span>
+			{% endif %}
+		</p>
+	</div>
+
+	{% if preview.effects|length %}
+		<ul class="hub-deletion__totals" aria-label="{{ 'In total'|t('hub') }}">
+			{% for effect in preview.effects %}
+				<li class="hub-deletion__total" data-color="{{ colors[effect.tone] }}">
+					<span class="hub-deletion__total-icon" aria-hidden="true">{{ iconSvg(effect.icon) }}</span>
+					<strong>{{ effect.value }}</strong>
+					<span>{{ effect.label }}</span>
+				</li>
+			{% endfor %}
+		</ul>
+	{% endif %}
+
+	{% if preview.total %}
+		{% set expandable = preview.items|filter(item => item.affected|length)|length %}
+		<section class="hub-deletion__section">
+			<header class="hub-deletion__heading">
+				<span>{{ 'Deleted'|t('hub') }}</span>
+				<span class="hub-pill">{{ preview.total|number }}</span>
+				{% if expandable > 1 %}
+					<button type="button" class="btn small hub-deletion__toggle" data-hub-deletion-toggle data-expand="{{ 'Expand all'|t('hub') }}" data-collapse="{{ 'Collapse all'|t('hub') }}">{{ 'Expand all'|t('hub') }}</button>
+				{% endif %}
+			</header>
+
+			<div class="hub-deletion__items">
+				{% for item in preview.items %}
+					{% set affected = item.affected %}
+					{% set summary %}
+						<span class="hub-deletion__chevron" aria-hidden="true">{% if affected|length %}{{ iconSvg('chevron-right') }}{% endif %}</span>
+						{{ _self.itemName(item.model) }}
+						<span class="hub-deletion__impacts">
+							{% for group in item.groups %}
+								<span class="hub-deletion__impact" data-color="{{ group.count ? colors[group.tone] : 'gray' }}"{% if not group.count %} data-empty{% endif %} title="{{ group.label }}">
+									<span class="hub-deletion__impact-icon" aria-hidden="true">{{ iconSvg(group.icon) }}</span>
+									{{ group.count|number }}
+									<span class="visually-hidden">{{ group.label }}</span>
+								</span>
+							{% endfor %}
+						</span>
+					{% endset %}
+					{% if affected|length %}
+						<details class="hub-deletion__item"{% if expandable == 1 %} open{% endif %}>
+							<summary class="hub-deletion__summary">{{ summary }}</summary>
+							<div class="hub-deletion__groups">
+								{% for group in affected %}
+									<section class="hub-deletion__group" data-color="{{ colors[group.tone] }}">
+										<h4 class="hub-deletion__group-heading">
+											<span class="hub-deletion__group-icon" aria-hidden="true">{{ iconSvg(group.icon) }}</span>
+											<span class="hub-deletion__group-label">{{ group.label }}</span>
+											<span class="hub-deletion__group-count">{{ group.count|number }}</span>
+										</h4>
+										{% if group.items|length %}
+											<ul class="hub-deletion__elements">
+												{% for entry in group.items %}
+													{{ _self.groupItem(entry) }}
+												{% endfor %}
+												{% if group.more %}
+													<li class="hub-deletion__element hub-muted">{{ '{count, number} more'|t('hub', { count: group.more }) }}</li>
+												{% endif %}
+											</ul>
+										{% endif %}
+									</section>
+								{% endfor %}
+							</div>
+						</details>
+					{% else %}
+						<div class="hub-deletion__item">
+							<div class="hub-deletion__summary">{{ summary }}</div>
+						</div>
+					{% endif %}
+				{% endfor %}
+			</div>
+
+			{{ hub.previewPages(pageInfo) }}
+		</section>
+	{% endif %}
+</div>

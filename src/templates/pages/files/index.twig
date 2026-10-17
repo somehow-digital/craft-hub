@@ -1,0 +1,11 @@
+{% extends 'hub/_layouts/index' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set area = 'data' %}
+{% set page = 'assets' %}
+{% set title = 'Assets'|t('app') %}
+{% set selectedTab = 'list' %}
+
+{% block content %}
+	{% include 'hub/_components/file-list' %}
+{% endblock %}

@@ -1,0 +1,32 @@
+{#
+	What changing the authors of entries does, shown in the dialog of the bulk actions before they're changed (see the
+	`action-preview` component): the number of entries whose authors are changed, the user picked, and whether it replaces
+	their authors or is added to them (see BulkService::AUTHORS_*). Entries the user may not author are left as they are.
+
+	Variables: authors (User[], those who may author any of the entries, see EntryService::getAuthorCandidates()), total, skipped
+#}
+{% extends 'hub/_components/action-preview' %}
+{% import '_includes/forms' as forms %}
+
+{% set noun = '{count, plural, =1{One entry} other{# entries}}' %}
+{% set notice = { color: 'blue', icon: 'user-pen', text: '{count, plural, =1{gets} other{get}} the author picked below, if they may author {count, plural, =1{it} other{them}}.'|t('hub', { count: total }) } %}
+{% set empty = { title: 'Nothing to change:'|t('hub'), text: 'You may change the authors of none of the selected entries, or nobody may author them.'|t('hub') } %}
+{% set skippedText = '{count, plural, =1{One entry is} other{# entries are}} skipped, as you may not change {count, plural, =1{its authors} other{their authors}} or {count, plural, =1{it has} other{they have}} none.'|t('hub', { count: skipped }) %}
+
+{% block fields %}
+	{{ forms.selectField({
+		label: 'Author'|t('app'),
+		name: 'authorId',
+		options: authors|map(user => { label: user.name ~ ' (' ~ user.username ~ ')', value: user.id }),
+		class: 'fullwidth',
+	}) }}
+	{{ forms.selectField({
+		label: 'Their authors'|t('hub'),
+		name: 'authors',
+		options: [
+			{ label: 'Replace them with the author'|t('hub'), value: constant('SomehowDigital\\Craft\\Hub\\services\\BulkService::AUTHORS_REPLACE') },
+			{ label: 'Add the author to them'|t('hub'), value: constant('SomehowDigital\\Craft\\Hub\\services\\BulkService::AUTHORS_ADD') },
+		],
+		class: 'fullwidth',
+	}) }}
+{% endblock %}

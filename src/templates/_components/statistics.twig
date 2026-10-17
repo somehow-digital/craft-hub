@@ -1,0 +1,10 @@
+{#
+	Statistics of a page: a collapsible panel per summary card, all closed at first, each loading its card once opened.
+
+	Variables: cards (`key`, `label` and `icon` of each, see Summary::lazyCard())
+#}
+<div class="hub-statistics">
+	{% for card in cards %}
+		{% include 'hub/_components/statistics-card' %}
+	{% endfor %}
+</div>

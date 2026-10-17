@@ -1,0 +1,40 @@
+{#
+	Panel with the maintainers of what an element is stored in, on its detail page, while it has any.
+
+	Variables: element
+#}
+{% set sources = craft.app.plugins.getPlugin('hub').maintainers.getSources(element, true) %}
+
+{% if sources|length %}
+	{% embed 'hub/_components/panel' with {
+		heading: 'Maintainers'|t('hub'),
+		description: 'Who to ask for help with this item, by where it’s stored.'|t('hub'),
+		icon: 'users',
+		color: 'violet',
+		count: sources|reduce((total, source) => total + source.users|length + source.groups|length, 0),
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Maintainer'|t('hub') }}</th>
+							<th>{{ 'Type'|t('app') }}</th>
+							<th>{{ 'Item'|t('hub') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{# One row per maintainer of each item, so a maintainer of several items is listed once for each #}
+						{% for source in sources %}
+							{% set item %}
+								<td><span class="hub-inline">{{ hub.chip(source.item) }} <span class="hub-muted">{{ source.getKind() }}</span></span></td>
+							{% endset %}
+							{{ hub.maintainerRows({ users: source.users, groups: source.groups }, item) }}
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% endblock %}
+	{% endembed %}
+{% endif %}

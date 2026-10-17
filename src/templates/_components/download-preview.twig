@@ -1,0 +1,72 @@
+{#
+	What downloading files sends, shown in the dialog of the bulk actions before they're downloaded (see the `bulk`
+	component), styled like the `deletion-preview` component: a notice naming the files and how they're sent, a single one
+	as it is and several in a zip archive by volume and path, the totals of all files, and the files of the page shown.
+
+	Variables: assets (Asset[], the files of the page shown), pageInfo (of all files the user may download), skipped
+	(number of the selected files left out), size (of all files, in bytes), volumes (number of volumes the files are in)
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{% set total = pageInfo.total %}
+
+<div class="hub-deletion">
+	{% if not total %}
+		{% set notice = { color: 'gray', icon: 'ban', title: 'Nothing to download:'|t('hub'), text: 'None of the selected files can be downloaded.'|t('hub') } %}
+	{% elseif total == 1 %}
+		{% set notice = { color: 'blue', icon: 'file-arrow-down', text: 'is downloaded as it is.'|t('hub') } %}
+	{% else %}
+		{% set notice = { color: 'blue', icon: 'file-zipper', text: 'are downloaded in a zip archive, in folders by volume and path.'|t('hub') } %}
+	{% endif %}
+	<div class="hub-deletion__notice" data-color="{{ notice.color }}">
+		<span class="hub-deletion__notice-icon" aria-hidden="true">{{ iconSvg(notice.icon) }}</span>
+		<p>
+			<strong>{{ notice.title ?? '{count, plural, =1{One file} other{# files}}'|t('hub', { count: total }) }}</strong>
+			{{ notice.text }}
+			{% if skipped %}
+				<span class="hub-deletion__skipped" title="{{ '{count, plural, =1{One file is} other{# files are}} skipped, as you may not view {count, plural, =1{it} other{them}} or {count, plural, =1{it no longer exists} other{they no longer exist}}.'|t('hub', { count: skipped }) }}">{{ '{count, number} skipped'|t('hub', { count: skipped }) }}</span>
+			{% endif %}
+		</p>
+	</div>
+
+	{% if total %}
+		<ul class="hub-deletion__totals" aria-label="{{ 'In total'|t('hub') }}">
+			<li class="hub-deletion__total" data-color="blue">
+				<span class="hub-deletion__total-icon" aria-hidden="true">{{ iconSvg('hard-drive') }}</span>
+				<strong>{{ size|filesize(1) }}</strong>
+				<span>{{ 'File size'|t('hub') }}</span>
+			</li>
+			{% if volumes > 1 %}
+				<li class="hub-deletion__total">
+					<span class="hub-deletion__total-icon" aria-hidden="true">{{ iconSvg('folder-open') }}</span>
+					<strong>{{ volumes|number }}</strong>
+					<span>{{ 'Volumes'|t('app') }}</span>
+				</li>
+			{% endif %}
+		</ul>
+
+		<section class="hub-deletion__section">
+			<header class="hub-deletion__heading">
+				<span>{{ 'Downloaded'|t('hub') }}</span>
+				<span class="hub-pill">{{ total|number }}</span>
+			</header>
+
+			<div class="hub-deletion__items">
+				{% for asset in assets %}
+					<div class="hub-deletion__item">
+						<div class="hub-deletion__summary">
+							<span class="hub-deletion__chevron" aria-hidden="true"></span>
+							{{ hub.thumb(asset) }}
+							<span class="hub-deletion__name">
+								<a class="hub-deletion__title" href="{{ hub.url(asset) }}" target="_blank" rel="noopener">{{ hub.elementTitle(asset) }}</a>
+								<span class="hub-deletion__meta"><code>{{ asset.volume.name|t('site') }}/{{ asset.path }}</code> · {{ asset.size|filesize(1) }}</span>
+							</span>
+						</div>
+					</div>
+				{% endfor %}
+			</div>
+
+			{{ hub.previewPages(pageInfo) }}
+		</section>
+	{% endif %}
+</div>

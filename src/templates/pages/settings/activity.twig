@@ -1,0 +1,34 @@
+{#
+	The activity tab of the settings page, switching the activity log and setting what it records and how long it keeps it,
+	for admins.
+
+	Variables: settings (see Settings), overrides (names of the settings overridden by `config/hub.php`), readOnly
+#}
+{% extends 'hub/_layouts/settings' %}
+
+{% set fullPageForm = not readOnly %}
+{% set selectedTab = 'activity' %}
+
+{% block content %}
+	{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/activity' } %}
+		{% block fields %}
+			{% include 'hub/_components/setting' with { name: 'enableActivity', field: {
+				first: true,
+				label: 'Activity'|t('hub'),
+				instructions: 'Whether what users do is recorded in the activity log, which users who may view it find below the “Hub” navigation item.'|t('hub'),
+			} } %}
+
+			{% include 'hub/_components/setting' with { name: 'activityRetentionDays', field: {
+				label: 'Activity Retention'|t('hub'),
+				instructions: 'Activities are kept for this many days, then deleted along with Craft’s garbage. Set it to 0 to keep them forever.'|t('hub'),
+				min: 0,
+				unit: 'days'|t('hub'),
+			} } %}
+
+			{% include 'hub/_components/setting' with { name: 'activityDrafts', field: {
+				label: 'Activity of Drafts'|t('hub'),
+				instructions: 'Whether drafts created and deleted are recorded in the activity log too, rather than only once they’re applied.'|t('hub'),
+			} } %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}
