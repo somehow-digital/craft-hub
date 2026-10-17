@@ -1,0 +1,41 @@
+{#
+	The settings page, below the "Hub" navigation item: a tab managing the saved filters of the lists, along with their
+	thresholds, one managing the labels and one managing the checks of the diagnostics tabs, for users who may manage
+	them, which admins switch the labels and diagnostics on too, and tabs editing the settings of the statistics, of the
+	activity log and of the trash, for admins, each on its own URL.
+
+	Variables: selectedTab (`filters`, `labels`, `diagnostics`, `statistics`, `activity` or `trash`)
+#}
+{% extends '_layouts/cp' %}
+
+{% do view.registerAssetBundle('SomehowDigital\\Craft\\Hub\\assets\\HubAsset') %}
+
+{% set path = 'hub/manage/settings' %}
+{% set title = 'Settings'|t('hub') %}
+{% set selectedSubnavItem = 'settings' %}
+
+{% set tabs = {} %}
+{% if currentUser.can('hub-manageFilters') %}
+	{% set tabs = tabs|merge({ filters: { label: 'Filters'|t('hub'), url: url(path ~ '/filters') } }) %}
+{% endif %}
+{% if currentUser.can('hub-manageLabels') %}
+	{% set tabs = tabs|merge({ labels: { label: 'Labels'|t('hub'), url: url(path ~ '/labels') } }) %}
+{% endif %}
+{% if currentUser.can('hub-manageDiagnostics') %}
+	{% set tabs = tabs|merge({ diagnostics: { label: 'Diagnostics'|t('hub'), url: url(path ~ '/diagnostics') } }) %}
+{% endif %}
+{% if currentUser.admin %}
+	{% set tabs = tabs|merge({
+		statistics: { label: 'Statistics'|t('hub'), url: url(path ~ '/statistics') },
+		activity: { label: 'Activity'|t('hub'), url: url(path ~ '/activity') },
+		trash: { label: 'Trash'|t('hub'), url: url(path ~ '/trash') },
+	}) %}
+{% endif %}
+
+{# The selected tab ends the crumbs and starts the document title, as on the other Hub pages. #}
+{% set docTitle = tabs[selectedTab].label ~ ' - ' ~ title %}
+{% set crumbs = [
+	{ label: 'Hub'|t('hub'), url: url('hub/manage') },
+	{ label: title, url: url(path) },
+	tabs[selectedTab]|merge({ current: true }),
+] %}

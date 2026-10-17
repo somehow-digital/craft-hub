@@ -1,0 +1,47 @@
+{#
+	What exporting items sends, shown in the dialog of the bulk actions before they're exported (see the `bulk` component),
+	styled like the `deletion-preview` component: a notice naming the number of items exported, and the exporter and format
+	to export them by, as Craft's element indexes offer them (see BulkService::getExporters()). The fields are sent along
+	with the action, as the dialog is within its form; the format is hidden for exporters sending their own file.
+
+	Variables: total (number of the items exported), skipped (number of the selected items left out), exporters
+	(ElementExporterInterface[], by their class), formats (labels by format, see BulkService::getExportFormats())
+#}
+{% import '_includes/forms' as forms %}
+
+<div class="hub-deletion" data-hub-export>
+	{% if not total %}
+		{% set notice = { color: 'gray', icon: 'ban', title: 'Nothing to export:'|t('hub'), text: 'None of the selected items can be exported.'|t('hub') } %}
+	{% else %}
+		{% set notice = { color: 'blue', icon: 'file-export', text: '{count, plural, =1{is} other{are}} exported in a single file.'|t('hub', { count: total }) } %}
+	{% endif %}
+	<div class="hub-deletion__notice" data-color="{{ notice.color }}">
+		<span class="hub-deletion__notice-icon" aria-hidden="true">{{ iconSvg(notice.icon) }}</span>
+		<p>
+			<strong>{{ notice.title ?? '{count, plural, =1{One item} other{# items}}'|t('hub', { count: total }) }}</strong>
+			{{ notice.text }}
+			{% if skipped %}
+				<span class="hub-deletion__skipped" title="{{ '{count, plural, =1{One item is} other{# items are}} skipped, as you may not view {count, plural, =1{it} other{them}} or {count, plural, =1{it no longer exists} other{they no longer exist}}.'|t('hub', { count: skipped }) }}">{{ '{count, number} skipped'|t('hub', { count: skipped }) }}</span>
+			{% endif %}
+		</p>
+	</div>
+
+	{% if total %}
+		<div class="hub-export__fields">
+			{{ forms.selectField({
+				label: 'Export Type'|t('app'),
+				name: 'exporter',
+				options: exporters|map((exporter, type) => { label: exporter.displayName(), value: type, data: { formattable: exporter.isFormattable() ? 1 : 0 } })|values,
+				inputAttributes: { 'data-hub-export-exporter': true },
+				class: 'fullwidth',
+			}) }}
+			{{ forms.selectField({
+				label: 'Format'|t('app'),
+				name: 'format',
+				options: formats|map((label, format) => { label: label, value: format })|values,
+				fieldAttributes: { 'data-hub-export-format': true },
+				class: 'fullwidth',
+			}) }}
+		</div>
+	{% endif %}
+</div>

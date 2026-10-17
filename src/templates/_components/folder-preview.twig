@@ -1,0 +1,30 @@
+{#
+	What moving files to a folder does, shown in the dialog of the bulk actions before they're moved (see the
+	`action-preview` component): the number of files that can be moved, and the folder picked, by volume and path (see
+	FileService::getFolderTargets()). Files whose filename the folder has already are left where they are.
+
+	Variables: folders (VolumeFolder[], those the files can be moved to), total, skipped
+#}
+{% extends 'hub/_components/action-preview' %}
+{% import '_includes/forms' as forms %}
+
+{% set noun = '{count, plural, =1{One file} other{# files}}' %}
+{% set notice = { color: 'blue', icon: 'folder-open', text: '{count, plural, =1{is} other{are}} moved to the folder picked below, unless it has a file of the same name.'|t('hub', { count: total }) } %}
+{% set empty = { title: 'Nothing to move:'|t('hub'), text: 'None of the selected files can be moved, or there is no folder you may move them to.'|t('hub') } %}
+{% set skippedText = '{count, plural, =1{One file is} other{# files are}} skipped, as you may not move {count, plural, =1{it} other{them}} or {count, plural, =1{it no longer exists} other{they no longer exist}}.'|t('hub', { count: skipped }) %}
+
+{% block fields %}
+	{% set options = [] %}
+	{% for volume, inVolume in folders|group(folder => folder.volume.name|t('site')) %}
+		{% set options = [...options, { optgroup: volume }, ...inVolume|map(folder => {
+			label: folder.path ? volume ~ '/' ~ folder.path|trim('/', 'right') : volume,
+			value: folder.id,
+		})|values] %}
+	{% endfor %}
+	{{ forms.selectField({
+		label: 'Folder'|t('app'),
+		name: 'folderId',
+		options: options,
+		class: 'fullwidth',
+	}) }}
+{% endblock %}

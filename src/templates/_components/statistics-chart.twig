@@ -1,0 +1,84 @@
+{#
+	Chart of a statistics card over time: its total and its segments in the snapshots of a range of days, ending with their
+	current values. The range is picked above it, if there's more than one, reloading the chart from the card's panel with
+	that range, along with
+	whether the lines plot the counts or their change since the first day, and each line is shown or hidden by its button
+	in the legend; the lines are drawn by the script, and the values are listed in a table below them too.
+
+	Variables: chart (see SnapshotService::chart()), key (of the card)
+#}
+{% set request = craft.app.request %}
+{% set labels = {
+	30: '30 days'|t('hub'),
+	90: '90 days'|t('hub'),
+	365: '1 year'|t('hub'),
+	0: 'All'|t('hub'),
+} %}
+
+<div class="hub-chart" data-hub-chart="{{ { dates: chart.dates, series: chart.series }|json_encode }}" data-hub-chart-key="{{ key }}">
+	<div class="hub-chart__toolbar">
+		<div class="hub-chart__controls">
+			{% if chart.ranges|length > 1 %}
+				<div class="hub-chart__ranges" role="group" aria-label="{{ 'Range'|t('hub') }}">
+					{% for range in chart.ranges %}
+						<button type="button" class="hub-chart__range" aria-pressed="{{ range == chart.range ? 'true' : 'false' }}"
+							data-hub-chart-range="{{ url(request.pathInfo, request.queryParamsWithoutPath|merge({ card: key, range: range })) }}">
+							{{- labels[range] ?? range -}}
+						</button>
+					{% endfor %}
+				</div>
+			{% endif %}
+
+			{% if chart.dates|length > 1 %}
+				<div class="hub-chart__ranges" role="group" aria-label="{{ 'Show'|t('hub') }}">
+					<button type="button" class="hub-chart__range" aria-pressed="true" data-hub-chart-mode="count">{{ 'Count'|t('hub') }}</button>
+					<button type="button" class="hub-chart__range" aria-pressed="false" data-hub-chart-mode="change">{{ 'Change'|t('hub') }}</button>
+				</div>
+			{% endif %}
+		</div>
+
+		{% if chart.series|length > 1 %}
+			<div class="hub-chart__legend" role="group" aria-label="{{ 'Lines'|t('hub') }}">
+				{% for series in chart.series %}
+					<button type="button" class="hub-chart__series" aria-pressed="true" data-hub-chart-series="{{ series.key }}">
+						<span class="hub-chart__key"{% if series.color %} data-color="{{ series.color }}"{% endif %}{% if series.dashed %} data-dashed{% endif %} aria-hidden="true"></span>
+						{{- series.label -}}
+					</button>
+				{% endfor %}
+			</div>
+		{% endif %}
+	</div>
+
+	{% if chart.dates|length > 1 %}
+		<div class="hub-chart__plot" data-hub-chart-plot></div>
+	{% else %}
+		<p class="hub-chart__empty">{{ 'No snapshots in this range yet.'|t('hub') }}</p>
+	{% endif %}
+
+	<details class="hub-chart__data">
+		<summary>{{ 'Values'|t('hub') }}</summary>
+		<div class="hub-table">
+			<table class="data fullwidth">
+				<thead>
+					<tr>
+						<th scope="col">{{ 'Date'|t('app') }}</th>
+						{% for series in chart.series %}
+							<th scope="col" class="hub-statistics__number">{{ series.label }}</th>
+						{% endfor %}
+					</tr>
+				</thead>
+				<tbody>
+					{# The latest first, like the other tables. #}
+					{% for i in (chart.dates|length - 1)..0 %}
+						<tr>
+							<th scope="row">{{ loop.first ? 'Today'|t('app') : chart.dates[i]|date('short') }}</th>
+							{% for series in chart.series %}
+								<td class="hub-statistics__number">{{ series.values[i] is null ? '–' : series.values[i]|number }}</td>
+							{% endfor %}
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</details>
+</div>

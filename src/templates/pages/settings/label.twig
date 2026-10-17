@@ -1,0 +1,156 @@
+{#
+	Form of a new label, or of an existing one: its name, shown as the tooltip of its icon, its icon and its color, with a
+	preview of how items show it, following the fields as they're changed. An existing one shows the lists it's used in,
+	linking to them filtered by it, and can be removed from all items labeled with it or deleted from the menu of the save
+	button.
+
+	Variables: label (see Label), lists (lists the label is used in, see LabelsController::usageOf())
+#}
+{% extends 'hub/_layouts/settings-item' %}
+{% import '_includes/forms' as forms %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set tab = 'labels' %}
+{% set title = label.id ? label.name : 'New label'|t('hub') %}
+{% set kindLabel = 'Label'|t('hub') %}
+{% set icon = label.getIcon() %}
+{% set color = label.getColor() %}
+{% set mirror %} data-hub-mirror-icon="icon" data-hub-mirror-fallback="{{ iconSvg('tag')|e('html_attr') }}" data-hub-mirror-color="color"{% endset %}
+{% set count = lists|reduce((sum, list) => sum + list.count, 0) %}
+
+{% if label.id %}
+	{% set formActions = [
+		{
+			label: 'Save and continue editing'|t('app'),
+			redirect: ('hub/manage/settings/labels/' ~ label.id)|hash,
+			shortcut: true,
+			retainScroll: true,
+		},
+		count ? {
+			label: 'Remove from all items'|t('hub'),
+			action: 'hub/labels/clear',
+			redirect: ('hub/manage/settings/labels/' ~ label.id)|hash,
+			params: { id: label.id },
+			confirm: 'Are you sure you want to remove “{name}” from all items labeled with it? The label is kept.'|t('hub', { name: label.name }),
+			destructive: true,
+		},
+		{
+			label: 'Delete label'|t('hub'),
+			action: 'hub/labels/delete',
+			redirect: 'hub/manage/settings/labels'|hash,
+			params: { id: label.id },
+			confirm: 'Are you sure you want to delete “{name}”? All items labeled with it are unlabeled.'|t('hub', { name: label.name }),
+			destructive: true,
+		},
+	]|filter %}
+{% endif %}
+
+{% block content %}
+	{{ actionInput('hub/labels/save') }}
+	{% if label.id %}{{ hiddenInput('labelId', label.id) }}{% endif %}
+
+	{% embed 'hub/_components/panel' with { heading: 'Label'|t('hub'), icon: 'tag', color: 'gray', count: null, collapsible: false } %}
+		{% block body %}
+			{% import '_includes/forms' as forms %}
+			<div class="hub-panel__fields">
+				{{ forms.textField({
+					first: true,
+					label: 'Name'|t('app'),
+					instructions: 'Shown as the tooltip of the label’s icon.'|t('hub'),
+					id: 'name',
+					name: 'name',
+					value: label.name,
+					errors: label.getErrors('name'),
+					autofocus: true,
+					required: true,
+				}) }}
+
+				<div class="hub-panel__columns">
+					{{ forms.iconPickerField({
+						label: 'Icon'|t('app'),
+						instructions: 'Leave blank for a tag.'|t('hub'),
+						id: 'icon',
+						name: 'icon',
+						value: label.icon,
+						errors: label.getErrors('icon'),
+					}) }}
+
+					{{ forms.colorSelectField({
+						label: 'Color'|t('app'),
+						instructions: 'Leave blank for gray.'|t('hub'),
+						id: 'color',
+						name: 'color',
+						value: label.color,
+						errors: label.getErrors('color'),
+					}) }}
+				</div>
+			</div>
+		{% endblock %}
+	{% endembed %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Preview'|t('hub'),
+		description: 'How items labeled with it show the label, next to their name and in the label filter of the lists.'|t('hub'),
+		icon: 'eye',
+		color: 'gray',
+		count: null,
+		collapsible: false,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<div class="hub-panel__preview">
+				<div class="hub-name">
+					{{ hub.icon('file-lines', 'gray') }}
+					<div class="hub-name__text">
+						<span class="hub-name__title">
+							{{ 'An item'|t('hub') }}
+							<span class="hub-labels">
+								<span class="hub-label"{{ mirror }} data-color="{{ label.getColor() }}" aria-hidden="true">{{ iconSvg(label.getIcon()) }}</span>
+							</span>
+						</span>
+					</div>
+				</div>
+				<label class="hub-dropdown__option">
+					<input type="checkbox" checked disabled>
+					<span class="hub-icon hub-icon--small"{{ mirror }} data-color="{{ label.getColor() }}" aria-hidden="true">{{ iconSvg(label.getIcon()) }}</span>
+					<span class="hub-dropdown__text" data-hub-mirror="name" data-hub-mirror-fallback="{{ 'New label'|t('hub') }}">{{ title }}</span>
+				</label>
+			</div>
+		{% endblock %}
+	{% endembed %}
+{% endblock %}
+
+{% block details %}
+	<dl class="meta read-only hub-details">
+		<div class="data">
+			<dt class="heading">{{ 'Shared by'|t('hub') }}</dt>
+			<dd class="value">{{ 'All lists'|t('hub') }}</dd>
+		</div>
+		{% if label.id %}
+			<div class="data">
+				<dt class="heading">{{ 'Labeled items'|t('hub') }}</dt>
+				<dd class="value">{{ hub.num(count) }}</dd>
+			</div>
+		{% endif %}
+	</dl>
+	{% if label.id %}
+		<dl class="meta read-only hub-details">
+			{% for list in lists %}
+				<div class="data">
+					<dt class="heading">{{ list.label }}</dt>
+					<dd class="value">
+						{% if list.url %}
+							<a href="{{ list.url }}" title="{{ 'Show them in the list'|t('hub') }}">{{ list.count|number }}</a>
+						{% else %}
+							{{ list.count|number }}
+						{% endif %}
+					</dd>
+				</div>
+			{% else %}
+				<div class="data">
+					<dd class="value hub-muted">{{ 'No items are labeled with it yet.'|t('hub') }}</dd>
+				</div>
+			{% endfor %}
+		</dl>
+	{% endif %}
+{% endblock %}

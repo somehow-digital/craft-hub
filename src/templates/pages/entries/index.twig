@@ -1,0 +1,11 @@
+{% extends 'hub/_layouts/index' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set area = 'data' %}
+{% set page = 'entries' %}
+{% set title = 'Entries'|t('hub') %}
+{% set selectedTab = 'list' %}
+
+{% block content %}
+	{% include 'hub/_components/entry-list' %}
+{% endblock %}

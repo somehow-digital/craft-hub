@@ -1,0 +1,201 @@
+{#
+	The labels tab of the settings page: the labels, the same for all lists, in their order, which they're shown in by the items labeled with them.
+	They're listed in a panel, like the checks of the diagnostics tab, each with the lists it's used in, linking to them filtered
+	by it, and the number of items labeled with it, set against the most used label's. They can be reordered and deleted right
+	in the table, deleting a label unlabeling all items labeled with it, and removed from all items labeled with them.
+
+	Variables: labels (see LabelService::getAllLabels()), lists (lists each label is used in, by its ID, see
+	LabelsController::usageOf()), enabled (whether labels are enabled, see Settings::$enableLabels); for admins, who switch
+	labels on and off here, settings (see Settings), overrides (names of the settings overridden by `config/hub.php`), readOnly
+#}
+{% extends 'hub/_layouts/settings' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set fullPageForm = settings is defined and not readOnly %}
+{% set selectedTab = 'labels' %}
+
+{# Number of items labeled with each label, by its ID, and the most of any, which the usage bars are scaled to. #}
+{% set counts = {} %}
+{% for label in labels %}
+	{% set counts = counts|merge({ ('_' ~ label.id): (lists[label.id] ?? [])|reduce((sum, list) => sum + list.count, 0) }) %}
+{% endfor %}
+{% set maxCount = max([1]|merge(counts|values)) %}
+{% set unused = counts|filter(count => not count)|length %}
+
+{% block actionButton %}
+	<a href="{{ url('hub/manage/settings/labels/new') }}" class="btn{% if not fullPageForm %} submit{% endif %} add icon">{{ 'New label'|t('hub') }}</a>
+	{{ parent() }}
+{% endblock %}
+
+{% block content %}
+	{% if settings is defined %}
+		{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/labels' } %}
+			{% block fields %}
+				{% include 'hub/_components/setting' with { name: 'enableLabels', field: {
+					first: true,
+					label: 'Labels'|t('hub'),
+					instructions: 'Whether items can be labeled and lists filtered by their labels. The labels can be managed either way.'|t('hub'),
+				} } %}
+			{% endblock %}
+		{% endembed %}
+		<hr>
+	{% elseif not enabled %}
+		<p class="warning with-icon">{{ 'Labels are disabled, so they’re shown nowhere until an admin enables them.'|t('hub') }}</p>
+	{% endif %}
+	<p class="hub-labels-summary">
+		{{ 'Labels are shared by all lists. Items show their labels in this order; drag them to reorder. Clearing a label removes it from all items but keeps it.'|t('hub') }}
+	</p>
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Labels'|t('hub'),
+		icon: 'tags',
+		id: 'hub-labels-settings',
+		collapsible: false,
+	} %}
+		{% block actions %}
+			<span class="hub-labels-settings__unused hub-muted{% if not unused %} hidden{% endif %}" data-hub-labels-unused>
+				{{- '{count} unused'|t('hub', { count: unused|number }) -}}
+			</span>
+			<span class="hub-pill" data-hub-labels-count>{{ labels|length|number }}</span>
+		{% endblock %}
+
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{{ hub.emptyState('tags', 'No labels exist yet.'|t('hub'), 'Labels mark items of any list with a colored icon, so they can be found and filtered by it.'|t('hub'),
+				tag('a', { href: url('hub/manage/settings/labels/new'), class: 'btn add icon', text: 'New label'|t('hub') }),
+				{ id: 'hub-labels-empty', hidden: labels|length > 0 }) }}
+			<div class="hub-table">
+				<table class="data fullwidth hub-labels-table{% if not labels|length %} hidden{% endif %}" id="hub-labels-table">
+					<thead>
+						<tr>
+							<th class="thin" aria-label="{{ 'Reorder'|t('app') }}"></th>
+							<th>{{ 'Name'|t('app') }}</th>
+							<th>{{ 'Used in'|t('hub') }}</th>
+							<th>{{ 'Labeled items'|t('hub') }}</th>
+							<th class="thin" aria-label="{{ 'Clear'|t('hub') }}"></th>
+							<th class="thin" aria-label="{{ 'Delete'|t('app') }}"></th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for label in labels %}
+							{% set usage = lists[label.id] ?? [] %}
+							{% set count = counts['_' ~ label.id] %}
+							<tr class="hub-label-row{% if not count %} hub-label-row--unused{% endif %}" data-id="{{ label.id }}" data-name="{{ label.name }}" data-color="{{ label.getColor() }}">
+								<td class="thin">
+									<a class="move icon" title="{{ 'Reorder'|t('app') }}" role="button"></a>
+								</td>
+								<th scope="row">
+									<div class="hub-name">
+										{{ hub.icon(label.getIcon(), label.getColor()) }}
+										<div class="hub-name__text">
+											<span class="hub-name__title"><a href="{{ url('hub/manage/settings/labels/' ~ label.id) }}">{{ label.name }}</a></span>
+										</div>
+									</div>
+								</th>
+								<td data-hub-label-usage>
+									{% if usage|length %}
+										<span class="hub-chips">
+											{%- for list in usage -%}
+												{%- if list.url -%}
+													<a class="hub-chip hub-chip--count" href="{{ list.url }}" title="{{ 'Show them in the list'|t('hub') }}">
+														<span>{{ list.label }}</span>
+														<span class="hub-chip__count">{{ list.count|number }}</span>
+													</a>
+												{%- else -%}
+													<span class="hub-chip hub-chip--count">
+														<span>{{ list.label }}</span>
+														<span class="hub-chip__count">{{ list.count|number }}</span>
+													</span>
+												{%- endif -%}
+											{%- endfor -%}
+										</span>
+									{% else %}
+										<span class="hub-muted">{{ 'Not used'|t('hub') }}</span>
+									{% endif %}
+								</td>
+								<td>
+									<div class="hub-label-row__items">
+										<span class="hub-label-row__count" data-hub-label-items>{{ count|number }}</span>
+										<span class="hub-label-row__meter" aria-hidden="true">
+											<span class="hub-label-row__fill" style="width: {{ (count / maxCount * 100)|round(1) }}%;" data-hub-label-fill></span>
+										</span>
+									</div>
+								</td>
+								<td class="thin">
+									{% if count %}
+										<button type="button" class="btn small" data-hub-label-clear>{{ 'Clear'|t('hub') }}</button>
+									{% endif %}
+								</td>
+								<td class="thin">
+									<a class="delete icon" title="{{ 'Delete'|t('app') }}" role="button" tabindex="0"></a>
+								</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% endblock %}
+	{% endembed %}
+{% endblock %}
+
+{% js %}
+// Sums up the labels in the panel's header, as labels are deleted or cleared.
+const updateHubLabelsHeader = () => {
+	const panel = document.getElementById('hub-labels-settings');
+	const rows = panel.querySelectorAll('tbody > tr');
+	const unused = panel.querySelectorAll('tbody > tr.hub-label-row--unused').length;
+	const label = panel.querySelector('[data-hub-labels-unused]');
+
+	panel.querySelector('[data-hub-labels-count]').textContent = Craft.formatNumber(rows.length);
+	label.textContent = Craft.t('hub', '{count} unused', { count: Craft.formatNumber(unused) });
+	label.classList.toggle('hidden', !unused);
+	document.getElementById('hub-labels-empty').classList.toggle('hidden', rows.length > 0);
+};
+
+new Craft.AdminTable({
+	tableSelector: '#hub-labels-table',
+	noItemsSelector: '#hub-labels-empty',
+	sortable: true,
+	reorderAction: 'hub/labels/reorder',
+	reorderSuccessMessage: {{ 'Labels reordered.'|t('hub')|json_encode|raw }},
+	reorderFailMessage: {{ 'Couldn’t reorder the labels.'|t('hub')|json_encode|raw }},
+	deleteAction: 'hub/labels/delete',
+	confirmDeleteMessage: {{ 'Are you sure you want to delete “{name}”? All items labeled with it are unlabeled.'|t('hub')|json_encode|raw }},
+	deleteSuccessMessage: {{ 'Label deleted.'|t('hub')|json_encode|raw }},
+	deleteFailMessage: {{ 'Couldn’t delete the label.'|t('hub')|json_encode|raw }},
+	onDeleteItem: updateHubLabelsHeader,
+});
+
+// Removes a label from all items labeled with it, keeping the label, then shows it as unused.
+document.getElementById('hub-labels-table').addEventListener('click', async (event) => {
+	const button = event.target.closest('[data-hub-label-clear]');
+
+	if (!button) {
+		return;
+	}
+
+	const row = button.closest('tr');
+
+	if (!await Hub.confirm({ message: Craft.t('hub', 'Are you sure you want to remove “{name}” from all items labeled with it? The label is kept.', { name: row.dataset.name }), label: button.textContent.trim() })) {
+		return;
+	}
+
+	button.disabled = true;
+	button.classList.add('loading');
+
+	try {
+		const { data } = await Craft.sendActionRequest('POST', 'hub/labels/clear', { data: { id: row.dataset.id } });
+		row.querySelector('[data-hub-label-usage]').innerHTML = `<span class="hub-muted">${Craft.escapeHtml(Craft.t('hub', 'Not used'))}</span>`;
+		row.querySelector('[data-hub-label-items]').textContent = Craft.formatNumber(0);
+		row.querySelector('[data-hub-label-fill]').style.width = '0';
+		row.classList.add('hub-label-row--unused');
+		button.remove();
+		updateHubLabelsHeader();
+		Craft.cp.displaySuccess(data.message);
+	} catch {
+		button.disabled = false;
+		button.classList.remove('loading');
+		Craft.cp.displayError(Craft.t('hub', 'The label could not be cleared.'));
+	}
+});
+{% endjs %}

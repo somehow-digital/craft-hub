@@ -1,0 +1,100 @@
+{#
+	Panel with the filterable list of trashed entries, to restore them or delete them permanently.
+	Trashed entries have no detail page, so they aren't linked.
+
+	Variables: entries, pageInfo, deleters (see TrashService::getDeleters()), sections, entryTypes, filter, filtered (whether any filter is set), listPath, columns,
+	sortHeaders, sort, dir, and those of the bulk actions (see ListSelection::variables())
+#}
+{% set sectionOptions = {} %}
+{% for section in sections %}
+	{% set sectionType = enum('SomehowDigital\\Craft\\Hub\\enums\\SectionType').from(section.type) %}
+	{% set sectionOptions = sectionOptions|merge({ (section.handle): { label: section.name|t('site'), icon: sectionType.icon(), color: sectionType.color() } }) %}
+{% endfor %}
+
+{% set typeOptions = {} %}
+{% for entryType in entryTypes %}
+	{% set typeOptions = typeOptions|merge({ (entryType.handle): { label: entryType.name|t('site'), icon: entryType.icon ?: 'shapes', color: entryType.color.value ?? 'gray' } }) %}
+{% endfor %}
+
+{% embed 'hub/_components/panel' %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		<form method="get" class="hub-filters" action="{{ url(listPath) }}" data-hub-submit{% if bulkSelection.review ?? false %} hidden{% endif %}>
+			{{ hub.search('Search by title or slug'|t('hub'), filter.search) }}
+			{{ hub.dropdown('Entry Type'|t('app'), 'shapes', hub.choices('type', typeOptions, filter.types)) }}
+			{% if sections|length %}
+				{{ hub.dropdown('Section'|t('app'), 'layer-group', hub.choices('section', sectionOptions, filter.sections)) }}
+			{% endif %}
+			{{ hub.dropdown('Deleted'|t('hub'), 'calendar', hub.range('deleted', 'Deletion date'|t('hub'), filter.deletedFrom, filter.deletedTo, { type: 'date' })) }}
+			{{ hub.addFilter() }}
+			{{ hiddenInput('sort', sort) }}
+			{{ hiddenInput('dir', dir) }}
+			{{ hiddenInput('selection', (bulkSelection.review ?? false) ? 1 : null) }}
+			{{ hub.clearFilters() }}
+		</form>
+
+		{% if entries|length %}
+			{% embed 'hub/_components/bulk' with { bulkList: 'trashedEntries', bulkNone: 'No entries selected'|t('hub') } %}
+				{% block table %}
+					{% import 'hub/_components/macros' as hub %}
+					<div class="hub-table">
+						<table class="data fullwidth">
+							<thead>
+								<tr>
+									{{ hub.bulkAll(bulkActions) }}
+									{{ hub.sortHeader('Title'|t('app'), 'title', sortHeaders) }}
+									{{ hub.columnHeaders(columns, sortHeaders, 'trashedEntries') }}
+								</tr>
+							</thead>
+							<tbody>
+								{% for entry in entries %}
+									<tr>
+										{{ hub.bulkItem(bulkActions, entry.id, entry.title ?: entry.slug) }}
+										<th>
+											<div class="hub-name">
+												{{ hub.itemIcon(entry.type) }}
+												<div class="hub-name__text">
+													<span class="hub-name__title">{{ hub.elementTitle(entry) }}</span>
+													<code>{{ entry.slug }}</code>
+												</div>
+											</div>
+										</th>
+										{% for column in columns %}
+											<td{{ hub.cellAttributes(column) }}>
+												{%- if not column.visible -%}
+												{%- elseif column.key == 'type' -%}
+													{{ hub.chip(entry.type) }}
+												{%- elseif column.key == 'section' -%}
+													{% if entry.section %}{{ hub.chip(entry.section) }}{% else %}<span class="hub-muted">—</span>{% endif %}
+												{%- elseif column.key == 'field' -%}
+													{% if entry.field %}{{ hub.chip(entry.field, 'violet') }}{% else %}<span class="hub-muted">—</span>{% endif %}
+												{%- elseif column.key == 'owner' -%}
+													{% if entry.owner %}{{ hub.element(entry.owner) }}{% else %}<span class="hub-muted">—</span>{% endif %}
+												{%- elseif column.key == 'deleted' -%}
+													{{ hub.date(entry.dateDeleted) }}
+												{%- elseif column.key == 'deleter' -%}
+													{{ hub.deleter(deleters[entry.id] ?? null) }}
+												{%- endif -%}
+											</td>
+										{% endfor %}
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				{% endblock %}
+				{% block footer %}
+					{% include '_includes/pagination' with {
+						pageInfo: pageInfo,
+						itemLabel: 'entry'|t('app'),
+						itemsLabel: 'entries'|t('app'),
+					} %}
+				{% endblock %}
+			{% endembed %}
+		{% elseif filtered or (bulkSelection.review ?? false) %}
+			{{ hub.emptyList(bulkSelection ?? null) }}
+		{% else %}
+			{{ hub.emptyState('trash', 'The trash is empty.'|t('hub'), 'Deleted entries are listed here, until they’re restored or deleted permanently.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

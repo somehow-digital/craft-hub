@@ -1,0 +1,236 @@
+{% extends 'hub/_layouts/detail' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set title = user.name %}
+{% set area = 'data' %}
+{% set selectedSubnavItem = 'users' %}
+{% set listTabs = [{ id: 'entries', label: 'Entries'|t('hub') }, { id: 'assets', label: 'Assets'|t('hub') }] %}
+{% set path = 'hub/data/users/' ~ user.id %}
+{% set crumbs = [
+	{ label: 'Users'|t('hub'), url: url('hub/data/users', { hubSite: hubSite }) },
+	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+] %}
+
+{% block pageTitle %}
+	<div class="hub-title">
+		{{ hub.avatar(user, 'large') }}
+		<div class="hub-title__text">
+			{% set badges %}
+				{{- hub.userStatus(user) -}}
+				{%- if user.admin %}{{ hub.badge('Admin'|t('app'), 'violet', null, 'user-crown') }}{% endif -%}
+			{% endset %}
+			{{ hub.titleKind('User'|t('app'), badges) }}
+			<h1 id="page-heading" class="screen-title" title="{{ title }}">{{ title }}</h1>
+		</div>
+	</div>
+	<div id="revision-indicators"></div>
+{% endblock %}
+
+{% block actionButton %}
+	<div class="flex">
+		{% if user.canView(currentUser) %}
+			<a class="btn" href="{{ user.cpEditUrl }}">
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('pen') }}</span>
+				<span>{{ 'Edit'|t('app') }}</span>
+			</a>
+		{% endif %}
+	</div>
+{% endblock %}
+
+{% block details %}
+	<dl class="meta read-only hub-details">
+		<div class="data">
+			<dt class="heading">{{ 'Status'|t('app') }}</dt>
+			<dd class="value">{{ hub.userStatus(user) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Username'|t('app') }}</dt>
+			<dd class="value"><code>{{ user.username }}</code></dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Email'|t('app') }}</dt>
+			<dd class="value">{% if user.email %}<a href="mailto:{{ user.email }}">{{ user.email }}</a>{% else %}<span class="hub-muted">—</span>{% endif %}</dd>
+		</div>
+		{% if user.unverifiedEmail %}
+			<div class="data">
+				<dt class="heading">{{ 'Unverified email'|t('hub') }}</dt>
+				<dd class="value">{{ user.unverifiedEmail }}</dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'Admin'|t('app') }}</dt>
+			<dd class="value">{{ user.admin ? 'Yes'|t('app') : 'No'|t('app') }}</dd>
+		</div>
+		{% if groups|length %}
+			<div class="data">
+				<dt class="heading">{{ 'User Groups'|t('app') }}</dt>
+				<dd class="value">
+					<span class="hub-badges">
+						{%- for group in groups %}
+							<a class="hub-badge" data-color="violet" href="{{ url('hub/data/users', { hubSite: hubSite, group: group.handle }) }}">{{ group.name|t('site') }}</a>
+						{%- endfor -%}
+					</span>
+				</dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'Two-step verification'|t('hub') }}</dt>
+			<dd class="value">
+				<span class="hub-badges">
+					{%- if twoFactor -%}
+						{{ hub.badge('Set up'|t('hub'), 'green', null, 'shield-halved') }}
+					{%- else -%}
+						{{ hub.badge('Not set up'|t('hub'), user.admin ? 'orange' : 'gray') }}
+					{%- endif -%}
+					{%- if requires2fa %}{{ hub.badge('Required'|t('hub'), 'blue') }}{% endif -%}
+				</span>
+			</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Last Login'|t('app') }}</dt>
+			<dd class="value">{{ hub.date(user.lastLoginDate) }}</dd>
+		</div>
+		{% if user.lastInvalidLoginDate %}
+			<div class="data">
+				<dt class="heading">{{ 'Last invalid sign-in'|t('hub') }}</dt>
+				<dd class="value">
+					{{ hub.date(user.lastInvalidLoginDate) }}
+					{%- if user.invalidLoginCount %} <span class="hub-muted">{{ '{count, plural, =1{one attempt} other{# attempts}}'|t('hub', { count: user.invalidLoginCount }) }}</span>{% endif -%}
+				</dd>
+			</div>
+		{% endif %}
+		{% if user.locked and user.lockoutDate %}
+			<div class="data">
+				<dt class="heading">{{ 'Locked'|t('app') }}</dt>
+				<dd class="value">{{ hub.date(user.lockoutDate) }}</dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'Password changed'|t('hub') }}</dt>
+			<dd class="value">
+				{{ hub.date(user.lastPasswordChangeDate) }}
+				{%- if user.passwordResetRequired %} {{ hub.badge('Reset required'|t('hub'), 'orange') }}{% endif -%}
+			</dd>
+		</div>
+		{% if user.affiliatedSite %}
+			<div class="data">
+				<dt class="heading">{{ 'Affiliated Site'|t('app') }}</dt>
+				<dd class="value">{{ user.affiliatedSite.name|t('site') }}</dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'Created'|t('hub') }}</dt>
+			<dd class="value">{{ hub.date(user.dateCreated) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Last updated'|t('hub') }}</dt>
+			<dd class="value">{{ hub.date(user.dateUpdated) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'ID'|t('app') }}</dt>
+			<dd class="value"><code>{{ user.id }}</code></dd>
+		</div>
+	</dl>
+{% endblock %}
+
+{% block overview %}
+	{% embed 'hub/_components/panel' with {
+		heading: 'Permissions'|t('app'),
+		description: 'What the user may do, granted to them directly or through their groups.'|t('hub'),
+		icon: 'key',
+		color: 'violet',
+		count: user.admin ? null : permissions|reduce((total, item) => total + item.permissions|length, 0),
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{% if user.admin %}
+				<p class="hub-panel__empty">
+					{{ hub.icon('user-crown', 'violet', 'small') }}
+					{{ 'Admins may do anything, regardless of their permissions.'|t('hub') }}
+				</p>
+			{% elseif permissions|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Permission'|t('hub') }}</th>
+								<th>{{ 'Granted'|t('hub') }}</th>
+							</tr>
+						</thead>
+						{% for heading in permissions %}
+							<tbody>
+								<tr>
+									<th colspan="2" class="hub-muted">{{ heading.heading }}</th>
+								</tr>
+								{% for permission in heading.permissions %}
+									<tr>
+										<td title="{{ permission.name }}">{{ permission.label }}</td>
+										<td>
+											<span class="hub-badges">
+												{%- if permission.direct %}{{ hub.badge('Directly'|t('hub'), 'gray', null, 'user') }}{% endif -%}
+												{%- for group in permission.groups %}
+													<a class="hub-badge" data-color="violet" href="{{ url('hub/data/users', { hubSite: hubSite, group: group.handle }) }}">{{ group.name|t('site') }}</a>
+												{%- endfor -%}
+											</span>
+										</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						{% endfor %}
+					</table>
+				</div>
+			{% else %}
+				{{ hub.emptyState('key', 'The user has no permissions, so they can only sign in on the front end.'|t('hub')) }}
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'References'|t('hub'),
+		description: 'Elements that reference this user through a relation field.'|t('hub'),
+		icon: 'link',
+		color: 'teal',
+		count: references|reduce((total, reference) => total + reference.paths|length, 0),
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{% if references|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Element'|t('hub') }}</th>
+								<th>{{ 'Field'|t('app') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for reference in references %}
+								{% for path in reference.paths %}
+									<tr>
+										<td>{{ hub.element(reference.element) }}</td>
+										<td>
+											<span class="hub-inline">
+												{% if path.field %}{{ hub.fieldType(path.field, 'teal') }}{% endif %}
+												<span>{{ path.label }}</span>
+											</span>
+										</td>
+									</tr>
+								{% endfor %}
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% else %}
+				{{ hub.emptyState('link-slash', 'No elements reference this user.'|t('hub')) }}
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}
+
+{% block list %}
+	{% if selectedTab == 'entries' %}
+		{% include 'hub/_components/entry-list' %}
+	{% else %}
+		{% include 'hub/_components/file-list' %}
+	{% endif %}
+{% endblock %}

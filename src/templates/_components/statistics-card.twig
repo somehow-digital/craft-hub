@@ -1,0 +1,157 @@
+{#
+	Panel of a statistics card. Until its data is loaded, only its label and icon are known, and it loads the panel with its
+	data, rendered by this template again, from the statistics tab once opened (see BaseController::renderCard()).
+	Loaded, its header shows the total and a bar of the card's segments at a glance, along with the change of the total
+	over the range of its chart, if there are snapshots; its body breaks them down with their share, lists further
+	details, the chart of the total and the segments over time and a table of what the card counts, if it has any.
+
+	Variables: card (`key`, `label`, `icon`, and once loaded `url`, `total`, `segments`, and optionally `note`, `details`,
+	`table`, see Summary::table(), and `chart`, see SnapshotService::chart())
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{% set loaded = card.total is defined %}
+
+{# Largest first, in both the bar and the breakdown, except for segments marked to come last, like the rest of a top card. #}
+{% set segments = (card.segments ?? [])|sort((a, b) => ((a.last ?? false) <=> (b.last ?? false)) ?: (b.value <=> a.value)) %}
+{% set barSegments = segments|filter(s => (s.bar ?? true)) %}
+{% set barTotal = barSegments|reduce((sum, s) => sum + s.value, 0) %}
+{% set details = card.details ?? [] %}
+{% set table = card.table ?? null %}
+
+{# Keyed apart from the panels of the overview tab, which share the stored states of a page. #}
+{% embed 'hub/_components/panel' with {
+	heading: card.label,
+	icon: card.icon,
+	id: 'hub-statistics-' ~ card.key,
+	lazy: loaded ? null : url(craft.app.request.pathInfo, craft.app.request.queryParamsWithoutPath|merge({ card: card.key })),
+} %}
+	{% block actions %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if loaded %}
+			{% if segments|length %}
+				<span class="hub-statistics__glance">{{ hub.bar(barSegments) }}</span>
+			{% endif %}
+			{% if card.chart ?? null %}
+				<span class="hub-trend" data-hub-trend>{{ hub.trend(card.chart) }}</span>
+			{% endif %}
+			<span class="hub-pill">{{ card.total|number }}</span>
+		{% endif %}
+	{% endblock %}
+
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+
+		{% if not loaded %}
+			<div class="hub-panel__loading" data-hub-lazy-status>
+				<div class="spinner"></div>
+			</div>
+		{% else %}
+			<div class="hub-statistics__body">
+				<div class="hub-statistics__overview">
+					<p class="hub-statistics__value">
+						{%- if card.url ?? false %}<a href="{{ card.url }}">{{ card.total|number }}</a>{% else %}{{ card.total|number }}{% endif -%}
+					</p>
+
+					{% if segments|length %}
+						{{ hub.bar(barSegments, 'large') }}
+
+						<ul class="hub-legend hub-statistics__breakdown">
+							{% for segment in segments %}
+								<li>
+									{% set inner %}
+										<span class="hub-legend__dot" data-color="{{ segment.color }}" aria-hidden="true"></span>
+										<span class="hub-legend__label">{{ segment.label }}</span>
+										<span class="hub-legend__value">{{ segment.value|number }}</span>
+										<span class="hub-statistics__share">
+											{%- if (segment.bar ?? true) and barTotal > 0 %}{{ hub.percent(segment.value / barTotal) }}{% endif -%}
+										</span>
+									{% endset %}
+									{% if segment.url ?? false %}
+										<a class="hub-legend__item" href="{{ segment.url }}">{{ inner }}</a>
+									{% else %}
+										<span class="hub-legend__item">{{ inner }}</span>
+									{% endif %}
+								</li>
+							{% endfor %}
+						</ul>
+					{% endif %}
+				</div>
+
+				{% if details|length %}
+					<dl class="hub-statistics__details">
+						{% for detail in details %}
+							<div>
+								<dt>{{ detail.label }}</dt>
+								<dd>
+									{%- if detail.url ?? false %}<a href="{{ detail.url }}">{{ hub.statValue(detail.value, detail.type ?? 'number') }}</a>
+									{%- else %}{{ hub.statValue(detail.value, detail.type ?? 'number') }}{% endif -%}
+								</dd>
+							</div>
+						{% endfor %}
+					</dl>
+				{% endif %}
+			</div>
+
+			{% if card.chart ?? null %}
+				{% include 'hub/_components/statistics-chart' with { chart: card.chart, key: card.key } only %}
+			{% endif %}
+
+			{% if table and table.rows|length %}
+				{% set unit = table.unit ?? null %}
+				{% set rowTotal = unit ? table.rows|reduce((sum, row) => sum + row.value, 0) : 0 %}
+
+				<div class="hub-table hub-statistics__table">
+					{% if table.caption ?? false %}
+						<p class="hub-statistics__caption">{{ table.caption }}</p>
+					{% endif %}
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th scope="col">{{ table.heading }}</th>
+								{% if unit %}
+									<th scope="col" class="hub-statistics__number">{{ unit }}</th>
+									<th scope="col" class="hub-statistics__share-cell">{{ 'Share'|t('hub') }}</th>
+								{% endif %}
+								{% for column in table.columns %}
+									<th scope="col"{% if column.type != 'text' %} class="hub-statistics__number"{% endif %}>{{ column.label }}</th>
+								{% endfor %}
+							</tr>
+						</thead>
+						<tbody>
+							{% for row in table.rows %}
+								<tr>
+									<th scope="row">
+										<span class="hub-statistics__row-label">
+											{% if row.color ?? false %}
+												<span class="hub-legend__dot" data-color="{{ row.color }}" aria-hidden="true"></span>
+											{% endif %}
+											{%- if row.url ?? false %}<a href="{{ row.url }}">{{ row.label }}</a>{% else %}{{ row.label }}{% endif -%}
+										</span>
+									</th>
+									{% if unit %}
+										<td class="hub-statistics__number">{{ hub.num(row.value) }}</td>
+										<td class="hub-statistics__share-cell">
+											{% set share = rowTotal > 0 ? row.value / rowTotal : 0 %}
+											<span class="hub-statistics__meter" aria-hidden="true">
+												<span data-color="{{ row.color ?? 'gray' }}" style="width: {{ (share * 100)|round(1) }}%;"></span>
+											</span>
+											<span class="hub-statistics__share">{{ hub.percent(share) }}</span>
+										</td>
+									{% endif %}
+									{% for column in table.columns %}
+										<td{% if column.type != 'text' %} class="hub-statistics__number"{% endif %}>{{ hub.statValue(row.cells[loop.index0] ?? null, column.type) }}</td>
+									{% endfor %}
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% endif %}
+
+			{% if card.note ?? false %}
+				<p class="hub-statistics__note">{{ card.note }}</p>
+			{% endif %}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

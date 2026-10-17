@@ -1,0 +1,308 @@
+{% extends 'hub/_layouts/detail' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set volume = asset.volume %}
+{% set isImage = asset.kind == 'image' %}
+{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
+
+{% set title = asset.title %}
+{% set area = 'data' %}
+{% set selectedSubnavItem = 'assets' %}
+{% set path = 'hub/data/assets/' ~ asset.id %}
+{% set listTabs = hasTransforms ? [{ id: 'transforms', label: 'Transforms'|t('hub') }] : [] %}
+{% set crumbs = [
+	{ label: 'Assets'|t('hub'), url: url('hub/data/assets', { hubSite: hubSite }) },
+	{ label: volume.name|t('site'), url: url('hub/data/assets', { hubSite: hubSite, volume: volume.handle }) },
+	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+] %}
+
+{% block pageTitle %}
+	<div class="hub-title">
+		{{ hub.thumb(asset, 'large') }}
+		<div class="hub-title__text">
+			{{ hub.titleKind('Asset'|t('app'), hub.badge(fileKind.label, fileKind.color, null, fileKind.icon)) }}
+			<h1 id="page-heading" class="screen-title" title="{{ title }}">{{ title }}</h1>
+		</div>
+	</div>
+	<div id="revision-indicators"></div>
+{% endblock %}
+
+{% block actionButton %}
+	<div class="flex">
+		{% if canDownload %}
+			{# Previews the download like downloading the file from the list, see BulkController::actionPreview(). #}
+			{% set downloadId = 'hub-download-' ~ random() %}
+			<a class="btn" href="{{ actionUrl('hub/files/download', { id: asset.id }) }}" aria-haspopup="dialog" data-hub-preview-open="{{ downloadId }}" data-hub-preview-name="{{ title }}" data-hub-preview-params="{{ { list: 'files', bulkAction: 'download', item: asset.id }|json_encode }}">
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('download') }}</span>
+				<span>{{ 'Download'|t('app') }}</span>
+			</a>
+			{{ hub.previewDialog('download', { label: 'Download'|t('app'), icon: 'download', file: true }, downloadId) }}
+		{% endif %}
+		{% if asset.canView(currentUser) %}
+			<a class="btn" href="{{ asset.cpEditUrl }}">
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('pen') }}</span>
+				<span>{{ 'Edit'|t('app') }}</span>
+			</a>
+		{% endif %}
+	</div>
+{% endblock %}
+
+{% block details %}
+	<dl class="meta read-only hub-details">
+		<div class="data">
+			<dt class="heading">{{ 'Filename'|t('app') }}</dt>
+			<dd class="value"><code>{{ asset.filename }}</code></dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Volume'|t('app') }}</dt>
+			<dd class="value">{{ hub.chip(volume) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Folder'|t('app') }}</dt>
+			<dd class="value"><code>/{{ asset.folder.path }}</code></dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Path'|t('hub') }}</dt>
+			<dd class="value"><code>{{ asset.path }}</code></dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'URL'|t('app') }}</dt>
+			<dd class="value">{% if asset.url %}<a href="{{ asset.url }}" target="_blank" rel="noopener">{{ asset.url }}</a>{% else %}<span class="hub-muted">{{ 'No URLs'|t('hub') }}</span>{% endif %}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Type'|t('app') }}</dt>
+			<dd class="value">{{ hub.badge(fileKind.label, fileKind.color, null, fileKind.icon) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Extension'|t('hub') }}</dt>
+			<dd class="value"><code>{{ asset.extension }}</code></dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'MIME type'|t('hub') }}</dt>
+			<dd class="value">{% if asset.mimeType %}<code>{{ asset.mimeType }}</code>{% else %}<span class="hub-muted">—</span>{% endif %}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Size'|t('app') }}</dt>
+			<dd class="value">{{ hub.size(asset.size) }}</dd>
+		</div>
+		{% if asset.width and asset.height %}
+			<div class="data">
+				<dt class="heading">{{ 'Dimensions'|t('app') }}</dt>
+				<dd class="value">{{ asset.width|number }} × {{ asset.height|number }} px</dd>
+			</div>
+		{% endif %}
+		{% if asset.hasFocalPoint %}
+			<div class="data">
+				<dt class="heading">{{ 'Focal Point'|t('app') }}</dt>
+				<dd class="value"><code>{{ asset.getFocalPoint(true) }}</code></dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'Uploaded'|t('hub') }}</dt>
+			<dd class="value">{{ hub.date(asset.dateCreated) }}</dd>
+		</div>
+		{% if asset.uploader %}
+			<div class="data">
+				<dt class="heading">{{ 'Uploaded by'|t('app') }}</dt>
+				<dd class="value">{{ hub.link(hub.url(asset.uploader), asset.uploader.friendlyName) }}</dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'File modified'|t('hub') }}</dt>
+			<dd class="value">{{ hub.date(asset.dateModified) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Last updated'|t('hub') }}</dt>
+			<dd class="value">{{ hub.date(asset.dateUpdated) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'ID'|t('app') }}</dt>
+			<dd class="value"><code>{{ asset.id }}</code></dd>
+		</div>
+	</dl>
+{% endblock %}
+
+{% block overview %}
+	{% if isImage %}
+		{% embed 'hub/_components/panel' with { heading: 'Preview'|t('hub'), icon: 'image', color: 'sky' } %}
+			{% block body %}
+				<div class="hub-preview">
+					{{ asset.getPreviewThumbImg(800, 400)|raw }}
+				</div>
+			{% endblock %}
+		{% endembed %}
+	{% elseif isPlayable and asset.url %}
+		{% embed 'hub/_components/panel' with { heading: 'Preview'|t('hub'), icon: 'video', color: 'sky' } %}
+			{% block body %}
+				<div class="hub-preview">
+					<video controls preload="metadata">
+						<source src="{{ asset.url }}" type="{{ asset.mimeType }}">
+					</video>
+				</div>
+			{% endblock %}
+		{% endembed %}
+	{% endif %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Sites'|t('app'),
+		description: 'Title and alternative text of the file on each site.'|t('hub'),
+		icon: 'globe',
+		count: sites|length,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Site'|t('app') }}</th>
+							<th>{{ 'Title'|t('app') }}</th>
+							<th>{{ 'Alternative Text'|t('app') }}</th>
+							<th>{{ 'Status'|t('app') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for variant in sites %}
+							<tr{% if isImage and not variant.alt|trim %} data-severity="orange"{% endif %}>
+								<th>{{ variant.site.name|t('site') }}</th>
+								<td>{{ variant.title }}</td>
+								<td>{% if variant.alt|trim %}{{ variant.alt }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+								<td><span class="status {{ variant.status }}" aria-hidden="true"></span>{{ variant.statuses()[variant.status] ?? variant.status }}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% endblock %}
+	{% endembed %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'References'|t('hub'),
+		description: 'Elements that reference this file through a relation field or rich text.'|t('hub'),
+		icon: 'link',
+		color: 'teal',
+		count: references|length,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{% if references|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Element'|t('hub') }}</th>
+								<th>{{ 'Fields'|t('app') }}</th>
+								<th><span class="visually-hidden">{{ 'URL'|t('app') }}</span></th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for reference in references %}
+								{# Link entries and assets to their hub page instead of their edit page #}
+								{% set element = reference.element %}
+								{% set hubUrl = element is instance of('craft\\elements\\Entry') or element is instance of('craft\\elements\\Asset') ? hub.url(element)|trim : null %}
+								<tr>
+									<td>{{ elementChip(element, { hyperlink: true, attributes: hubUrl ? { data: { 'cp-url': hubUrl } } : {} }) }}</td>
+									<td>
+										<ul class="hub-list hub-list--plain">
+											{% for path in reference.paths %}
+												<li class="hub-inline">
+													{% if path.field %}
+														{% set kind = usageKind.from(path.field is instance of('craft\\fields\\Link') ? 'link' : 'reference') %}
+														{{ hub.fieldType(path.field, kind.color()) }}
+													{% endif %}
+													<span>{{ path.label }}</span>
+												</li>
+											{% endfor %}
+										</ul>
+									</td>
+									<td class="hub-visit-cell">{{ hub.visit(element, element is instance of('craft\\elements\\Asset') ? 'Open file'|t('hub') : 'View entry'|t('hub')) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% else %}
+				{{ hub.emptyState('link-slash', 'No elements reference this file.'|t('hub')) }}
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}
+
+{% block list %}
+	{% embed 'hub/_components/panel' with {
+		heading: 'Transforms'|t('hub'),
+		description: 'Image transforms generated for this file. Deleted transforms are generated again when they are next requested.'|t('hub'),
+		icon: 'crop',
+		color: 'violet',
+		count: transforms|length,
+		collapsible: false,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{# Transforms are selected for deletion by users who can save the file, previewing the transforms deleted. #}
+			{% set bulkActions = canDeleteTransforms ? { delete: {
+				label: 'Delete'|t('app'),
+				icon: 'trash',
+				confirm: 'Are you sure you want to delete the selected transforms?'|t('hub'),
+				preview: true,
+				previewAction: 'hub/files/preview-transforms',
+				titles: { one: 'Delete “{name}”?'|t('hub'), some: 'Delete {count} selected transforms?'|t('hub') },
+			} } : {} %}
+			{% if transforms|length %}
+				{% embed 'hub/_components/bulk' with { bulkSelection: null, bulkNone: 'No transforms selected'|t('hub'), bulkAction: 'hub/files/delete-transforms', bulkParams: { assetId: asset.id } } %}
+					{% block table %}
+						{% import 'hub/_components/macros' as hub %}
+						<div class="hub-table">
+							<table class="data fullwidth">
+								<thead>
+									<tr>
+										{{ hub.bulkAll(bulkActions) }}
+										<th>{{ 'Transform'|t('hub') }}</th>
+										<th>{{ 'Dimensions'|t('app') }}</th>
+										<th>{{ 'Format'|t('hub') }}</th>
+										<th>{{ 'Size'|t('app') }}</th>
+										<th>{{ 'Filename'|t('app') }}</th>
+										<th>{{ 'Status'|t('app') }}</th>
+										<th>{{ 'Generated'|t('hub') }}</th>
+										<th><span class="visually-hidden">{{ 'URL'|t('app') }}</span></th>
+									</tr>
+								</thead>
+								<tbody>
+									{% for transform in transforms %}
+										<tr{% if transform.error %} data-severity="red"{% endif %}>
+											{{ hub.bulkItem(bulkActions, transform.id, transform.transformString, 'transformIds[]') }}
+											<th><code>{{ transform.transformString }}</code></th>
+											<td>{% if transform.width and transform.height %}{{ transform.width|number }} × {{ transform.height|number }} px{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+											<td>{% if transform.outputFormat %}<code>{{ transform.outputFormat }}</code>{% if not transform.format %} <span class="hub-muted" title="{{ 'Picked by Craft, as the transform doesn’t set a format'|t('hub') }}">{{ 'auto'|t('hub') }}</span>{% endif %}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+											<td>{{ hub.size(transform.size) }}</td>
+											<td>{% if transform.filename %}<code>{{ transform.filename }}</code>{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+											<td>
+												{% if transform.error %}
+													{{ hub.badge('Failed'|t('hub'), 'red', null, 'triangle-exclamation') }}
+												{% elseif transform.inProgress %}
+													{{ hub.badge('In progress'|t('hub'), 'amber', null, 'spinner') }}
+												{% elseif transform.fileExists %}
+													{{ hub.badge('Generated'|t('hub'), 'green', null, 'circle-check') }}
+												{% else %}
+													{{ hub.badge('Pending'|t('hub'), 'gray', null, 'clock') }}
+												{% endif %}
+											</td>
+											<td>{{ hub.date(transform.dateIndexed) }}</td>
+											<td class="hub-visit-cell">
+												{%- if transform.url -%}
+													<a class="hub-visit" href="{{ transform.url }}" target="_blank" rel="noopener" title="{{ 'Open transform'|t('hub') }}" aria-label="{{ 'Open transform'|t('hub') }}">{{ iconSvg('arrow-up-right-from-square') }}</a>
+												{%- endif -%}
+											</td>
+										</tr>
+									{% endfor %}
+								</tbody>
+							</table>
+						</div>
+					{% endblock %}
+				{% endembed %}
+			{% else %}
+				{{ hub.emptyState('crop', 'No transforms have been generated for this file.'|t('hub')) }}
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}
