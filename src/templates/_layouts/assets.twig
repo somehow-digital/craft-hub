@@ -1,0 +1,19 @@
+{% extends 'hub/_layouts/hub' %}
+{% import 'hub/_components/macros' as hub %}
+
+{# The page title names the tab, which is kept in the document title. #}
+{% set docTitle = title ~ ' - ' ~ 'Assets'|t('hub') %}
+{% set title = 'Assets'|t('hub') %}
+{% set selectedSubnavItem = 'assets' %}
+
+{% set tabs = {
+	files: { label: 'Files'|t('hub'), url: url('hub/assets/files', { hubSite: hubSite }) },
+	volumes: { label: 'Volumes'|t('hub'), url: url('hub/assets/volumes', { hubSite: hubSite }) },
+} %}
+
+{# The selected tab ends the crumbs, as on the detail pages, which start with the tab they belong to. #}
+{% set crumbs = [tabs[selectedTab]|merge({ current: true })] %}
+
+{% block actionButton %}
+	{{ hub.siteFilter() }}
+{% endblock %}

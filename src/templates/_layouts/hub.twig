@@ -1,0 +1,7 @@
+{% extends '_layouts/cp' %}
+
+{% do view.registerAssetBundle('SomehowDigital\\Craft\\Hub\\assets\\HubAsset') %}
+
+{% set crumbs = [
+	{ label: 'Hub'|t('hub'), url: url('hub', { hubSite: hubSite }) },
+]|merge(crumbs ?? []) %}

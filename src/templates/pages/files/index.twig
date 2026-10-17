@@ -1,0 +1,11 @@
+{% extends 'hub/_layouts/assets' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set title = 'Files'|t('hub') %}
+{% set selectedTab = 'files' %}
+
+{% block content %}
+	{{ hub.summary(summary) }}
+
+	{% include 'hub/_components/file-list' %}
+{% endblock %}

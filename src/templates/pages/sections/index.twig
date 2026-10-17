@@ -1,0 +1,79 @@
+{% extends 'hub/_layouts/entries' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set title = 'Sections'|t('hub') %}
+{% set selectedTab = 'sections' %}
+
+{% set typeOptions = {} %}
+{% for type in enum_cases('SomehowDigital\\Craft\\Hub\\enums\\SectionType') %}
+	{% set typeOptions = typeOptions|merge({ (type.value): { label: type.label(), icon: type.icon(), color: type.color(), count: counts.types[type.value] ?? 0 } }) %}
+{% endfor %}
+
+{% block content %}
+	{{ hub.summary(summary) }}
+
+	{% embed 'hub/_components/panel' %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<form method="get" class="hub-filters" action="{{ url('hub/entries/sections') }}" data-hub-submit>
+				{{ hub.search('Search by name or handle'|t('hub'), filter.search) }}
+				{{ hub.dropdown('Type'|t('app'), 'sitemap', hub.choices('type', typeOptions, filter.types)) }}
+				{{ hub.dropdown('URLs'|t('hub'), 'globe', hub.choices('urls', {
+					yes: { label: 'Has URLs'|t('hub'), count: counts.urls.yes },
+					no: { label: 'No URLs'|t('hub'), count: counts.urls.no },
+				}, filter.urls, { multiple: false })) }}
+				{{ hub.dropdown('Numbers'|t('hub'), 'hashtag', hub.range('entries', 'Entries'|t('app'), filter.entriesMin, filter.entriesMax)
+					~ hub.range('relations', 'Relations'|t('hub'), filter.relationsMin, filter.relationsMax)) }}
+				{{ hub.activityFilter(filter.activities, counts.activities) }}
+				{{ hub.diagnosticsFilter(filter.diagnoses, counts.diagnoses) }}
+				{{ hub.toggle('empty', 'Empty only'|t('hub'), filter.empty) }}
+				{{ hub.clearFilters() }}
+				{{ hiddenInput('sort', sort) }}
+				{{ hiddenInput('dir', dir) }}
+				<span class="hub-count">{{ '{count, plural, =1{One section} other{# sections}}'|t('hub', { count: sections|length }) }}</span>
+			</form>
+
+			{% if sections|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								{{ hub.sortHeader('Name'|t('app'), 'name', sortHeaders) }}
+								{{ hub.sortHeader('Type'|t('app'), 'type', sortHeaders) }}
+								<th>{{ 'Entry Types'|t('hub') }}</th>
+								<th>{{ 'URI'|t('hub') }}</th>
+								{{ hub.sortHeader('Entries'|t('app'), 'entries', sortHeaders, 'hub-num', 'Enabled / Drafts / Disabled'|t('hub')) }}
+								{{ hub.sortHeader('Relations'|t('hub'), 'relations', sortHeaders, 'hub-num', 'Relations from Entries and Link fields into this section'|t('hub')) }}
+								{{ hub.sortHeader('Last updated'|t('hub'), 'updated', sortHeaders) }}
+								{{ hub.sortHeader('Diagnostics'|t('hub'), 'diagnostics', sortHeaders) }}
+							</tr>
+						</thead>
+						<tbody>
+							{% for info in sections %}
+								{% set section = info.section %}
+								<tr{% if info.isEmpty() %} data-severity="orange"{% endif %}>
+									<th>
+										{{ hub.name(section, null, info.isEmpty() ? hub.badge('Empty'|t('hub'), 'orange', null, 'box-open')) }}
+									</th>
+									<td>{{ hub.sectionType(section) }}</td>
+									<td>{{ hub.chips(info.entryTypes) }}</td>
+									<td>{% if info.hasUrls %}{{ hub.icon('circle-check', 'green') }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+									<td class="hub-num">
+										{{ hub.dotNum(info.stats.enabled, 'green', 'Enabled'|t('hub')) }}
+										{{ hub.dotNum(info.stats.drafts, 'amber', 'Drafts'|t('hub')) }}
+										{{ hub.dotNum(info.stats.disabled, 'gray', 'Disabled'|t('hub')) }}
+									</td>
+									<td class="hub-num">{{ hub.num(info.relations.relations) }}</td>
+									<td>{{ hub.activity(info.stats.lastUpdated, activities[section.id]) }}</td>
+									<td>{{ hub.diagnostics(diagnostics[section.id], section) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% else %}
+				<p class="hub-panel__empty">{{ 'Nothing matches the current filters.'|t('hub') }}</p>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

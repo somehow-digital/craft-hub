@@ -1,0 +1,48 @@
+{#
+	Detail pages: an overview tab, optionally a tab listing the page's entries or files, and a diagnostics tab listing the checks.
+
+	Variables: checks, listTab (`id` and `label` of the list tab, if any)
+	Blocks: overview, list, diagnostics (below the checks)
+#}
+{% extends 'hub/_layouts/hub' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set failedChecks = checks|filter(check => not check.passed)|length %}
+
+{% set listTab = listTab ?? null %}
+
+{% set tabs = { overview: { label: 'Overview'|t('hub'), url: '#overview' } }
+	|merge(listTab ? { (listTab.id): { label: listTab.label, url: '#' ~ listTab.id } } : {})
+	|merge({ diagnostics: {
+		label: failedChecks ? 'Diagnostics ({count, number})'|t('hub', { count: failedChecks }) : 'Diagnostics'|t('hub'),
+		url: '#diagnostics',
+	} }) %}
+
+{% block content %}
+	<div id="overview">
+		{% block overview %}{% endblock %}
+	</div>
+
+	{% if listTab %}
+		<div id="{{ listTab.id }}" class="hidden" data-hub-crumb="{{ listTab.label }}">
+			{% block list %}{% endblock %}
+		</div>
+	{% endif %}
+
+	<div id="diagnostics" class="hidden" data-hub-crumb="{{ 'Diagnostics'|t('hub') }}">
+		{% embed 'hub/_components/panel' with {
+			heading: 'Checks'|t('hub'),
+			description: 'Things to clean up or improve, most urgent first.'|t('hub'),
+			icon: 'list-check',
+			color: failedChecks ? 'orange' : 'green',
+			count: failedChecks,
+		} %}
+			{% block body %}
+				{% import 'hub/_components/macros' as hub %}
+				{{ hub.checks(checks) }}
+			{% endblock %}
+		{% endembed %}
+
+		{% block diagnostics %}{% endblock %}
+	</div>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends 'hub/_layouts/hub' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set title = 'Overview'|t('hub') %}
+{% set selectedSubnavItem = 'overview' %}
+
+{% block actionButton %}
+	{{ hub.siteFilter() }}
+{% endblock %}
+
+{% block content %}
+	<header class="hub-heading">
+		<div>
+			<h2>{{ 'Inventory'|t('hub') }}</h2>
+			<p class="hub-muted">{{ 'Everything Hub keeps track of. Open a list for the full breakdown.'|t('hub') }}</p>
+		</div>
+	</header>
+
+	{{ hub.summary(inventory, 'thirds') }}
+
+	<header class="hub-heading">
+		<div>
+			<h2>{{ 'Diagnostics'|t('hub') }}</h2>
+			<p class="hub-muted">
+				{%- if selectedSites -%}
+					{{ 'Failed checks, content and structure worth a closer look on {site}.'|t('hub', { site: selectedSites|map(site => site.name|t('site'))|join(', ') }) }}
+				{%- else -%}
+					{{ 'Failed checks, content and structure worth a closer look across all sites.'|t('hub') }}
+				{%- endif -%}
+			</p>
+		</div>
+		<span class="hub-badges">
+			{%- if reviewCount %}{{ hub.badge('{count, plural, =1{# item to review} other{# items to review}}'|t('hub', { count: reviewCount }), 'orange') }}{% endif -%}
+			{%- if taskCount %}{{ hub.badge('{count, number} to do'|t('hub', { count: taskCount }), 'orange') }}{% endif -%}
+			{%- if not reviewCount and not taskCount %}{{ hub.badge('All clear'|t('hub'), 'green') }}{% endif -%}
+		</span>
+	</header>
+
+	<div class="hub-diagnostics">
+		{{ hub.summary(diagnostics) }}
+
+		<div class="hub-tasks">
+			{% for group in tasks %}
+				{% set open = group.items|filter(item => item.value)|length %}
+				<section class="hub-task-group">
+					<header class="hub-task-group__header">
+						<span class="hub-card__icon" aria-hidden="true">{{ iconSvg(group.icon) }}</span>
+						<h3 class="hub-card__label">{{ group.heading }}</h3>
+						<span class="hub-task__count" data-color="{{ open ? 'orange' : 'green' }}" title="{{ 'Open'|t('hub') }}">{{ open|number }}</span>
+					</header>
+
+					<ul class="hub-task-group__list">
+						{% for item in group.items %}
+							{% set color = item.value ? item.severity.color() : 'green' %}
+							{% set inner %}
+								<span class="hub-task__icon" data-color="{{ color }}" aria-hidden="true">{{ iconSvg(item.value ? item.icon : 'circle-check') }}</span>
+								<span class="hub-task__body">
+									<span class="hub-task__label">{{ item.label }}</span>
+									<span class="hub-task__description">{{ item.description }}</span>
+								</span>
+								<span class="hub-task__value">{{ item.value|number }}</span>
+								<span class="hub-task__chevron" aria-hidden="true">{% if item.value and item.url %}{{ iconSvg('chevron-right') }}{% endif %}</span>
+							{% endset %}
+							<li>
+								{% if item.value and item.url %}
+									<a class="hub-task" href="{{ item.url }}">{{ inner }}</a>
+								{% else %}
+									<div class="hub-task{% if not item.value %} hub-task--clear{% endif %}">{{ inner }}</div>
+								{% endif %}
+							</li>
+						{% endfor %}
+					</ul>
+				</section>
+			{% endfor %}
+		</div>
+	</div>
+{% endblock %}

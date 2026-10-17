@@ -1,0 +1,89 @@
+{% extends 'hub/_layouts/entries' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set title = 'Fields'|t('hub') %}
+{% set selectedTab = 'fields' %}
+
+{% set typeOptions = types|map((label, type) => { label: label, count: counts.types[type] ?? 0 }) %}
+{% set ownerOptions = owners|map((label, owner) => { label: label, count: counts.owners[owner] ?? 0 }) %}
+
+{% set kindOptions = {} %}
+{% for kind in enum_cases('SomehowDigital\\Craft\\Hub\\enums\\DataKind') %}
+	{% set kindOptions = kindOptions|merge({ (kind.value): { label: kind.label(), icon: kind.icon(), color: kind.color(), count: counts.kinds[kind.value] ?? 0 } }) %}
+{% endfor %}
+
+{% block content %}
+	{{ hub.summary(summary) }}
+
+	{% embed 'hub/_components/panel' %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<form method="get" class="hub-filters" action="{{ url('hub/entries/fields') }}" data-hub-submit>
+				{{ hub.search('Search by name or handle'|t('hub'), filter.search) }}
+				{{ hub.dropdown('Field Type'|t('app'), 'puzzle-piece', hub.choices('type', typeOptions, filter.types)) }}
+				{{ hub.dropdown('Data'|t('hub'), 'database', hub.choices('kind', kindOptions, filter.kinds)) }}
+				{{ hub.dropdown('Relations'|t('hub'), 'link', hub.choices('owner', ownerOptions, filter.owners, { label: 'Placed in'|t('hub') })
+					~ hub.range('layouts', 'Number of layouts'|t('hub'), filter.layoutsMin, filter.layoutsMax)) }}
+				{{ hub.diagnosticsFilter(filter.diagnoses, counts.diagnoses) }}
+				{{ hub.toggle('unused', 'Unused only'|t('hub'), filter.unused) }}
+				{{ hub.toggle('empty', 'Empty only'|t('hub'), filter.empty) }}
+				{{ hub.clearFilters() }}
+				{{ hiddenInput('sort', sort) }}
+				{{ hiddenInput('dir', dir) }}
+				<span class="hub-count">{{ '{count, plural, =1{One field} other{# fields}}'|t('hub', { count: fields|length }) }}</span>
+			</form>
+
+			{% if fields|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								{{ hub.sortHeader('Name'|t('app'), 'name', sortHeaders) }}
+								{{ hub.sortHeader('Type'|t('app'), 'type', sortHeaders) }}
+								{{ hub.sortHeader('Relations'|t('hub'), 'layouts', sortHeaders) }}
+								{{ hub.sortHeader('Data'|t('hub'), 'data', sortHeaders, 'hub-num', 'Nested entries or relations'|t('hub')) }}
+								<th>{{ 'Status'|t('app') }}</th>
+								{{ hub.sortHeader('Diagnostics'|t('hub'), 'diagnostics', sortHeaders) }}
+							</tr>
+						</thead>
+						<tbody>
+							{% for info in fields %}
+								{% set field = info.field %}
+								{% set fieldData = data[field.id] %}
+								<tr{% if info.isUnused() %} data-severity="red"{% elseif info.isEmpty() %} data-severity="orange"{% endif %}>
+									<th>{{ hub.name(field, info.dataKind.color()) }}</th>
+									<td>{{ info.typeName }}</td>
+									<td>
+										{% if info.ownerTypes|length %}
+											{{ hub.num(info.layouts|length) }}
+											{% if info.instanceCount > info.layouts|length %}
+												<span class="hub-muted" title="{{ 'Instances'|t('hub') }}">({{ info.instanceCount }})</span>
+											{% endif %}
+											<span class="hub-badges">
+												{%- for owner in info.ownerTypes %}{{ hub.badge(owner) }}{% endfor -%}
+											</span>
+										{% else %}
+											<span class="hub-muted">—</span>
+										{% endif %}
+									</td>
+									<td class="hub-num">
+										{% if fieldData is not null %}
+											{{ hub.num(fieldData) }}
+											<span class="hub-muted">{{ info.isNested ? 'entries'|t('app') : 'relations'|t('hub') }}</span>
+										{% else %}
+											<span class="hub-muted">—</span>
+										{% endif %}
+									</td>
+									<td>{{ hub.fieldStatus(info) }}</td>
+									<td>{{ hub.diagnostics(diagnostics[field.id], field) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% else %}
+				<p class="hub-panel__empty">{{ 'Nothing matches the current filters.'|t('hub') }}</p>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

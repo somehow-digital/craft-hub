@@ -1,0 +1,11 @@
+{% extends 'hub/_layouts/entries' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set title = 'Entries'|t('hub') %}
+{% set selectedTab = 'entries' %}
+
+{% block content %}
+	{{ hub.summary(summary) }}
+
+	{% include 'hub/_components/entry-list' %}
+{% endblock %}

@@ -1,0 +1,52 @@
+{#
+	Sidebar panel on entry edit pages, listing the elements that relate to the entry.
+
+	Variables: relations (EntryReference[])
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{% set limit = 25 %}
+{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
+
+<section class="meta hub-references">
+	<header class="hub-references__header">
+		<h2>{{ 'Relations'|t('hub') }}</h2>
+		<span class="hub-pill">{{ relations|length|number }}</span>
+	</header>
+
+	{% if relations|length %}
+		<ul class="hub-references__list">
+			{% for reference in relations|slice(0, limit) %}
+				{% set element = reference.element %}
+				<li class="hub-references__item">
+					<div class="hub-references__element">
+						{{ elementChip(element, { hyperlink: true }) }}
+						{% if element is instance of('craft\\elements\\Entry') and element.type %}
+							<span class="hub-references__type">{{ hub.chip(element.type) }}</span>
+						{% endif %}
+					</div>
+					<ul class="hub-references__paths">
+						{% for path in reference.paths %}
+							<li>
+								{% if path.field %}
+									{# Colored by usage kind, as on the entry type pages #}
+									{% set kind = usageKind.from(path.field is instance of('craft\\fields\\Link') ? 'link' : 'reference') %}
+									{{ hub.fieldType(path.field, kind.color()) }}
+								{% else %}
+									<span></span>
+								{% endif %}
+								<span class="hub-references__path">{{ path.label }}</span>
+							</li>
+						{% endfor %}
+					</ul>
+				</li>
+			{% endfor %}
+		</ul>
+
+		{% if relations|length > limit %}
+			<p class="hub-references__more">{{ '{count, number} more'|t('hub', { count: relations|length - limit }) }}</p>
+		{% endif %}
+	{% else %}
+		<p class="hub-references__empty">{{ 'No other elements relate to this entry.'|t('hub') }}</p>
+	{% endif %}
+</section>

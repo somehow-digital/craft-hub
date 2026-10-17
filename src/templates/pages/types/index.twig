@@ -1,0 +1,65 @@
+{% extends 'hub/_layouts/entries' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set title = 'Types'|t('hub') %}
+{% set selectedTab = 'types' %}
+
+{% set kindOptions = {} %}
+{% for kind in kinds %}
+	{% set kindOptions = kindOptions|merge({ (kind.value): { label: kind.label(), icon: kind.icon(), color: kind.color(), count: counts.kinds[kind.value] ?? 0 } }) %}
+{% endfor %}
+
+{% block content %}
+	{{ hub.summary(summary) }}
+
+	{% embed 'hub/_components/panel' %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<form method="get" class="hub-filters" action="{{ url('hub/entries/types') }}" data-hub-submit>
+				{{ hub.search('Search by name or handle'|t('hub'), filter.search) }}
+				{{ hub.dropdown('Usage'|t('hub'), 'diagram-nested', hub.choices('kind', kindOptions, filter.kinds)) }}
+				{{ hub.dropdown('Numbers'|t('hub'), 'hashtag', hub.range('entries', 'Entries'|t('app'), filter.entriesMin, filter.entriesMax)
+					~ hub.range('relations', 'Relations'|t('hub'), filter.relationsMin, filter.relationsMax)) }}
+				{{ hub.activityFilter(filter.activities, counts.activities) }}
+				{{ hub.diagnosticsFilter(filter.diagnoses, counts.diagnoses) }}
+				{{ hub.clearFilters() }}
+				{{ hiddenInput('sort', sort) }}
+				{{ hiddenInput('dir', dir) }}
+				<span class="hub-count">{{ '{count, plural, =1{One entry type} other{# entry types}}'|t('hub', { count: entryTypes|length }) }}</span>
+			</form>
+
+			{% if entryTypes|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								{{ hub.sortHeader('Name'|t('app'), 'name', sortHeaders) }}
+								<th>{{ 'Usage'|t('hub') }}</th>
+								{{ hub.sortHeader('Relations'|t('hub'), 'relations', sortHeaders, 'hub-num', 'Sections and nested entry fields using this entry type, Entries fields that can reference and Link fields that can link to entries of this type'|t('hub')) }}
+								{{ hub.sortHeader('Entries'|t('app'), 'entries', sortHeaders, 'hub-num') }}
+								{{ hub.sortHeader('Last updated'|t('hub'), 'updated', sortHeaders) }}
+								{{ hub.sortHeader('Diagnostics'|t('hub'), 'diagnostics', sortHeaders) }}
+							</tr>
+						</thead>
+						<tbody>
+							{% for info in entryTypes %}
+								{% set entryType = info.entryType %}
+								{% set severity = 'unused' in info.kindValues ? 'red' : ('empty' in info.kindValues ? 'orange' : null) %}
+								<tr{% if severity %} data-severity="{{ severity }}"{% endif %}>
+									<th>{{ hub.name(entryType) }}</th>
+									<td>{{ hub.kinds(info.kinds|filter(kind => kind in kinds)) }}</td>
+									<td class="hub-num">{{ hub.num(info.sections|length + info.relationCount) }}</td>
+									<td class="hub-num">{{ hub.num(info.stats.total) }}</td>
+									<td>{{ hub.activity(info.stats.lastUpdated, activities[entryType.id]) }}</td>
+									<td>{{ hub.diagnostics(diagnostics[entryType.id], entryType) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% else %}
+				<p class="hub-panel__empty">{{ 'Nothing matches the current filters.'|t('hub') }}</p>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}
