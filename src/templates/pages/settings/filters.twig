@@ -1,0 +1,153 @@
+{#
+	The filters tab of the settings page: the saved filters of each list offered to everyone, in the order the lists offer
+	them. Each list's filters are listed in a collapsible panel, whose header sums them up. Hub's predefined filters can be
+	disabled and reordered right in the tables, custom ones deleted too, unless checks flag their items; their forms rename
+	them, change the thresholds of predefined ones, like the size of large files, and the condition of custom ones. Users'
+	own filters are managed in the lists, by each user.
+
+	Variables: kinds (`kind` and its `filters` by the value of each kind, see FilterService::getFilters())
+#}
+{% extends 'hub/_layouts/settings' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set selectedTab = 'filters' %}
+
+{% block content %}
+	<p class="hub-labels-summary">
+		{{ 'The lists offer these filters in their filter bar, in this order, drag them to reorder. Predefined filters can’t be deleted, but disabled, and some given another threshold. The checks of the diagnostics tabs flag the items of filters, too. Each user can save their own filters in the lists.'|t('hub') }}
+	</p>
+
+	<div class="hub-checks-settings">
+		{% for item in kinds %}
+			{% set kind = item.kind %}
+			{% set filters = item.filters %}
+			{% set disabled = filters|filter(filter => not filter.enabled)|length %}
+
+			{% embed 'hub/_components/panel' with {
+				heading: kind.label(),
+				icon: kind.icon(),
+				id: 'hub-filters-' ~ kind.value,
+			} %}
+				{% block actions %}
+					<span class="hub-checks-settings__disabled hub-muted{% if not disabled %} hidden{% endif %}" data-hub-filters-disabled>
+						{{- '{count} disabled'|t('hub', { count: disabled|number }) -}}
+					</span>
+					<span class="hub-pill" data-hub-filters-count>{{ filters|length|number }}</span>
+					<a class="btn small add icon" href="{{ url('hub/manage/settings/filters/new/' ~ kind.value) }}">{{ 'New filter'|t('hub') }}</a>
+				{% endblock %}
+
+				{% block body %}
+					{% import 'hub/_components/macros' as hub %}
+					<p class="hub-panel__empty{% if filters|length %} hidden{% endif %}" id="hub-filters-empty-{{ kind.value }}">{{ 'No filters exist yet.'|t('hub') }}</p>
+					<div class="hub-table">
+						<table class="data fullwidth hub-checks-table{% if not filters|length %} hidden{% endif %}" id="hub-filters-table-{{ kind.value }}">
+							<thead>
+								<tr>
+									<th class="thin" aria-label="{{ 'Reorder'|t('app') }}"></th>
+									<th>{{ 'Name'|t('app') }}</th>
+									<th>{{ 'Type'|t('app') }}</th>
+									<th class="thin">{{ 'Enabled'|t('app') }}</th>
+									<th class="thin" aria-label="{{ 'Show list'|t('hub') }}"></th>
+									<th class="thin" aria-label="{{ 'Delete'|t('app') }}"></th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for filter in filters %}
+									<tr class="hub-check-row{% if not filter.enabled %} hub-check-row--disabled{% endif %}" data-id="{{ filter.id }}" data-name="{{ filter.getName() }}" data-hub-color="blue">
+										<td class="thin">
+											<a class="move icon" title="{{ 'Reorder'|t('app') }}" role="button"></a>
+										</td>
+										<th scope="row">
+											<div class="hub-name hub-check-row__name">
+												{{ hub.icon(filter.getIcon(), filter.enabled ? 'blue' : 'gray') }}
+												<div class="hub-name__text">
+													<span class="hub-name__title"><a href="{{ url('hub/manage/settings/filters/' ~ filter.id) }}">{{ filter.getName() }}</a></span>
+													{% if filter.description %}
+														<span class="hub-check-row__description">{{ filter.description }}</span>
+													{% endif %}
+												</div>
+											</div>
+										</th>
+										<td>
+											{{ filter.isPredefined() ? hub.badge('Predefined'|t('hub'), 'gray') : hub.badge('Custom'|t('hub'), 'violet') }}
+										</td>
+										<td class="thin">
+											<button type="button" class="lightswitch small{% if filter.enabled %} on{% endif %}" role="switch" aria-checked="{{ filter.enabled ? 'true' : 'false' }}" aria-label="{{ 'Enabled'|t('app') }}: {{ filter.getName() }}" data-hub-filter-toggle="{{ filter.id }}">
+												<div class="lightswitch-container"><div class="handle"></div></div>
+											</button>
+										</td>
+										<td class="thin">
+											{%- set label = 'Show list'|t('hub') -%}
+											<a class="hub-visit" href="{{ url(kind.path(), filter.getListParams()) }}" title="{{ label }}" aria-label="{{ label }}: {{ filter.getName() }}">{{ iconSvg('list') }}</a>
+										</td>
+										<td class="thin">
+											{% if not filter.isPredefined() %}
+												<a class="delete icon" title="{{ 'Delete'|t('app') }}" role="button" tabindex="0"></a>
+											{% endif %}
+										</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				{% endblock %}
+			{% endembed %}
+		{% endfor %}
+	</div>
+{% endblock %}
+
+{% js %}
+// Sums up the filters of a kind in its panel's header, as filters are deleted, enabled or disabled.
+const updateHubFiltersHeader = (panel) => {
+	const rows = panel.querySelectorAll('tbody > tr');
+	const disabled = panel.querySelectorAll('tbody > tr.hub-check-row--disabled').length;
+	const label = panel.querySelector('[data-hub-filters-disabled]');
+
+	panel.querySelector('[data-hub-filters-count]').textContent = Craft.formatNumber(rows.length);
+	label.textContent = Craft.t('hub', '{count} disabled', { count: Craft.formatNumber(disabled) });
+	label.classList.toggle('hidden', !disabled);
+};
+
+{% for item in kinds %}
+new Craft.AdminTable({
+	tableSelector: '#hub-filters-table-{{ item.kind.value }}',
+	noItemsSelector: '#hub-filters-empty-{{ item.kind.value }}',
+	sortable: true,
+	reorderAction: 'hub/filters/reorder',
+	reorderSuccessMessage: {{ 'Filters reordered.'|t('hub')|json_encode|raw }},
+	reorderFailMessage: {{ 'Couldn’t reorder the filters.'|t('hub')|json_encode|raw }},
+	deleteAction: 'hub/filters/delete',
+	confirmDeleteMessage: {{ 'Are you sure you want to delete “{name}”?'|t('hub')|json_encode|raw }},
+	deleteSuccessMessage: {{ 'Filter deleted.'|t('hub')|json_encode|raw }},
+	deleteFailMessage: {{ 'Couldn’t delete the filter.'|t('hub')|json_encode|raw }},
+	onDeleteItem: () => updateHubFiltersHeader(document.getElementById('hub-filters-{{ item.kind.value }}')),
+});
+{% endfor %}
+
+// Enables or disables a filter right in the table.
+document.getElementById('content').addEventListener('click', async (event) => {
+	const toggle = event.target.closest('[data-hub-filter-toggle]');
+
+	if (!toggle || toggle.disabled) {
+		return;
+	}
+
+	const enabled = !toggle.classList.contains('on');
+	const row = toggle.closest('tr');
+	toggle.disabled = true;
+
+	try {
+		const { data } = await Craft.sendActionRequest('POST', 'hub/filters/toggle', { data: { id: toggle.dataset.hubFilterToggle, enabled: enabled ? 1 : 0 } });
+		toggle.classList.toggle('on', data.enabled);
+		toggle.setAttribute('aria-checked', data.enabled ? 'true' : 'false');
+		row.classList.toggle('hub-check-row--disabled', !data.enabled);
+		row.querySelector('.hub-check-row__name .hub-icon').dataset.color = data.enabled ? row.dataset.hubColor : 'gray';
+		updateHubFiltersHeader(row.closest('.hub-panel'));
+		Craft.cp.displaySuccess(data.message);
+	} catch {
+		Craft.cp.displayError(Craft.t('hub', 'Couldn’t save the filter.'));
+	} finally {
+		toggle.disabled = false;
+	}
+});
+{% endjs %}

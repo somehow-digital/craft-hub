@@ -1,0 +1,108 @@
+{% extends 'hub/_layouts/index' %}
+{% import 'hub/_components/macros' as hub %}
+
+{# Items can be labeled while there are labels, or the user can create some. #}
+{% set labelable = canApplyLabels and (labels|length > 0 or canManageLabels) %}
+
+{% set area = 'structure' %}
+{% set page = 'fields' %}
+{% set title = 'Fields'|t('hub') %}
+{% set selectedTab = 'list' %}
+
+{% set kindOptions = {} %}
+{% for kind in enum_cases('SomehowDigital\\Craft\\Hub\\enums\\DataKind') %}
+	{% set kindOptions = kindOptions|merge({ (kind.value): { label: kind.label(), icon: kind.icon(), color: kind.color() } }) %}
+{% endfor %}
+
+{% block content %}
+	{% embed 'hub/_components/panel' %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<form method="get" class="hub-filters" action="{{ url('hub/structure/fields') }}" data-hub-submit{% if bulkSelection.review ?? false %} hidden{% endif %}>
+				{% include 'hub/_components/saved-filters' %}
+				{{ hub.search('Search by name or handle'|t('hub'), filter.search) }}
+				{{ hub.dropdown('Field Type'|t('app'), 'puzzle-piece', hub.choices('type', types, filter.types)) }}
+				{{ hub.dropdown('Relations'|t('hub'), 'link', hub.choices('owner', owners, filter.owners, { label: 'Placed in'|t('hub') })
+					~ hub.range('layouts', 'Number of layouts'|t('hub'), filter.layoutsMin, filter.layoutsMax)) }}
+				{{ hub.dropdown('Data'|t('hub'), 'database', hub.choices('kind', kindOptions, filter.kinds)) }}
+				{{ hub.labelFilter(labelOptions, filter.labels) }}
+				{{ hub.toggle('unused', 'Unused only'|t('hub'), filter.unused) }}
+				{{ hub.toggle('empty', 'Empty only'|t('hub'), filter.empty) }}
+				{{ hub.addFilter() }}
+				{{ hiddenInput('sort', sort) }}
+				{{ hiddenInput('dir', dir) }}
+				{{ hiddenInput('selection', (bulkSelection.review ?? false) ? 1 : null) }}
+				{{ hub.clearFilters() }}
+			</form>
+
+			{% if fields|length %}
+				{% embed 'hub/_components/bulk' with { bulkList: 'fields', bulkNone: 'No fields selected'|t('hub') } %}
+					{% block table %}
+						{% import 'hub/_components/macros' as hub %}
+						<div class="hub-table">
+							<table class="data fullwidth">
+								<thead>
+									<tr>
+										{{ hub.bulkAll(bulkActions) }}
+										{{ hub.sortHeader('Name'|t('app'), 'name', sortHeaders) }}
+										{{ hub.columnHeaders(columns, sortHeaders, 'fields') }}
+									</tr>
+								</thead>
+								<tbody>
+									{% for info in fields %}
+										{% set field = info.field %}
+										{% set fieldData = data[field.id] ?? null %}
+										<tr{% if info.isUnused() %} data-severity="red"{% elseif info.isEmpty() %} data-severity="orange"{% endif %}>
+											{{ hub.bulkItem(bulkActions, field.id, field.name|t('site')) }}
+											<th>{{ hub.name(field, info.dataKind.color(), null, hub.labels(itemLabels[field.id] ?? [], field.id, field.name|t('site'), labelable)) }}</th>
+											{% for column in columns %}
+												<td{{ hub.cellAttributes(column) }}>
+													{%- if not column.visible -%}
+													{%- elseif column.key == 'type' -%}
+														{{ info.typeName }}
+													{%- elseif column.key == 'layouts' -%}
+														{% if info.ownerTypes|length %}
+															{{ hub.num(info.layouts|length) }}
+															{% if info.instanceCount > info.layouts|length %}
+																<span class="hub-muted" title="{{ 'Instances'|t('hub') }}">({{ info.instanceCount }})</span>
+															{% endif %}
+															<span class="hub-badges">
+																{%- for owner in info.ownerTypes %}{{ hub.badge(owner) }}{% endfor -%}
+															</span>
+														{% else %}
+															<span class="hub-muted">—</span>
+														{% endif %}
+													{%- elseif column.key == 'data' -%}
+														{% if fieldData is not null %}
+															{{ hub.num(fieldData) }}
+															<span class="hub-muted">{{ info.isNested ? 'entries'|t('app') : 'references'|t('hub') }}</span>
+														{% else %}
+															<span class="hub-muted">—</span>
+														{% endif %}
+													{%- elseif column.key == 'status' -%}
+														{{ hub.fieldStatus(info) }}
+													{%- elseif column.key == 'settings' -%}
+														{{ hub.settings(field) }}
+													{%- endif -%}
+												</td>
+											{% endfor %}
+										</tr>
+									{% endfor %}
+								</tbody>
+							</table>
+						</div>
+					{% endblock %}
+					{% block footer %}
+						{% include '_includes/pagination' with {
+							pageInfo: pageInfo,
+							itemLabel: 'field'|t('hub'),
+							itemsLabel: 'fields'|t('hub'),
+						} %}
+					{% endblock %}
+				{% endembed %}
+			{% else %}
+				{{ hub.emptyList(bulkSelection ?? null) }}
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

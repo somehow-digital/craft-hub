@@ -1,0 +1,129 @@
+{#
+	Panel with the filterable list of users, on the users page.
+	There can be many users, so they are filtered, sorted and paginated on the server.
+
+	Variables: see BaseController::userListVariables()
+#}
+{% import 'hub/_components/macros' as hub %}
+
+{# Items can be labeled while there are labels, or the user can create some. #}
+{% set labelable = canApplyLabels and (labels|length > 0 or canManageLabels) %}
+
+{% set groupOptions = {} %}
+{% for info in groups %}
+	{% set groupOptions = groupOptions|merge({ (info.group.handle): { label: info.group.name|t('site'), icon: 'users', color: 'violet' } }) %}
+{% endfor %}
+{% if groupOptions|length %}
+	{% set groupOptions = groupOptions|merge({ none: { label: 'No group'|t('hub'), color: 'gray' } }) %}
+{% endif %}
+
+{% embed 'hub/_components/panel' %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		<form method="get" class="hub-filters" action="{{ url(listPath) }}" data-hub-submit{% if bulkSelection.review ?? false %} hidden{% endif %}>
+			{% include 'hub/_components/saved-filters' %}
+			{{ hub.search('Search by name, username or email'|t('hub'), filter.search) }}
+			{{ hub.dropdown('Status'|t('app'), 'circle-half-stroke', hub.choices('status', statuses|map((status, key) => {
+				label: status.label,
+				color: { active: 'green', pending: 'orange', suspended: 'red', locked: 'red' }[key] ?? 'gray',
+			}), filter.statuses)) }}
+			{% if groupOptions|length %}
+				{{ hub.dropdown('User Groups'|t('app'), 'users', hub.choices('group', groupOptions, filter.groups)) }}
+			{% endif %}
+			{{ hub.dropdown('Sign-ins'|t('hub'), 'clock', hub.choices('login', {
+				recent: { label: 'Recently'|t('hub'), color: 'green' },
+				idle: { label: 'Idle for {months, plural, =1{one month} other{# months}}'|t('hub', { months: idleMonths }), color: 'orange' },
+				never: { label: 'Never'|t('hub'), color: 'gray' },
+			}, filter.logins, { label: 'Active users'|t('hub') })
+				~ hub.range('login', 'Last Login'|t('app'), filter.loginFrom, filter.loginTo, { type: 'date' })) }}
+			{{ hub.dropdown('Two-step verification'|t('hub'), 'shield-halved', hub.choices('twoFactor', {
+				with: { label: 'Set up'|t('hub'), color: 'green' },
+				without: { label: 'Not set up'|t('hub'), color: 'orange' },
+			}, filter.twoFactor, { multiple: false, label: 'Authenticator app or passkey'|t('hub') })) }}
+			{{ hub.dropdown('Content'|t('hub'), 'file-lines', hub.range('entries', 'Entries as author'|t('hub'), filter.entriesMin, filter.entriesMax)
+				~ hub.range('created', 'Created'|t('hub'), filter.createdFrom, filter.createdTo, { type: 'date' })) }}
+			{{ hub.labelFilter(labelOptions, filter.labels) }}
+			{{ hub.toggle('admin', 'Admins only'|t('hub'), filter.admin) }}
+			{{ hub.toggle('unverified', 'Unverified email only'|t('hub'), filter.unverifiedEmail) }}
+			{{ hub.addFilter() }}
+			{{ hiddenInput('sort', sort) }}
+			{{ hiddenInput('dir', dir) }}
+			{{ hiddenInput('selection', (bulkSelection.review ?? false) ? 1 : null) }}
+			{{ hub.clearFilters() }}
+		</form>
+
+		{% if users|length %}
+			{% embed 'hub/_components/bulk' with { bulkList: 'users', bulkNone: 'No users selected'|t('hub') } %}
+				{% block table %}
+					{% import 'hub/_components/macros' as hub %}
+					<div class="hub-table">
+						<table class="data fullwidth">
+							<thead>
+								<tr>
+									{{ hub.bulkAll(bulkActions) }}
+									{{ hub.sortHeader('User'|t('app'), 'user', sortHeaders) }}
+									{{ hub.columnHeaders(columns, sortHeaders, 'users') }}
+								</tr>
+							</thead>
+							<tbody>
+								{% for user in users %}
+									<tr{% if user.locked or user.suspended %} data-severity="red"{% elseif user.pending %} data-severity="orange"{% endif %}>
+										{{ hub.bulkItem(bulkActions, user.id, user.friendlyName, null, [user.suspended ? 'suspended' : 'active']) }}
+										<th>{{ hub.userName(user, user.admin ? hub.badge('Admin'|t('app'), 'violet', null, 'user-crown'), hub.labels(itemLabels[user.id] ?? [], user.id, user.friendlyName, labelable)) }}</th>
+										{% for column in columns %}
+											<td{{ hub.cellAttributes(column) }}>
+												{%- if not column.visible -%}
+												{%- elseif column.key == 'status' -%}
+													{{ hub.userStatus(user) }}
+												{%- elseif column.key == 'email' -%}
+													{% if user.email %}<a href="mailto:{{ user.email }}">{{ user.email }}</a>{% else %}<span class="hub-muted">—</span>{% endif %}
+													{%- if user.unverifiedEmail %} {{ hub.badge('Unverified change'|t('hub'), 'orange', user.unverifiedEmail, 'at') }}{% endif -%}
+												{%- elseif column.key == 'groups' -%}
+													{% if user.groups|length %}
+														<span class="hub-badges">
+															{%- for group in user.groups %}
+																<a class="hub-badge" data-color="violet" href="{{ url(listPath, { group: group.handle }) }}">{{ group.name|t('site') }}</a>
+															{%- endfor -%}
+														</span>
+													{% else %}
+														<span class="hub-muted">—</span>
+													{% endif %}
+												{%- elseif column.key == 'entries' -%}
+													{{ hub.num(entryCounts[user.id] ?? 0) }}
+												{%- elseif column.key == 'twoFactor' -%}
+													{% if twoFactor[user.id] ?? false %}
+														{{ hub.badge('Set up'|t('hub'), 'green', null, 'shield-halved') }}
+													{% else %}
+														<span class="hub-muted">—</span>
+													{% endif %}
+												{%- elseif column.key == 'login' -%}
+													{{ hub.date(user.lastLoginDate) }}
+												{%- elseif column.key == 'created' -%}
+													{{ hub.date(user.dateCreated) }}
+												{%- elseif column.key == 'edit' -%}
+													{%- if user.canView(currentUser) -%}
+														{%- set label = 'Edit user'|t('hub') -%}
+														<a class="hub-visit" href="{{ user.cpEditUrl }}" title="{{ label }}" aria-label="{{ label }}">{{ iconSvg('pen') }}</a>
+													{%- endif -%}
+												{%- endif -%}
+											</td>
+										{% endfor %}
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				{% endblock %}
+				{% block footer %}
+					{% include '_includes/pagination' with {
+						pageInfo: pageInfo,
+						itemLabel: 'user'|t('app'),
+						itemsLabel: 'users'|t('app'),
+					} %}
+				{% endblock %}
+			{% endembed %}
+		{% else %}
+			{{ hub.emptyList(bulkSelection ?? null) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}
