@@ -1,0 +1,43 @@
+<?php
+
+namespace SomehowDigital\Craft\Hub\models;
+
+use DateTime;
+
+/**
+ * Filters of the entries list. Lists hold their values as they appear in the URL; empty lists and null values don't filter.
+ */
+class EntryFilter
+{
+	/** matched against the title and slug */
+	public string $search = '';
+
+	/** @var string[] section handles */
+	public array $sections = [];
+
+	/** @var string[] entry type handles */
+	public array $types = [];
+
+	/** @var string[] entry statuses (`live`, `pending`, `expired`, `disabled`) */
+	public array $statuses = [];
+
+	/** @var int[] IDs of the entries' authors */
+	public array $authors = [];
+
+	/** whether the entries are referenced through a relation field (`referenced` or `unreferenced`) */
+	public ?string $usage = null;
+
+	public ?int $relationsMin = null;
+	public ?int $relationsMax = null;
+
+	/** post dates, both days included */
+	public ?DateTime $postedFrom = null;
+	public ?DateTime $postedTo = null;
+
+	/** dates of the last update, both days included */
+	public ?DateTime $updatedFrom = null;
+	public ?DateTime $updatedTo = null;
+
+	/** only entries not updated within this many months */
+	public ?int $staleMonths = null;
+}

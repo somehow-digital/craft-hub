@@ -1,0 +1,109 @@
+{% extends 'hub/_layouts/entries' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set title = 'Fields'|t('hub') %}
+{% set selectedTab = 'fields' %}
+
+{% set typeOptions = {} %}
+{% for type in types %}
+	{% set typeOptions = typeOptions|merge({ (type|lower): type }) %}
+{% endfor %}
+
+{% set kindOptions = {} %}
+{% for kind in enum_cases('SomehowDigital\\Craft\\Hub\\enums\\DataKind') %}
+	{% set kindOptions = kindOptions|merge({ (kind.value): { label: kind.label(), icon: kind.icon(), color: kind.color() } }) %}
+{% endfor %}
+
+{% set ownerOptions = {} %}
+{% for info in fields %}
+	{% for ownerType in info.ownerTypes %}
+		{% set ownerOptions = ownerOptions|merge({ (ownerType|lower): ownerType }) %}
+	{% endfor %}
+{% endfor %}
+
+{% block content %}
+	<div data-hub-list>
+		{{ hub.summary(summary) }}
+
+		{% embed 'hub/_components/panel' %}
+			{% block body %}
+				{% import 'hub/_components/macros' as hub %}
+				<div class="hub-filters">
+					{{ hub.search('Search by name or handle'|t('hub')) }}
+					{{ hub.siteFilter() }}
+					{{ hub.dropdown('Field Type'|t('app'), 'puzzle-piece', hub.choices('type', typeOptions)) }}
+					{{ hub.dropdown('Data'|t('hub'), 'database', hub.choices('kind', kindOptions)) }}
+					{{ hub.dropdown('Relations'|t('hub'), 'link', hub.choices('owner', ownerOptions, null, { filter: 'owners', match: 'list', label: 'Placed in'|t('hub') })
+						~ hub.range('layouts', 'Number of layouts'|t('hub'), null, null)) }}
+					{{ hub.toggle('unused', 'unused', 'Unused only'|t('hub')) }}
+					{{ hub.toggle('empty', 'empty', 'Empty only'|t('hub')) }}
+					{{ hub.clearFilters() }}
+					{{ hub.count() }}
+				</div>
+
+				<div class="hub-table">
+					<table class="data fullwidth" data-hub-table>
+						<thead>
+							<tr>
+								<th data-hub-sort="name">{{ 'Name'|t('app') }}</th>
+								<th data-hub-sort="type">{{ 'Type'|t('app') }}</th>
+								<th data-hub-sort="layouts" data-hub-sort-type="number">{{ 'Relations'|t('hub') }}</th>
+								<th class="hub-num" data-hub-sort="data" data-hub-sort-type="number" title="{{ 'Nested entries or relations'|t('hub') }}">{{ 'Data'|t('hub') }}</th>
+								<th>{{ 'Status'|t('app') }}</th>
+								<th data-hub-sort="review" data-hub-sort-type="number">{{ 'Review'|t('hub') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for info in fields %}
+								{% set field = info.field %}
+								{% set kind = info.dataKind %}
+								{% set data = info.isNested ? info.stats.total : (info.isRelational ? info.relations.relations : null) %}
+								<tr
+									data-search="{{ (field.name ~ ' ' ~ field.handle)|lower }}"
+									data-name="{{ field.name }}"
+									data-type="{{ info.typeName|lower }}"
+									data-kind="{{ kind.value }}"
+									data-owners="{{ info.ownerTypes|map(owner => owner|lower)|join('|') }}"
+									data-layouts="{{ info.layouts|length }}"
+									data-data="{{ data ?? -1 }}"
+									data-unused="{{ info.isUnused() ? '1' : '' }}"
+									data-empty="{{ info.isEmpty() ? '1' : '' }}"
+									data-review="{{ hub.reviewRank(reviews[field.id]) }}"
+									{% if info.isUnused() %}data-severity="red"{% elseif info.isEmpty() %}data-severity="orange"{% endif %}
+								>
+									<th>{{ hub.name(field, kind.color()) }}</th>
+									<td>{{ info.typeName }}</td>
+									<td>
+										{% if info.ownerTypes|length %}
+											{{ hub.num(info.layouts|length) }}
+											{% if info.instanceCount > info.layouts|length %}
+												<span class="hub-muted" title="{{ 'Instances'|t('hub') }}">({{ info.instanceCount }})</span>
+											{% endif %}
+											<span class="hub-badges">
+												{%- for owner in info.ownerTypes %}{{ hub.badge(owner) }}{% endfor -%}
+											</span>
+										{% else %}
+											<span class="hub-muted">—</span>
+										{% endif %}
+									</td>
+									<td class="hub-num">
+										{% if data is not null %}
+											{{ hub.num(data) }}
+											<span class="hub-muted">{{ info.isNested ? 'entries'|t('app') : 'relations'|t('hub') }}</span>
+										{% else %}
+											<span class="hub-muted">—</span>
+										{% endif %}
+									</td>
+									<td>{{ hub.fieldStatus(info) }}</td>
+									<td>{{ hub.review(reviews[field.id], field) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+
+				{{ hub.empty() }}
+			{% endblock %}
+		{% endembed %}
+	</div>
+{% endblock %}

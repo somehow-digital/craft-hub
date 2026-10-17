@@ -1,0 +1,85 @@
+{% extends 'hub/_layouts/entries' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set title = 'Types'|t('hub') %}
+{% set selectedTab = 'types' %}
+
+{% set kindOptions = {} %}
+{% for kind in kinds %}
+	{% set kindOptions = kindOptions|merge({ (kind.value): { label: kind.label(), icon: kind.icon(), color: kind.color() } }) %}
+{% endfor %}
+
+{% block content %}
+	<div data-hub-list>
+		{{ hub.summary(summary) }}
+
+		{% embed 'hub/_components/panel' %}
+			{% block body %}
+				{% import 'hub/_components/macros' as hub %}
+				<div class="hub-filters">
+					{{ hub.search('Search by name or handle'|t('hub')) }}
+					{{ hub.siteFilter() }}
+					{{ hub.dropdown('Usage'|t('hub'), 'diagram-nested', hub.choices('kind', kindOptions, null, { filter: 'kinds', match: 'list' })) }}
+					{{ hub.dropdown('Numbers'|t('hub'), 'hashtag', hub.range('entries', 'Entries'|t('app'), null, null)
+						~ hub.range('relations', 'Relations'|t('hub'), null, null)) }}
+					{{ hub.activityFilter() }}
+					{{ hub.clearFilters() }}
+					{{ hub.count() }}
+				</div>
+
+				<div class="hub-table">
+					<table class="data fullwidth" data-hub-table>
+						<thead>
+							<tr>
+								<th data-hub-sort="name">{{ 'Name'|t('app') }}</th>
+								<th>{{ 'Usage'|t('hub') }}</th>
+								<th>{{ 'Sections'|t('hub') }}</th>
+								<th data-hub-sort="relations" data-hub-sort-type="number" title="{{ 'Nested entry fields using this entry type, Entries fields that can reference and Link fields that can link to entries of this type'|t('hub') }}">{{ 'Relations'|t('hub') }}</th>
+								<th class="hub-num" data-hub-sort="entries" data-hub-sort-type="number">{{ 'Entries'|t('app') }}</th>
+								<th data-hub-sort="updated" data-hub-sort-type="number">{{ 'Last updated'|t('hub') }}</th>
+								<th data-hub-sort="review" data-hub-sort-type="number">{{ 'Review'|t('hub') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for info in entryTypes %}
+								{% set entryType = info.entryType %}
+								{% set severity = 'unused' in info.kindValues ? 'red' : ('empty' in info.kindValues ? 'orange' : null) %}
+								<tr
+									data-search="{{ (entryType.name ~ ' ' ~ entryType.handle)|lower }}"
+									data-name="{{ entryType.name }}"
+									data-kinds="{{ info.kindValues|join('|') }}"
+									data-activity="{{ activities[entryType.id] }}"
+									data-relations="{{ info.relationCount }}"
+									data-entries="{{ info.stats.total }}"
+									data-updated="{{ hub.timestamp(info.stats.lastUpdated) }}"
+									data-review="{{ hub.reviewRank(reviews[entryType.id]) }}"
+									{% if severity %}data-severity="{{ severity }}"{% endif %}
+								>
+									<th>{{ hub.name(entryType) }}</th>
+									<td>{{ hub.kinds(info.kinds) }}</td>
+									<td>{{ hub.chips(info.sections) }}</td>
+									<td>
+										{%- if info.relationCount -%}
+											<span class="hub-chips">
+												{%- for field in info.nestedFields %}{{ hub.chip(field, 'violet') }}{% endfor -%}
+												{%- for field in info.referenceFields %}{{ hub.chip(field, 'teal') }}{% endfor -%}
+												{%- for field in info.linkFields %}{{ hub.chip(field, 'cyan') }}{% endfor -%}
+											</span>
+										{%- else -%}
+											<span class="hub-muted">—</span>
+										{%- endif -%}
+									</td>
+									<td class="hub-num">{{ hub.num(info.stats.total) }}</td>
+									<td>{{ hub.activity(info.stats.lastUpdated, activities[entryType.id]) }}</td>
+									<td>{{ hub.review(reviews[entryType.id], entryType) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+
+				{{ hub.empty() }}
+			{% endblock %}
+		{% endembed %}
+	</div>
+{% endblock %}

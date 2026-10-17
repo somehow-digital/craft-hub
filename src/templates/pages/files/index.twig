@@ -1,0 +1,95 @@
+{% extends 'hub/_layouts/assets' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set title = 'Files'|t('hub') %}
+{% set selectedTab = 'files' %}
+
+{% set volumeOptions = {} %}
+{% for info in volumes %}
+	{% set volumeOptions = volumeOptions|merge({ (info.volume.handle): { label: info.volume.name|t('site'), count: info.stats.total } }) %}
+{% endfor %}
+
+{% set kindOptions = fileKinds|map(kind => { label: kind.label, count: kind.stats.total, icon: kind.icon, color: kind.color }) %}
+
+{% block content %}
+	{{ hub.summary(summary) }}
+
+	{% embed 'hub/_components/panel' %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{# There can be many files, so they are filtered, sorted and paginated on the server. #}
+			<form method="get" class="hub-filters" action="{{ url('hub/assets/files') }}" data-hub-submit>
+				{{ hub.search('Search by filename or title'|t('hub'), filter.search) }}
+				{{ hub.siteFilter() }}
+				{{ hub.dropdown('Volume'|t('app'), 'folder-open', hub.choices('volume', volumeOptions, filter.volumes)) }}
+				{{ hub.dropdown('Type'|t('app'), 'file', hub.choices('kind', kindOptions, filter.kinds, { label: 'Kind'|t('hub') })
+					~ hub.choices('extension', extensions|map((count, extension) => { label: extension, count: count }), filter.extensions, { label: 'Extension'|t('hub') })) }}
+				{{ hub.dropdown('Size'|t('app'), 'weight-hanging', hub.range('size', 'Size'|t('app'), filter.sizeMin, filter.sizeMax, { unit: 'MB', step: 'any' })) }}
+				{{ hub.dropdown('Dimensions'|t('app'), 'ruler-combined', hub.range('width', 'Width'|t('app'), filter.widthMin, filter.widthMax, { unit: 'px' })
+					~ hub.range('height', 'Height'|t('app'), filter.heightMin, filter.heightMax, { unit: 'px' })
+					~ hub.choices('orientation', {
+						landscape: { label: 'Landscape'|t('hub'), count: counts.orientations.landscape },
+						portrait: { label: 'Portrait'|t('hub'), count: counts.orientations.portrait },
+						square: { label: 'Square'|t('hub'), count: counts.orientations.square },
+					}, filter.orientations, { label: 'Orientation'|t('hub') })) }}
+				{{ hub.dropdown('Relations'|t('hub'), 'link', hub.choices('usage', {
+					used: { label: 'In use'|t('hub'), count: counts.usage.used, color: 'green' },
+					unused: { label: 'Unused'|t('hub'), count: counts.usage.unused, color: 'orange' },
+				}, filter.usage, { multiple: false, label: 'Usage'|t('hub') })
+					~ hub.range('relations', 'Number of relations'|t('hub'), filter.relationsMin, filter.relationsMax)) }}
+				{{ hub.dropdown('Uploaded'|t('hub'), 'calendar', hub.range('uploaded', 'Upload date'|t('hub'), filter.uploadedFrom, filter.uploadedTo, { type: 'date' })
+					~ hub.choices('uploader', uploaders|map(uploader => { label: uploader.user.name, count: uploader.count }), filter.uploaders, { label: 'Uploaded by'|t('hub') })) }}
+				{{ hub.toggle('alt', 'alt', 'Missing alt text only'|t('hub'), filter.missingAlt) }}
+				{{ hub.clearFilters() }}
+				{{ hiddenInput('sort', sort) }}
+				{{ hiddenInput('dir', dir) }}
+				<span class="hub-count">{{ '{count, plural, =1{One file} other{# files}}'|t('hub', { count: pageInfo.total }) }}</span>
+			</form>
+
+			{% if assets|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								{{ hub.sortHeader('File'|t('app'), 'file', sortHeaders) }}
+								{{ hub.sortHeader('Volume'|t('app'), 'volume', sortHeaders) }}
+								{{ hub.sortHeader('Type'|t('app'), 'kind', sortHeaders) }}
+								{{ hub.sortHeader('Dimensions'|t('app'), 'dimensions', sortHeaders, 'hub-num') }}
+								{{ hub.sortHeader('Size'|t('app'), 'size', sortHeaders, 'hub-num') }}
+								{{ hub.sortHeader('Relations'|t('hub'), 'relations', sortHeaders, 'hub-num', 'Relations from relation fields to this file'|t('hub')) }}
+								{{ hub.sortHeader('Uploaded'|t('hub'), 'uploaded', sortHeaders) }}
+								<th>{{ 'Review'|t('hub') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for asset in assets %}
+								{% set relations = relationCounts[asset.id] ?? 0 %}
+								{% set kind = fileKinds[asset.kind] ?? null %}
+								<tr{% if not relations %} data-severity="orange"{% endif %}>
+									<th>{{ hub.fileName(asset, not relations ? hub.badge('Unused'|t('hub'), 'orange', null, 'link-slash')) }}</th>
+									<td>{{ hub.chip(asset.volume) }}</td>
+									<td>{% if kind %}{{ hub.badge(kind.label, kind.color, null, kind.icon) }}{% else %}{{ asset.kind }}{% endif %}</td>
+									<td class="hub-num">{% if asset.width and asset.height %}{{ asset.width|number }} × {{ asset.height|number }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+									<td class="hub-num">{{ hub.size(asset.size) }}</td>
+									<td class="hub-num">{{ hub.num(relations) }}</td>
+									<td>{{ hub.date(asset.dateCreated) }}</td>
+									<td>{{ hub.review(reviews[asset.id], asset) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+
+				<footer class="hub-panel__footer">
+					{% include '_includes/pagination' with {
+						pageInfo: pageInfo,
+						itemLabel: 'file'|t('hub'),
+						itemsLabel: 'files'|t('hub'),
+					} %}
+				</footer>
+			{% else %}
+				<p class="hub-panel__empty">{{ 'Nothing matches the current filters.'|t('hub') }}</p>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

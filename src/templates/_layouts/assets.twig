@@ -1,0 +1,11 @@
+{% extends 'hub/_layouts/hub' %}
+
+{# The page title names the tab, which is kept in the document title. #}
+{% set docTitle = title ~ ' - ' ~ 'Assets'|t('hub') %}
+{% set title = 'Assets'|t('hub') %}
+{% set selectedSubnavItem = 'assets' %}
+
+{% set tabs = {
+	files: { label: 'Files'|t('hub'), url: url('hub/assets/files', { hubSite: hubSite }) },
+	volumes: { label: 'Volumes'|t('hub'), url: url('hub/assets/volumes', { hubSite: hubSite }) },
+} %}

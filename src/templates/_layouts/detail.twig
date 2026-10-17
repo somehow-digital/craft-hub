@@ -1,0 +1,41 @@
+{#
+	Detail pages: an overview tab and a review tab listing the checks.
+
+	Variables: checks
+	Blocks: overview, review (below the checks)
+#}
+{% extends 'hub/_layouts/hub' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set failedChecks = checks|filter(check => not check.passed)|length %}
+
+{% set tabs = {
+	overview: { label: 'Overview'|t('hub'), url: '#overview' },
+	review: {
+		label: failedChecks ? 'Review ({count, number})'|t('hub', { count: failedChecks }) : 'Review'|t('hub'),
+		url: '#review',
+	},
+} %}
+
+{% block content %}
+	<div id="overview">
+		{% block overview %}{% endblock %}
+	</div>
+
+	<div id="review" class="hidden">
+		{% embed 'hub/_components/panel' with {
+			heading: 'Checks'|t('hub'),
+			description: 'Things to clean up or improve, most urgent first.'|t('hub'),
+			icon: 'list-check',
+			color: failedChecks ? 'orange' : 'green',
+			count: failedChecks,
+		} %}
+			{% block body %}
+				{% import 'hub/_components/macros' as hub %}
+				{{ hub.checks(checks) }}
+			{% endblock %}
+		{% endembed %}
+
+		{% block review %}{% endblock %}
+	</div>
+{% endblock %}

@@ -1,0 +1,172 @@
+{% extends 'hub/_layouts/detail' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set section = info.section %}
+
+{% set title = section.name|t('site') %}
+{% set selectedSubnavItem = 'entries' %}
+{% set crumbs = [
+	{ label: 'Sections'|t('hub'), url: url('hub/entries/sections', { hubSite: hubSite }) },
+	{ label: title, url: url('hub/entries/sections/' ~ section.id, { hubSite: hubSite }), current: true },
+] %}
+
+{% block pageTitle %}
+	{% set badges %}
+		{{ hub.sectionType(section) }}
+		{% if info.hasUrls %}{{ hub.badge('Has URLs'|t('hub'), 'green', null, 'globe') }}{% endif %}
+		{% if info.isEmpty() %}{{ hub.badge('Empty'|t('hub'), 'orange', null, 'box-open') }}{% endif %}
+	{% endset %}
+	{{ hub.pageTitle(section, null, badges) }}
+{% endblock %}
+
+{% block actionButton %}
+	<div class="flex">
+		<a class="btn" href="{{ url('entries/' ~ section.handle) }}">{{ 'View entries'|t('hub') }}</a>
+		{% if currentUser.admin %}
+			<a class="btn" href="{{ section.cpEditUrl }}">{{ 'View settings'|t('hub') }}</a>
+		{% endif %}
+	</div>
+{% endblock %}
+
+{% block details %}
+	<dl class="meta read-only hub-details">
+		{% if section.type == 'structure' %}
+			<div class="data">
+				<dt class="heading">{{ 'Max Levels'|t('app') }}</dt>
+				<dd class="value">{{ section.maxLevels ?: '∞' }}</dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'Propagation'|t('hub') }}</dt>
+			<dd class="value">{{ section.propagationMethod.value|t('app')|capitalize }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'URLs'|t('hub') }}</dt>
+			<dd class="value">{% if info.hasUrls %}{{ hub.badge('Has URLs'|t('hub'), 'green', null, 'globe') }}{% else %}{{ hub.badge('No URLs'|t('hub')) }}{% endif %}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Last updated'|t('hub') }}</dt>
+			<dd class="value">{{ hub.date(info.stats.lastUpdated) }}</dd>
+		</div>
+	</dl>
+{% endblock %}
+
+{% block overview %}
+	{{ hub.summary(summary) }}
+
+	{% embed 'hub/_components/panel' with { heading: 'Sites'|t('app'), icon: 'globe', count: section.siteSettings|length } %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Site'|t('app') }}</th>
+							<th>{{ 'Entry URI Format'|t('app') }}</th>
+							<th>{{ 'Template'|t('app') }}</th>
+							<th>{{ 'Default Status'|t('app') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for siteSettings in section.siteSettings %}
+							<tr>
+								<th>{{ siteSettings.site.name|t('site') }}{% if siteSettings.siteId in selectedSites|map(site => site.id) %} {{ hub.badge('Selected'|t('hub'), 'blue') }}{% endif %}</th>
+								<td>{% if siteSettings.hasUrls %}<code>{{ siteSettings.uriFormat }}</code>{% else %}{{ hub.badge('No URLs'|t('hub')) }}{% endif %}</td>
+								<td>{% if siteSettings.hasUrls and siteSettings.template %}<code>{{ siteSettings.template }}</code>{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+								<td><span class="status {{ siteSettings.enabledByDefault ? 'enabled' : 'disabled' }}" aria-hidden="true"></span>{{ siteSettings.enabledByDefault ? 'Enabled'|t('app') : 'Disabled'|t('app') }}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% endblock %}
+	{% endembed %}
+
+	{% embed 'hub/_components/panel' with { heading: 'Entry Types'|t('hub'), icon: 'shapes', count: info.entryTypes|length } %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Name'|t('app') }}</th>
+							<th>{{ 'Usage'|t('hub') }}</th>
+							<th class="hub-num">{{ 'Entries in this section'|t('hub') }}</th>
+							<th class="hub-num">{{ 'Drafts'|t('app') }}</th>
+							<th>{{ 'Last updated'|t('hub') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for entryType in info.entryTypes %}
+							{% set stats = statistics.sumEntries(siteIds, section.id, entryType.id) %}
+							<tr{% if not stats.total %} data-severity="orange"{% endif %}>
+								<th>{{ hub.name(entryType, null, not stats.total ? hub.noEntriesHere()) }}</th>
+								<td>{{ hub.kinds(entryTypes[entryType.id].kinds ?? []) }}</td>
+								<td class="hub-num">{{ hub.num(stats.total) }}</td>
+								<td class="hub-num">{{ hub.num(stats.drafts) }}</td>
+								<td>{{ hub.date(stats.lastUpdated) }}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% endblock %}
+	{% endembed %}
+
+	{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
+	{% set relationFields = info.referenceFields|map(field => { field, kind: usageKind.from('reference') })
+		|merge(info.linkFields|map(field => { field, kind: usageKind.from('link') })) %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Relations'|t('hub'),
+		description: 'Entries and Link fields that can relate to entries from this section.'|t('hub'),
+		icon: 'link',
+		color: 'teal',
+		count: relationFields|length,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{% if relationFields|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Field'|t('app') }}</th>
+								<th>{{ 'Type'|t('app') }}</th>
+								<th class="hub-num">{{ 'Relations'|t('hub') }}</th>
+								<th class="hub-num">{{ 'Related entries'|t('hub') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for item in relationFields %}
+								{% set relations = statistics.sumRelations(siteIds, item.field.id, section.id) %}
+								<tr{% if not relations.relations %} data-severity="orange"{% endif %}>
+									<th>{{ hub.name(item.field, item.kind.color()) }}</th>
+									<td>{{ hub.kinds([item.kind]) }}</td>
+									<td class="hub-num">{{ hub.num(relations.relations) }}</td>
+									<td class="hub-num">{{ hub.num(relations.targets) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% else %}
+				<p class="hub-panel__empty">{{ 'No Entries or Link field can relate to entries from this section.'|t('hub') }}</p>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}
+
+{% block review %}
+	{% embed 'hub/_components/panel' with {
+		heading: 'Entries to review'|t('hub'),
+		icon: 'broom',
+		color: 'orange',
+		collapsible: false,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{{ hub.reviewList(reviewList, reviewMonths, reviewQuery, false) }}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

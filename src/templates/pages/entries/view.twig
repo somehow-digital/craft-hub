@@ -1,0 +1,198 @@
+{% extends 'hub/_layouts/detail' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set section = entry.section %}
+{% set entryType = entry.type %}
+{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
+
+{% set title = entry.title ?: entry.slug %}
+{% set selectedSubnavItem = 'entries' %}
+{% set crumbs = [
+	{ label: 'Entries'|t('hub'), url: url('hub/entries/entries', { hubSite: hubSite }) },
+	{ label: section.name|t('site'), url: url('hub/entries/entries', { hubSite: hubSite, section: section.handle }) },
+	{ label: title, url: url('hub/entries/entries/' ~ entry.id, { hubSite: hubSite }), current: true },
+] %}
+
+{% block pageTitle %}
+	<div class="hub-title">
+		{{ hub.itemIcon(entryType, null, 'large') }}
+		<div class="hub-title__text">
+			<h1 id="page-heading" class="screen-title" title="{{ title }}">{{ title }}</h1>
+			<div class="hub-title__meta">
+				<code>{{ entry.slug }}</code>
+				<span class="hub-badges">
+					{% if relations|length %}
+						{{ hub.badge('Referenced'|t('hub'), 'green', null, 'circle-check') }}
+					{% elseif not entry.url %}
+						{# Entries with URLs can be reached without being referenced, as on the review lists. #}
+						{{ hub.badge('Unreferenced'|t('hub'), 'orange', null, 'link-slash') }}
+					{% endif %}
+					{% if stale %}
+						{{ hub.badge('Stale'|t('hub'), 'orange', 'Stale: not updated for {months, plural, =1{one month} other{# months}}'|t('hub', { months: staleMonths }), 'clock') }}
+					{% endif %}
+				</span>
+			</div>
+		</div>
+	</div>
+	<div id="revision-indicators"></div>
+{% endblock %}
+
+{% block actionButton %}
+	<div class="flex">
+		{% if entry.url %}
+			<a class="btn" href="{{ entry.url }}" target="_blank" rel="noopener">{{ 'View entry'|t('hub') }}</a>
+		{% endif %}
+		{% if entry.canView(currentUser) %}
+			<a class="btn" href="{{ entry.cpEditUrl }}">{{ 'Edit entry'|t('hub') }}</a>
+		{% endif %}
+	</div>
+{% endblock %}
+
+{% block details %}
+	<dl class="meta read-only hub-details">
+		<div class="data">
+			<dt class="heading">{{ 'Status'|t('app') }}</dt>
+			<dd class="value"><span class="status {{ entry.status }}" aria-hidden="true"></span>{{ entry.statuses()[entry.status] ?? entry.status }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Section'|t('app') }}</dt>
+			<dd class="value">{{ hub.chip(section) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Entry Type'|t('app') }}</dt>
+			<dd class="value">{{ hub.chip(entryType) }}</dd>
+		</div>
+		{% if entry.parent %}
+			<div class="data">
+				<dt class="heading">{{ 'Parent'|t('app') }}</dt>
+				<dd class="value"><a href="{{ hub.url(entry.parent) }}">{{ entry.parent.title ?: entry.parent.slug }}</a></dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'Slug'|t('app') }}</dt>
+			<dd class="value"><code>{{ entry.slug }}</code></dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'URI'|t('hub') }}</dt>
+			<dd class="value">{% if entry.uri %}<code>{{ entry.uri }}</code>{% else %}<span class="hub-muted">—</span>{% endif %}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'URL'|t('app') }}</dt>
+			<dd class="value">{% if entry.url %}<a href="{{ entry.url }}" target="_blank" rel="noopener">{{ entry.url }}</a>{% else %}<span class="hub-muted">{{ 'No URLs'|t('hub') }}</span>{% endif %}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Authors'|t('app') }}</dt>
+			<dd class="value">
+				{% if entry.authors|length %}
+					{{ entry.authors|map(author => author.friendlyName)|join(', ') }}
+				{% else %}
+					<span class="hub-muted">—</span>
+				{% endif %}
+			</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Post Date'|t('app') }}</dt>
+			<dd class="value">{{ hub.date(entry.postDate) }}</dd>
+		</div>
+		{% if entry.expiryDate %}
+			<div class="data">
+				<dt class="heading">{{ 'Expiry Date'|t('app') }}</dt>
+				<dd class="value">{{ hub.date(entry.expiryDate) }}</dd>
+			</div>
+		{% endif %}
+		<div class="data">
+			<dt class="heading">{{ 'Created'|t('hub') }}</dt>
+			<dd class="value">{{ hub.date(entry.dateCreated) }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'Last updated'|t('hub') }}</dt>
+			<dd class="value">{{ hub.activity(entry.dateUpdated, stale ? 'stale' : 'recent') }}</dd>
+		</div>
+		<div class="data">
+			<dt class="heading">{{ 'ID'|t('app') }}</dt>
+			<dd class="value"><code>{{ entry.id }}</code></dd>
+		</div>
+	</dl>
+{% endblock %}
+
+{% block overview %}
+	{% embed 'hub/_components/panel' with {
+		heading: 'Sites'|t('app'),
+		description: 'Title, slug and URI of the entry on each site.'|t('hub'),
+		icon: 'globe',
+		count: sites|length,
+	} %}
+		{% block body %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Site'|t('app') }}</th>
+							<th>{{ 'Title'|t('app') }}</th>
+							<th>{{ 'Slug'|t('app') }}</th>
+							<th>{{ 'URI'|t('hub') }}</th>
+							<th>{{ 'Status'|t('app') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for variant in sites %}
+							<tr>
+								<th>{{ variant.site.name|t('site') }}</th>
+								<td>{{ variant.title }}</td>
+								<td><code>{{ variant.slug }}</code></td>
+								<td>{% if variant.uri %}<code>{{ variant.uri }}</code>{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+								<td><span class="status {{ variant.status }}" aria-hidden="true"></span>{{ variant.statuses()[variant.status] ?? variant.status }}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% endblock %}
+	{% endembed %}
+
+	{% embed 'hub/_components/panel' with {
+		heading: 'Relations'|t('hub'),
+		description: 'Elements that relate to this entry through a relation field. References from rich text fields are not taken into account here.'|t('hub'),
+		icon: 'link',
+		color: 'teal',
+		count: relations|length,
+	} %}
+		{% block body %}
+			{% import 'hub/_components/macros' as hub %}
+			{% if relations|length %}
+				<div class="hub-table">
+					<table class="data fullwidth">
+						<thead>
+							<tr>
+								<th>{{ 'Element'|t('hub') }}</th>
+								<th>{{ 'Fields'|t('app') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for reference in relations %}
+								<tr>
+									<td>{{ elementChip(reference.element, { hyperlink: true }) }}</td>
+									<td>
+										<ul class="hub-list hub-list--plain">
+											{% for path in reference.paths %}
+												<li class="hub-inline">
+													{% if path.field %}
+														{% set kind = usageKind.from(path.field is instance of('craft\\fields\\Link') ? 'link' : 'reference') %}
+														{{ hub.fieldType(path.field, kind.color()) }}
+													{% endif %}
+													<span>{{ path.label }}</span>
+												</li>
+											{% endfor %}
+										</ul>
+									</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			{% else %}
+				<p class="hub-panel__empty">{{ 'No other elements relate to this entry.'|t('hub') }}</p>
+			{% endif %}
+		{% endblock %}
+	{% endembed %}
+{% endblock %}

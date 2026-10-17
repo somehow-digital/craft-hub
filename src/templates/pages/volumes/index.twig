@@ -1,0 +1,93 @@
+{% extends 'hub/_layouts/assets' %}
+{% import 'hub/_components/macros' as hub %}
+
+{% set title = 'Volumes'|t('hub') %}
+{% set selectedTab = 'volumes' %}
+
+{% set kindOptions = fileKinds|map(kind => { label: kind.label, icon: kind.icon, color: kind.color }) %}
+
+{% block content %}
+	<div data-hub-list>
+		{{ hub.summary(summary) }}
+
+		{% embed 'hub/_components/panel' %}
+			{% block body %}
+				{% import 'hub/_components/macros' as hub %}
+				<div class="hub-filters">
+					{{ hub.search('Search by name or handle'|t('hub')) }}
+					{{ hub.siteFilter() }}
+					{{ hub.dropdown('Types'|t('hub'), 'file', hub.choices('kind', kindOptions, null, { filter: 'kinds', match: 'list' })) }}
+					{{ hub.dropdown('URLs'|t('hub'), 'globe', hub.choices('urls', {
+						yes: 'Has URLs'|t('hub'),
+						no: 'No URLs'|t('hub'),
+					}, null, { multiple: false })) }}
+					{{ hub.dropdown('Assets'|t('app'), 'image', hub.range('assets', 'Number of assets'|t('hub'), null, null)
+						~ hub.range('size', 'Size'|t('app'), null, null, { unit: 'MB', step: 'any', scale: 1048576 })
+						~ hub.range('alt', 'Missing alt text'|t('hub'), null, null)) }}
+					{{ hub.dropdown('Last upload'|t('hub'), 'calendar', hub.range('uploaded', 'Last upload'|t('hub'), null, null, { type: 'date' })) }}
+					{{ hub.toggle('empty', 'empty', 'Empty only'|t('hub')) }}
+					{{ hub.clearFilters() }}
+					{{ hub.count() }}
+				</div>
+
+				<div class="hub-table">
+					<table class="data fullwidth" data-hub-table>
+						<thead>
+							<tr>
+								<th data-hub-sort="name">{{ 'Name'|t('app') }}</th>
+								<th data-hub-sort="fs">{{ 'Filesystem'|t('app') }}</th>
+								<th>{{ 'Types'|t('hub') }}</th>
+								<th>{{ 'URLs'|t('hub') }}</th>
+								<th class="hub-num" data-hub-sort="assets" data-hub-sort-type="number" title="{{ 'In use / Unused'|t('hub') }}">{{ 'Assets'|t('app') }}</th>
+								<th class="hub-num" data-hub-sort="size" data-hub-sort-type="number">{{ 'Size'|t('app') }}</th>
+								<th class="hub-num" data-hub-sort="alt" data-hub-sort-type="number" title="{{ 'Images without alternative text'|t('hub') }}">{{ 'Missing alt text'|t('hub') }}</th>
+								<th class="hub-num" data-hub-sort="relations" data-hub-sort-type="number" title="{{ 'Relations from Assets and Link fields into this volume'|t('hub') }}">{{ 'Relations'|t('hub') }}</th>
+								<th data-hub-sort="uploaded" data-hub-sort-type="number">{{ 'Last upload'|t('hub') }}</th>
+								<th data-hub-sort="review" data-hub-sort-type="number">{{ 'Review'|t('hub') }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for info in volumes %}
+								{% set volume = info.volume %}
+								{% set fs = volume.fs %}
+								<tr
+									data-search="{{ (volume.name ~ ' ' ~ volume.handle)|lower }}"
+									data-name="{{ volume.name }}"
+									data-fs="{{ fs.name }}"
+									data-kinds="{{ info.kindValues|join('|') }}"
+									data-urls="{{ info.hasUrls ? 'yes' : 'no' }}"
+									data-empty="{{ info.isEmpty() ? '1' : '' }}"
+									data-assets="{{ info.stats.total }}"
+									data-size="{{ info.stats.size }}"
+									data-alt="{{ info.stats.missingAlt }}"
+									data-relations="{{ info.relations.relations }}"
+									data-uploaded="{{ hub.timestamp(info.stats.lastUploaded) }}"
+									data-review="{{ hub.reviewRank(reviews[volume.id]) }}"
+									{% if info.isEmpty() %}data-severity="orange"{% endif %}
+								>
+									<th>
+										{{ hub.name(volume, null, info.isEmpty() ? hub.badge('Empty'|t('hub'), 'orange', null, 'box-open')) }}
+									</th>
+									<td>{{ fs.name|t('site') }} <span class="hub-muted">{{ fs.displayName() }}</span></td>
+									<td>{{ hub.fileKinds(info.kindValues|map(kind => fileKinds[kind]), 3) }}</td>
+									<td>{% if info.hasUrls %}{{ hub.badge('Has URLs'|t('hub'), 'green', null, 'globe') }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+									<td class="hub-num">
+										{{ hub.dotNum(info.stats.used, 'green', 'In use'|t('hub')) }}
+										{{ hub.dotNum(info.stats.unused, 'orange', 'Unused'|t('hub')) }}
+									</td>
+									<td class="hub-num">{{ hub.size(info.stats.size) }}</td>
+									<td class="hub-num">{{ hub.num(info.stats.missingAlt) }}</td>
+									<td class="hub-num">{{ hub.num(info.relations.relations) }}</td>
+									<td>{{ hub.date(info.stats.lastUploaded) }}</td>
+									<td>{{ hub.review(reviews[volume.id], volume) }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+
+				{{ hub.empty() }}
+			{% endblock %}
+		{% endembed %}
+	</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends 'hub/_layouts/hub' %}
+
+{# The page title names the tab, which is kept in the document title. #}
+{% set docTitle = title ~ ' - ' ~ 'Entries'|t('hub') %}
+{% set title = 'Entries'|t('hub') %}
+{% set selectedSubnavItem = 'entries' %}
+
+{% set tabs = {
+	entries: { label: 'Entries'|t('hub'), url: url('hub/entries/entries', { hubSite: hubSite }) },
+	types: { label: 'Types'|t('hub'), url: url('hub/entries/types', { hubSite: hubSite }) },
+	sections: { label: 'Sections'|t('hub'), url: url('hub/entries/sections', { hubSite: hubSite }) },
+	fields: { label: 'Fields'|t('hub'), url: url('hub/entries/fields', { hubSite: hubSite }) },
+} %}
