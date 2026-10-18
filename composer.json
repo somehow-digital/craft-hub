@@ -32,7 +32,7 @@
 		"craftcms/cms": "^5.11.0"
 	},
 	"require-dev": {
-		"pestphp/pest": "^4.0",
+		"pestphp/pest": "^5.0",
 		"phpstan/phpstan": "^2.1",
 		"roave/security-advisories": "dev-latest",
 		"symplify/easy-coding-standard": "^13.0"
