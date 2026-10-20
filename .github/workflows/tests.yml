@@ -28,7 +28,7 @@ jobs:
           extensions: intl, pdo_sqlite
           coverage: ${{ matrix.php == '8.5' && 'xdebug' || 'none' }}
 
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@4.0.0
         with:
           # composer.lock pins packages requiring PHP >= 8.4, so resolve fresh on 8.3
           dependency-versions: ${{ matrix.php == '8.3' && 'highest' || 'locked' }}
