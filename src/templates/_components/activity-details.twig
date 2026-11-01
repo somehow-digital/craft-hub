@@ -1,0 +1,50 @@
+{#
+	What's known about an activity, as far as its action tells: what was changed, and how. Shown by the activity log and the
+	panels of the items.
+
+	Variables: activity (see Activity)
+#}
+{% import 'hub/_components/macros' as hub %}
+{% set data = activity.data %}
+{% set positions = {
+	prepend: 'First within “{name}”',
+	append: 'Last within “{name}”',
+	placeBefore: 'Before “{name}”',
+	placeAfter: 'After “{name}”',
+} %}
+{% set changes = activity.changes %}
+<span class="hub-badges">
+	{%- if data.draft ?? false %}{{ hub.badge('From draft “{name}”'|t('hub', { name: data.draft }), 'blue', null, 'pen-ruler') }}{% endif -%}
+	{%- if data.draftName ?? false %}{{ hub.badge(data.draftName, 'gray', 'Draft'|t('app'), 'pen-ruler') }}{% endif -%}
+	{%- if data.revision ?? false %}{{ hub.badge('To revision {num}'|t('hub', { num: data.revision }), 'blue', null, 'clock-rotate-left') }}{% endif -%}
+	{%- if data.duplicateOf ?? false %}{{ hub.badge('Duplicate of “{name}”'|t('hub', { name: data.duplicateOf }), 'blue', null, 'clone') }}{% endif -%}
+	{%- if data.mergedTitle ?? false %}{{ hub.badge('Merged with “{name}”'|t('hub', { name: data.mergedTitle }), 'violet', null, 'code-merge') }}{% elseif data.merged ?? false %}{{ hub.badge('Merged with #{id}'|t('hub', { id: data.merged }), 'violet', null, 'code-merge') }}{% endif -%}
+	{%- if data.position ?? false %}{{ hub.badge(data.target ?? false ? (positions[data.position] ?? '{name}')|t('hub', { name: data.target }) : 'Top level'|t('hub'), 'blue', null, 'arrows-up-down-left-right') }}{% endif -%}
+	{%- if data.hardDelete ?? false %}{{ hub.badge('Permanently'|t('hub'), 'red', null, 'trash') }}{% endif -%}
+	{%- if data.forSite ?? false %}{{ hub.badge('For this site only'|t('hub'), 'red', null, 'earth-americas') }}{% endif -%}
+	{%- for name in data.added ?? [] %}{{ hub.badge(name|t('site'), 'green', 'Added'|t('hub'), 'plus') }}{% endfor -%}
+	{%- for name in data.removed ?? [] %}{{ hub.badge(name|t('site'), 'red', 'Removed'|t('hub'), 'minus') }}{% endfor -%}
+	{%- if data.granted ?? false %}{{ hub.badge('{count, plural, =1{One permission} other{# permissions}} granted'|t('hub', { count: data.granted|length }), 'green', data.granted|join(', '), 'key') }}{% endif -%}
+	{%- if data.revoked ?? false %}{{ hub.badge('{count, plural, =1{One permission} other{# permissions}} revoked'|t('hub', { count: data.revoked|length }), 'red', data.revoked|join(', '), 'key') }}{% endif -%}
+	{%- if data.transforms ?? false %}{{ hub.badge('{count, plural, =1{One transform} other{# transforms}}'|t('hub', { count: data.transforms|length }), 'red', data.transforms|join(', '), 'crop') }}{% endif -%}
+	{%- if (data.count ?? false) and activity.subjectTitle %}{{ hub.badge('{count, plural, =1{One item} other{# items}}'|t('hub', { count: data.count }), 'gray') }}{% endif -%}
+	{%- if data.method ?? false %}{{ hub.badge(data.method, 'gray', null, 'shield-halved') }}{% endif -%}
+	{%- if data.name ?? false %}<span class="hub-muted">{{ data.name }}</span>{% endif -%}
+	{%- if data.kind ?? false %}{{ hub.badge(data.kind, 'gray') }}{% endif -%}
+	{%- if data.exporter ?? false %}{{ hub.badge(data.exporter, 'gray', null, 'file-export') }}{% endif -%}
+	{%- if data.format ?? false %}<code>{{ data.format }}</code>{% endif -%}
+	{%- if data.version ?? false %}{{ hub.badge('To {version}'|t('hub', { version: data.version }), 'blue', null, 'circle-up') }}{% endif -%}
+	{%- for name in data.caches ?? [] %}<code>{{ name }}</code>{% endfor -%}
+	{%- for name in data.tags ?? [] %}<code>{{ name }}</code>{% endfor -%}
+	{%- for name in data.volumes ?? [] %}{{ hub.badge(name|t('site'), 'amber', null, 'folder-open') }}{% endfor -%}
+	{%- if data.find ?? false %}<code>{{ data.find }}</code> → <code>{{ data.replace ?? '' }}</code>{% endif -%}
+	{%- if data.filename ?? false %}<code>{{ data.filename }}</code>{% endif -%}
+	{%- if data.reason ?? false %}<code>{{ data.reason }}</code>{% endif -%}
+	{%- if data.handle ?? false %}<code>{{ data.handle }}</code>{% endif -%}
+	{%- if changes|length %}
+		<span class="hub-muted" title="{{ changes|join(', ') }}">
+			{{- changes|slice(0, 3)|join(', ') -}}
+			{%- if changes|length > 3 %} {{ '+{count, number}'|t('hub', { count: changes|length - 3 }) }}{% endif -%}
+		</span>
+	{%- endif -%}
+</span>

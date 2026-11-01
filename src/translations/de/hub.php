@@ -407,6 +407,7 @@ return [
 	'Me' => 'Ich',
 	'Merged' => 'Zusammengeführt',
 	'Merged with #{id}' => 'Zusammengeführt mit #{id}',
+	'Merged with “{name}”' => 'Zusammengeführt mit „{name}“',
 	'MIME type' => 'MIME-Typ',
 	'Min' => 'Min.',
 	'Missing' => 'Fehlt',

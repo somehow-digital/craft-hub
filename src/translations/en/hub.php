@@ -407,6 +407,7 @@ return [
 	'Me' => 'Me',
 	'Merged' => 'Merged',
 	'Merged with #{id}' => 'Merged with #{id}',
+	'Merged with “{name}”' => 'Merged with “{name}”',
 	'MIME type' => 'MIME type',
 	'Min' => 'Min',
 	'Missing' => 'Missing',
