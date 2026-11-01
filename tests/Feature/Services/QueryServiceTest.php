@@ -195,7 +195,7 @@ describe('pages of elements', function () {
 	});
 
 	it('loads the elements of a page along with what the query loads with them', function () {
-		$this->db()->respond('hubId', [['hubId' => '7']]);
+		$this->db()->respond('hubId', [['hubId' => '7', 'hubSiteId' => '2']]);
 		ElementQueries::respond(Entry::class, fn (ElementQuery $query) => [new Entry(['id' => 7, 'siteId' => 2])]);
 		ElementQueries::respond(User::class, fn (ElementQuery $query) => [new User(['id' => 7])]);
 
