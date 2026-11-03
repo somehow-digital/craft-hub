@@ -83,7 +83,7 @@
 				</div>
 				<ul class="hub-sidebar__paths">
 					{% for user in source.users %}
-						<li class="hub-sidebar__path">{{ hub.element(user) }}</li>
+						<li class="hub-sidebar__path">{{ hub.user(user) }}</li>
 					{% endfor %}
 					{% for group in source.groups %}
 						<li class="hub-sidebar__path">{{ hub.badge(group.name|t('site'), 'violet', 'User Group'|t('app'), 'users') }}</li>

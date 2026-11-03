@@ -89,7 +89,7 @@
 												{%- elseif column.key == 'uploaded' -%}
 													{{ hub.date(asset.dateCreated) }}
 												{%- elseif column.key == 'uploader' -%}
-													{% if asset.uploader %}{{ hub.element(asset.uploader) }}{% else %}<span class="hub-muted">—</span>{% endif %}
+													{{ hub.user(asset.uploader) }}
 												{%- elseif column.key == 'maintainers' -%}
 													{{ hub.elementMaintainers(asset) }}
 												{%- elseif column.key == 'url' -%}

@@ -430,6 +430,23 @@
 	{{- elementChip(element, { hyperlink: true, attributes: hubUrl|trim ? { data: { 'cp-url': hubUrl } } : {} }) -}}
 {%- endmacro %}
 
+{#
+	Chip of a user, the same wherever a user is shown. A user since deleted is shown by the name they had, in a chip of the same
+	shape that links nowhere, and nobody by a dash.
+#}
+{% macro user(user, name) %}
+	{%- if user -%}
+		{{- _self.element(user) -}}
+	{%- elseif name -%}
+		<div class="chip small" title="{{ 'Deleted user'|t('hub') }}">
+			<div class="thumb cp-icon gray" aria-hidden="true">{{ iconSvg('user-slash') }}</div>
+			<div class="chip-content"><div class="chip-label"><div>{{ name }}</div></div></div>
+		</div>
+	{%- else -%}
+		<span class="hub-muted">—</span>
+	{%- endif -%}
+{%- endmacro %}
+
 {# Opens an element's public URL in a new tab, for elements that have one. #}
 {#
 	Link to the public URL of an element. Entries link to the preview targets of their section instead, through a menu when there are several,

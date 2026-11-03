@@ -43,7 +43,7 @@
 										{% endif %}
 									</span>
 								</th>
-								<td>{% if creator %}{{ hub.element(creator) }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+								<td>{{ hub.user(creator) }}</td>
 								<td>{{ hub.date(draft.dateUpdated) }}</td>
 								<td>{% if draft.draftNotes %}{{ draft.draftNotes }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
 							</tr>

@@ -49,7 +49,7 @@
 									</span>
 								</th>
 								<td>{{ hub.date(revision.dateCreated) }}</td>
-								<td>{% if creator %}{{ hub.element(creator) }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+								<td>{{ hub.user(creator) }}</td>
 								<td>{% if revision.revisionNotes %}{{ revision.revisionNotes }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
 								{% if viewRevisions %}
 									<td class="hub-visit-cell">

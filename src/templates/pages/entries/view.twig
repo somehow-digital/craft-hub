@@ -105,7 +105,7 @@
 			<dt class="heading">{{ 'Authors'|t('app') }}</dt>
 			<dd class="value">
 				{% if entry.authors|length %}
-					{% for author in entry.authors %}{{ hub.link(hub.url(author), author.friendlyName) }}{% if not loop.last %}, {% endif %}{% endfor %}
+					<span class="hub-chips">{% for author in entry.authors %}{{ hub.user(author) }}{% endfor %}</span>
 				{% else %}
 					<span class="hub-muted">—</span>
 				{% endif %}
