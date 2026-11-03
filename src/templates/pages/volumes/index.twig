@@ -2,69 +2,69 @@
 {% import 'hub/_components/macros' as hub %}
 
 {# Items can be labeled while there are labels, or the user can create some. #}
-{% set labelable = canApplyLabels and (labels|length > 0 or canManageLabels) %}
+{% set labelable = list.canApplyLabels and (list.labels|length > 0 or list.canManageLabels) %}
 
 {% set area = 'structure' %}
 {% set page = 'volumes' %}
 {% set title = 'Volumes'|t('app') %}
 {% set selectedTab = 'list' %}
 
-{% set kindOptions = fileKinds|map((kind, value) => { label: kind.label, icon: kind.icon, color: kind.color }) %}
+{% set kindOptions = list.fileKinds|map((kind, value) => { label: kind.label, icon: kind.icon, color: kind.color }) %}
 
 {% block content %}
-	{% embed 'hub/_components/panel' %}
+	{% embed 'hub/_components/panel' with { list: list, kindOptions: kindOptions, hubSite: hubSite, labelable: labelable } only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
-			<form method="get" class="hub-filters" action="{{ url('hub/structure/volumes') }}" data-hub-submit{% if bulkSelection.review ?? false %} hidden{% endif %}>
-				{% include 'hub/_components/saved-filters' %}
-				{{ hub.search('Search by name or handle'|t('hub'), filter.search) }}
-				{{ hub.dropdown('Types'|t('hub'), 'file', hub.choices('kind', kindOptions, filter.kinds)) }}
+			<form method="get" class="hub-filters" action="{{ url('hub/structure/volumes') }}" data-hub-submit{% if list.bulkSelection.review ?? false %} hidden{% endif %}>
+				{% include 'hub/_components/saved-filters' with { savedFilters: list.savedFilters, hubSite: hubSite } only %}
+				{{ hub.search('Search by name or handle'|t('hub'), list.filter.search) }}
+				{{ hub.dropdown('Types'|t('hub'), 'file', hub.choices('kind', kindOptions, list.filter.kinds)) }}
 				{{ hub.dropdown('URLs'|t('hub'), 'globe', hub.choices('urls', {
 					yes: { label: 'Has URLs'|t('hub') },
 					no: { label: 'No URLs'|t('hub') },
-				}, filter.urls, { multiple: false })) }}
-				{{ hub.dropdown('Assets'|t('app'), 'image', hub.range('assets', 'Number of assets'|t('hub'), filter.assetsMin, filter.assetsMax)
-					~ hub.range('size', 'Size'|t('app'), filter.sizeMin, filter.sizeMax, { unit: 'MB', step: 'any' })
-					~ hub.range('alt', 'Missing alt text'|t('hub'), filter.altMin, filter.altMax)) }}
-				{{ hub.dropdown('Last upload'|t('hub'), 'calendar', hub.range('uploaded', 'Last upload'|t('hub'), filter.uploadedFrom, filter.uploadedTo, { type: 'date' })) }}
-				{{ hub.labelFilter(labelOptions, filter.labels) }}
-				{{ hub.toggle('empty', 'Empty only'|t('hub'), filter.empty) }}
+				}, list.filter.urls, { multiple: false })) }}
+				{{ hub.dropdown('Assets'|t('app'), 'image', hub.range('assets', 'Number of assets'|t('hub'), list.filter.assetsMin, list.filter.assetsMax)
+					~ hub.range('size', 'Size'|t('app'), list.filter.sizeMin, list.filter.sizeMax, { unit: 'MB', step: 'any' })
+					~ hub.range('alt', 'Missing alt text'|t('hub'), list.filter.altMin, list.filter.altMax)) }}
+				{{ hub.dropdown('Last upload'|t('hub'), 'calendar', hub.range('uploaded', 'Last upload'|t('hub'), list.filter.uploadedFrom, list.filter.uploadedTo, { type: 'date' })) }}
+				{{ hub.labelFilter(list.labelOptions, list.filter.labels) }}
+				{{ hub.toggle('empty', 'Empty only'|t('hub'), list.filter.empty) }}
 				{{ hub.addFilter() }}
-				{{ hiddenInput('sort', sort) }}
-				{{ hiddenInput('dir', dir) }}
-				{{ hiddenInput('selection', (bulkSelection.review ?? false) ? 1 : null) }}
+				{{ hiddenInput('sort', list.sort) }}
+				{{ hiddenInput('dir', list.dir) }}
+				{{ hiddenInput('selection', (list.bulkSelection.review ?? false) ? 1 : null) }}
 				{{ hub.clearFilters() }}
 			</form>
 
-			{% if volumes|length %}
-				{% embed 'hub/_components/bulk' with { bulkList: 'volumes', bulkNone: 'No volumes selected'|t('hub') } %}
+			{% if list.volumes|length %}
+				{% embed 'hub/_components/bulk' with { bulkList: 'volumes', bulkNone: 'No volumes selected'|t('hub'), list: list, labelable: labelable } only %}
 					{% block table %}
 						{% import 'hub/_components/macros' as hub %}
 						<div class="hub-table">
 							<table class="data fullwidth">
 								<thead>
 									<tr>
-										{{ hub.bulkAll(bulkActions) }}
-										{{ hub.sortHeader('Name'|t('app'), 'name', sortHeaders) }}
-										{{ hub.columnHeaders(columns, sortHeaders, 'volumes') }}
+										{{ hub.bulkAll(list.bulkActions) }}
+										{{ hub.sortHeader('Name'|t('app'), 'name', list.sortHeaders) }}
+										{{ hub.columnHeaders(list.columns, list.sortHeaders, 'volumes') }}
 									</tr>
 								</thead>
 								<tbody>
-									{% for info in volumes %}
+									{% for info in list.volumes %}
 										{% set volume = info.volume %}
 										{% set fs = volume.fs %}
 										<tr{% if info.isEmpty() %} data-severity="orange"{% endif %}>
-											{{ hub.bulkItem(bulkActions, volume.id, volume.name|t('site')) }}
+											{{ hub.bulkItem(list.bulkActions, volume.id, volume.name|t('site')) }}
 											<th>
-												{{ hub.name(volume, null, info.isEmpty() ? hub.badge('Empty'|t('hub'), 'orange', null, 'box-open'), hub.labels(itemLabels[volume.id] ?? [], volume.id, volume.name|t('site'), labelable)) }}
+												{{ hub.name(volume, null, info.isEmpty() ? hub.badge('Empty'|t('hub'), 'orange', null, 'box-open'), hub.labels(list.itemLabels[volume.id] ?? [], volume.id, volume.name|t('site'), labelable)) }}
 											</th>
-											{% for column in columns %}
+											{% for column in list.columns %}
 												<td{{ hub.cellAttributes(column) }}>
 													{%- if not column.visible -%}
 													{%- elseif column.key == 'fs' -%}
 														{{ fs.name|t('site') }} <span class="hub-muted">{{ fs.displayName() }}</span>
 													{%- elseif column.key == 'types' -%}
-														{{ hub.fileKinds(info.kindValues|map(kind => fileKinds[kind]), 3) }}
+														{{ hub.fileKinds(info.kindValues|map(kind => list.fileKinds[kind]), 3) }}
 													{%- elseif column.key == 'uri' -%}
 														{% if info.hasUrls %}{{ hub.icon('circle-check', 'green') }}{% else %}<span class="hub-muted">—</span>{% endif %}
 													{%- elseif column.key == 'assets' -%}
@@ -93,14 +93,14 @@
 					{% endblock %}
 					{% block footer %}
 						{% include '_includes/pagination' with {
-							pageInfo: pageInfo,
+							pageInfo: list.pageInfo,
 							itemLabel: 'volume'|t('hub'),
 							itemsLabel: 'volumes'|t('hub'),
-						} %}
+						} only %}
 					{% endblock %}
 				{% endembed %}
 			{% else %}
-				{{ hub.emptyList(bulkSelection ?? null) }}
+				{{ hub.emptyList(list.bulkSelection ?? null) }}
 			{% endif %}
 		{% endblock %}
 	{% endembed %}

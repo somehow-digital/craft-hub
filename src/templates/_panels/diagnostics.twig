@@ -13,7 +13,9 @@
 	color: failed ? 'orange' : 'green',
 	count: failed,
 	panelKey: 'checks',
-} %}
+	loaded: loaded ?? false,
+	tasks: tasks,
+} only %}
 	{% block body %}
 		<ul class="hub-task-group__list">
 			{% for item in tasks %}

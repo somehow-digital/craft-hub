@@ -39,7 +39,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'users', id: user.id } %}
+		{% include 'hub/_components/detail-labels' with { list: 'users', id: user.id } only %}
 		<div class="data">
 			<dt class="heading">{{ 'Status'|t('app') }}</dt>
 			<dd class="value">{{ hub.userStatus(user) }}</dd>
@@ -135,23 +135,23 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/users/permissions' with { count: permissionCount } %}
+	{% include 'hub/_panels/users/permissions' with { count: permissionCount, user: user, hubSite: hubSite } only %}
 
-	{% include 'hub/_panels/users/references' with { count: referenceCount } %}
+	{% include 'hub/_panels/users/references' with { count: referenceCount } only %}
 
-	{% include 'hub/_panels/referenced' with { count: referencedCount } %}
+	{% include 'hub/_panels/referenced' with { count: referencedCount } only %}
 
 	{% if maintainedCount %}
-		{% include 'hub/_panels/users/maintains' with { count: maintainedCount } %}
+		{% include 'hub/_panels/users/maintains' with { count: maintainedCount, hubSite: hubSite } only %}
 	{% endif %}
 
-	{% include 'hub/_panels/activity' with { subject: 'user', id: user.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'user', id: user.id } only %}
 {% endblock %}
 
 {% block list %}
 	{% if selectedTab == 'entries' %}
-		{% include 'hub/_components/entry-list' %}
+		{% include 'hub/_components/entry-list' with { list: list, hubSite: hubSite } only %}
 	{% else %}
-		{% include 'hub/_components/file-list' %}
+		{% include 'hub/_components/file-list' with { list: list, hubSite: hubSite } only %}
 	{% endif %}
 {% endblock %}

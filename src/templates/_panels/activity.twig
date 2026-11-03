@@ -15,7 +15,11 @@
 		icon: 'clock-rotate-left',
 		color: 'blue',
 		panelKey: 'activity',
-	} %}
+		loaded: loaded ?? false,
+		activities: activities,
+		subject: subject,
+		itemId: id,
+	} only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			{% if activities|length %}
@@ -33,7 +37,7 @@
 							{% for activity in activities %}
 								<tr>
 									<th>{{ hub.badge(activity.action.label(), activity.action.color(), null, activity.action.icon()) }}</th>
-									<td>{% include 'hub/_components/activity-details' %}</td>
+									<td>{% include 'hub/_components/activity-details' with { activity: activity } only %}</td>
 									<td>{{ hub.user(activity.user, activity.userName) }}</td>
 									<td>{{ hub.date(activity.dateCreated) }}</td>
 								</tr>
@@ -42,7 +46,7 @@
 					</table>
 				</div>
 				<footer class="hub-panel__footer">
-					<a href="{{ url('hub/manage/activity', { type: subject, item: id }) }}">{{ 'Show all activity'|t('hub') }}</a>
+					<a href="{{ url('hub/manage/activity', { type: subject, item: itemId }) }}">{{ 'Show all activity'|t('hub') }}</a>
 				</footer>
 			{% else %}
 				{{ hub.emptyState('clock-rotate-left', 'No activity recorded yet.'|t('hub')) }}

@@ -11,7 +11,10 @@
 	color: 'violet',
 	count: (loaded ?? false) ? maintained|length : count,
 	panelKey: 'maintains',
-} %}
+	loaded: loaded ?? false,
+	maintained: maintained ?? null,
+	hubSite: hubSite,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		<div class="hub-table">

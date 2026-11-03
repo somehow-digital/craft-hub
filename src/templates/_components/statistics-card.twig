@@ -26,7 +26,13 @@
 	id: 'hub-statistics-' ~ card.key,
 	loaded: loaded,
 	lazy: loaded ? null : url(craft.app.request.pathInfo, craft.app.request.queryParamsWithoutPath|merge({ card: card.key })),
-} %}
+	card: card,
+	segments: segments,
+	barSegments: barSegments,
+	barTotal: barTotal,
+	details: details,
+	table: table,
+} only %}
 	{% block actions %}
 		{% import 'hub/_components/macros' as hub %}
 		{% if loaded %}

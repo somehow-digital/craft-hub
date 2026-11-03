@@ -46,16 +46,18 @@ class VolumesController extends BaseController
 		$columns = $hub->columns->getColumns(ColumnService::LIST_VOLUMES);
 
 		return $this->renderTemplate('hub/pages/volumes/index', [
-			'volumes' => $volumes,
-			'pageInfo' => $pageInfo,
-			'total' => count($all),
-			'fileKinds' => $fileKinds,
-			'filter' => $filter,
-			'columns' => $columns,
-			...$this->savedFilterVariables(CheckKind::Volumes, 'hub/structure/volumes', $filter->savedFilter),
-			...$this->labelVariables(ColumnService::LIST_VOLUMES, array_keys($volumes)),
-			...$selection->variables($filter),
-			...$sort->variables('hub/structure/volumes'),
+			'list' => [
+				'volumes' => $volumes,
+				'pageInfo' => $pageInfo,
+				'total' => count($all),
+				'fileKinds' => $fileKinds,
+				'filter' => $filter,
+				'columns' => $columns,
+				...$this->savedFilterVariables(CheckKind::Volumes, 'hub/structure/volumes', $filter->savedFilter),
+				...$this->labelVariables(ColumnService::LIST_VOLUMES, array_keys($volumes)),
+				...$selection->variables($filter),
+				...$sort->variables('hub/structure/volumes'),
+			],
 		]);
 	}
 

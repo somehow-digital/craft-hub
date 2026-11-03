@@ -2,7 +2,18 @@
 
 {# Panel of the overview listing the entries of a section, what they are and when, scrolling past a few. #}
 {% macro entries(id, section, list) %}
-	{%- embed 'hub/_components/panel' with { heading: section.label, description: section.description, icon: section.icon, color: section.color, count: list.total, collapsible: false, id: 'hub-work-' ~ id, sectionId: id, section: section, list: list } %}
+	{%- embed 'hub/_components/panel' with {
+		heading: section.label,
+		description: section.description,
+		icon: section.icon,
+		color: section.color,
+		count: list.total,
+		collapsible: false,
+		id: 'hub-work-' ~ id,
+		sectionId: id,
+		section: section,
+		list: list,
+	} only %}
 		{% block body %}
 			{% import 'hub/_components/work-macros' as work %}
 			{% if list.items|length %}

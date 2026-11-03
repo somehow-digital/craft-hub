@@ -7,5 +7,5 @@
 {% set selectedTab = 'list' %}
 
 {% block content %}
-	{% include 'hub/_components/entry-list' %}
+	{% include 'hub/_components/entry-list' with { list: list, hubSite: hubSite } only %}
 {% endblock %}

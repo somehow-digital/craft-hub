@@ -43,9 +43,9 @@
 
 {% block content %}
 	{% if selectedTab == 'diagnostics' %}
-		{% include 'hub/_panels/checks' %}
+		{% include 'hub/_panels/checks' with { checks: checks } only %}
 	{% elseif selectedTab == 'statistics' %}
-		{% include 'hub/_components/statistics' with { cards: summary } %}
+		{% include 'hub/_components/statistics' with { cards: summary } only %}
 	{% elseif selectedTab in listTabs|column('id') %}
 		{% block list %}{% endblock %}
 	{% else %}

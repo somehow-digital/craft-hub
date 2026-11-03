@@ -10,5 +10,7 @@
 {% block content %}
 	{% include 'hub/_components/file-list' with {
 		fixedFilters: [{ label: 'Uploader'|t('hub'), value: 'Me'|t('hub'), icon: 'user' }],
-	} %}
+		list: list,
+		hubSite: hubSite,
+	} only %}
 {% endblock %}

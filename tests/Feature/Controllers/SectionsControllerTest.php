@@ -22,13 +22,13 @@ it('lists the sections', function () {
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/sections/index')
-		->and(array_keys($variables['sections']))->toBe([4, 1, 2, 3])
-		->and($variables['total'])->toBe(4)
-		->and($variables['pageInfo']->total)->toBe(4)
-		->and($variables['pageInfo']->totalPages)->toBe(1)
-		->and($variables['activities'])->toBe([4 => 'none', 1 => 'recent', 2 => 'recent', 3 => 'stale'])
-		->and($variables['sort'])->toBeNull()
-		->and($variables['dir'])->toBeNull()
+		->and(array_keys($variables['list']['sections']))->toBe([4, 1, 2, 3])
+		->and($variables['list']['total'])->toBe(4)
+		->and($variables['list']['pageInfo']->total)->toBe(4)
+		->and($variables['list']['pageInfo']->totalPages)->toBe(1)
+		->and($variables['list']['activities'])->toBe([4 => 'none', 1 => 'recent', 2 => 'recent', 3 => 'stale'])
+		->and($variables['list']['sort'])->toBeNull()
+		->and($variables['list']['dir'])->toBeNull()
 		->and($variables)->not->toHaveKey('summary')
 		->and($variables['selectedSites'])->toBe([])
 		->and($variables['siteIds'])->toBe([1, 2])
@@ -149,27 +149,27 @@ it('filters and sorts the sections by the query params', function () {
 		'dir' => 'asc',
 	])->variables;
 
-	expect($variables['filter']->search)->toBe('new')
-		->and($variables['filter']->types)->toBe(['channel'])
-		->and($variables['filter']->urls)->toBe('yes')
-		->and($variables['filter']->entriesMin)->toBe(1)
-		->and($variables['filter']->referencesMax)->toBeNull()
-		->and($variables['filter']->activities)->toBe(['recent'])
-		->and($variables['filter']->empty)->toBeFalse()
-		->and($variables['sort'])->toBe('entries')
-		->and($variables['dir'])->toBe('asc')
-		->and($variables['sortHeaders']['entries']['direction'])->toBe('asc')
-		->and($variables['sortHeaders']['entries']['url'])->not->toContain('sort=entries&dir')
-		->and($variables['sortHeaders']['name']['url'])->not->toContain('sort=');
+	expect($variables['list']['filter']->search)->toBe('new')
+		->and($variables['list']['filter']->types)->toBe(['channel'])
+		->and($variables['list']['filter']->urls)->toBe('yes')
+		->and($variables['list']['filter']->entriesMin)->toBe(1)
+		->and($variables['list']['filter']->referencesMax)->toBeNull()
+		->and($variables['list']['filter']->activities)->toBe(['recent'])
+		->and($variables['list']['filter']->empty)->toBeFalse()
+		->and($variables['list']['sort'])->toBe('entries')
+		->and($variables['list']['dir'])->toBe('asc')
+		->and($variables['list']['sortHeaders']['entries']['direction'])->toBe('asc')
+		->and($variables['list']['sortHeaders']['entries']['url'])->not->toContain('sort=entries&dir')
+		->and($variables['list']['sortHeaders']['name']['url'])->not->toContain('sort=');
 });
 
 it('ignores unknown sort columns and directions', function () {
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['sort' => 'bogus', 'dir' => 'sideways'])->variables;
 
-	expect($variables['sort'])->toBeNull()
-		->and($variables['dir'])->toBeNull()
-		->and($variables['sortHeaders']['name']['direction'])->toBe('asc')
-		->and($variables['sortHeaders']['name']['url'])->toContain('dir=desc');
+	expect($variables['list']['sort'])->toBeNull()
+		->and($variables['list']['dir'])->toBeNull()
+		->and($variables['list']['sortHeaders']['name']['direction'])->toBe('asc')
+		->and($variables['list']['sortHeaders']['name']['url'])->toContain('dir=desc');
 });
 
 it('shows a section', function () {
@@ -220,13 +220,13 @@ it('lists the entries of a section on a tab of its own', function () {
 	$variables = $this->runAction(SectionsController::class, 'view', ['id' => 2, 'tab' => 'entries'], query: ['field' => 'blocks'])->variables;
 
 	expect($variables['selectedTab'])->toBe('entries')
-		->and($variables['listFixed'])->toBe('section')
+		->and($variables['list']['listFixed'])->toBe('section')
 		// Nested entries of a field don't widen the list of a section.
-		->and($variables['filter']->fields)->toBe([])
-		->and($variables['listPath'])->toBe('hub/structure/sections/2/entries')
-		->and($variables['entries'])->toHaveCount(1)
-		->and(array_column($variables['columns'], 'key'))->not->toContain('origin')
-		->and(array_column($variables['columns'], 'key'))->not->toContain('owner')
+		->and($variables['list']['filter']->fields)->toBe([])
+		->and($variables['list']['listPath'])->toBe('hub/structure/sections/2/entries')
+		->and($variables['list']['entries'])->toHaveCount(1)
+		->and(array_column($variables['list']['columns'], 'key'))->not->toContain('origin')
+		->and(array_column($variables['list']['columns'], 'key'))->not->toContain('owner')
 		->and($variables['checks'])->not->toBeEmpty()
 		->and($variables)->not->toHaveKeys(['summary', 'reviewList']);
 });
@@ -283,9 +283,9 @@ it('keeps the selected sites', function () {
 it('sorts against the natural direction', function () {
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['dir' => 'desc'])->variables;
 
-	expect(array_keys($variables['sections']))->toBe([3, 2, 1, 4])
-		->and($variables['sort'])->toBe('name')
-		->and($variables['dir'])->toBe('desc');
+	expect(array_keys($variables['list']['sections']))->toBe([3, 2, 1, 4])
+		->and($variables['list']['sort'])->toBe('name')
+		->and($variables['list']['dir'])->toBe('desc');
 });
 
 it('runs no action that a handler cancels', function () {
@@ -301,7 +301,7 @@ it('runs no action that a handler cancels', function () {
 });
 
 it('sorts by a column in its natural direction, then reversed, then resets the sorting', function () {
-	$headers = fn (array $query) => $this->runAction(SectionsController::class, 'index', query: $query)->variables['sortHeaders'];
+	$headers = fn (array $query) => $this->runAction(SectionsController::class, 'index', query: $query)->variables['list']['sortHeaders'];
 
 	expect($headers([])['entries']['url'])->toContain('sort=entries')->not->toContain('dir=')
 		->and($headers(['sort' => 'entries'])['entries']['url'])->toContain('sort=entries&dir=asc')
@@ -310,7 +310,7 @@ it('sorts by a column in its natural direction, then reversed, then resets the s
 });
 
 it('reverses the default sort and back', function () {
-	$headers = fn (array $query) => $this->runAction(SectionsController::class, 'index', query: $query)->variables['sortHeaders'];
+	$headers = fn (array $query) => $this->runAction(SectionsController::class, 'index', query: $query)->variables['list']['sortHeaders'];
 
 	expect($headers([])['name']['url'])->toContain('dir=desc')
 		->and($headers(['dir' => 'desc'])['name']['url'])->toContain('sort=name')->not->toContain('dir=')
@@ -323,8 +323,8 @@ it('leaves out the data of hidden columns', function () {
 
 	$variables = $this->runAction(SectionsController::class, 'index')->variables;
 
-	expect($variables['activities'])->toBe([])
-		->and($variables['sections'])->not->toBeEmpty();
+	expect($variables['list']['activities'])->toBe([])
+		->and($variables['list']['sections'])->not->toBeEmpty();
 });
 
 it('lists only the selected sections while reviewing them, whatever the filters', function () {
@@ -333,11 +333,11 @@ it('lists only the selected sections while reviewing them, whatever the filters'
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['selection' => '1', 'type' => 'structure'])->variables;
 
 	// Selected sections that no longer exist are unselected.
-	expect(array_keys($variables['sections']))->toBe([1, 3])
-		->and($variables['filter']->types)->toBe([])
-		->and($variables['bulkSelection']['review'])->toBeTrue()
-		->and($variables['bulkSelection']['ids'])->toBe([1, 3])
-		->and($variables['bulkSelection']['outside'])->toBe(0)
+	expect(array_keys($variables['list']['sections']))->toBe([1, 3])
+		->and($variables['list']['filter']->types)->toBe([])
+		->and($variables['list']['bulkSelection']['review'])->toBeTrue()
+		->and($variables['list']['bulkSelection']['ids'])->toBe([1, 3])
+		->and($variables['list']['bulkSelection']['outside'])->toBe(0)
 		->and($this->session['hub:bulk:selection:sections:hub/structure/sections'])->toBe([1, 3])
 		->and($this->session)->not->toHaveKey('hub:bulk:filter:sections:hub/structure/sections');
 });
@@ -347,12 +347,12 @@ it('counts the selected sections the filters leave out, keeping the filters to s
 
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['type' => 'channel'])->variables;
 
-	expect($variables['bulkSelection']['review'])->toBeFalse()
-		->and($variables['bulkSelection']['ids'])->toBe([1, 2])
-		->and($variables['bulkSelection']['outside'])->toBe(1)
-		->and($variables['bulkSelection']['limit'])->toBe(1000)
-		->and($variables['bulkSelection']['listUrl'])->toContain('hub/structure/sections')
-		->and($variables['bulkSelection']['reviewUrl'])->toContain('selection=1')
+	expect($variables['list']['bulkSelection']['review'])->toBeFalse()
+		->and($variables['list']['bulkSelection']['ids'])->toBe([1, 2])
+		->and($variables['list']['bulkSelection']['outside'])->toBe(1)
+		->and($variables['list']['bulkSelection']['limit'])->toBe(1000)
+		->and($variables['list']['bulkSelection']['listUrl'])->toContain('hub/structure/sections')
+		->and($variables['list']['bulkSelection']['reviewUrl'])->toContain('selection=1')
 		->and($this->session['hub:bulk:filter:sections:hub/structure/sections']->types)->toBe(['channel']);
 });
 
@@ -361,9 +361,9 @@ it('offers no selection to users who may not label sections', function () {
 
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['selection' => '1'])->variables;
 
-	expect($variables['bulkActions'])->toBe([])
-		->and($variables['bulkSelection'])->toBeNull()
-		->and(array_keys($variables['sections']))->toBe([4, 1, 2, 3]);
+	expect($variables['list']['bulkActions'])->toBe([])
+		->and($variables['list']['bulkSelection'])->toBeNull()
+		->and(array_keys($variables['list']['sections']))->toBe([4, 1, 2, 3]);
 });
 
 it('requires the permissions to access the structure and view the sections', function (array $permissions) {

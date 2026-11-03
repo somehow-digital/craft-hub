@@ -27,17 +27,17 @@ beforeEach(function () {
 it('lists the activities, newest first, leaving the options of the users filter to be loaded', function () {
 	$variables = $this->runAction(ActivityController::class, 'index')->variables;
 
-	expect(array_map(fn ($activity) => $activity->id, $variables['activities']))->toBe([2, 1])
-		->and($variables['activities'][0]->user?->username)->toBe('jane')
-		->and($variables['pageInfo']->total)->toBe(2)
-		->and($variables['listPath'])->toBe('hub/manage/activity')
-		->and($variables['userOptions'])->toBe([])
-		->and($variables['optionsUrls']['user'])->toContain('filter=user')
+	expect(array_map(fn ($activity) => $activity->id, $variables['list']['activities']))->toBe([2, 1])
+		->and($variables['list']['activities'][0]->user?->username)->toBe('jane')
+		->and($variables['list']['pageInfo']->total)->toBe(2)
+		->and($variables['list']['listPath'])->toBe('hub/manage/activity')
+		->and($variables['list']['userOptions'])->toBe([])
+		->and($variables['list']['optionsUrls']['user'])->toContain('filter=user')
 		->and($this->db()->queriesMatching('MAX([[id]])'))->toBe([])
-		->and($variables['actions'])->toBe(ActivityGroup::cases())
-		->and($variables['retentionDays'])->toBe(90)
-		->and($variables['sort'])->toBeNull()
-		->and(array_column($variables['columns'], 'key'))->toBe(['action', 'user', 'details', 'site', 'ip', 'date', 'batch']);
+		->and($variables['list']['actions'])->toBe(ActivityGroup::cases())
+		->and($variables['list']['retentionDays'])->toBe(90)
+		->and($variables['list']['sort'])->toBeNull()
+		->and(array_column($variables['list']['columns'], 'key'))->toBe(['action', 'user', 'details', 'site', 'ip', 'date', 'batch']);
 });
 
 it('filters the activities by the query params, ignoring unknown values', function () {
@@ -51,16 +51,16 @@ it('filters the activities by the query params, ignoring unknown values', functi
 		'sort' => 'user',
 	])->variables;
 
-	$filter = $variables['filter'];
+	$filter = $variables['list']['filter'];
 
 	expect($filter->actions)->toBe(['deleted'])
 		->and($filter->subjects)->toBe(['entry', 'user'])
 		->and($filter->users)->toBe(['4', 'none'])
-		->and(array_keys($variables['userOptions']))->toBe([4, ActivityFilter::USER_NONE])
+		->and(array_keys($variables['list']['userOptions']))->toBe([4, ActivityFilter::USER_NONE])
 		->and($filter->dateFrom?->format('Y-m-d'))->toBe('2026-10-01')
 		->and($filter->dateTo)->toBeNull()
 		->and($filter->search)->toBe('hello')
-		->and($variables['sort'])->toBe(ActivityService::SORT_USER)
+		->and($variables['list']['sort'])->toBe(ActivityService::SORT_USER)
 		->and($this->db()->queriesMatching("`action` IN ('deleted', 'uninstalled', 'transformsDeleted', 'draftDeleted')"))->not->toBe([]);
 });
 
@@ -70,7 +70,7 @@ it('leaves out the site column on single-site installs', function () {
 
 	$variables = $this->runAction(ActivityController::class, 'index')->variables;
 
-	expect(array_column($variables['columns'], 'key'))->not->toContain('site');
+	expect(array_column($variables['list']['columns'], 'key'))->not->toContain('site');
 });
 
 it('shows no activity log while it is disabled', function () {

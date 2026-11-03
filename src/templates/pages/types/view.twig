@@ -33,7 +33,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'entryTypes', id: entryType.id } %}
+		{% include 'hub/_components/detail-labels' with { list: 'entryTypes', id: entryType.id } only %}
 		<div class="data">
 			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
 			<dd class="value"><code>{{ entryType.handle }}</code></dd>
@@ -92,15 +92,15 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/maintainers' with { list: 'entryTypes', item: entryType } %}
+	{% include 'hub/_panels/maintainers' with { list: 'entryTypes', item: entryType, hubSite: hubSite } only %}
 
-	{% include 'hub/_panels/types/relations' %}
+	{% include 'hub/_panels/types/relations' with { info: info, entryType: entryType, siteIds: siteIds } only %}
 
-	{% include 'hub/_panels/field-layout' with { layout: entryType.getFieldLayout() } %}
+	{% include 'hub/_panels/field-layout' with { layout: entryType.getFieldLayout() } only %}
 
-	{% include 'hub/_panels/activity' with { subject: 'entryType', id: entryType.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'entryType', id: entryType.id } only %}
 {% endblock %}
 
 {% block list %}
-	{% include 'hub/_components/entry-list' %}
+	{% include 'hub/_components/entry-list' with { list: list, hubSite: hubSite } only %}
 {% endblock %}

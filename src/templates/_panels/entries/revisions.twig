@@ -15,7 +15,14 @@
 	color: 'blue',
 	count: (loaded ?? false) ? pageInfo.total : count,
 	panelKey: 'revisions',
-} %}
+	loaded: loaded ?? false,
+	entry: entry,
+	revisions: revisions ?? null,
+	currentRevision: currentRevision ?? null,
+	pageInfo: pageInfo ?? null,
+	canView: canView,
+	viewRevisions: viewRevisions,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% if revisions|length %}
@@ -67,7 +74,7 @@
 					pageInfo: pageInfo,
 					itemLabel: 'revision'|t('app'),
 					itemsLabel: 'revisions'|t('app'),
-				} %}
+				} only %}
 			</footer>
 		{% else %}
 			{{ hub.emptyState('clock-rotate-left', 'The entry has no revisions on this site yet.'|t('hub')) }}

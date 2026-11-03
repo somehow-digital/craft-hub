@@ -65,15 +65,15 @@ it('lists the users', function () {
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/users/index')
-		->and($variables['users'])->toBe($users)
-		->and($variables['pageInfo']->total)->toBe(2)
-		->and($variables['entryCounts'])->toBe([3 => 5])
-		->and($variables['twoFactor'])->toEqualCanonicalizing([3 => false, 4 => true])
-		->and(array_keys($variables['groups']))->toBe([1])
-		->and(array_keys($variables['statuses']))->toBe(['active', 'pending', 'suspended', 'locked', 'inactive'])
-		->and($variables['idleMonths'])->toBe(12)
-		->and(array_column($variables['columns'], 'key'))->toContain('groups')
-		->and($variables['sort'])->toBeNull();
+		->and($variables['list']['users'])->toBe($users)
+		->and($variables['list']['pageInfo']->total)->toBe(2)
+		->and($variables['list']['entryCounts'])->toBe([3 => 5])
+		->and($variables['list']['twoFactor'])->toEqualCanonicalizing([3 => false, 4 => true])
+		->and(array_keys($variables['list']['groups']))->toBe([1])
+		->and(array_keys($variables['list']['statuses']))->toBe(['active', 'pending', 'suspended', 'locked', 'inactive'])
+		->and($variables['list']['idleMonths'])->toBe(12)
+		->and(array_column($variables['list']['columns'], 'key'))->toContain('groups')
+		->and($variables['list']['sort'])->toBeNull();
 
 	// Photos are shown with all users, and groups with the column showing them.
 	$query = ElementQueries::executed(User::class)[0];
@@ -96,7 +96,7 @@ it('reads the filters of the users list', function () {
 		'entriesMax' => 'many',
 		'assetsMin' => '1',
 		'assetsMax' => '10',
-	])->variables['filter'];
+	])->variables['list']['filter'];
 
 	expect($filter->search)->toBe('jane')
 		->and($filter->groups)->toBe(['editors', 'none'])
@@ -119,8 +119,8 @@ it('offers neither groups nor their column without any groups', function () {
 
 	$variables = $this->runAction(UsersController::class, 'index', query: ['group' => 'none'])->variables;
 
-	expect($variables['filter']->groups)->toBe([])
-		->and(array_column($variables['columns'], 'key'))->not->toContain('groups')
+	expect($variables['list']['filter']->groups)->toBe([])
+		->and(array_column($variables['list']['columns'], 'key'))->not->toContain('groups')
 		->and(ElementQueries::executed(User::class)[0]->withGroups)->toBeFalse();
 });
 
@@ -133,9 +133,9 @@ it('leaves out the data of hidden columns', function () {
 
 	$variables = $this->runAction(UsersController::class, 'index')->variables;
 
-	expect($variables['entryCounts'])->toBe([])
-		->and($variables['assetCounts'])->toBe([])
-		->and($variables['twoFactor'])->toBe([])
+	expect($variables['list']['entryCounts'])->toBe([])
+		->and($variables['list']['assetCounts'])->toBe([])
+		->and($variables['list']['twoFactor'])->toBe([])
 		->and(ElementQueries::executed(User::class)[0]->withGroups)->toBeFalse();
 });
 
@@ -256,11 +256,11 @@ it('lists the entries of a user on a tab of their own', function () {
 	$variables = $this->runAction(UsersController::class, 'view', ['id' => 3, 'tab' => 'entries'], ['author' => '4'])->variables;
 
 	expect($variables['selectedTab'])->toBe('entries')
-		->and($variables['listFixed'])->toBe('author')
-		->and($variables['listPath'])->toBe('hub/data/users/3/entries')
-		->and($variables['filter']->authors)->toBe([3])
-		->and($variables['authorOptions'])->toBe([])
-		->and($variables['entries'])->toHaveCount(1)
+		->and($variables['list']['listFixed'])->toBe('author')
+		->and($variables['list']['listPath'])->toBe('hub/data/users/3/entries')
+		->and($variables['list']['filter']->authors)->toBe([3])
+		->and($variables['list']['authorOptions'])->toBe([])
+		->and($variables['list']['entries'])->toHaveCount(1)
 		->and($variables['checks'])->not->toBeEmpty()
 		->and($variables)->not->toHaveKeys(['permissions', 'references', 'assets']);
 });
@@ -274,11 +274,11 @@ it('lists the files a user uploaded on a tab of their own', function () {
 	$variables = $this->runAction(UsersController::class, 'view', ['id' => 3, 'tab' => 'assets'])->variables;
 
 	expect($variables['selectedTab'])->toBe('assets')
-		->and($variables['listFixed'])->toBe('uploader')
-		->and($variables['listPath'])->toBe('hub/data/users/3/assets')
-		->and($variables['filter']->uploaders)->toBe([3])
-		->and($variables['uploaderOptions'])->toBe([])
-		->and($variables['assets'])->toBe([$asset])
+		->and($variables['list']['listFixed'])->toBe('uploader')
+		->and($variables['list']['listPath'])->toBe('hub/data/users/3/assets')
+		->and($variables['list']['filter']->uploaders)->toBe([3])
+		->and($variables['list']['uploaderOptions'])->toBe([])
+		->and($variables['list']['assets'])->toBe([$asset])
 		->and($variables)->not->toHaveKeys(['permissions', 'references', 'entries']);
 });
 
@@ -297,12 +297,12 @@ it('lists the user groups on a tab of their own', function () {
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/users/groups')
-		->and(array_keys($variables['groups']))->toBe([1])
-		->and($variables['groups'][1]['users'])->toBe(2)
-		->and($variables['pageInfo']->total)->toBe(1)
-		->and($variables['listPath'])->toBe('hub/data/users/groups')
-		->and(array_column($variables['columns'], 'key'))->toBe(['description', 'users', 'permissions', 'twoFactor', 'settings'])
-		->and($variables['sort'])->toBeNull()
+		->and(array_keys($variables['list']['groups']))->toBe([1])
+		->and($variables['list']['groups'][1]['users'])->toBe(2)
+		->and($variables['list']['pageInfo']->total)->toBe(1)
+		->and($variables['list']['listPath'])->toBe('hub/data/users/groups')
+		->and(array_column($variables['list']['columns'], 'key'))->toBe(['description', 'users', 'permissions', 'twoFactor', 'settings'])
+		->and($variables['list']['sort'])->toBeNull()
 		->and($variables['extraTabs'])->toBe(['groups' => 'Groups']);
 
 	// The list and the diagnostics offer the tab too.
@@ -322,11 +322,11 @@ it('filters the user groups', function () {
 
 	$variables = $this->runAction(UsersController::class, 'groups', [], ['empty' => '1', 'twoFactor' => 'optional', 'usersMin' => 'x', 'sort' => 'users'])->variables;
 
-	expect(array_keys($variables['groups']))->toBe([2])
-		->and($variables['filter']->empty)->toBeTrue()
-		->and($variables['filter']->twoFactor)->toBe('optional')
-		->and($variables['filter']->usersMin)->toBeNull()
-		->and($variables['sort'])->toBe('users');
+	expect(array_keys($variables['list']['groups']))->toBe([2])
+		->and($variables['list']['filter']->empty)->toBeTrue()
+		->and($variables['list']['filter']->twoFactor)->toBe('optional')
+		->and($variables['list']['filter']->usersMin)->toBeNull()
+		->and($variables['list']['sort'])->toBe('users');
 });
 
 it('shows a user group', function () {
@@ -355,11 +355,11 @@ it('lists the users of a user group on a tab of their own', function () {
 	$variables = $this->runAction(UsersController::class, 'group', ['id' => 1, 'tab' => 'users'], ['group' => 'none'])->variables;
 
 	expect($variables['selectedTab'])->toBe('users')
-		->and($variables['listFixed'])->toBe('group')
-		->and($variables['listPath'])->toBe('hub/data/users/groups/1/users')
-		->and($variables['filter']->groups)->toBe(['editors'])
-		->and($variables['users'])->toBe($users)
-		->and(array_column($variables['columns'], 'key'))->not->toContain('groups')
+		->and($variables['list']['listFixed'])->toBe('group')
+		->and($variables['list']['listPath'])->toBe('hub/data/users/groups/1/users')
+		->and($variables['list']['filter']->groups)->toBe(['editors'])
+		->and($variables['list']['users'])->toBe($users)
+		->and(array_column($variables['list']['columns'], 'key'))->not->toContain('groups')
 		->and(ElementQueries::executed(User::class)[0]->withGroups)->toBeFalse()
 		->and($variables)->not->toHaveKeys(['permissions', 'maintained']);
 });

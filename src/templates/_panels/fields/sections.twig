@@ -13,7 +13,12 @@
 	color: usageKind.color(),
 	count: info.sections|length,
 	panelKey: 'sections',
-} %}
+	loaded: loaded ?? false,
+	info: info,
+	field: field,
+	siteIds: siteIds,
+	statistics: statistics ?? null,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		<div class="hub-table">

@@ -57,7 +57,7 @@
 					<span class="hub-muted" title="{{ 'Done by a guest, the system or on the command line'|t('hub') }}">{{ 'No user'|t('hub') }}</span>
 				{% endif %}
 			{%- elseif column.key == 'details' -%}
-				{% include 'hub/_components/activity-details' %}
+				{% include 'hub/_components/activity-details' with { activity: activity } only %}
 			{%- elseif column.key == 'site' -%}
 				{% if activity.site %}{{ activity.site.name|t('site') }}{% else %}<span class="hub-muted">—</span>{% endif %}
 			{%- elseif column.key == 'ip' -%}
@@ -75,7 +75,7 @@
 	{% endfor %}
 </tr>
 {% for item in activity.batched %}
-	{% include 'hub/_components/activity-row' with { activity: item, batched: true } %}
+	{% include 'hub/_components/activity-row' with { activity: item, batched: true, listPath: listPath, columns: columns } only %}
 {% endfor %}
 {% if activity.batchCount > activity.batched|length %}
 	<tr class="hub-activity-batched" data-hub-batch-of="{{ activity.id }}" hidden>

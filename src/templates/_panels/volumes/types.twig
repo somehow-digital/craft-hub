@@ -4,7 +4,15 @@
 
 	Variables: info (VolumeInfo), and once loaded fileKinds (FileKindInfo[] by kind)
 #}
-{% embed 'hub/_components/panel' with { heading: 'Types'|t('hub'), icon: 'file', count: info.kinds|length, panelKey: 'types' } %}
+{% embed 'hub/_components/panel' with {
+	heading: 'Types'|t('hub'),
+	icon: 'file',
+	count: info.kinds|length,
+	panelKey: 'types',
+	loaded: loaded ?? false,
+	info: info,
+	fileKinds: fileKinds ?? null,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% if info.kinds|length %}

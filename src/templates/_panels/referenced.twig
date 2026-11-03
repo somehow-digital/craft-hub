@@ -11,7 +11,9 @@
 	color: 'teal',
 	count: (loaded ?? false) ? referenced|reduce((total, reference) => total + reference.paths|length, 0) : count,
 	panelKey: 'referenced',
-} %}
+	loaded: loaded ?? false,
+	referenced: referenced ?? null,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}

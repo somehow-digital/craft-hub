@@ -3,51 +3,51 @@
 	Trashed files have no detail page, so they aren't linked. Only files whose file was kept when they were deleted can be
 	restored, so the others are flagged and aren't offered to be restored.
 
-	Variables: assets, pageInfo, deleters (see TrashService::getDeleters()), volumes, fileKinds, kindOptions (the kinds picked, the
+	Variables: list, with assets, pageInfo, deleters (see TrashService::getDeleters()), volumes, fileKinds, kindOptions (the kinds picked, the
 	others are loaded as the dropdown opens), optionsUrls, filter, filtered (whether any filter is set), listPath, columns, sortHeaders, sort, dir, and those of the bulk actions (see ListSelection::variables())
 #}
 {% set volumeOptions = {} %}
-{% for volume in volumes %}
+{% for volume in list.volumes %}
 	{% set volumeOptions = volumeOptions|merge({ (volume.handle): { label: volume.name|t('site'), icon: 'folder-open', color: 'amber' } }) %}
 {% endfor %}
 
-{% embed 'hub/_components/panel' %}
+{% embed 'hub/_components/panel' with { list: list, volumeOptions: volumeOptions } only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
-		<form method="get" class="hub-filters" action="{{ url(listPath) }}" data-hub-submit{% if bulkSelection.review ?? false %} hidden{% endif %}>
-			{{ hub.search('Search by filename or title'|t('hub'), filter.search) }}
-			{{ hub.dropdown('Volume'|t('app'), 'folder-open', hub.choices('volume', volumeOptions, filter.volumes)) }}
-			{{ hub.dropdown('Type'|t('app'), 'file', hub.choices('kind', kindOptions, filter.kinds, { label: 'Kind'|t('hub'), lazy: optionsUrls.kind })) }}
+		<form method="get" class="hub-filters" action="{{ url(list.listPath) }}" data-hub-submit{% if list.bulkSelection.review ?? false %} hidden{% endif %}>
+			{{ hub.search('Search by filename or title'|t('hub'), list.filter.search) }}
+			{{ hub.dropdown('Volume'|t('app'), 'folder-open', hub.choices('volume', volumeOptions, list.filter.volumes)) }}
+			{{ hub.dropdown('Type'|t('app'), 'file', hub.choices('kind', list.kindOptions, list.filter.kinds, { label: 'Kind'|t('hub'), lazy: list.optionsUrls.kind })) }}
 			{{ hub.dropdown('File'|t('hub'), 'file-circle-check', hub.choices('file', {
 				kept: { label: 'Kept'|t('hub'), color: 'green' },
 				deleted: { label: 'Deleted'|t('hub'), color: 'red' },
-			}, filter.file, { multiple: false, label: 'File'|t('hub') })) }}
-			{{ hub.dropdown('Deleted'|t('hub'), 'calendar', hub.range('deleted', 'Deletion date'|t('hub'), filter.deletedFrom, filter.deletedTo, { type: 'date' })) }}
+			}, list.filter.file, { multiple: false, label: 'File'|t('hub') })) }}
+			{{ hub.dropdown('Deleted'|t('hub'), 'calendar', hub.range('deleted', 'Deletion date'|t('hub'), list.filter.deletedFrom, list.filter.deletedTo, { type: 'date' })) }}
 			{{ hub.addFilter() }}
-			{{ hiddenInput('sort', sort) }}
-			{{ hiddenInput('dir', dir) }}
-			{{ hiddenInput('selection', (bulkSelection.review ?? false) ? 1 : null) }}
+			{{ hiddenInput('sort', list.sort) }}
+			{{ hiddenInput('dir', list.dir) }}
+			{{ hiddenInput('selection', (list.bulkSelection.review ?? false) ? 1 : null) }}
 			{{ hub.clearFilters() }}
 		</form>
 
-		{% if assets|length %}
-			{% embed 'hub/_components/bulk' with { bulkList: 'trashedFiles', bulkNone: 'No files selected'|t('hub') } %}
+		{% if list.assets|length %}
+			{% embed 'hub/_components/bulk' with { bulkList: 'trashedFiles', bulkNone: 'No files selected'|t('hub'), list: list } only %}
 				{% block table %}
 					{% import 'hub/_components/macros' as hub %}
 					<div class="hub-table">
 						<table class="data fullwidth">
 							<thead>
 								<tr>
-									{{ hub.bulkAll(bulkActions) }}
-									{{ hub.sortHeader('File'|t('hub'), 'file', sortHeaders) }}
-									{{ hub.columnHeaders(columns, sortHeaders, 'trashedFiles') }}
+									{{ hub.bulkAll(list.bulkActions) }}
+									{{ hub.sortHeader('File'|t('hub'), 'file', list.sortHeaders) }}
+									{{ hub.columnHeaders(list.columns, list.sortHeaders, 'trashedFiles') }}
 								</tr>
 							</thead>
 							<tbody>
-								{% for asset in assets %}
-									{% set kind = fileKinds[asset.kind] ?? null %}
+								{% for asset in list.assets %}
+									{% set kind = list.fileKinds[asset.kind] ?? null %}
 									<tr>
-										{{ hub.bulkItem(bulkActions, asset.id, asset.filename, null, asset.keptFile ? [] : ['unrestorable']) }}
+										{{ hub.bulkItem(list.bulkActions, asset.id, asset.filename, null, asset.keptFile ? [] : ['unrestorable']) }}
 										<th>
 											<div class="hub-name">
 												{{ hub.icon(kind.icon ?? 'file', kind.color ?? 'gray') }}
@@ -57,7 +57,7 @@
 												</div>
 											</div>
 										</th>
-										{% for column in columns %}
+										{% for column in list.columns %}
 											<td{{ hub.cellAttributes(column) }}>
 												{%- if not column.visible -%}
 												{%- elseif column.key == 'volume' -%}
@@ -75,7 +75,7 @@
 												{%- elseif column.key == 'deleted' -%}
 													{{ hub.date(asset.dateDeleted) }}
 												{%- elseif column.key == 'deleter' -%}
-													{{ hub.deleter(deleters[asset.id] ?? null) }}
+													{{ hub.deleter(list.deleters[asset.id] ?? null) }}
 												{%- endif -%}
 											</td>
 										{% endfor %}
@@ -87,14 +87,14 @@
 				{% endblock %}
 				{% block footer %}
 					{% include '_includes/pagination' with {
-						pageInfo: pageInfo,
+						pageInfo: list.pageInfo,
 						itemLabel: 'file'|t('hub'),
 						itemsLabel: 'files'|t('hub'),
-					} %}
+					} only %}
 				{% endblock %}
 			{% endembed %}
-		{% elseif filtered or (bulkSelection.review ?? false) %}
-			{{ hub.emptyList(bulkSelection ?? null) }}
+		{% elseif list.filtered or (list.bulkSelection.review ?? false) %}
+			{{ hub.emptyList(list.bulkSelection ?? null) }}
 		{% else %}
 			{{ hub.emptyState('trash', 'The trash is empty.'|t('hub'), 'Deleted files are listed here, until they’re restored or deleted permanently.'|t('hub')) }}
 		{% endif %}

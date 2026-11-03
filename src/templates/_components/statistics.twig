@@ -5,6 +5,6 @@
 #}
 <div class="hub-statistics">
 	{% for card in cards %}
-		{% include 'hub/_components/statistics-card' %}
+		{% include 'hub/_components/statistics-card' with { card: card } only %}
 	{% endfor %}
 </div>

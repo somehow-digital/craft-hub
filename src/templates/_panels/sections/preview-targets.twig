@@ -5,7 +5,14 @@
 #}
 {% set previewTargets = section.previewTargets ?? [] %}
 
-{% embed 'hub/_components/panel' with { heading: 'Preview Targets'|t('app'), icon: 'eye', count: previewTargets|length, panelKey: 'previewTargets' } %}
+{% embed 'hub/_components/panel' with {
+	heading: 'Preview Targets'|t('app'),
+	icon: 'eye',
+	count: previewTargets|length,
+	panelKey: 'previewTargets',
+	loaded: loaded ?? false,
+	previewTargets: previewTargets,
+} only %}
 	{% block body %}
 		<div class="hub-table">
 			<table class="data fullwidth">

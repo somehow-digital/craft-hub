@@ -3,7 +3,15 @@
 
 	Variables: section
 #}
-{% embed 'hub/_components/panel' with { heading: 'Sites'|t('app'), icon: 'globe', count: section.siteSettings|length, panelKey: 'sites' } %}
+{% embed 'hub/_components/panel' with {
+	heading: 'Sites'|t('app'),
+	icon: 'globe',
+	count: section.siteSettings|length,
+	panelKey: 'sites',
+	loaded: loaded ?? false,
+	section: section,
+	selectedSites: selectedSites,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		<div class="hub-table">

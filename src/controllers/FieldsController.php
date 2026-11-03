@@ -59,18 +59,20 @@ class FieldsController extends BaseController
 		$shown = $hub->columns->getShownKeys($columns);
 
 		return $this->renderTemplate('hub/pages/fields/index', [
-			'fields' => $fields,
-			'pageInfo' => $pageInfo,
-			'total' => count($all),
-			'types' => $types,
-			'owners' => $owners,
-			'data' => in_array('data', $shown, true) ? array_map(fn (FieldInfo $info) => $lists->getFieldData($info), $fields) : [],
-			'filter' => $filter,
-			'columns' => $columns,
-			...$this->savedFilterVariables(CheckKind::Fields, 'hub/structure/fields', $filter->savedFilter),
-			...$this->labelVariables(ColumnService::LIST_FIELDS, array_keys($fields)),
-			...$selection->variables($filter),
-			...$sort->variables('hub/structure/fields'),
+			'list' => [
+				'fields' => $fields,
+				'pageInfo' => $pageInfo,
+				'total' => count($all),
+				'types' => $types,
+				'owners' => $owners,
+				'data' => in_array('data', $shown, true) ? array_map(fn (FieldInfo $info) => $lists->getFieldData($info), $fields) : [],
+				'filter' => $filter,
+				'columns' => $columns,
+				...$this->savedFilterVariables(CheckKind::Fields, 'hub/structure/fields', $filter->savedFilter),
+				...$this->labelVariables(ColumnService::LIST_FIELDS, array_keys($fields)),
+				...$selection->variables($filter),
+				...$sort->variables('hub/structure/fields'),
+			],
 		]);
 	}
 

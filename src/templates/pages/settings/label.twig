@@ -49,7 +49,7 @@
 	{{ actionInput('hub/labels/save') }}
 	{% if label.id %}{{ hiddenInput('labelId', label.id) }}{% endif %}
 
-	{% embed 'hub/_components/panel' with { heading: 'Label'|t('hub'), icon: 'tag', color: 'gray', count: null, collapsible: false } %}
+	{% embed 'hub/_components/panel' with { heading: 'Label'|t('hub'), icon: 'tag', color: 'gray', count: null, collapsible: false, label: label } only %}
 		{% block body %}
 			{% import '_includes/forms' as forms %}
 			<div class="hub-panel__fields">
@@ -105,7 +105,10 @@
 		color: 'gray',
 		count: null,
 		collapsible: false,
-	} %}
+		label: label,
+		mirror: mirror,
+		title: title,
+	} only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			<div class="hub-panel__preview">

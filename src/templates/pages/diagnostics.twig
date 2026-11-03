@@ -30,5 +30,5 @@
 		</span>
 	</header>
 
-	{% include 'hub/_panels/diagnostics' %}
+	{% include 'hub/_panels/diagnostics' with { tasks: tasks } only %}
 {% endblock %}

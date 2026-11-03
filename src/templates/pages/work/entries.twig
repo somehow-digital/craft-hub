@@ -10,5 +10,7 @@
 {% block content %}
 	{% include 'hub/_components/entry-list' with {
 		fixedFilters: [{ label: 'Author'|t('app'), value: 'Me'|t('hub'), icon: 'user' }],
-	} %}
+		list: list,
+		hubSite: hubSite,
+	} only %}
 {% endblock %}

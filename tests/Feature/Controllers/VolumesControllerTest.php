@@ -25,14 +25,14 @@ it('lists the volumes', function () {
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/volumes/index')
-		->and(array_keys($variables['volumes']))->toBe([1])
-		->and($variables['total'])->toBe(2)
-		->and($variables['pageInfo']->total)->toBe(1)
-		->and($variables['pageInfo']->totalPages)->toBe(1)
-		->and(array_keys($variables['fileKinds']))->toBe(['image', 'pdf'])
-		->and($variables['filter']->sizeMin)->toBe(0.0)
-		->and($variables['filter']->uploadedFrom->format('Y-m-d H:i'))->toBe('2024-01-01 00:00')
-		->and($variables['filter']->uploadedTo)->toBeNull()
+		->and(array_keys($variables['list']['volumes']))->toBe([1])
+		->and($variables['list']['total'])->toBe(2)
+		->and($variables['list']['pageInfo']->total)->toBe(1)
+		->and($variables['list']['pageInfo']->totalPages)->toBe(1)
+		->and(array_keys($variables['list']['fileKinds']))->toBe(['image', 'pdf'])
+		->and($variables['list']['filter']->sizeMin)->toBe(0.0)
+		->and($variables['list']['filter']->uploadedFrom->format('Y-m-d H:i'))->toBe('2024-01-01 00:00')
+		->and($variables['list']['filter']->uploadedTo)->toBeNull()
 		->and($variables)->not->toHaveKey('summary');
 });
 
@@ -108,11 +108,11 @@ it('lists the assets of a volume on a tab of its own', function () {
 	$variables = $this->runAction(VolumesController::class, 'view', ['id' => 1, 'tab' => 'assets'])->variables;
 
 	expect($variables['selectedTab'])->toBe('assets')
-		->and($variables['assets'])->toBe([$asset])
-		->and($variables['referenceCounts'])->toBe([1 => 2])
-		->and($variables['listFixed'])->toBe('volume')
-		->and($variables['listPath'])->toBe('hub/structure/volumes/1/assets')
-		->and($variables['filter']->volumes)->toBe(['images'])
+		->and($variables['list']['assets'])->toBe([$asset])
+		->and($variables['list']['referenceCounts'])->toBe([1 => 2])
+		->and($variables['list']['listFixed'])->toBe('volume')
+		->and($variables['list']['listPath'])->toBe('hub/structure/volumes/1/assets')
+		->and($variables['list']['filter']->volumes)->toBe(['images'])
 		->and($variables)->not->toHaveKeys(['summary', 'reviewList']);
 });
 

@@ -34,7 +34,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'volumes', id: volume.id } %}
+		{% include 'hub/_components/detail-labels' with { list: 'volumes', id: volume.id } only %}
 		<div class="data">
 			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
 			<dd class="value"><code>{{ volume.handle }}</code></dd>
@@ -90,17 +90,17 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/maintainers' with { list: 'volumes', item: volume } %}
+	{% include 'hub/_panels/maintainers' with { list: 'volumes', item: volume, hubSite: hubSite } only %}
 
-	{% include 'hub/_panels/volumes/types' %}
+	{% include 'hub/_panels/volumes/types' with { info: info } only %}
 
-	{% include 'hub/_panels/volumes/relations' %}
+	{% include 'hub/_panels/volumes/relations' with { info: info, volume: volume, siteIds: siteIds } only %}
 
-	{% include 'hub/_panels/field-layout' with { layout: volume.getFieldLayout() } %}
+	{% include 'hub/_panels/field-layout' with { layout: volume.getFieldLayout() } only %}
 
-	{% include 'hub/_panels/activity' with { subject: 'volume', id: volume.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'volume', id: volume.id } only %}
 {% endblock %}
 
 {% block list %}
-	{% include 'hub/_components/file-list' %}
+	{% include 'hub/_components/file-list' with { list: list, hubSite: hubSite } only %}
 {% endblock %}

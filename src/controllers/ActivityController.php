@@ -69,19 +69,21 @@ class ActivityController extends BaseController
 		[$pageInfo, $rows] = Paginator::fromRequest()->rows($activity->getQuery($filter, $sort->column, $sort->direction));
 
 		return $this->renderTemplate('hub/pages/activity', [
-			'activities' => $activity->populate($rows, $filter),
-			'pageInfo' => $pageInfo,
-			'filter' => $filter,
-			'batch' => $batch,
-			'userOptions' => array_intersect_key($this->activityUserOptions($userOptions), array_flip($filter->users)),
-			'optionsUrls' => ['user' => $this->filterOptionsUrl('user')],
-			'actions' => ActivityGroup::cases(),
-			'subjects' => ActivitySubject::cases(),
-			'retentionDays' => $hub->settings->activityRetentionDays,
-			'listPath' => $path,
-			// Single-site installs have no site to tell.
-			'columns' => $hub->columns->getColumns(ColumnService::LIST_ACTIVITY, Craft::$app->getIsMultiSite() ? [] : ['site']),
-			...$sort->variables($path),
+			'list' => [
+				'activities' => $activity->populate($rows, $filter),
+				'pageInfo' => $pageInfo,
+				'filter' => $filter,
+				'batch' => $batch,
+				'userOptions' => array_intersect_key($this->activityUserOptions($userOptions), array_flip($filter->users)),
+				'optionsUrls' => ['user' => $this->filterOptionsUrl('user')],
+				'actions' => ActivityGroup::cases(),
+				'subjects' => ActivitySubject::cases(),
+				'retentionDays' => $hub->settings->activityRetentionDays,
+				'listPath' => $path,
+				// Single-site installs have no site to tell.
+				'columns' => $hub->columns->getColumns(ColumnService::LIST_ACTIVITY, Craft::$app->getIsMultiSite() ? [] : ['site']),
+				...$sort->variables($path),
+			],
 		]);
 	}
 

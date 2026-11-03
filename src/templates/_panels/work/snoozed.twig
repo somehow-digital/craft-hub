@@ -7,7 +7,17 @@
 {# Snoozing leads back to the page, which this panel is loaded from. #}
 {% set returnUrl = url(craft.app.request.pathInfo, craft.app.request.queryParamsWithoutPath|filter((value, name) => name != 'panel')) %}
 
-{% embed 'hub/_components/panel' with { heading: 'Snoozed and dismissed'|t('hub'), description: 'Issues you set aside, for yourself alone. Lists and diagnostics still count them.'|t('hub'), icon: 'clock', color: 'gray', count: (loaded ?? false) ? snoozed|length : count, id: 'hub-snoozed' } %}
+{% embed 'hub/_components/panel' with {
+	heading: 'Snoozed and dismissed'|t('hub'),
+	description: 'Issues you set aside, for yourself alone. Lists and diagnostics still count them.'|t('hub'),
+	icon: 'clock',
+	color: 'gray',
+	count: (loaded ?? false) ? snoozed|length : count,
+	id: 'hub-snoozed',
+	loaded: loaded ?? false,
+	snoozed: snoozed ?? null,
+	returnUrl: returnUrl,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% import 'hub/_components/work-macros' as work %}

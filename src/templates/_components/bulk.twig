@@ -28,15 +28,17 @@
 	row as it changed; deleting, downloading and exporting are submitted as from the bar. Shift-right-clicking a row keeps the
 	browser's own menu.
 
-	Variables: bulkActions (see BulkService::getActions(); those of lists not keeping their selection may load their preview
-	from an action of their own, see the `previewDialog` macro), bulkMultiple (see BulkService::canSelect()), bulkSelection,
-	bulkList, bulkNone (the label while none is selected), pageInfo (of a paginated list), bulkAction and bulkParams, for actions of other controllers than BulkController
+	Variables: list, the variables of the list (see BaseController::entryListVariables()), with bulkActions (see
+	BulkService::getActions(); those of lists not keeping their selection may load their preview from an action of their own,
+	see the `previewDialog` macro), bulkMultiple (see BulkService::canSelect()), bulkSelection, pageInfo (of a paginated list),
+	labels, labelList and canManageLabels; bulkList, bulkNone (the label while none is selected), bulkAction and bulkParams,
+	for actions of other controllers than BulkController
 	Blocks: table, footer (e.g. the pagination, before the bulk bar)
 #}
 {% import 'hub/_components/macros' as hub %}
-{% set selectable = bulkActions|length > 0 %}
-{% set multiple = selectable and (bulkMultiple ?? true) %}
-{% set selection = selectable ? bulkSelection ?? null : null %}
+{% set selectable = list.bulkActions|length > 0 %}
+{% set multiple = selectable and (list.bulkMultiple ?? true) %}
+{% set selection = selectable ? list.bulkSelection ?? null : null %}
 {% set review = selection.review ?? false %}
 
 {% if selectable %}
@@ -69,7 +71,7 @@
 			<div class="hub-popover__title" data-hub-bulk-menu-count data-some="{{ '{count} selected'|t('hub') }}"></div>
 			<div class="hub-menu__group" role="group" aria-labelledby="{{ actionsId }}-heading">
 				<h6 class="hub-menu__heading" id="{{ actionsId }}-heading">{{ 'Actions'|t('hub') }}</h6>
-				{% for key, action in bulkActions %}
+				{% for key, action in list.bulkActions %}
 					<button {% if action.labels ?? false %}type="button" aria-haspopup="dialog" data-hub-bulk-labels{% else %}type="submit" name="bulkAction" value="{{ key }}"{% endif %} class="hub-bulk__action{% if action.confirm ?? false %} error{% endif %}" role="menuitem"
 						{%- if action.confirm ?? false %} data-hub-confirm="{{ action.confirm }}"{% endif %}
 						{%- if action.preview ?? false %} data-hub-preview{% endif %}
@@ -123,7 +125,7 @@
 						<div class="hub-popover__title" data-hub-bulk-menu-count data-some="{{ '{count} selected'|t('hub') }}"></div>
 						<div class="hub-menu__group" role="group" aria-labelledby="{{ menuId }}-actions">
 							<h6 class="hub-menu__heading" id="{{ menuId }}-actions">{{ 'Actions'|t('hub') }}</h6>
-							{% for key, action in bulkActions %}
+							{% for key, action in list.bulkActions %}
 								<button {% if action.labels ?? false %}type="button" aria-haspopup="dialog" data-hub-bulk-labels{% else %}type="submit" name="bulkAction" value="{{ key }}"{% endif %} class="hub-bulk__action{% if action.confirm ?? false %} error{% endif %}" role="menuitem"
 									{%- if action.confirm ?? false %} data-hub-confirm="{{ action.confirm }}"{% endif %}
 									{%- if action.preview ?? false %} data-hub-preview{% endif %}
@@ -136,8 +138,8 @@
 					</div>
 				{% else %}
 					{# Items on other pages can only be selected along with all others matching the filters, which don't apply while reviewing. #}
-					{% set paged = not review and (pageInfo.totalPages ?? 1) > 1 %}
-					{% set matching = pageInfo.total ?? 0 %}
+					{% set paged = not review and (list.pageInfo.totalPages ?? 1) > 1 %}
+					{% set matching = list.pageInfo.total ?? 0 %}
 					<button type="button" class="btn hub-dropdown__toggle hub-bulk__toggle" popovertarget="{{ menuId }}" aria-haspopup="menu" data-hub-bulk-toggle>
 						<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('square-check') }}</span>
 						<span>{{ 'Select'|t('hub') }}</span>
@@ -198,17 +200,17 @@
 {% endif %}
 
 {% if selectable %}
-		{% if multiple and bulkActions|filter(action => action.labels ?? false)|length %}
-			{{ hub.bulkLabels(labels ?? [], canManageLabels ?? false) }}
+		{% if multiple and list.bulkActions|filter(action => action.labels ?? false)|length %}
+			{{ hub.bulkLabels(list.labels ?? [], list.canManageLabels ?? false) }}
 		{% endif %}
 
-		{% for key, action in bulkActions|filter(action => action.preview ?? false) %}
+		{% for key, action in list.bulkActions|filter(action => action.preview ?? false) %}
 			{{ hub.previewDialog(key, action) }}
 		{% endfor %}
 
 		{# Grouped under headings: the item itself, the actions applied to it, and its labels. #}
 		{% set contextId = 'hub-context-' ~ random() %}
-		{% set itemActions = bulkActions|filter(action => not (action.labels ?? false)) %}
+		{% set itemActions = list.bulkActions|filter(action => not (action.labels ?? false)) %}
 		<div class="hub-dropdown__popover hub-bulk__menu hub-context" id="{{ contextId }}" popover role="menu" data-hub-context>
 			<div class="hub-popover__title" data-hub-context-name></div>
 			<div class="hub-menu__group" role="group" aria-labelledby="{{ contextId }}-item">
@@ -240,16 +242,16 @@
 					{% endfor %}
 				</div>
 			{% endif %}
-			{% if itemActions|length < bulkActions|length %}
+			{% if itemActions|length < list.bulkActions|length %}
 				{# The labels of the item, checking one labels it right away; the labels are kept in a template too, from which the item's labels are shown as they change. #}
-				<div class="hub-menu__group hub-context__labels" role="group" aria-labelledby="{{ contextId }}-labels" data-hub-context-labels="{{ labelList }}">
+				<div class="hub-menu__group hub-context__labels" role="group" aria-labelledby="{{ contextId }}-labels" data-hub-context-labels="{{ list.labelList }}">
 					<h6 class="hub-menu__heading" id="{{ contextId }}-labels">
 						<span>{{ 'Labels'|t('hub') }}</span>
-						{% if canManageLabels ?? false %}
+						{% if list.canManageLabels ?? false %}
 							<a class="hub-menu__link" role="menuitem" href="{{ url('hub/manage/settings/labels') }}">{{ 'Manage'|t('hub') }}</a>
 						{% endif %}
 					</h6>
-					{% for label in labels %}
+					{% for label in list.labels %}
 						<label class="hub-dropdown__option hub-context__label"{% if label.description %} title="{{ label.description }}"{% endif %}>
 							<input type="checkbox" value="{{ label.id }}">
 							{{ hub.icon(label.getIcon(), label.getColor(), 'small') }}
@@ -259,7 +261,7 @@
 						<p class="hub-muted hub-context__empty">{{ 'No labels exist yet.'|t('hub') }}</p>
 					{% endfor %}
 					<template data-hub-labels-template>
-						{%- for label in labels %}{{ hub.label(label) }}{% endfor -%}
+						{%- for label in list.labels %}{{ hub.label(label) }}{% endfor -%}
 					</template>
 				</div>
 			{% endif %}

@@ -9,5 +9,5 @@
 {% set siteScoped = false %}
 
 {% block content %}
-	{% include 'hub/_components/user-groups' %}
+	{% include 'hub/_components/user-groups' with { list: list, hubSite: hubSite } only %}
 {% endblock %}

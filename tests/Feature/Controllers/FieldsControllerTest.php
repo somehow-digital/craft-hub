@@ -16,17 +16,17 @@ it('lists the fields', function () {
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/fields/index')
-		->and(array_keys($variables['fields']))->toBe([5, 9])
-		->and($variables['total'])->toBe(9)
-		->and($variables['pageInfo']->total)->toBe(2)
-		->and($variables['pageInfo']->totalPages)->toBe(1)
-		->and(array_column($variables['types'], 'label'))->toBe(['Assets', 'Entries', 'Link', 'Matrix', 'Plain Text'])
-		->and(array_keys($variables['types']))->toBe(['assets', 'entries', 'link', 'matrix', 'plain text'])
-		->and($variables['types']['assets']['icon'])->toBeString()->not->toBeEmpty()
-		->and(array_keys($variables['owners']))->toBe(['entry type', 'volume', 'users'])
-		->and($variables['filter']->types)->toBe(['assets'])
-		->and($variables['data'])->toBe([5 => 3, 9 => 0])
-		->and($variables['dir'])->toBe('asc')
+		->and(array_keys($variables['list']['fields']))->toBe([5, 9])
+		->and($variables['list']['total'])->toBe(9)
+		->and($variables['list']['pageInfo']->total)->toBe(2)
+		->and($variables['list']['pageInfo']->totalPages)->toBe(1)
+		->and(array_column($variables['list']['types'], 'label'))->toBe(['Assets', 'Entries', 'Link', 'Matrix', 'Plain Text'])
+		->and(array_keys($variables['list']['types']))->toBe(['assets', 'entries', 'link', 'matrix', 'plain text'])
+		->and($variables['list']['types']['assets']['icon'])->toBeString()->not->toBeEmpty()
+		->and(array_keys($variables['list']['owners']))->toBe(['entry type', 'volume', 'users'])
+		->and($variables['list']['filter']->types)->toBe(['assets'])
+		->and($variables['list']['data'])->toBe([5 => 3, 9 => 0])
+		->and($variables['list']['dir'])->toBe('asc')
 		->and($variables)->not->toHaveKey('summary');
 });
 
@@ -41,10 +41,10 @@ it('summarizes the fields on their statistics tab', function () {
 it('filters the fields by their usage and layouts', function () {
 	$variables = $this->runAction(FieldsController::class, 'index', query: ['unused' => '1', 'empty' => '1', 'layoutsMin' => '0', 'layoutsMax' => '9'])->variables;
 
-	expect($variables['filter']->unused)->toBeTrue()
-		->and($variables['filter']->empty)->toBeTrue()
-		->and($variables['filter']->layoutsMin)->toBe(0)
-		->and($variables['fields'])->toBe([]);
+	expect($variables['list']['filter']->unused)->toBeTrue()
+		->and($variables['list']['filter']->empty)->toBeTrue()
+		->and($variables['list']['filter']->layoutsMin)->toBe(0)
+		->and($variables['list']['fields'])->toBe([]);
 });
 
 it('shows nested entry fields', function () {
@@ -70,14 +70,14 @@ it('lists the entries of nested entry fields on a tab of their own', function ()
 	$variables = $this->runAction(FieldsController::class, 'view', ['id' => 2, 'tab' => 'entries'], query: ['section' => 'news'])->variables;
 
 	expect($variables['selectedTab'])->toBe('entries')
-		->and($variables['listFixed'])->toBe('field')
+		->and($variables['list']['listFixed'])->toBe('field')
 		// Entries of a section don't widen the list of a field.
-		->and($variables['filter']->sections)->toBe([])
-		->and($variables['listPath'])->toBe('hub/structure/fields/2/entries')
-		->and($variables['filter']->fields)->toBe(['blocks'])
-		->and($variables['sections'])->toBe([])
-		->and(array_map(fn ($info) => $info->entryType->handle, array_values($variables['entryTypes'])))->toBe(['block'])
-		->and(array_column($variables['columns'], 'key'))->not->toContain('origin')
+		->and($variables['list']['filter']->sections)->toBe([])
+		->and($variables['list']['listPath'])->toBe('hub/structure/fields/2/entries')
+		->and($variables['list']['filter']->fields)->toBe(['blocks'])
+		->and($variables['list']['sections'])->toBe([])
+		->and(array_map(fn ($info) => $info->entryType->handle, array_values($variables['list']['entryTypes'])))->toBe(['block'])
+		->and(array_column($variables['list']['columns'], 'key'))->not->toContain('origin')
 		->and($variables)->not->toHaveKey('summary');
 });
 
@@ -110,8 +110,8 @@ it('leaves out the data of hidden columns', function () {
 
 	$variables = $this->runAction(FieldsController::class, 'index')->variables;
 
-	expect($variables['data'])->toBe([])
-		->and($variables['fields'])->not->toBeEmpty();
+	expect($variables['list']['data'])->toBe([])
+		->and($variables['list']['fields'])->not->toBeEmpty();
 });
 
 it('counts the fields in a snapshot by whether they were placed and held data then', function () {

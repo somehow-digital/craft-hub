@@ -63,15 +63,17 @@ class UsersController extends BaseController
 		[$pageInfo, $groups] = Paginator::fromRequest()->items($selection->limitItems($lists->getUserGroups($all, $filter, $sort->column, $sort->direction)));
 
 		return $this->renderTemplate('hub/pages/users/groups', [
-			'groups' => $groups,
-			'pageInfo' => $pageInfo,
-			'filter' => $filter,
-			'listPath' => $path,
-			'columns' => $hub->columns->getColumns(ColumnService::LIST_USER_GROUPS),
-			...$this->labelVariables(ColumnService::LIST_USER_GROUPS, array_keys($groups)),
-			...$selection->variables($filter),
+			'list' => [
+				'groups' => $groups,
+				'pageInfo' => $pageInfo,
+				'filter' => $filter,
+				'listPath' => $path,
+				'columns' => $hub->columns->getColumns(ColumnService::LIST_USER_GROUPS),
+				...$this->labelVariables(ColumnService::LIST_USER_GROUPS, array_keys($groups)),
+				...$selection->variables($filter),
+				...$sort->variables($path),
+			],
 			'extraTabs' => $this->extraTabs(),
-			...$sort->variables($path),
 		]);
 	}
 

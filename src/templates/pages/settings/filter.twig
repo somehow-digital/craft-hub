@@ -55,7 +55,7 @@
 		</div>
 	{% endif %}
 
-	{% embed 'hub/_components/panel' with { heading: 'Filter'|t('hub'), icon: 'filter', color: 'blue', collapsible: false } %}
+	{% embed 'hub/_components/panel' with { heading: 'Filter'|t('hub'), icon: 'filter', color: 'blue', collapsible: false, filter: filter } only %}
 		{% block body %}
 			{% import '_includes/forms' as forms %}
 			<div class="hub-panel__fields">
@@ -123,7 +123,9 @@
 			icon: 'sliders',
 			color: 'violet',
 			collapsible: false,
-		} %}
+			kind: kind,
+			filter: filter,
+		} only %}
 			{% block body %}
 				{% import '_includes/forms' as forms %}
 				<div class="hub-panel__fields">

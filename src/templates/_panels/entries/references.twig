@@ -13,7 +13,10 @@
 	color: 'teal',
 	count: (loaded ?? false) ? references|reduce((total, reference) => total + reference.paths|length, 0) : count,
 	panelKey: 'references',
-} %}
+	loaded: loaded ?? false,
+	references: references ?? null,
+	usageKind: usageKind,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% if references|length %}
