@@ -130,6 +130,8 @@ class ListFilterService extends Component
 		$filter->unverifiedEmail = $params->flag('unverified');
 		$filter->entriesMin = $params->int('entriesMin');
 		$filter->entriesMax = $params->int('entriesMax');
+		$filter->assetsMin = $params->int('assetsMin');
+		$filter->assetsMax = $params->int('assetsMax');
 
 		return $filter;
 	}

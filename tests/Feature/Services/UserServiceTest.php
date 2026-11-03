@@ -122,6 +122,17 @@ it('narrows the users by the number of entries they are an author of', function 
 		->and($where[1][2])->toBe(2);
 });
 
+it('narrows the users by the number of assets they uploaded', function () {
+	$where = $this->users->getQuery(userFilter(['assetsMin' => 1, 'assetsMax' => 3]))->where;
+
+	expect($where[0])->toBe('and')
+		->and($where[1][0])->toBe('>=')
+		->and(rawSql($where[1][1]))->toContain('`hubAssets`.`uploaderId` = `elements`.`id`')->toContain('`hubAssetElements`.`dateDeleted` IS NULL')
+		->and($where[1][2])->toBe(1)
+		->and($where[2][0])->toBe('<=')
+		->and($where[2][2])->toBe(3);
+});
+
 it('sorts the users', function (string $sort, int $direction, array $order) {
 	expect($this->users->getQuery(new UserFilter(), $sort, $direction)->orderBy)->toBe($order);
 })->with([
@@ -137,11 +148,19 @@ it('sorts the users by the number of entries they are an author of', function ()
 		->and(array_values($order))->toBe([SORT_DESC, SORT_DESC]);
 });
 
+it('sorts the users by the number of assets they uploaded', function () {
+	$order = $this->users->getQuery(new UserFilter(), UserService::SORT_ASSETS)->orderBy;
+
+	expect(array_key_first($order))->toStartWith('(SELECT COUNT(*)')->toContain('`hubAssets`.`uploaderId` = `elements`.`id`')
+		->and(array_values($order))->toBe([SORT_DESC, SORT_DESC]);
+});
+
 it('sorts names ascending, numbers and dates descending', function () {
 	expect($this->users->getSortColumns())->toBe([
 		'user' => SORT_ASC,
 		'email' => SORT_ASC,
 		'entries' => SORT_DESC,
+		'assets' => SORT_DESC,
 		'login' => SORT_DESC,
 		'created' => SORT_DESC,
 	]);
@@ -232,6 +251,14 @@ it('counts the entries the users are an author of', function () {
 	expect($this->users->getEntryCounts([3, 4]))->toBe([3 => 2])
 		->and($this->db()->queriesMatching('{{%entries_authors}}')[0])->toContain('`hubAuthors`.`authorId` IN (3, 4)')->toContain('`hubElements`.`revisionId` IS NULL')
 		->and($this->users->getEntryCounts([]))->toBe([]);
+});
+
+it('counts the assets the users uploaded', function () {
+	$this->db()->respond('{{%assets}}', [['uploaderId' => '3', 'count' => '5']]);
+
+	expect($this->users->getAssetCounts([3, 4]))->toBe([3 => 5])
+		->and($this->db()->queriesMatching('{{%assets}}')[0])->toContain('`hubAssets`.`uploaderId` IN (3, 4)')->toContain('`hubAssetElements`.`dateDeleted` IS NULL')
+		->and($this->users->getAssetCounts([]))->toBe([]);
 });
 
 it('tells which users have set up an authenticator app or a passkey', function () {

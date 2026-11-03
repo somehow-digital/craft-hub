@@ -440,6 +440,7 @@ trait ListVariables
 			'users' => $results,
 			'pageInfo' => $pageInfo,
 			'entryCounts' => in_array('entries', $shown, true) ? $users->getEntryCounts($ids) : [],
+			'assetCounts' => in_array('assets', $shown, true) ? $users->getAssetCounts($ids) : [],
 			'twoFactor' => $twoFactor,
 			'groups' => $groups,
 			'statuses' => User::statuses(),
