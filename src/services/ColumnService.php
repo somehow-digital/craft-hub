@@ -121,6 +121,7 @@ class ColumnService extends Component
 				'email' => ['label' => Craft::t('app', 'Email')],
 				'groups' => ['label' => Craft::t('app', 'User Groups')],
 				'entries' => ['label' => Craft::t('app', 'Entries'), 'class' => 'hub-num', 'title' => Craft::t('hub', 'Entries the user is an author of')],
+				'assets' => ['label' => Craft::t('app', 'Assets'), 'class' => 'hub-num', 'title' => Craft::t('hub', 'Assets the user uploaded')],
 				'twoFactor' => ['label' => Craft::t('hub', '2FA'), 'title' => Craft::t('hub', 'Whether the user has set up an authenticator app or a passkey')],
 				'login' => ['label' => Craft::t('app', 'Last Login')],
 				'created' => ['label' => Craft::t('hub', 'Created')],

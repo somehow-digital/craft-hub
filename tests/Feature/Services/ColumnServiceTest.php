@@ -125,7 +125,7 @@ it('keeps no order or hidden state of the fixed columns', function () {
 	$this->columns->saveColumns(ColumnService::LIST_USERS, ['edit', 'email', 'status'], ['edit']);
 
 	expect($this->preferences[1][ColumnService::PREFERENCE][ColumnService::LIST_USERS])->toBe([
-		'order' => ['email', 'status', 'groups', 'entries', 'twoFactor', 'login', 'created'],
+		'order' => ['email', 'status', 'groups', 'entries', 'assets', 'twoFactor', 'login', 'created'],
 		'hidden' => [],
 	]);
 });

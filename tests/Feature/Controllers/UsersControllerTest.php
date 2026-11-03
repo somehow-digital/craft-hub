@@ -94,6 +94,8 @@ it('reads the filters of the users list', function () {
 		'unverified' => '1',
 		'entriesMin' => '2',
 		'entriesMax' => 'many',
+		'assetsMin' => '1',
+		'assetsMax' => '10',
 	])->variables['filter'];
 
 	expect($filter->search)->toBe('jane')
@@ -106,7 +108,9 @@ it('reads the filters of the users list', function () {
 		->and($filter->twoFactor)->toBe('without')
 		->and($filter->unverifiedEmail)->toBeTrue()
 		->and($filter->entriesMin)->toBe(2)
-		->and($filter->entriesMax)->toBeNull();
+		->and($filter->entriesMax)->toBeNull()
+		->and($filter->assetsMin)->toBe(1)
+		->and($filter->assetsMax)->toBe(10);
 });
 
 it('offers neither groups nor their column without any groups', function () {
@@ -121,15 +125,16 @@ it('offers neither groups nor their column without any groups', function () {
 });
 
 it('leaves out the data of hidden columns', function () {
-	$this->preferences[1] = [ColumnService::PREFERENCE => [ColumnService::LIST_USERS => ['order' => [], 'hidden' => ['entries', 'twoFactor', 'groups']]]];
+	$this->preferences[1] = [ColumnService::PREFERENCE => [ColumnService::LIST_USERS => ['order' => [], 'hidden' => ['entries', 'assets', 'twoFactor', 'groups']]]];
 	$users = Mockery::mock(UserService::class)->makePartial();
-	$users->shouldNotReceive('getEntryCounts', 'getTwoFactor');
+	$users->shouldNotReceive('getEntryCounts', 'getAssetCounts', 'getTwoFactor');
 	$this->hub()->set('users', $users);
 	ElementQueries::respond(User::class, listedUsers(3));
 
 	$variables = $this->runAction(UsersController::class, 'index')->variables;
 
 	expect($variables['entryCounts'])->toBe([])
+		->and($variables['assetCounts'])->toBe([])
 		->and($variables['twoFactor'])->toBe([])
 		->and(ElementQueries::executed(User::class)[0]->withGroups)->toBeFalse();
 });

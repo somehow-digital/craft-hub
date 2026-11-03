@@ -29,6 +29,7 @@ class UserService extends Component
 	public const SORT_USER = 'user';
 	public const SORT_EMAIL = 'email';
 	public const SORT_ENTRIES = 'entries';
+	public const SORT_ASSETS = 'assets';
 	public const SORT_LOGIN = 'login';
 	public const SORT_CREATED = 'created';
 
@@ -103,6 +104,10 @@ class UserService extends Component
 			$query->andWhere($entries);
 		}
 
+		if (($assets = Range::condition($this->assetsQuery()->select('COUNT(*)'), $filter->assetsMin, $filter->assetsMax)) !== null) {
+			$query->andWhere($assets);
+		}
+
 		return $query;
 	}
 
@@ -117,6 +122,7 @@ class UserService extends Component
 			self::SORT_USER => SORT_ASC,
 			self::SORT_EMAIL => SORT_ASC,
 			self::SORT_ENTRIES => SORT_DESC,
+			self::SORT_ASSETS => SORT_DESC,
 			self::SORT_LOGIN => SORT_DESC,
 			self::SORT_CREATED => SORT_DESC,
 		];
@@ -385,6 +391,27 @@ class UserService extends Component
 	}
 
 	/**
+	 * Number of assets each of the users uploaded, that aren't deleted.
+	 *
+	 * @param int[] $userIds
+	 * @return array<int,int> user ID => assets
+	 */
+	public function getAssetCounts(array $userIds): array
+	{
+		if ($userIds === []) {
+			return [];
+		}
+
+		$counts = $this->uploadedQuery()
+			->select(['hubAssets.uploaderId', 'count' => 'COUNT(*)'])
+			->andWhere(['hubAssets.uploaderId' => $userIds])
+			->groupBy(['hubAssets.uploaderId'])
+			->pairs();
+
+		return array_map('intval', $counts);
+	}
+
+	/**
 	 * Whether each of the users has set up an authenticator app or a passkey.
 	 *
 	 * @param int[] $userIds
@@ -629,6 +656,25 @@ class UserService extends Component
 	}
 
 	/**
+	 * Assets the queried user uploaded, that aren't deleted.
+	 */
+	private function assetsQuery(): Query
+	{
+		return $this->uploadedQuery()->andWhere('[[hubAssets.uploaderId]] = [[elements.id]]');
+	}
+
+	/**
+	 * Assets that aren't deleted, along with their uploaders.
+	 */
+	private function uploadedQuery(): Query
+	{
+		return (new Query())
+			->from(['hubAssets' => Table::ASSETS])
+			->innerJoin(['hubAssetElements' => Table::ELEMENTS], '[[hubAssetElements.id]] = [[hubAssets.id]]')
+			->where(['hubAssetElements.dateDeleted' => null]);
+	}
+
+	/**
 	 * Authors of live entries, along with the entries.
 	 */
 	private function authoredQuery(): Query
@@ -671,6 +717,7 @@ class UserService extends Component
 			self::SORT_USER => ["(COALESCE(NULLIF([[users.fullName]], ''), [[users.username]]))" => $direction],
 			self::SORT_EMAIL => ['users.email' => $direction],
 			self::SORT_ENTRIES => ['(' . $this->entriesQuery()->select('COUNT(*)')->createCommand()->getRawSql() . ')' => $direction],
+			self::SORT_ASSETS => ['(' . $this->assetsQuery()->select('COUNT(*)')->createCommand()->getRawSql() . ')' => $direction],
 			self::SORT_LOGIN => ['(CASE WHEN [[users.lastLoginDate]] IS NULL THEN 1 ELSE 0 END)' => SORT_ASC, 'users.lastLoginDate' => $direction],
 			default => ['elements.dateCreated' => $direction],
 		};

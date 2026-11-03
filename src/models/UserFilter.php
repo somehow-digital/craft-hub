@@ -58,6 +58,10 @@ class UserFilter
 	public ?int $entriesMin = null;
 	public ?int $entriesMax = null;
 
+	/** number of assets the users uploaded */
+	public ?int $assetsMin = null;
+	public ?int $assetsMax = null;
+
 	/**
 	 * @return string[]
 	 */

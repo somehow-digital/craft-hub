@@ -42,6 +42,7 @@
 				without: { label: 'Not set up'|t('hub'), color: 'orange' },
 			}, filter.twoFactor, { multiple: false, label: 'Authenticator app or passkey'|t('hub') })) }}
 			{{ hub.dropdown('Content'|t('hub'), 'file-lines', hub.range('entries', 'Entries as author'|t('hub'), filter.entriesMin, filter.entriesMax)
+				~ hub.range('assets', 'Assets as uploader'|t('hub'), filter.assetsMin, filter.assetsMax)
 				~ hub.range('created', 'Created'|t('hub'), filter.createdFrom, filter.createdTo, { type: 'date' })) }}
 			{{ hub.labelFilter(labelOptions, filter.labels) }}
 			{{ hub.toggle('admin', 'Admins only'|t('hub'), filter.admin) }}
@@ -91,6 +92,8 @@
 													{% endif %}
 												{%- elseif column.key == 'entries' -%}
 													{{ hub.num(entryCounts[user.id] ?? 0) }}
+												{%- elseif column.key == 'assets' -%}
+													{{ hub.num(assetCounts[user.id] ?? 0) }}
 												{%- elseif column.key == 'twoFactor' -%}
 													{% if twoFactor[user.id] ?? false %}
 														{{ hub.badge('Set up'|t('hub'), 'green', null, 'shield-halved') }}
