@@ -1,0 +1,43 @@
+{#
+	Panel with the permissions a user group grants, under the headings Craft lists them by. Its page counts them; loaded
+	(see BaseController::renderPanel()), it lists them.
+
+	Variables: count, or permissions (see UserService::getGroupPermissions()) once loaded
+#}
+{% embed 'hub/_components/panel' with {
+	heading: 'Permissions'|t('app'),
+	description: 'What the users of this group may do.'|t('hub'),
+	icon: 'key',
+	color: 'violet',
+	count: (loaded ?? false) ? permissions|reduce((total, item) => total + item.permissions|length, 0) : count,
+	panelKey: 'permissions',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if permissions|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Permission'|t('hub') }}</th>
+						</tr>
+					</thead>
+					{% for heading in permissions %}
+						<tbody>
+							<tr>
+								<th class="hub-muted">{{ heading.heading }}</th>
+							</tr>
+							{% for permission in heading.permissions %}
+								<tr>
+									<td title="{{ permission.name }}">{{ permission.label }}</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					{% endfor %}
+				</table>
+			</div>
+		{% else %}
+			{{ hub.emptyState('key', 'The group grants no permissions.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

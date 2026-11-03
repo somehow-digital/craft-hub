@@ -1,0 +1,76 @@
+{#
+	Panel with the revisions of an entry on its site, newest first, a page of them at a time. Its page counts them; loaded
+	(see BaseController::renderPanel()), it lists the page of them asked for.
+
+	Variables: entry, count, or revisions (Entry[]), pageInfo and currentRevision once loaded
+#}
+{% set canView = entry.canView(currentUser) %}
+{# Revisions open on the front end through a preview token, for entries that have a URL. #}
+{% set viewRevisions = canView and entry.url %}
+
+{% embed 'hub/_components/panel' with {
+	heading: 'Revisions'|t('app'),
+	description: 'Versions of the entry saved on this site, newest first. The current revision is what the entry shows now.'|t('hub'),
+	icon: 'clock-rotate-left',
+	color: 'blue',
+	count: (loaded ?? false) ? pageInfo.total : count,
+	panelKey: 'revisions',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if revisions|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Revision'|t('app') }}</th>
+							<th>{{ 'Created at'|t('app') }}</th>
+							<th>{{ 'Created by'|t('app') }}</th>
+							<th>{{ 'Notes'|t('app') }}</th>
+							{% if viewRevisions %}
+								<th><span class="visually-hidden">{{ 'URL'|t('app') }}</span></th>
+							{% endif %}
+						</tr>
+					</thead>
+					<tbody>
+						{% for revision in revisions %}
+							{% set creator = revision.getCreator() %}
+							<tr>
+								<th>
+									<span class="hub-inline">
+										{% if canView %}
+											<a href="{{ revision.cpEditUrl }}">{{ revision.getRevisionLabel() }}</a>
+										{% else %}
+											<span>{{ revision.getRevisionLabel() }}</span>
+										{% endif %}
+										{% if currentRevision and revision.id == currentRevision.id %}
+											{{ hub.badge('Current'|t('hub'), 'green', null, 'circle-check') }}
+										{% endif %}
+									</span>
+								</th>
+								<td>{{ hub.date(revision.dateCreated) }}</td>
+								<td>{% if creator %}{{ hub.element(creator) }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+								<td>{% if revision.revisionNotes %}{{ revision.revisionNotes }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+								{% if viewRevisions %}
+									<td class="hub-visit-cell">
+										<a class="hub-visit" href="{{ actionUrl('hub/entries/view-revision', { id: entry.id, revisionId: revision.id }) }}" target="_blank" rel="noopener" title="{{ 'View revision'|t('hub') }}">{{ iconSvg('arrow-up-right-from-square') }}<span class="visually-hidden">{{ 'View revision'|t('hub') }}</span></a>
+									</td>
+								{% endif %}
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+
+			<footer class="hub-panel__footer">
+				{% include '_includes/pagination' with {
+					pageInfo: pageInfo,
+					itemLabel: 'revision'|t('app'),
+					itemsLabel: 'revisions'|t('app'),
+				} %}
+			</footer>
+		{% else %}
+			{{ hub.emptyState('clock-rotate-left', 'The entry has no revisions on this site yet.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

@@ -58,7 +58,7 @@ it('reads days of date range filters in the time zone of the user', function () 
 });
 
 it('leaves the site scope and the page out of the params of a list', function () {
-	expect(FilterParams::listParams(['hubSite' => 'en', 'site' => 'en', 'page' => '2', 'q' => 'news', 'sort' => 'name']))->toBe(['q' => 'news', 'sort' => 'name'])
+	expect(FilterParams::listParams(['hubSite' => 'en', 'site' => 'en', 'page' => '2', 'panel' => 'sites', 'q' => 'news', 'sort' => 'name']))->toBe(['q' => 'news', 'sort' => 'name'])
 		->and(FilterParams::listParams(null))->toBe([])
 		->and(FilterParams::listParams('q=news'))->toBe([]);
 });

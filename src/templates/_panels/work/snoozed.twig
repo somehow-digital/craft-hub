@@ -1,0 +1,54 @@
+{#
+	Panel with what the user set aside, on the diagnostics tab of their work, where it can be brought back. Its page counts
+	them; loaded (see BaseController::renderPanel()), it lists them.
+
+	Variables: count (see WorkService::countSnoozed()), or snoozed (see WorkService::getSnoozed()) once loaded
+#}
+{# Snoozing leads back to the page, which this panel is loaded from. #}
+{% set returnUrl = url(craft.app.request.pathInfo, craft.app.request.queryParamsWithoutPath|filter((value, name) => name != 'panel')) %}
+
+{% embed 'hub/_components/panel' with { heading: 'Snoozed and dismissed'|t('hub'), description: 'Issues you set aside, for yourself alone. Lists and diagnostics still count them.'|t('hub'), icon: 'clock', color: 'gray', count: (loaded ?? false) ? snoozed|length : count, id: 'hub-snoozed' } %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% import 'hub/_components/work-macros' as work %}
+		<div class="hub-table">
+			<table class="data fullwidth">
+				<thead>
+					<tr>
+						<th>{{ 'Title'|t('app') }}</th>
+						<th>{{ 'Location'|t('hub') }}</th>
+						<th>{{ 'Issue'|t('hub') }}</th>
+						<th>{{ 'Back on'|t('hub') }}</th>
+						<th class="thin"><span class="visually-hidden">{{ 'Actions'|t('app') }}</span></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for row in snoozed %}
+						<tr>
+							<th>{{ hub.link(hub.url(row.element), hub.elementTitle(row.element)) }}</th>
+							<td>{{ work.place(row.element) }}</td>
+							<td>{{ row.check.getListName() }}</td>
+							<td>
+								{%- if row.until -%}
+									{{ row.until|date('short') }}
+								{%- else -%}
+									{{ hub.badge('Dismissed'|t('hub'), 'gray') }}
+								{%- endif -%}
+							</td>
+							<td class="thin">
+								<form method="post" accept-charset="UTF-8">
+									{{ csrfInput() }}
+									{{ actionInput('hub/work/wake') }}
+									{{ redirectInput(returnUrl) }}
+									{{ hiddenInput('check', row.check.getKey()) }}
+									{{ hiddenInput('element', row.element.id) }}
+									<button type="submit" class="btn small">{{ 'Bring back'|t('hub') }}</button>
+								</form>
+							</td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	{% endblock %}
+{% endembed %}

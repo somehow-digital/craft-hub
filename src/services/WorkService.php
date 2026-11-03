@@ -168,13 +168,18 @@ class WorkService extends Component
 	 * counted, and checks without any are left out.
 	 *
 	 * @param int $limit items listed per check
+	 * @param string|null $key the check to read alone, see CheckDefinition::getKey()
 	 * @return Check[]
 	 */
-	public function getDiagnostics(int $limit = 0): array
+	public function getDiagnostics(int $limit = 0, ?string $key = null): array
 	{
 		$checks = [];
 
 		foreach ($this->diagnosticsQueries() as ['definition' => $definition, 'query' => $query]) {
+			if ($key !== null && $definition->getKey() !== $key) {
+				continue;
+			}
+
 			$total = $this->total($query);
 
 			if ($total > 0) {
@@ -250,6 +255,17 @@ class WorkService extends Component
 	}
 
 	/**
+	 * Number of what the current user snoozed, like {@see getSnoozed()} lists, counted rather than loaded, so items no
+	 * longer there are counted until they're cleaned up.
+	 */
+	public function countSnoozed(): int
+	{
+		$userId = $this->userId();
+
+		return $userId !== null ? (int)$this->snoozedQuery($userId)->count() : 0;
+	}
+
+	/**
 	 * What the current user snoozed, what returns soonest first and what they dismissed last; items and checks no longer there
 	 * are left out.
 	 *
@@ -263,11 +279,8 @@ class WorkService extends Component
 			return [];
 		}
 
-		$rows = (new Query())
+		$rows = $this->snoozedQuery($userId)
 			->select(['elementId', 'checkKey', 'dateUntil'])
-			->from(self::TABLE_SNOOZES)
-			->where(['userId' => $userId])
-			->andWhere(['or', ['dateUntil' => null], ['>', 'dateUntil', Db::prepareDateForDb(new DateTime())]])
 			->orderBy(['elementId' => SORT_ASC])
 			->all();
 
@@ -302,6 +315,17 @@ class WorkService extends Component
 		usort($snoozed, fn (array $a, array $b) => [$a['until'] === null, $a['until']] <=> [$b['until'] === null, $b['until']]);
 
 		return $snoozed;
+	}
+
+	/**
+	 * Snoozes of the current user that are still on.
+	 */
+	private function snoozedQuery(int $userId): Query
+	{
+		return (new Query())
+			->from(self::TABLE_SNOOZES)
+			->where(['userId' => $userId])
+			->andWhere(['or', ['dateUntil' => null], ['>', 'dateUntil', Db::prepareDateForDb(new DateTime())]]);
 	}
 
 	/**

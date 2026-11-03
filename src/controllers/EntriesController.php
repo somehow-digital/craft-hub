@@ -2,6 +2,7 @@
 
 namespace SomehowDigital\Craft\Hub\controllers;
 
+use Closure;
 use Craft;
 use craft\elements\Entry;
 use craft\helpers\UrlHelper;
@@ -107,13 +108,26 @@ class EntriesController extends BaseController
 		$this->requireViewable($entry);
 		// Entries without versioning have no revisions, but can have drafts.
 		$hasRevisions = $entry->hasRevisions();
-		$drafts = !$hasRevisions || $tab === self::TAB_HISTORY ? $entries->getDrafts($entry) : [];
-		$hasHistory = $hasRevisions || $drafts !== [];
+		$draftCount = !$hasRevisions || $tab === self::TAB_HISTORY ? $hub->queries->total($entries->getDraftsQuery($entry)) : 0;
+		$hasHistory = $hasRevisions || $draftCount > 0;
 		$tab = $this->detailTab($tab, $hasHistory ? [self::TAB_HISTORY] : []);
+
+		$panel = $this->renderPanel(match ($tab) {
+			self::TAB_DIAGNOSTICS => $this->checksPanel(fn () => $hub->checks->forEntry($entry)),
+			self::TAB_HISTORY => $this->historyPanels($entry),
+			default => $this->overviewPanels($entry),
+		});
+
+		if ($panel !== null) {
+			return $panel;
+		}
+
 		$months = $hub->filters->getThreshold(CheckKind::Entries, 'stale');
 		$staleDate = (new DateTime())->modify(sprintf('-%d months', $months));
 		$lastEdit = $hub->edits->getLastEdit($entry);
 		$stale = $lastEdit['date'] !== null && $lastEdit['date'] < $staleDate;
+
+		$revisionCount = $hasRevisions && $tab === self::TAB_HISTORY ? $hub->queries->total($entries->getRevisionsQuery($entry)) : 0;
 
 		return $this->renderTemplate('hub/pages/entries/view', [
 			'entry' => $entry,
@@ -124,11 +138,14 @@ class EntriesController extends BaseController
 			'hasRevisions' => $hasRevisions,
 			'checks' => $hub->checks->forEntry($entry),
 			...($tab === self::TAB_OVERVIEW ? [
-				'references' => $references->getReferences($entry),
-				'referenced' => $references->getReferenced($entry),
-				'sites' => $entries->getSiteVariants($entry),
+				'referenceCount' => $references->countReferences($entry),
+				'referencedCount' => $references->countReferenced($entry),
+				'siteCount' => $hub->queries->total($entries->getSiteVariantsQuery($entry)),
 			] : []),
-			...($tab === self::TAB_HISTORY ? $this->historyVariables($entry, $drafts) : []),
+			...($tab === self::TAB_HISTORY ? [
+				'revisionCount' => $revisionCount,
+				'draftCount' => $draftCount,
+			] : []),
 		]);
 	}
 
@@ -184,24 +201,45 @@ class EntriesController extends BaseController
 	}
 
 	/**
-	 * Variables of the history tab of an entry page: its drafts and, for entries with versioning, its revisions, paginated.
+	 * Panels of the overview tab of an entry page, with what each lists.
 	 *
-	 * @param Entry[] $drafts
-	 * @return array<string,mixed>
+	 * @return array<string,Closure():array{0:string,1:array<string,mixed>}>
 	 */
-	private function historyVariables(Entry $entry, array $drafts): array
+	private function overviewPanels(Entry $entry): array
 	{
-		if (!$entry->hasRevisions()) {
-			return ['drafts' => $drafts];
-		}
-
-		[$pageInfo, $revisions] = Paginator::fromRequest()->query(Hub::getInstance()->entries->getRevisionsQuery($entry));
+		$hub = Hub::getInstance();
 
 		return [
-			'revisions' => $revisions,
-			'pageInfo' => $pageInfo,
-			'currentRevision' => $entry->getCurrentRevision(),
-			'drafts' => $drafts,
+			'maintainers' => fn () => ['hub/_panels/element-maintainers', ['element' => $entry]],
+			'sites' => fn () => ['hub/_panels/entries/sites', ['sites' => $hub->entries->getSiteVariantsQuery($entry)->all()]],
+			'references' => fn () => ['hub/_panels/entries/references', ['references' => $hub->references->getReferences($entry)]],
+			'referenced' => fn () => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($entry)]],
+			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::Entry->value, 'id' => $entry->id]],
+		];
+	}
+
+	/**
+	 * Panels of the history tab of an entry page: its drafts and, for entries with versioning, its revisions, a page of
+	 * them at a time.
+	 *
+	 * @return array<string,Closure():array{0:string,1:array<string,mixed>}>
+	 */
+	private function historyPanels(Entry $entry): array
+	{
+		$entries = Hub::getInstance()->entries;
+
+		return [
+			'drafts' => fn () => ['hub/_panels/entries/drafts', ['entry' => $entry, 'drafts' => $entries->getDraftsQuery($entry)->all()]],
+			...($entry->hasRevisions() ? ['revisions' => function () use ($entry, $entries) {
+				[$pageInfo, $revisions] = Paginator::fromRequest()->query($entries->getRevisionsQuery($entry));
+
+				return ['hub/_panels/entries/revisions', [
+					'entry' => $entry,
+					'revisions' => $revisions,
+					'pageInfo' => $pageInfo,
+					'currentRevision' => $entry->getCurrentRevision(),
+				]];
+			}] : []),
 		];
 	}
 }

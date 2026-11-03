@@ -77,10 +77,11 @@ it('filters the checks of the diagnostics tab, offering all of them', function (
 
 		return $check;
 	};
-	$this->service->shouldReceive('getDiagnostics')->with(WorkService::CHECK_ITEM_LIMIT)->andReturn([
+	$this->service->shouldReceive('getDiagnostics')->with()->andReturn([
 		$check('entries.stale', Severity::Error),
 		$check('assets.large', Severity::Notice),
 	]);
+	$this->service->shouldReceive('countSnoozed')->andReturn(0);
 
 	$behavior = $this->runAction(WorkController::class, 'index', ['tab' => 'diagnostics'], $query);
 
@@ -94,6 +95,26 @@ it('filters the checks of the diagnostics tab, offering all of them', function (
 	'check' => [['check' => 'assets.large'], ['assets.large']],
 	'unknown values are ignored' => [['check' => 'nope'], ['entries.stale', 'assets.large']],
 ]);
+
+it('loads the panel of a check of the diagnostics tab alone, with the first of its items', function () {
+	$this->service->shouldReceive('getCounts')->andReturn(['drafts' => 0, 'diagnostics' => 1, 'comingUp' => 0]);
+	$check = new Check('entries.stale', '', '', Severity::Error, 'list-check', false);
+	$check->key = 'entries.stale';
+	$this->service->shouldReceive('getDiagnostics')->once()->with(WorkService::CHECK_ITEM_LIMIT, 'entries.stale')->andReturn([$check]);
+
+	$behavior = $this->runAction(WorkController::class, 'index', ['tab' => 'diagnostics'], ['panel' => 'entries.stale']);
+
+	expect($behavior->template)->toBe('hub/_panels/work/check')
+		->and($behavior->variables['check'])->toBe($check)
+		->and($behavior->variables['snoozeDays'])->toBe(WorkService::SNOOZE_DAYS);
+});
+
+it('has no panels of checks that flag nothing', function () {
+	$this->service->shouldReceive('getCounts')->andReturn(['drafts' => 0, 'diagnostics' => 0, 'comingUp' => 0]);
+	$this->service->shouldReceive('getDiagnostics')->andReturn([]);
+
+	$this->runAction(WorkController::class, 'index', ['tab' => 'diagnostics'], ['panel' => 'entries.stale']);
+})->throws(NotFoundHttpException::class);
 
 it('leaves out the tabs of what the user has nothing of, or may not view', function () {
 	$this->service->shouldReceive('getCounts')->andReturn(['drafts' => 0, 'diagnostics' => 0, 'comingUp' => 0]);
@@ -160,9 +181,17 @@ it('shows what was set aside on the diagnostics tab', function () {
 	$this->service->shouldReceive('getDiagnostics')->andReturn([]);
 	$this->service->shouldReceive('getSnoozed')->andReturn([['element' => new Entry(['id' => 1]), 'check' => $this->definition, 'until' => null]]);
 
+	$this->service->shouldReceive('countSnoozed')->andReturn(1);
+
 	$behavior = $this->runAction(WorkController::class, 'index', ['tab' => 'diagnostics']);
 
-	expect($behavior->variables['snoozed'])->toHaveCount(1);
+	expect($behavior->variables['snoozedCount'])->toBe(1)
+		->and($behavior->variables)->not->toHaveKey('snoozed');
+
+	$panel = $this->runAction(WorkController::class, 'index', ['tab' => 'diagnostics'], ['panel' => 'hub-snoozed']);
+
+	expect($panel->template)->toBe('hub/_panels/work/snoozed')
+		->and($panel->variables['snoozed'])->toHaveCount(1);
 });
 
 it('forbids the list tabs without the permission of their page', function (string $tab) {

@@ -1,0 +1,19 @@
+{#
+	Panel with the preview of an image, or the player of a video browsers play. Only loaded (see
+	BaseController::renderPanel()), it shows them, so they're only downloaded once opened.
+
+	Variables: asset, isImage, isPlayable
+#}
+{% embed 'hub/_components/panel' with { heading: 'Preview'|t('hub'), icon: isImage ? 'image' : 'video', color: 'sky', panelKey: 'preview' } %}
+	{% block body %}
+		<div class="hub-preview">
+			{% if isImage %}
+				{{ asset.getPreviewThumbImg(800, 400)|raw }}
+			{% else %}
+				<video controls preload="metadata">
+					<source src="{{ asset.url }}" type="{{ asset.mimeType }}">
+				</video>
+			{% endif %}
+		</div>
+	{% endblock %}
+{% endembed %}

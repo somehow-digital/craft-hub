@@ -90,88 +90,15 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_components/maintainers' with { list: 'volumes', item: volume } %}
+	{% include 'hub/_panels/maintainers' with { list: 'volumes', item: volume } %}
 
-	{% embed 'hub/_components/panel' with { heading: 'Types'|t('hub'), icon: 'file', count: info.kinds|length } %}
-		{% block body %}
-			{% import 'hub/_components/macros' as hub %}
-			{% if info.kinds|length %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Name'|t('app') }}</th>
-								<th class="hub-num" title="{{ 'With references / Without references'|t('hub') }}">{{ 'Assets'|t('app') }}</th>
-								<th class="hub-num">{{ 'Size'|t('app') }}</th>
-								<th>{{ 'Last upload'|t('hub') }}</th>
-							</tr>
-						</thead>
-						<tbody>
-							{% for kind, stats in info.kinds %}
-								{% set fileKind = fileKinds[kind] %}
-								<tr>
-									<th>{{ hub.badge(fileKind.label, fileKind.color, null, fileKind.icon) }}</th>
-									<td class="hub-num">
-										{{ hub.dotNum(stats.used, 'green', 'With references'|t('hub')) }}
-										{{ hub.dotNum(stats.unused, 'orange', 'Without references'|t('hub')) }}
-									</td>
-									<td class="hub-num">{{ hub.size(stats.size) }}</td>
-									<td>{{ hub.date(stats.lastUploaded) }}</td>
-								</tr>
-							{% endfor %}
-						</tbody>
-					</table>
-				</div>
-			{% else %}
-				{{ hub.emptyState('image', 'No assets found.'|t('hub')) }}
-			{% endif %}
-		{% endblock %}
-	{% endembed %}
+	{% include 'hub/_panels/volumes/types' %}
 
-	{% set relationFields = info.assetFields|merge(info.linkFields) %}
+	{% include 'hub/_panels/volumes/relations' %}
 
-	{% embed 'hub/_components/panel' with {
-		heading: 'Relations'|t('hub'),
-		description: 'Assets and Link fields that can relate to assets from this volume.'|t('hub'),
-		icon: 'link',
-		color: 'teal',
-		count: relationFields|length,
-	} %}
-		{% block body %}
-			{% import 'hub/_components/macros' as hub %}
-			{% if relationFields|length %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Field'|t('app') }}</th>
-								<th>{{ 'Type'|t('app') }}</th>
-								<th class="hub-num">{{ 'References'|t('hub') }}</th>
-								<th class="hub-num">{{ 'Referenced assets'|t('hub') }}</th>
-							</tr>
-						</thead>
-						<tbody>
-							{% for field in relationFields %}
-								{% set references = statistics.sumReferences(siteIds, field.id, null, volume.id) %}
-								<tr{% if not references.references %} data-severity="orange"{% endif %}>
-									<th>{{ hub.name(field, 'teal') }}</th>
-									<td>{{ hub.fieldType(field, 'teal') }}</td>
-									<td class="hub-num">{{ hub.num(references.references) }}</td>
-									<td class="hub-num">{{ hub.num(references.targets) }}</td>
-								</tr>
-							{% endfor %}
-						</tbody>
-					</table>
-				</div>
-			{% else %}
-				{{ hub.emptyState('link-slash', 'No Assets or Link field can relate to assets from this volume.'|t('hub')) }}
-			{% endif %}
-		{% endblock %}
-	{% endembed %}
+	{% include 'hub/_panels/field-layout' with { layout: volume.getFieldLayout() } %}
 
-	{% include 'hub/_components/field-layout' with { layout: volume.getFieldLayout() } %}
-
-	{% include 'hub/_components/item-activity' with { subject: 'volume', id: volume.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'volume', id: volume.id } %}
 {% endblock %}
 
 {% block list %}

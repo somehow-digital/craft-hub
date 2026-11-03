@@ -1,0 +1,59 @@
+{#
+	Panel with the elements referencing a file, with the fields they reference it through, and the users whose photo it is.
+	Its page counts them; loaded (see BaseController::renderPanel()), it lists them.
+
+	Variables: count (see ReferenceService::countReferences()), or references (EntryReference[]) once loaded
+#}
+{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
+
+{% embed 'hub/_components/panel' with {
+	heading: 'References'|t('hub'),
+	description: 'Elements that reference this file through a relation field or rich text, and users whose photo it is.'|t('hub'),
+	icon: 'link',
+	color: 'teal',
+	count: (loaded ?? false) ? references|reduce((total, reference) => total + reference.paths|length, 0) : count,
+	panelKey: 'references',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if references|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Element'|t('hub') }}</th>
+							<th>{{ 'Fields'|t('app') }}</th>
+							<th><span class="visually-hidden">{{ 'URL'|t('app') }}</span></th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for reference in references %}
+							{# Link entries and assets to their hub page instead of their edit page #}
+							{% set element = reference.element %}
+							{% set hubUrl = element is instance of('craft\\elements\\Entry') or element is instance of('craft\\elements\\Asset') ? hub.url(element)|trim : null %}
+							<tr>
+								<td>{{ elementChip(element, { hyperlink: true, attributes: hubUrl ? { data: { 'cp-url': hubUrl } } : {} }) }}</td>
+								<td>
+									<ul class="hub-list hub-list--plain">
+										{% for path in reference.paths %}
+											<li class="hub-inline">
+												{% if path.field %}
+													{% set kind = usageKind.from(path.field is instance of('craft\\fields\\Link') ? 'link' : 'reference') %}
+													{{ hub.fieldType(path.field, kind.color()) }}
+												{% endif %}
+												<span>{{ path.label }}</span>
+											</li>
+										{% endfor %}
+									</ul>
+								</td>
+								<td class="hub-visit-cell">{{ hub.visit(element, element is instance of('craft\\elements\\Asset') ? 'Open file'|t('hub') : 'View entry'|t('hub')) }}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% else %}
+			{{ hub.emptyState('link-slash', 'No elements reference this file.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

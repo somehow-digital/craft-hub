@@ -440,6 +440,25 @@ class UserService extends Component
 	 */
 	public function getPermissions(User $user): array
 	{
+		return $this->permissionHeadings($this->permissionSources($user));
+	}
+
+	/**
+	 * Number of the permissions of a user, like those {@see getPermissions()} lists, without reading all the permissions
+	 * Craft knows to list them by.
+	 */
+	public function countPermissions(User $user): int
+	{
+		return count($this->permissionSources($user));
+	}
+
+	/**
+	 * What grants each permission of a user: the user directly and the groups granting it.
+	 *
+	 * @return array<string,array{direct?:bool,groups?:UserGroup[]}> by the lowercased name of the permission
+	 */
+	private function permissionSources(User $user): array
+	{
 		$service = Craft::$app->getUserPermissions();
 		$sources = [];
 
@@ -463,7 +482,7 @@ class UserService extends Component
 			$sources[strtolower((string)$name)]['direct'] = true;
 		}
 
-		return $this->permissionHeadings($sources);
+		return $sources;
 	}
 
 	/**

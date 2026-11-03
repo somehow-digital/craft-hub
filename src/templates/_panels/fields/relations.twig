@@ -1,0 +1,57 @@
+{#
+	Panel with the field layouts using a field. Loaded (see BaseController::renderPanel()), it lists them, with the
+	instances of the field in each.
+
+	Variables: info (FieldInfo)
+#}
+{% embed 'hub/_components/panel' with {
+	heading: 'Relations'|t('hub'),
+	description: 'Field layouts that use this field.'|t('hub'),
+	icon: 'link',
+	color: 'teal',
+	count: info.layouts|length,
+	panelKey: 'relations',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if info.layouts|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Name'|t('app') }}</th>
+							<th>{{ 'Type'|t('app') }}</th>
+							<th class="hub-num">{{ 'Instances'|t('hub') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for usage in info.layouts|sort((a, b) => a.ownerType ~ a.label <=> b.ownerType ~ b.label) %}
+							<tr>
+								<th>
+									{% if usage.model %}
+										{{ hub.name(usage.model, usage.color) }}
+									{% else %}
+										<div class="hub-name">
+											{{ hub.icon('table-layout') }}
+											<span class="hub-name__title">
+												{%- if usage.url and currentUser.admin -%}
+													<a href="{{ usage.url }}">{{ usage.label|t('site') }}</a>
+												{%- else -%}
+													{{ usage.label|t('site') }}
+												{%- endif -%}
+											</span>
+										</div>
+									{% endif %}
+								</th>
+								<td>{{ hub.badge(usage.ownerType) }}</td>
+								<td class="hub-num">{{ hub.num(usage.instances) }}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% else %}
+			{{ hub.emptyState('ghost', 'This field is not placed in any field layout.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

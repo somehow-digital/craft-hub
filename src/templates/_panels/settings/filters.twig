@@ -1,0 +1,80 @@
+{#
+	Panel with the saved filters a list of a kind offers to everyone, on the filters tab of the settings page, in their
+	order, which can be reordered, enabled, disabled and deleted right in its table (see the page's script). Its header
+	sums them up; loaded (see BaseController::renderPanel()), it lists them.
+
+	Variables: kind (CheckKind), filters (SavedFilter[])
+#}
+{% set disabled = filters|filter(filter => not filter.enabled)|length %}
+
+{% embed 'hub/_components/panel' with {
+	heading: kind.label(),
+	icon: kind.icon(),
+	id: 'hub-filters-' ~ kind.value,
+} %}
+	{% block actions %}
+		<span class="hub-checks-settings__disabled hub-muted{% if not disabled %} hidden{% endif %}" data-hub-filters-disabled>
+			{{- '{count} disabled'|t('hub', { count: disabled|number }) -}}
+		</span>
+		<span class="hub-pill" data-hub-filters-count>{{ filters|length|number }}</span>
+		<a class="btn small add icon" href="{{ url('hub/manage/settings/filters/new/' ~ kind.value) }}">{{ 'New filter'|t('hub') }}</a>
+	{% endblock %}
+
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{{ hub.emptyState('filter', 'No filters exist yet.'|t('hub'), 'Filters are offered in the filter bar of the list, to show the items matching them in one go.'|t('hub'),
+			tag('a', { href: url('hub/manage/settings/filters/new/' ~ kind.value), class: 'btn add icon', text: 'New filter'|t('hub') }),
+			{ id: 'hub-filters-empty-' ~ kind.value, hidden: filters|length > 0 }) }}
+		<div class="hub-table">
+			<table class="data fullwidth hub-checks-table{% if not filters|length %} hidden{% endif %}" id="hub-filters-table-{{ kind.value }}">
+				<thead>
+					<tr>
+						<th class="thin" aria-label="{{ 'Reorder'|t('app') }}"></th>
+						<th>{{ 'Name'|t('app') }}</th>
+						<th>{{ 'Type'|t('app') }}</th>
+						<th class="thin">{{ 'Enabled'|t('app') }}</th>
+						<th class="thin" aria-label="{{ 'Show list'|t('hub') }}"></th>
+						<th class="thin" aria-label="{{ 'Delete'|t('app') }}"></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for filter in filters %}
+						<tr class="hub-check-row{% if not filter.enabled %} hub-check-row--disabled{% endif %}" data-id="{{ filter.id }}" data-name="{{ filter.getName() }}" data-hub-color="blue">
+							<td class="thin">
+								<button type="button" class="move icon" title="{{ 'Reorder'|t('app') }}" aria-label="{{ 'Reorder'|t('app') }}"></button>
+							</td>
+							<th scope="row">
+								<div class="hub-name hub-check-row__name">
+									{{ hub.icon(filter.getIcon(), filter.enabled ? 'blue' : 'gray') }}
+									<div class="hub-name__text">
+										<span class="hub-name__title"><a href="{{ url('hub/manage/settings/filters/' ~ filter.id) }}">{{ filter.getName() }}</a></span>
+										{% if filter.description %}
+											<span class="hub-check-row__description">{{ filter.description }}</span>
+										{% endif %}
+									</div>
+								</div>
+							</th>
+							<td>
+								{{ filter.isPredefined() ? hub.badge('Predefined'|t('hub'), 'gray') : hub.badge('Custom'|t('hub'), 'violet') }}
+							</td>
+							<td class="thin">
+								<button type="button" class="lightswitch small{% if filter.enabled %} on{% endif %}" role="switch" aria-checked="{{ filter.enabled ? 'true' : 'false' }}" aria-label="{{ 'Enabled'|t('app') }}: {{ filter.getName() }}" data-hub-filter-toggle="{{ filter.id }}">
+									<div class="lightswitch-container"><div class="handle"></div></div>
+								</button>
+							</td>
+							<td class="thin">
+								{%- set label = 'Show list'|t('hub') -%}
+								<a class="hub-visit" href="{{ url(kind.path(), filter.getListParams()) }}" title="{{ label }}">{{ iconSvg('list') }}<span class="visually-hidden">{{ label }}: {{ filter.getName() }}</span></a>
+							</td>
+							<td class="thin">
+								{% if not filter.isPredefined() %}
+									<button type="button" class="delete icon" title="{{ 'Delete'|t('app') }}" aria-label="{{ 'Delete'|t('app') }}"></button>
+								{% endif %}
+							</td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	{% endblock %}
+{% endembed %}

@@ -74,76 +74,13 @@
 {% endblock %}
 
 {% block overview %}
-	{% embed 'hub/_components/panel' with {
-		heading: 'Permissions'|t('app'),
-		description: 'What the users of this group may do.'|t('hub'),
-		icon: 'key',
-		color: 'violet',
-		count: info.permissions,
-	} %}
-		{% block body %}
-			{% import 'hub/_components/macros' as hub %}
-			{% if permissions|length %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Permission'|t('hub') }}</th>
-							</tr>
-						</thead>
-						{% for heading in permissions %}
-							<tbody>
-								<tr>
-									<th class="hub-muted">{{ heading.heading }}</th>
-								</tr>
-								{% for permission in heading.permissions %}
-									<tr>
-										<td title="{{ permission.name }}">{{ permission.label }}</td>
-									</tr>
-								{% endfor %}
-							</tbody>
-						{% endfor %}
-					</table>
-				</div>
-			{% else %}
-				{{ hub.emptyState('key', 'The group grants no permissions.'|t('hub')) }}
-			{% endif %}
-		{% endblock %}
-	{% endembed %}
+	{% include 'hub/_panels/groups/permissions' with { count: info.permissions } %}
 
-	{% if maintained|length %}
-		{% embed 'hub/_components/panel' with {
-			heading: 'Maintains'|t('hub'),
-			description: 'Sections, entry types, fields and volumes the group maintains.'|t('hub'),
-			icon: 'users',
-			color: 'violet',
-			count: maintained|length,
-		} %}
-			{% block body %}
-				{% import 'hub/_components/macros' as hub %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Name'|t('app') }}</th>
-								<th>{{ 'Type'|t('app') }}</th>
-							</tr>
-						</thead>
-						<tbody>
-							{% for source in maintained %}
-								<tr>
-									<th>{{ hub.chip(source.item) }}</th>
-									<td>{{ source.getKind() }}</td>
-								</tr>
-							{% endfor %}
-						</tbody>
-					</table>
-				</div>
-			{% endblock %}
-		{% endembed %}
+	{% if maintainedCount %}
+		{% include 'hub/_panels/groups/maintains' with { count: maintainedCount } %}
 	{% endif %}
 
-	{% include 'hub/_components/item-activity' with { subject: 'userGroup', id: group.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'userGroup', id: group.id } %}
 {% endblock %}
 
 {% block list %}

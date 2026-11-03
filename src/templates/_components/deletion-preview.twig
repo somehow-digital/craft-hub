@@ -140,7 +140,7 @@
 						</span>
 					{% endset %}
 					{% if affected|length %}
-						<details class="hub-deletion__item"{% if expandable == 1 %} open{% endif %}>
+						<details class="hub-deletion__item">
 							<summary class="hub-deletion__summary">{{ summary }}</summary>
 							<div class="hub-deletion__groups">
 								{% for group in affected %}

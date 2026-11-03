@@ -2,6 +2,7 @@
 
 namespace SomehowDigital\Craft\Hub\controllers;
 
+use Closure;
 use Craft;
 use craft\elements\Asset;
 use craft\models\Volume;
@@ -108,6 +109,15 @@ class FilesController extends BaseController
 		// Images always have the tab, so their transforms are only read for it.
 		$transforms = $asset->kind !== Asset::KIND_IMAGE || $tab === self::TAB_TRANSFORMS ? $files->getTransforms($asset) : [];
 		$tab = $this->detailTab($tab, $this->hasTransforms($asset, $transforms) ? [self::TAB_TRANSFORMS] : []);
+		$isPlayable = $asset->kind === Asset::KIND_VIDEO && Classifier::isPlayableVideo($asset->getMimeType());
+
+		$panel = $this->renderPanel($tab === self::TAB_DIAGNOSTICS
+			? $this->checksPanel(fn () => Hub::getInstance()->checks->forFile($asset))
+			: $this->overviewPanels($asset, $isPlayable));
+
+		if ($panel !== null) {
+			return $panel;
+		}
 
 		return $this->renderTemplate('hub/pages/files/view', [
 			'asset' => $asset,
@@ -115,12 +125,12 @@ class FilesController extends BaseController
 			'fileKind' => new FileKindInfo($asset->kind),
 			'transforms' => $transforms,
 			...($tab === self::TAB_OVERVIEW ? [
-				'references' => $references->getReferences($asset),
-				'referenced' => $references->getReferenced($asset),
-				'sites' => $files->getSiteVariants($asset),
+				'referenceCount' => $references->countReferences($asset),
+				'referencedCount' => $references->countReferenced($asset),
+				'siteCount' => $files->countSiteVariants($asset),
 			] : []),
 			'hasTransforms' => $this->hasTransforms($asset, $transforms),
-			'isPlayable' => $asset->kind === Asset::KIND_VIDEO && Classifier::isPlayableVideo($asset->getMimeType()),
+			'isPlayable' => $isPlayable,
 			'canDeleteTransforms' => Hub::getInstance()->access->canAct(Page::Assets, Hub::PERMISSION_DELETE_TRANSFORMS) && Craft::$app->getElements()->canSave($asset),
 			'canDownload' => Hub::getInstance()->access->canAct(Page::Assets, Hub::PERMISSION_DOWNLOAD_ASSETS),
 			'checks' => Hub::getInstance()->checks->forFile($asset),
@@ -196,6 +206,25 @@ class FilesController extends BaseController
 		$preview = (new DeleteTransforms(ColumnService::LIST_FILES))->previewOf([(int)$request->getRequiredBodyParam('assetId')], (int)$request->getBodyParam('page', 1), $ids);
 
 		return $this->renderPreview($preview, 1);
+	}
+
+	/**
+	 * Panels of the overview tab of a file page, with what each lists.
+	 *
+	 * @return array<string,Closure():array{0:string,1:array<string,mixed>}>
+	 */
+	private function overviewPanels(Asset $asset, bool $isPlayable): array
+	{
+		$hub = Hub::getInstance();
+
+		return [
+			'preview' => fn () => ['hub/_panels/files/preview', ['asset' => $asset, 'isImage' => $asset->kind === Asset::KIND_IMAGE, 'isPlayable' => $isPlayable]],
+			'maintainers' => fn () => ['hub/_panels/element-maintainers', ['element' => $asset]],
+			'sites' => fn () => ['hub/_panels/files/sites', ['sites' => $hub->files->getSiteVariants($asset), 'isImage' => $asset->kind === Asset::KIND_IMAGE]],
+			'references' => fn () => ['hub/_panels/files/references', ['references' => $hub->references->getReferences($asset)]],
+			'referenced' => fn () => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($asset)]],
+			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::Asset->value, 'id' => $asset->id]],
+		];
 	}
 
 	/**

@@ -1,14 +1,16 @@
 {#
-	Panel with the elements an element references, along with the fields it references them through.
+	Panel with the elements an element references, along with the fields it references them through. Its page counts them;
+	loaded (see BaseController::renderPanel()), it lists them.
 
-	Variables: referenced (EntryReference[])
+	Variables: count (see ReferenceService::countReferenced()), or referenced (EntryReference[]) once loaded
 #}
 {% embed 'hub/_components/panel' with {
 	heading: 'Referenced elements'|t('hub'),
 	description: 'Elements this one references through a relation field or a link in rich text, in its nested entries too.'|t('hub'),
 	icon: 'arrow-up-right-from-square',
 	color: 'teal',
-	count: referenced|reduce((total, reference) => total + reference.paths|length, 0),
+	count: (loaded ?? false) ? referenced|reduce((total, reference) => total + reference.paths|length, 0) : count,
+	panelKey: 'referenced',
 } %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}

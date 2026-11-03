@@ -1,0 +1,32 @@
+{#
+	Panel with the settings of a section on each of its sites. Loaded (see BaseController::renderPanel()), it lists them.
+
+	Variables: section
+#}
+{% embed 'hub/_components/panel' with { heading: 'Sites'|t('app'), icon: 'globe', count: section.siteSettings|length, panelKey: 'sites' } %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		<div class="hub-table">
+			<table class="data fullwidth">
+				<thead>
+					<tr>
+						<th>{{ 'Site'|t('app') }}</th>
+						<th>{{ 'Entry URI Format'|t('app') }}</th>
+						<th>{{ 'Template'|t('app') }}</th>
+						<th>{{ 'Default Status'|t('app') }}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for siteSettings in section.siteSettings %}
+						<tr>
+							<th>{{ siteSettings.site.name|t('site') }}{% if siteSettings.siteId in selectedSites|map(site => site.id) %} {{ hub.badge('Selected'|t('hub'), 'blue') }}{% endif %}</th>
+							<td>{% if siteSettings.hasUrls %}<code>{{ siteSettings.uriFormat }}</code>{% else %}{{ hub.badge('No URLs'|t('hub')) }}{% endif %}</td>
+							<td>{% if siteSettings.hasUrls and siteSettings.template %}<code>{{ siteSettings.template }}</code>{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+							<td><span class="status {{ siteSettings.enabledByDefault ? 'enabled' : 'disabled' }}" aria-hidden="true"></span>{{ siteSettings.enabledByDefault ? 'Enabled'|t('app') : 'Disabled'|t('app') }}</td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	{% endblock %}
+{% endembed %}

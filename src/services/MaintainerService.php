@@ -98,6 +98,63 @@ class MaintainerService extends Component
 	}
 
 	/**
+	 * Number of the maintainers of an item of a list, from their IDs, for what sums up its maintainers without loading them.
+	 */
+	public function countMaintainers(string $list, int $id): int
+	{
+		$maintainers = $this->all()[$list][$id] ?? ['userIds' => [], 'groupIds' => []];
+
+		return count($maintainers['userIds']) + count($maintainers['groupIds']);
+	}
+
+	/**
+	 * Number of the maintainers of what an element is stored in, like those {@see getSources()} lists, from their IDs.
+	 */
+	public function countSources(ElementInterface $element, bool $withFields = false): int
+	{
+		if (!$this->isEnabled() || $this->all() === []) {
+			return 0;
+		}
+
+		$items = $this->storedIn($element);
+
+		if ($withFields) {
+			foreach ($element->getFieldLayout()?->getCustomFields() ?? [] as $field) {
+				$items[] = [ColumnService::LIST_FIELDS, $field];
+			}
+		}
+
+		$counts = [];
+		foreach ($items as [$list, $item]) {
+			$counts["$list:$item->id"] ??= $this->countMaintainers($list, (int)$item->id);
+		}
+
+		return array_sum($counts);
+	}
+
+	/**
+	 * Number of the items a user maintains, themselves or through their groups, like those {@see getMaintainedBy()} lists.
+	 */
+	public function countMaintainedBy(User $user): int
+	{
+		if (!$this->isEnabled()) {
+			return 0;
+		}
+
+		$groupIds = array_map(fn (UserGroup $group) => (int)$group->id, $user->getGroups());
+
+		return $this->countItems(fn (array $maintainers) => in_array((int)$user->id, $maintainers['userIds'], true) || array_intersect($maintainers['groupIds'], $groupIds) !== []);
+	}
+
+	/**
+	 * Number of the items a user group maintains, like those {@see getMaintainedByGroup()} lists.
+	 */
+	public function countMaintainedByGroup(UserGroup $group): int
+	{
+		return $this->isEnabled() ? $this->countItems(fn (array $maintainers) => in_array((int)$group->id, $maintainers['groupIds'], true)) : 0;
+	}
+
+	/**
 	 * Maintainers of what an element is stored in: the volume of an asset; the section of an entry and its type; the field of a
 	 * nested entry, its type and those of its owner, as they're stored in it. Items without any are left out, as is everything
 	 * while maintainers are disabled.
@@ -292,6 +349,22 @@ class MaintainerService extends Component
 			[ColumnService::LIST_ENTRY_TYPES, $element->getType()],
 			...($owner !== null ? $this->storedIn($owner) : []),
 		];
+	}
+
+	/**
+	 * Number of the maintained items of the lists whose maintainers match, by their IDs.
+	 *
+	 * @param callable(array{userIds:int[],groupIds:int[]}):bool $matches
+	 */
+	private function countItems(callable $matches): int
+	{
+		$count = 0;
+
+		foreach (array_keys(self::LISTS) as $list) {
+			$count += count(array_filter($this->all()[$list] ?? [], $matches));
+		}
+
+		return $count;
 	}
 
 	/**

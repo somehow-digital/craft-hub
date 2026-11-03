@@ -1,16 +1,15 @@
 {#
 	Panel with the maintainers of a section, entry type, field or volume, on its detail page, while maintainers are enabled,
-	with a form setting them for users who may manage them.
+	with a form setting them for users who may manage them, which leads back to the page. Its page counts them; loaded (see
+	BaseController::renderPanel()), it lists them.
 
-	Variables: list (see ColumnService::LIST_*), item, path (of the page, which saving leads back to)
+	Variables: list (see ColumnService::LIST_*), item, loaded
 #}
-{% import '_includes/forms.twig' as forms %}
-
 {% set service = craft.app.plugins.getPlugin('hub').maintainers %}
 
 {% if service.isEnabled() %}
-	{% set maintainers = service.getMaintainers(list, item.id) %}
-	{% set count = maintainers.users|length + maintainers.groups|length %}
+	{% set maintainers = (loaded ?? false) ? service.getMaintainers(list, item.id) : null %}
+	{% set count = maintainers ? maintainers.users|length + maintainers.groups|length : service.countMaintainers(list, item.id) %}
 	{% set canManage = service.canManage(list) %}
 
 	{% embed 'hub/_components/panel' with {
@@ -19,6 +18,7 @@
 		icon: 'users',
 		color: 'violet',
 		count: count,
+		panelKey: 'maintainers',
 	} %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
@@ -48,7 +48,7 @@
 						<form method="post" accept-charset="UTF-8">
 							{{ actionInput('hub/maintainers/save') }}
 							{{ csrfInput() }}
-							{{ redirectInput(url(path, { hubSite: hubSite })) }}
+							{{ redirectInput(url(craft.app.request.pathInfo, { hubSite: hubSite })) }}
 							{{ hiddenInput('list', list) }}
 							{{ hiddenInput('id', item.id) }}
 

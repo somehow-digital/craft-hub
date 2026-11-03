@@ -43,18 +43,7 @@
 
 {% block content %}
 	{% if selectedTab == 'diagnostics' %}
-		{% embed 'hub/_components/panel' with {
-			heading: 'Checks'|t('hub'),
-			description: 'Things to clean up or improve, most urgent first.'|t('hub'),
-			icon: 'list-check',
-			color: failedChecks ? 'orange' : 'green',
-			count: failedChecks,
-		} %}
-			{% block body %}
-				{% import 'hub/_components/macros' as hub %}
-				{{ hub.checks(checks) }}
-			{% endblock %}
-		{% endembed %}
+		{% include 'hub/_panels/checks' %}
 	{% elseif selectedTab == 'statistics' %}
 		{% include 'hub/_components/statistics' with { cards: summary } %}
 	{% elseif selectedTab in listTabs|column('id') %}

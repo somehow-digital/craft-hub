@@ -1,0 +1,49 @@
+{#
+	Panel with the Entries and Link fields that can relate to entries of a section. Loaded (see
+	BaseController::renderPanel()), it lists them, and counts their references.
+
+	Variables: info (SectionInfo), section, and once loaded statistics (StatisticsService)
+#}
+{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
+{% set relationFields = info.referenceFields|map(field => { field, kind: usageKind.from('reference') })
+	|merge(info.linkFields|map(field => { field, kind: usageKind.from('link') })) %}
+
+{% embed 'hub/_components/panel' with {
+	heading: 'Relations'|t('hub'),
+	description: 'Entries and Link fields that can relate to entries from this section.'|t('hub'),
+	icon: 'link',
+	color: 'teal',
+	count: relationFields|length,
+	panelKey: 'relations',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if relationFields|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Field'|t('app') }}</th>
+							<th>{{ 'Type'|t('app') }}</th>
+							<th class="hub-num">{{ 'References'|t('hub') }}</th>
+							<th class="hub-num">{{ 'Referenced entries'|t('hub') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for item in relationFields %}
+							{% set references = statistics.sumReferences(siteIds, item.field.id, section.id) %}
+							<tr{% if not references.references %} data-severity="orange"{% endif %}>
+								<th>{{ hub.name(item.field, item.kind.color()) }}</th>
+								<td>{{ hub.kinds([item.kind]) }}</td>
+								<td class="hub-num">{{ hub.num(references.references) }}</td>
+								<td class="hub-num">{{ hub.num(references.targets) }}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% else %}
+			{{ hub.emptyState('link-slash', 'No Entries or Link field can relate to entries from this section.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

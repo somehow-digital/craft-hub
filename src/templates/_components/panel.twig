@@ -4,22 +4,29 @@
 	A toggled state is remembered per kind of page (not per element) and panel (keyed by `id` or the heading) in local storage.
 	Pass `collapsible: false` for panels holding filters, so they cannot be hidden.
 	A description is shown in a popover, opened by an info button next to the heading.
-	Collapsible panels passed a URL as `lazy` load their header and body from it once opened, taking those of the panel it
-	renders, so their body only holds a placeholder until then.
+	Collapsible panels hold their body only once loaded, so the page only renders their header, with what sums them up, and
+	a placeholder in place of their body. Opened, they load their header and body from their page, requested with their
+	`panelKey` as `panel`, which renders the panel alone, `loaded`, along with the scripts its body registers (see
+	BaseController::renderPanel()); panels passed a URL as `lazy` load from it instead.
 
-	Panels passed `open` start open instead.
-
-	Variables: heading, icon, color, description, count, id, collapsible, lazy, open
+	Variables: heading, icon, color, description, count, id, panelKey (defaults to `id` or the heading), collapsible,
+	loaded, lazy
 	Blocks: actions (header end), body
 #}
 {% import 'hub/_components/macros' as hub %}
 
 {% set collapsible = (heading ?? false) and (collapsible ?? true) %}
 {% set headerTag = collapsible ? 'summary' : 'header' %}
+{% set panelKey = panelKey ?? id ?? (heading ?? '')|kebab %}
+{% set panelDeferred = collapsible and not (loaded ?? false) %}
+{# The page of the URL, like that of a panel's pagination, is one of its path's segments in the CP, which Craft takes off it. #}
+{% set panelPage = craft.app.request.pageNum > 1 ? '/p' ~ craft.app.request.pageNum : '' %}
+{% set panelLazyUrl = panelDeferred ? (lazy ?? url(craft.app.request.pathInfo ~ panelPage, craft.app.request.queryParamsWithoutPath|merge({ panel: panelKey }))) : null %}
+{% set panelRequested = collapsible and not panelDeferred and craft.app.request.getQueryParam('panel') == panelKey %}
 {% set descriptionId = (heading ?? false) and (description ?? false) ? 'hub-panel-description-' ~ random() : null %}
 
 <section class="hub-panel"{% if id ?? false %} id="{{ id }}"{% endif %}>
-	{% if collapsible %}<details class="hub-panel__details" data-hub-panel="{{ id ?? heading|kebab }}"{% if open ?? false %} open{% endif %}{% if lazy ?? false %} data-hub-lazy="{{ lazy }}"{% endif %}>{% endif %}
+	{% if collapsible %}<details class="hub-panel__details" data-hub-panel="{{ panelKey }}"{% if panelLazyUrl %} data-hub-lazy="{{ panelLazyUrl }}"{% endif %}>{% endif %}
 
 	{% if heading ?? false %}
 		<{{ headerTag }} class="hub-panel__header">
@@ -43,7 +50,18 @@
 		</{{ headerTag }}>
 	{% endif %}
 
-	{% block body %}{% endblock %}
+	{% if panelDeferred %}
+		<div class="hub-panel__loading" data-hub-lazy-status>
+			<div class="spinner"></div>
+		</div>
+	{% elseif panelRequested %}
+		{# The scripts the body registers run once it's loaded, see initLazy(). #}
+		{% do view.startJsBuffer() %}
+		{% block body %}{% endblock %}
+		{{ view.clearJsBuffer()|raw }}
+	{% else %}
+		{{ block('body') }}
+	{% endif %}
 
 	{% if collapsible %}</details>{% endif %}
 

@@ -2,8 +2,10 @@
 
 namespace SomehowDigital\Craft\Hub\controllers;
 
+use Closure;
 use Craft;
 use craft\elements\User;
+use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
 use SomehowDigital\Craft\Hub\helpers\ListSelection;
@@ -83,16 +85,24 @@ class UsersController extends BaseController
 			throw new NotFoundHttpException('Tab not found.');
 		}
 
+		$group = $info['group'];
+		$panel = $this->renderPanel([
+			'permissions' => fn () => ['hub/_panels/groups/permissions', ['permissions' => $hub->users->getGroupPermissions($group)]],
+			'maintains' => fn () => ['hub/_panels/groups/maintains', ['maintained' => $hub->maintainers->getMaintainedByGroup($group)]],
+			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::UserGroup->value, 'id' => $group->id]],
+		]);
+
+		if ($panel !== null) {
+			return $panel;
+		}
+
 		// Only the selected tab is rendered, so only its variables are computed.
 		return $this->renderTemplate('hub/pages/users/group', [
 			'info' => $info,
 			'selectedTab' => $tab,
 			...match ($tab) {
 				self::TAB_USERS => $this->userListVariables("hub/data/users/groups/$id/users", $info['group']),
-				default => [
-					'permissions' => $hub->users->getGroupPermissions($info['group']),
-					'maintained' => $hub->maintainers->getMaintainedByGroup($info['group']),
-				],
+				default => ['maintainedCount' => $hub->maintainers->countMaintainedByGroup($group)],
 			},
 		]);
 	}
@@ -119,6 +129,12 @@ class UsersController extends BaseController
 			return $redirect;
 		}
 
+		$panel = $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn () => $hub->checks->forUser($user)) : $this->overviewPanels($user));
+
+		if ($panel !== null) {
+			return $panel;
+		}
+
 		$twoFactor = $users->getTwoFactor([$user->id])[$user->id] ?? false;
 
 		// Only the selected tab is rendered, so only its variables are computed; the checks are counted on every tab.
@@ -140,21 +156,37 @@ class UsersController extends BaseController
 	}
 
 	/**
-	 * Variables of the overview tab of a user page.
+	 * Variables of the overview tab of a user page: what sums up its panels, which load what they list once opened.
 	 *
 	 * @return array<string,mixed>
 	 */
 	private function overviewVariables(User $user): array
 	{
 		$hub = Hub::getInstance();
-		$users = $hub->users;
-		$references = $hub->references;
 
 		return [
-			'permissions' => $user->admin ? [] : $users->getPermissions($user),
-			'references' => $references->getReferences($user),
-			'referenced' => $references->getReferenced($user),
-			'maintained' => $hub->maintainers->getMaintainedBy($user),
+			'permissionCount' => $user->admin ? 0 : $hub->users->countPermissions($user),
+			'referenceCount' => $hub->references->countReferences($user),
+			'referencedCount' => $hub->references->countReferenced($user),
+			'maintainedCount' => $hub->maintainers->countMaintainedBy($user),
+		];
+	}
+
+	/**
+	 * Panels of the overview tab of a user page, with what each lists.
+	 *
+	 * @return array<string,Closure():array{0:string,1:array<string,mixed>}>
+	 */
+	private function overviewPanels(User $user): array
+	{
+		$hub = Hub::getInstance();
+
+		return [
+			'permissions' => fn () => ['hub/_panels/users/permissions', ['user' => $user, 'permissions' => $user->admin ? [] : $hub->users->getPermissions($user)]],
+			'references' => fn () => ['hub/_panels/users/references', ['references' => $hub->references->getReferences($user)]],
+			'referenced' => fn () => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($user)]],
+			'maintains' => fn () => ['hub/_panels/users/maintains', ['maintained' => $hub->maintainers->getMaintainedBy($user)]],
+			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::User->value, 'id' => $user->id]],
 		];
 	}
 

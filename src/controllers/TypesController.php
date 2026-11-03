@@ -2,6 +2,8 @@
 
 namespace SomehowDigital\Craft\Hub\controllers;
 
+use Closure;
+use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
 use SomehowDigital\Craft\Hub\enums\UsageKind;
@@ -83,8 +85,12 @@ class TypesController extends BaseController
 		// The cards load their data once their panel is opened, so building them all is cheap (see renderCard()).
 		$summary = $tab === self::TAB_STATISTICS ? (new EntryTypesSummary())->detail($info) : [];
 
-		if ($tab === self::TAB_STATISTICS && ($card = $this->renderCard($summary)) !== null) {
-			return $card;
+		// A card or panel requested on its own is rendered without the page around it.
+		$part = ($tab === self::TAB_STATISTICS ? $this->renderCard($summary) : null)
+			?? $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn () => Hub::getInstance()->checks->forEntryType($info)) : $this->overviewPanels($info));
+
+		if ($part !== null) {
+			return $part;
 		}
 
 		// Only the selected tab is rendered, so only its variables are computed; the checks are counted on every tab.
@@ -96,11 +102,26 @@ class TypesController extends BaseController
 				self::TAB_ENTRIES => $this->entryListVariables("hub/structure/entry-types/$id/entries", entryType: $info->entryType),
 				self::TAB_STATISTICS => ['summary' => $summary],
 				self::TAB_DIAGNOSTICS => [],
-				default => [
-					'fields' => Hub::getInstance()->structure->getFields(),
-					'statistics' => Hub::getInstance()->statistics,
-				],
+				default => [],
 			},
 		]);
+	}
+
+	/**
+	 * Panels of the overview tab of an entry type page, with what each lists.
+	 *
+	 * @return array<string,Closure():array{0:string,1:array<string,mixed>}>
+	 */
+	private function overviewPanels(EntryTypeInfo $info): array
+	{
+		$hub = Hub::getInstance();
+		$entryType = $info->entryType;
+
+		return [
+			'maintainers' => fn () => ['hub/_panels/maintainers', ['list' => ColumnService::LIST_ENTRY_TYPES, 'item' => $entryType]],
+			'relations' => fn () => ['hub/_panels/types/relations', ['info' => $info, 'entryType' => $entryType, 'statistics' => $hub->statistics]],
+			'fieldLayout' => fn () => ['hub/_panels/field-layout', ['layout' => $entryType->getFieldLayout(), 'fields' => $hub->structure->getFields()]],
+			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::EntryType->value, 'id' => $entryType->id]],
+		];
 	}
 }

@@ -5,6 +5,7 @@ namespace SomehowDigital\Craft\Hub\helpers;
 use Craft;
 use DateTime;
 use DateTimeZone;
+use SomehowDigital\Craft\Hub\controllers\BaseController;
 use SomehowDigital\Craft\Hub\Hub;
 
 /**
@@ -24,7 +25,7 @@ final class FilterParams
 	}
 
 	/**
-	 * Query params of a list that are its filters and sorting, leaving out the site scope and the page.
+	 * Query params of a list that are its filters and sorting, leaving out the site scope, the page and the panel loaded.
 	 * Craft adds the site of the CP to its URLs on multi-site installs, so that isn't a filter either.
 	 *
 	 * @return array<string,mixed>
@@ -35,7 +36,7 @@ final class FilterParams
 			return [];
 		}
 
-		unset($params[Hub::SITE_PARAM], $params['site'], $params['page']);
+		unset($params[Hub::SITE_PARAM], $params['site'], $params['page'], $params[BaseController::PANEL_PARAM]);
 
 		return $params;
 	}

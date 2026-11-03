@@ -56,7 +56,7 @@
 			<div class="hub-deletion__items">
 				{% for asset in assets %}
 					{% set own = transforms[asset.id] %}
-					<details class="hub-deletion__item"{% if assets|length == 1 %} open{% endif %}>
+					<details class="hub-deletion__item">
 						<summary class="hub-deletion__summary">
 							<span class="hub-deletion__chevron" aria-hidden="true">{{ iconSvg('chevron-right') }}</span>
 							{{ hub.thumb(asset) }}

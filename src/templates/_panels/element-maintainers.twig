@@ -1,17 +1,21 @@
 {#
-	Panel with the maintainers of what an element is stored in, on its detail page, while it has any.
+	Panel with the maintainers of what an element is stored in, on its detail page, while it has any. Its page counts them;
+	loaded (see BaseController::renderPanel()), it lists them.
 
-	Variables: element
+	Variables: element, loaded
 #}
-{% set sources = craft.app.plugins.getPlugin('hub').maintainers.getSources(element, true) %}
+{% set service = craft.app.plugins.getPlugin('hub').maintainers %}
+{% set sources = (loaded ?? false) ? service.getSources(element, true) : null %}
+{% set count = sources is not null ? sources|reduce((total, source) => total + source.users|length + source.groups|length, 0) : service.countSources(element, true) %}
 
-{% if sources|length %}
+{% if count %}
 	{% embed 'hub/_components/panel' with {
 		heading: 'Maintainers'|t('hub'),
 		description: 'Who to ask for help with this item, by where it’s stored.'|t('hub'),
 		icon: 'users',
 		color: 'violet',
-		count: sources|reduce((total, source) => total + source.users|length + source.groups|length, 0),
+		count: count,
+		panelKey: 'maintainers',
 	} %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}

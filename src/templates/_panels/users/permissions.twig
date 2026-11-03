@@ -1,0 +1,58 @@
+{#
+	Panel with the permissions of a user, under the headings Craft lists them by, with what grants each. Its page counts
+	them; loaded (see BaseController::renderPanel()), it lists them.
+
+	Variables: user, count (see UserService::countPermissions()), or permissions (see UserService::getPermissions()) once
+	loaded
+#}
+{% embed 'hub/_components/panel' with {
+	heading: 'Permissions'|t('app'),
+	description: 'What the user may do, granted to them directly or through their groups.'|t('hub'),
+	icon: 'key',
+	color: 'violet',
+	count: user.admin ? null : ((loaded ?? false) ? permissions|reduce((total, item) => total + item.permissions|length, 0) : count),
+	panelKey: 'permissions',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if user.admin %}
+			<p class="hub-panel__empty">
+				{{ hub.icon('user-crown', 'violet', 'small') }}
+				{{ 'Admins may do anything, regardless of their permissions.'|t('hub') }}
+			</p>
+		{% elseif permissions|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Permission'|t('hub') }}</th>
+							<th>{{ 'Granted'|t('hub') }}</th>
+						</tr>
+					</thead>
+					{% for heading in permissions %}
+						<tbody>
+							<tr>
+								<th colspan="2" class="hub-muted">{{ heading.heading }}</th>
+							</tr>
+							{% for permission in heading.permissions %}
+								<tr>
+									<td title="{{ permission.name }}">{{ permission.label }}</td>
+									<td>
+										<span class="hub-badges">
+											{%- if permission.direct %}{{ hub.badge('Directly'|t('hub'), 'gray', null, 'user') }}{% endif -%}
+											{%- for group in permission.groups %}
+												<a class="hub-badge" data-color="violet" href="{{ url('hub/data/users', { hubSite: hubSite, group: group.handle }) }}">{{ group.name|t('site') }}</a>
+											{%- endfor -%}
+										</span>
+									</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					{% endfor %}
+				</table>
+			</div>
+		{% else %}
+			{{ hub.emptyState('key', 'The user has no permissions, so they can only sign in on the front end.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

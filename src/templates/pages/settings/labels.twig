@@ -82,7 +82,7 @@
 							{% set count = counts['_' ~ label.id] %}
 							<tr class="hub-label-row{% if not count %} hub-label-row--unused{% endif %}" data-id="{{ label.id }}" data-name="{{ label.name }}" data-color="{{ label.getColor() }}">
 								<td class="thin">
-									<a class="move icon" title="{{ 'Reorder'|t('app') }}" role="button"></a>
+									<button type="button" class="move icon" title="{{ 'Reorder'|t('app') }}" aria-label="{{ 'Reorder'|t('app') }}"></button>
 								</td>
 								<th scope="row">
 									<div class="hub-name">
@@ -128,7 +128,7 @@
 									{% endif %}
 								</td>
 								<td class="thin">
-									<a class="delete icon" title="{{ 'Delete'|t('app') }}" role="button" tabindex="0"></a>
+									<button type="button" class="delete icon" title="{{ 'Delete'|t('app') }}" aria-label="{{ 'Delete'|t('app') }}"></button>
 								</td>
 							</tr>
 						{% endfor %}

@@ -1,0 +1,36 @@
+{#
+	Panel with what a user group maintains, while it maintains anything. Its page counts them; loaded (see
+	BaseController::renderPanel()), it lists them.
+
+	Variables: count (see MaintainerService::countMaintainedByGroup()), or maintained (MaintainerSource[]) once loaded
+#}
+{% embed 'hub/_components/panel' with {
+	heading: 'Maintains'|t('hub'),
+	description: 'Sections, entry types, fields and volumes the group maintains.'|t('hub'),
+	icon: 'users',
+	color: 'violet',
+	count: (loaded ?? false) ? maintained|length : count,
+	panelKey: 'maintains',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		<div class="hub-table">
+			<table class="data fullwidth">
+				<thead>
+					<tr>
+						<th>{{ 'Name'|t('app') }}</th>
+						<th>{{ 'Type'|t('app') }}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for source in maintained %}
+						<tr>
+							<th>{{ hub.chip(source.item) }}</th>
+							<td>{{ source.getKind() }}</td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	{% endblock %}
+{% endembed %}

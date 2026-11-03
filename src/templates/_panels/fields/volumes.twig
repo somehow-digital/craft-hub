@@ -1,0 +1,39 @@
+{#
+	Panel with the volumes an Assets or Link field can reference assets from, while there are any. Loaded (see
+	BaseController::renderPanel()), it lists them, and counts their references.
+
+	Variables: field, volumes (VolumeInfo[]), and once loaded statistics (StatisticsService)
+#}
+{% embed 'hub/_components/panel' with {
+	heading: 'Volumes'|t('app'),
+	description: 'Volumes this field can reference assets from.'|t('hub'),
+	icon: 'image',
+	color: 'teal',
+	count: volumes|length,
+	panelKey: 'volumes',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		<div class="hub-table">
+			<table class="data fullwidth">
+				<thead>
+					<tr>
+						<th>{{ 'Volume'|t('app') }}</th>
+						<th class="hub-num">{{ 'References'|t('hub') }}</th>
+						<th class="hub-num">{{ 'Referenced assets'|t('hub') }}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for volumeInfo in volumes %}
+						{% set references = statistics.sumReferences(siteIds, field.id, null, volumeInfo.volume.id) %}
+						<tr>
+							<th>{{ hub.name(volumeInfo.volume) }}</th>
+							<td class="hub-num">{{ hub.num(references.references) }}</td>
+							<td class="hub-num">{{ hub.num(references.targets) }}</td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	{% endblock %}
+{% endembed %}

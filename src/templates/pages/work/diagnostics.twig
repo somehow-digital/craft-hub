@@ -4,7 +4,7 @@
 	bulk actions apply as usual. What the user set aside is below them, where it can be brought back.
 
 	Variables: checks (Check[] the filters leave), allChecks (Check[]), filter (`kinds`, `severities` and `checks`, as picked),
-	snoozed (see WorkService::getSnoozed()), snoozeDays, workPath
+	snoozedCount (see WorkService::countSnoozed()), snoozeDays, workPath
 #}
 {% extends 'hub/_layouts/work' %}
 {% import 'hub/_components/macros' as hub %}
@@ -37,100 +37,12 @@
 	{% endembed %}
 
 	{% for check in checks %}
-		{% embed 'hub/_components/panel' with {
-			heading: check.heading,
-			description: check.description,
-			icon: check.icon,
-			color: check.severity.color(),
-			count: check.count,
-			id: check.key|kebab,
-			open: loop.first or filter.checks|length,
-		} %}
-			{% block body %}
-				{% import 'hub/_components/macros' as hub %}
-				{% import 'hub/_components/work-macros' as work %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Title'|t('app') }}</th>
-								<th>{{ 'Location'|t('hub') }}</th>
-								<th>{{ 'Last edited'|t('hub') }}</th>
-								<th class="thin"><span class="visually-hidden">{{ 'Actions'|t('app') }}</span></th>
-							</tr>
-						</thead>
-						<tbody>
-							{% for element in check.items %}
-								<tr>
-									<th>{{ hub.link(hub.url(element), hub.elementTitle(element)) }}</th>
-									<td>{{ work.place(element) }}</td>
-									<td>{{ hub.date(element.dateUpdated) }}</td>
-									<td class="thin">{{ work.snooze(check.key, element, snoozeDays, craft.app.request.absoluteUrl) }}</td>
-								</tr>
-							{% endfor %}
-						</tbody>
-					</table>
-				</div>
-				<div class="hub-work-footer">
-					{% if check.count > check.items|length %}
-						<span class="hub-muted">{{ 'Showing {shown, number} of {total, number}'|t('hub', { shown: check.items|length, total: check.count }) }}</span>
-					{% endif %}
-					<a class="btn small" href="{{ check.url }}">
-						<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('arrow-right') }}</span>
-						{{ check.action }}
-					</a>
-				</div>
-			{% endblock %}
-		{% endembed %}
+		{% include 'hub/_panels/work/check' %}
 	{% else %}
 		{{ hub.emptyState('circle-check', 'All clear'|t('hub'), allChecks|length ? 'No issues match these filters.'|t('hub') : 'No issues in your entries and assets.'|t('hub')) }}
 	{% endfor %}
 
-	{% if snoozed|length %}
-		{% embed 'hub/_components/panel' with { heading: 'Snoozed and dismissed'|t('hub'), description: 'Issues you set aside, for yourself alone. Lists and diagnostics still count them.'|t('hub'), icon: 'clock', color: 'gray', count: snoozed|length, id: 'hub-snoozed' } %}
-			{% block body %}
-				{% import 'hub/_components/macros' as hub %}
-				{% import 'hub/_components/work-macros' as work %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Title'|t('app') }}</th>
-								<th>{{ 'Location'|t('hub') }}</th>
-								<th>{{ 'Issue'|t('hub') }}</th>
-								<th>{{ 'Back on'|t('hub') }}</th>
-								<th class="thin"><span class="visually-hidden">{{ 'Actions'|t('app') }}</span></th>
-							</tr>
-						</thead>
-						<tbody>
-							{% for row in snoozed %}
-								<tr>
-									<th>{{ hub.link(hub.url(row.element), hub.elementTitle(row.element)) }}</th>
-									<td>{{ work.place(row.element) }}</td>
-									<td>{{ row.check.getListName() }}</td>
-									<td>
-										{%- if row.until -%}
-											{{ row.until|date('short') }}
-										{%- else -%}
-											{{ hub.badge('Dismissed'|t('hub'), 'gray') }}
-										{%- endif -%}
-									</td>
-									<td class="thin">
-										<form method="post" accept-charset="UTF-8">
-											{{ csrfInput() }}
-											{{ actionInput('hub/work/wake') }}
-											{{ redirectInput(craft.app.request.absoluteUrl) }}
-											{{ hiddenInput('check', row.check.getKey()) }}
-											{{ hiddenInput('element', row.element.id) }}
-											<button type="submit" class="btn small">{{ 'Bring back'|t('hub') }}</button>
-										</form>
-									</td>
-								</tr>
-							{% endfor %}
-						</tbody>
-					</table>
-				</div>
-			{% endblock %}
-		{% endembed %}
+	{% if snoozedCount %}
+		{% include 'hub/_panels/work/snoozed' with { count: snoozedCount } %}
 	{% endif %}
 {% endblock %}

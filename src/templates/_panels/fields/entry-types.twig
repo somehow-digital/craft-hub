@@ -1,0 +1,45 @@
+{#
+	Panel with the entry types of a nested entry field, with their entries in it. Loaded (see
+	BaseController::renderPanel()), it lists them along with what they're used for, and counts their entries.
+
+	Variables: info (FieldInfo), field, and once loaded entryTypes (EntryTypeInfo[] by their ID), statistics
+	(StatisticsService)
+#}
+{% embed 'hub/_components/panel' with {
+	heading: 'Entry Types'|t('hub'),
+	icon: 'shapes',
+	color: 'violet',
+	count: info.entryTypes|length,
+	panelKey: 'entryTypes',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if info.entryTypes|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Name'|t('app') }}</th>
+							<th>{{ 'Usage'|t('hub') }}</th>
+							<th class="hub-num">{{ 'Entries in this field'|t('hub') }}</th>
+							<th>{{ 'Last updated'|t('hub') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for entryType in info.entryTypes %}
+							{% set stats = statistics.sumEntries(siteIds, null, entryType.id, field.id) %}
+							<tr{% if not stats.total %} data-severity="orange"{% endif %}>
+								<th>{{ hub.name(entryType, null, not stats.total ? hub.noEntriesHere()) }}</th>
+								<td>{{ hub.kinds(entryTypes[entryType.id].kinds ?? []) }}</td>
+								<td class="hub-num">{{ hub.num(stats.total) }}</td>
+								<td>{{ hub.date(stats.lastUpdated) }}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% else %}
+			{{ hub.emptyState('shapes', 'No entry types.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

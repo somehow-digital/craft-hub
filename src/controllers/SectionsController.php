@@ -2,6 +2,8 @@
 
 namespace SomehowDigital\Craft\Hub\controllers;
 
+use Closure;
+use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
 use SomehowDigital\Craft\Hub\helpers\ListSelection;
@@ -80,8 +82,12 @@ class SectionsController extends BaseController
 		// The cards load their data once their panel is opened, so building them all is cheap (see renderCard()).
 		$summary = $tab === self::TAB_STATISTICS ? (new SectionsSummary())->detail($info) : [];
 
-		if ($tab === self::TAB_STATISTICS && ($card = $this->renderCard($summary)) !== null) {
-			return $card;
+		// A card or panel requested on its own is rendered without the page around it.
+		$part = ($tab === self::TAB_STATISTICS ? $this->renderCard($summary) : null)
+			?? $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn () => Hub::getInstance()->checks->forSection($info)) : $this->overviewPanels($info));
+
+		if ($part !== null) {
+			return $part;
 		}
 
 		// Only the selected tab is rendered, so only its variables are computed; the checks are counted on every tab.
@@ -93,11 +99,28 @@ class SectionsController extends BaseController
 				self::TAB_ENTRIES => $this->entryListVariables("hub/structure/sections/$id/entries", section: $info->section),
 				self::TAB_STATISTICS => ['summary' => $summary],
 				self::TAB_DIAGNOSTICS => [],
-				default => [
-					'entryTypes' => Hub::getInstance()->structure->getEntryTypes(),
-					'statistics' => Hub::getInstance()->statistics,
-				],
+				default => [],
 			},
 		]);
+	}
+
+	/**
+	 * Panels of the overview tab of a section page, with what each lists.
+	 *
+	 * @return array<string,Closure():array{0:string,1:array<string,mixed>}>
+	 */
+	private function overviewPanels(SectionInfo $info): array
+	{
+		$hub = Hub::getInstance();
+		$section = $info->section;
+
+		return [
+			'maintainers' => fn () => ['hub/_panels/maintainers', ['list' => ColumnService::LIST_SECTIONS, 'item' => $section]],
+			'sites' => fn () => ['hub/_panels/sections/sites', ['section' => $section]],
+			'previewTargets' => fn () => ['hub/_panels/sections/preview-targets', ['section' => $section]],
+			'entryTypes' => fn () => ['hub/_panels/sections/entry-types', ['info' => $info, 'section' => $section, 'entryTypes' => $hub->structure->getEntryTypes(), 'statistics' => $hub->statistics]],
+			'relations' => fn () => ['hub/_panels/sections/relations', ['info' => $info, 'section' => $section, 'statistics' => $hub->statistics]],
+			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::Section->value, 'id' => $section->id]],
+		];
 	}
 }

@@ -1,0 +1,41 @@
+{#
+	Panel with the kinds of the files of a volume. Its page counts them; loaded (see BaseController::renderPanel()), it lists
+	how many there are of each, with or without references, their size and their last upload.
+
+	Variables: info (VolumeInfo), and once loaded fileKinds (FileKindInfo[] by kind)
+#}
+{% embed 'hub/_components/panel' with { heading: 'Types'|t('hub'), icon: 'file', count: info.kinds|length, panelKey: 'types' } %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if info.kinds|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Name'|t('app') }}</th>
+							<th class="hub-num" title="{{ 'With references / Without references'|t('hub') }}">{{ 'Assets'|t('app') }}</th>
+							<th class="hub-num">{{ 'Size'|t('app') }}</th>
+							<th>{{ 'Last upload'|t('hub') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for kind, stats in info.kinds %}
+							{% set fileKind = fileKinds[kind] %}
+							<tr>
+								<th>{{ hub.badge(fileKind.label, fileKind.color, null, fileKind.icon) }}</th>
+								<td class="hub-num">
+									{{ hub.dotNum(stats.used, 'green', 'With references'|t('hub')) }}
+									{{ hub.dotNum(stats.unused, 'orange', 'Without references'|t('hub')) }}
+								</td>
+								<td class="hub-num">{{ hub.size(stats.size) }}</td>
+								<td>{{ hub.date(stats.lastUploaded) }}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% else %}
+			{{ hub.emptyState('image', 'No assets found.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

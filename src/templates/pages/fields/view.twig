@@ -85,177 +85,27 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_components/maintainers' with { list: 'fields', item: field } %}
+	{% include 'hub/_panels/maintainers' with { list: 'fields', item: field } %}
 
 	{% if info.isNested %}
-		{% embed 'hub/_components/panel' with {
-			heading: 'Entry Types'|t('hub'),
-			icon: 'shapes',
-			color: 'violet',
-			count: info.entryTypes|length,
-		} %}
-			{% block body %}
-				{% import 'hub/_components/macros' as hub %}
-				{% if info.entryTypes|length %}
-					<div class="hub-table">
-						<table class="data fullwidth">
-							<thead>
-								<tr>
-									<th>{{ 'Name'|t('app') }}</th>
-									<th>{{ 'Usage'|t('hub') }}</th>
-									<th class="hub-num">{{ 'Entries in this field'|t('hub') }}</th>
-									<th>{{ 'Last updated'|t('hub') }}</th>
-								</tr>
-							</thead>
-							<tbody>
-								{% for entryType in info.entryTypes %}
-									{% set stats = statistics.sumEntries(siteIds, null, entryType.id, field.id) %}
-									<tr{% if not stats.total %} data-severity="orange"{% endif %}>
-										<th>{{ hub.name(entryType, null, not stats.total ? hub.noEntriesHere()) }}</th>
-										<td>{{ hub.kinds(entryTypes[entryType.id].kinds ?? []) }}</td>
-										<td class="hub-num">{{ hub.num(stats.total) }}</td>
-										<td>{{ hub.date(stats.lastUpdated) }}</td>
-									</tr>
-								{% endfor %}
-							</tbody>
-						</table>
-					</div>
-				{% else %}
-					{{ hub.emptyState('shapes', 'No entry types.'|t('hub')) }}
-				{% endif %}
-			{% endblock %}
-		{% endembed %}
+		{% include 'hub/_panels/fields/entry-types' %}
 	{% endif %}
 
 	{% if info.sections|length %}
-		{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind').from(field is instance of('craft\\fields\\Link') ? 'link' : 'reference') %}
-		{% embed 'hub/_components/panel' with {
-			heading: 'Sections'|t('app'),
-			description: 'Sections this field can reference entries from.'|t('hub'),
-			icon: usageKind.icon(),
-			color: usageKind.color(),
-			count: info.sections|length,
-		} %}
-			{% block body %}
-				{% import 'hub/_components/macros' as hub %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Section'|t('app') }}</th>
-								<th>{{ 'Type'|t('app') }}</th>
-								<th class="hub-num">{{ 'References'|t('hub') }}</th>
-								<th class="hub-num">{{ 'Referenced entries'|t('hub') }}</th>
-							</tr>
-						</thead>
-						<tbody>
-							{% for section in info.sections %}
-								{% set references = statistics.sumReferences(siteIds, field.id, section.id) %}
-								<tr>
-									<th>{{ hub.name(section) }}</th>
-									<td>{{ hub.sectionType(section) }}</td>
-									<td class="hub-num">{{ hub.num(references.references) }}</td>
-									<td class="hub-num">{{ hub.num(references.targets) }}</td>
-								</tr>
-							{% endfor %}
-						</tbody>
-					</table>
-				</div>
-			{% endblock %}
-		{% endembed %}
+		{% include 'hub/_panels/fields/sections' %}
 	{% endif %}
 
 	{% if volumes|length %}
-		{% embed 'hub/_components/panel' with {
-			heading: 'Volumes'|t('app'),
-			description: 'Volumes this field can reference assets from.'|t('hub'),
-			icon: 'image',
-			color: 'teal',
-			count: volumes|length,
-		} %}
-			{% block body %}
-				{% import 'hub/_components/macros' as hub %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Volume'|t('app') }}</th>
-								<th class="hub-num">{{ 'References'|t('hub') }}</th>
-								<th class="hub-num">{{ 'Referenced assets'|t('hub') }}</th>
-							</tr>
-						</thead>
-						<tbody>
-							{% for volumeInfo in volumes %}
-								{% set references = statistics.sumReferences(siteIds, field.id, null, volumeInfo.volume.id) %}
-								<tr>
-									<th>{{ hub.name(volumeInfo.volume) }}</th>
-									<td class="hub-num">{{ hub.num(references.references) }}</td>
-									<td class="hub-num">{{ hub.num(references.targets) }}</td>
-								</tr>
-							{% endfor %}
-						</tbody>
-					</table>
-				</div>
-			{% endblock %}
-		{% endembed %}
+		{% include 'hub/_panels/fields/volumes' %}
 	{% endif %}
 
-	{% embed 'hub/_components/panel' with {
-		heading: 'Relations'|t('hub'),
-		description: 'Field layouts that use this field.'|t('hub'),
-		icon: 'link',
-		color: 'teal',
-		count: info.layouts|length,
-	} %}
-		{% block body %}
-			{% import 'hub/_components/macros' as hub %}
-			{% if info.layouts|length %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Name'|t('app') }}</th>
-								<th>{{ 'Type'|t('app') }}</th>
-								<th class="hub-num">{{ 'Instances'|t('hub') }}</th>
-							</tr>
-						</thead>
-						<tbody>
-							{% for usage in info.layouts|sort((a, b) => a.ownerType ~ a.label <=> b.ownerType ~ b.label) %}
-								<tr>
-									<th>
-										{% if usage.model %}
-											{{ hub.name(usage.model, usage.color) }}
-										{% else %}
-											<div class="hub-name">
-												{{ hub.icon('table-layout') }}
-												<span class="hub-name__title">
-													{%- if usage.url and currentUser.admin -%}
-														<a href="{{ usage.url }}">{{ usage.label|t('site') }}</a>
-													{%- else -%}
-														{{ usage.label|t('site') }}
-													{%- endif -%}
-												</span>
-											</div>
-										{% endif %}
-									</th>
-									<td>{{ hub.badge(usage.ownerType) }}</td>
-									<td class="hub-num">{{ hub.num(usage.instances) }}</td>
-								</tr>
-							{% endfor %}
-						</tbody>
-					</table>
-				</div>
-			{% else %}
-				{{ hub.emptyState('ghost', 'This field is not placed in any field layout.'|t('hub')) }}
-			{% endif %}
-		{% endblock %}
-	{% endembed %}
+	{% include 'hub/_panels/fields/relations' %}
 
 	{% if field is instance of('craft\\fields\\ContentBlock') %}
-		{% include 'hub/_components/field-layout' with { layout: field.getFieldLayout() } %}
+		{% include 'hub/_panels/field-layout' with { layout: field.getFieldLayout() } %}
 	{% endif %}
 
-	{% include 'hub/_components/item-activity' with { subject: 'field', id: field.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'field', id: field.id } %}
 {% endblock %}
 
 {% block list %}

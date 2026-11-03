@@ -491,7 +491,7 @@
 
 	// Lazy panels load their header and body once opened, from the panel rendered by their URL; those opened from the start,
 	// as their state was kept, load right away. A failed load says so in place of the spinner, and is tried again as the
-	// panel opens next.
+	// panel opens next. Loaded panels dispatch `hub:loaded`, for the scripts of their page to set up what they hold.
 	const initLazy = (panel) => {
 		let loading = false;
 
@@ -512,17 +512,35 @@
 					throw new Error(response.statusText);
 				}
 
-				const loaded = new DOMParser().parseFromString(await response.text(), 'text/html').querySelector('details[data-hub-panel]');
+				// The page renders all of its panels, so the one loaded is picked by its key.
+				const loaded = new DOMParser().parseFromString(await response.text(), 'text/html')
+					.querySelector(`details[data-hub-panel="${CSS.escape(panel.dataset.hubPanel)}"]`);
 
 				if (!loaded) {
 					throw new Error('Missing panel');
 				}
 
-				// The details element stays, keeping its state and handlers.
+				// The details element stays, keeping its state and handlers. Parsed scripts don't run, so those the body
+				// registered are added anew, after Craft and Hub set up its content as they do on page load.
 				const children = [...loaded.children];
+				const scripts = children.flatMap((child) => within(child, 'script'));
+				scripts.forEach((script) => script.remove());
+
+				// Links built from the URL loading the body, like those of its pagination, lead to the page as it is.
+				children.flatMap((child) => within(child, 'a[href*="panel="]')).forEach((link) => {
+					const url = new URL(link.href, window.location.href);
+
+					if (url.searchParams.get('panel') === panel.dataset.hubPanel) {
+						url.searchParams.delete('panel');
+						link.href = url.href;
+					}
+				});
 				panel.replaceChildren(...children);
 				delete panel.dataset.hubLazy;
+				Craft.initUiElements($(children));
 				children.forEach(init);
+				scripts.forEach((script) => panel.append(Object.assign(document.createElement('script'), { textContent: script.textContent })));
+				panel.dispatchEvent(new Event('hub:loaded', { bubbles: true }));
 			} catch {
 				status?.replaceChildren(Craft.t('hub', 'The content could not be loaded.'));
 			} finally {
