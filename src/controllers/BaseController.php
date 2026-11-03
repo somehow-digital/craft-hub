@@ -48,6 +48,9 @@ abstract class BaseController extends Controller
 	/** query param of a statistics tab loading the card of that key alone, see Summary::lazyCard() */
 	public const CARD_PARAM = 'card';
 
+	/** query param of a page loading the body of its collapsible panel of that key, see the `panel` component */
+	public const PANEL_PARAM = 'panel';
+
 	/** query param of a card of a statistics tab with the days its chart spans, see SnapshotService::chart() */
 	public const RANGE_PARAM = 'range';
 
@@ -313,6 +316,40 @@ abstract class BaseController extends Controller
 	}
 
 	/**
+	 * The collapsible panel of a page requested by its key (see PANEL_PARAM), rendered alone with its data loaded, as its
+	 * page only renders what sums it up (see the `panel` component). Each panel of the page is given as its template and
+	 * the variables of its body, read only for the panel requested.
+	 *
+	 * @param array<string,Closure():array{0:string,1:array<string,mixed>}> $panels by their key
+	 * @return Response|null null unless a panel is requested
+	 * @throws NotFoundHttpException for panels the page doesn't have
+	 */
+	protected function renderPanel(array $panels): ?Response
+	{
+		$key = Craft::$app->getRequest()->getQueryParam(self::PANEL_PARAM);
+
+		if (!is_string($key)) {
+			return null;
+		}
+
+		$panel = $panels[$key] ?? throw new NotFoundHttpException('Panel not found.');
+		[$template, $variables] = $panel();
+
+		return $this->renderTemplate($template, [...$variables, 'loaded' => true]);
+	}
+
+	/**
+	 * Panel of the checks of the diagnostics tab of a detail page, see renderPanel().
+	 *
+	 * @param Closure():array<int,mixed> $checks the checks of the page's item
+	 * @return array<string,Closure():array{0:string,1:array<string,mixed>}>
+	 */
+	protected function checksPanel(Closure $checks): array
+	{
+		return ['checks' => fn () => ['hub/_panels/checks', ['checks' => $checks()]]];
+	}
+
+	/**
 	 * Statistics tab of an index page: the summary cards of its items, or the one requested (see renderCard()).
 	 *
 	 * @param array<int,array{key:string,label:string,icon:string,load:Closure,history?:Closure}> $cards
@@ -362,11 +399,18 @@ abstract class BaseController extends Controller
 			];
 		}
 
+		$tasks = $diagnostics->sort($tasks, $kind, fn (array $task) => [$task['key'], $task['value'] === 0, $task['severity']]);
+
+		// The tab sums the checks up as the panel does, so they're counted for both.
+		if (($panel = $this->renderPanel(['checks' => fn () => ['hub/_panels/diagnostics', ['tasks' => $tasks]]])) !== null) {
+			return $panel;
+		}
+
 		return $this->renderTemplate('hub/pages/diagnostics', [
 			'area' => $area,
 			'page' => $page,
 			'title' => $kind->label(),
-			'tasks' => $diagnostics->sort($tasks, $kind, fn (array $task) => [$task['key'], $task['value'] === 0, $task['severity']]),
+			'tasks' => $tasks,
 			'siteScoped' => $siteScoped,
 			'extraTabs' => $extraTabs,
 		]);

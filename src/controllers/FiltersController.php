@@ -49,8 +49,14 @@ class FiltersController extends BaseController
 		$filters = Hub::getInstance()->filters;
 
 		$kinds = [];
+		$panels = [];
 		foreach (CheckKind::cases() as $kind) {
 			$kinds[$kind->value] = ['kind' => $kind, 'filters' => array_values($filters->getFilters($kind))];
+			$panels["hub-filters-$kind->value"] = fn () => ['hub/_panels/settings/filters', $kinds[$kind->value]];
+		}
+
+		if (($panel = $this->renderPanel($panels)) !== null) {
+			return $panel;
 		}
 
 		return $this->renderTemplate('hub/pages/settings/filters', ['kinds' => $kinds]);

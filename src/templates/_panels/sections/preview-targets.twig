@@ -1,0 +1,29 @@
+{#
+	Panel with the preview targets of a section, while it has any. Loaded (see BaseController::renderPanel()), it lists them.
+
+	Variables: section
+#}
+{% set previewTargets = section.previewTargets ?? [] %}
+
+{% embed 'hub/_components/panel' with { heading: 'Preview Targets'|t('app'), icon: 'eye', count: previewTargets|length, panelKey: 'previewTargets' } %}
+	{% block body %}
+		<div class="hub-table">
+			<table class="data fullwidth">
+				<thead>
+					<tr>
+						<th>{{ 'Label'|t('app') }}</th>
+						<th>{{ 'URL Format'|t('app') }}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for target in previewTargets %}
+						<tr>
+							<th>{{ target.label|t('site') }}</th>
+							<td><code>{{ target.urlFormat }}</code></td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	{% endblock %}
+{% endembed %}

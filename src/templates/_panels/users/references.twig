@@ -1,0 +1,47 @@
+{#
+	Panel with the elements referencing a user, through each field. Its page counts them; loaded (see
+	BaseController::renderPanel()), it lists them.
+
+	Variables: count (see ReferenceService::countReferences()), or references (EntryReference[]) once loaded
+#}
+{% embed 'hub/_components/panel' with {
+	heading: 'References'|t('hub'),
+	description: 'Elements that reference this user through a relation field.'|t('hub'),
+	icon: 'link',
+	color: 'teal',
+	count: (loaded ?? false) ? references|reduce((total, reference) => total + reference.paths|length, 0) : count,
+	panelKey: 'references',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if references|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Element'|t('hub') }}</th>
+							<th>{{ 'Field'|t('app') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for reference in references %}
+							{% for path in reference.paths %}
+								<tr>
+									<td>{{ hub.element(reference.element) }}</td>
+									<td>
+										<span class="hub-inline">
+											{% if path.field %}{{ hub.fieldType(path.field, 'teal') }}{% endif %}
+											<span>{{ path.label }}</span>
+										</span>
+									</td>
+								</tr>
+							{% endfor %}
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% else %}
+			{{ hub.emptyState('link-slash', 'No elements reference this user.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

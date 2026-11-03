@@ -1,18 +1,20 @@
 {#
-	Panel with the latest activity of an item, for users who may view the activity log, linking to all of it there.
+	Panel with the latest activity of an item, for users who may view the activity log, linking to all of it there. It's
+	only read once loaded (see BaseController::renderPanel()).
 
-	Variables: subject (value of ActivitySubject), id
+	Variables: subject (value of ActivitySubject), id, loaded
 #}
 {% set activityLog = craft.app.plugins.getPlugin('hub').activity %}
 
 {% if activityLog.canView() %}
-	{% set activities = activityLog.getItemActivities(enum('SomehowDigital\\Craft\\Hub\\enums\\ActivitySubject').from(subject), id) %}
+	{% set activities = (loaded ?? false) ? activityLog.getItemActivities(enum('SomehowDigital\\Craft\\Hub\\enums\\ActivitySubject').from(subject), id) : [] %}
 
 	{% embed 'hub/_components/panel' with {
 		heading: 'Activity'|t('hub'),
 		description: 'What was last done to this item, newest first.'|t('hub'),
 		icon: 'clock-rotate-left',
 		color: 'blue',
+		panelKey: 'activity',
 	} %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
@@ -22,6 +24,7 @@
 						<thead>
 							<tr>
 								<th>{{ 'Action'|t('hub') }}</th>
+								<th>{{ 'Details'|t('hub') }}</th>
 								<th>{{ 'User'|t('app') }}</th>
 								<th>{{ 'Date'|t('app') }}</th>
 							</tr>
@@ -30,6 +33,7 @@
 							{% for activity in activities %}
 								<tr>
 									<th>{{ hub.badge(activity.action.label(), activity.action.color(), null, activity.action.icon()) }}</th>
+									<td>{% include 'hub/_components/activity-details' %}</td>
 									<td>
 										{%- if activity.user -%}
 											{{ hub.element(activity.user) }}

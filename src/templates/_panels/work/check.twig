@@ -1,0 +1,55 @@
+{#
+	Panel with a check flagging the user's items, on the diagnostics tab of their work. Its page counts the items; loaded
+	(see BaseController::renderPanel()), it lists the first of them, each with what can be done about it, and leads to the
+	list of all of them.
+
+	Variables: check (Check, with its items once loaded), snoozeDays
+#}
+{# Snoozing leads back to the page, which this panel is loaded from. #}
+{% set returnUrl = url(craft.app.request.pathInfo, craft.app.request.queryParamsWithoutPath|filter((value, name) => name != 'panel')) %}
+
+{% embed 'hub/_components/panel' with {
+	heading: check.heading,
+	description: check.description,
+	icon: check.icon,
+	color: check.severity.color(),
+	count: check.count,
+	id: check.key|kebab,
+	panelKey: check.key,
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% import 'hub/_components/work-macros' as work %}
+		<div class="hub-table">
+			<table class="data fullwidth">
+				<thead>
+					<tr>
+						<th>{{ 'Title'|t('app') }}</th>
+						<th>{{ 'Location'|t('hub') }}</th>
+						<th>{{ 'Last edited'|t('hub') }}</th>
+						<th class="thin"><span class="visually-hidden">{{ 'Actions'|t('app') }}</span></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for element in check.items %}
+						<tr>
+							<th>{{ hub.link(hub.url(element), hub.elementTitle(element)) }}</th>
+							<td>{{ work.place(element) }}</td>
+							<td>{{ hub.date(element.dateUpdated) }}</td>
+							<td class="thin">{{ work.snooze(check.key, element, snoozeDays, returnUrl) }}</td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+		<div class="hub-work-footer">
+			{% if check.count > check.items|length %}
+				<span class="hub-muted">{{ 'Showing {shown, number} of {total, number}'|t('hub', { shown: check.items|length, total: check.count }) }}</span>
+			{% endif %}
+			<a class="btn small" href="{{ check.url }}">
+				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('arrow-right') }}</span>
+				{{ check.action }}
+			</a>
+		</div>
+	{% endblock %}
+{% endembed %}

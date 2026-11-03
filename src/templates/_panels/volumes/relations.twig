@@ -1,0 +1,47 @@
+{#
+	Panel with the Assets and Link fields that can relate to assets of a volume. Loaded (see BaseController::renderPanel()),
+	it lists them, and counts their references.
+
+	Variables: info (VolumeInfo), volume, and once loaded statistics (StatisticsService)
+#}
+{% set relationFields = info.assetFields|merge(info.linkFields) %}
+
+{% embed 'hub/_components/panel' with {
+	heading: 'Relations'|t('hub'),
+	description: 'Assets and Link fields that can relate to assets from this volume.'|t('hub'),
+	icon: 'link',
+	color: 'teal',
+	count: relationFields|length,
+	panelKey: 'relations',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if relationFields|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Field'|t('app') }}</th>
+							<th>{{ 'Type'|t('app') }}</th>
+							<th class="hub-num">{{ 'References'|t('hub') }}</th>
+							<th class="hub-num">{{ 'Referenced assets'|t('hub') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for field in relationFields %}
+							{% set references = statistics.sumReferences(siteIds, field.id, null, volume.id) %}
+							<tr{% if not references.references %} data-severity="orange"{% endif %}>
+								<th>{{ hub.name(field, 'teal') }}</th>
+								<td>{{ hub.fieldType(field, 'teal') }}</td>
+								<td class="hub-num">{{ hub.num(references.references) }}</td>
+								<td class="hub-num">{{ hub.num(references.targets) }}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% else %}
+			{{ hub.emptyState('link-slash', 'No Assets or Link field can relate to assets from this volume.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

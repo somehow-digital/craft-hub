@@ -229,6 +229,17 @@ class FileService extends Component
 	}
 
 	/**
+	 * Number of the sites {@see getSiteVariants()} lists the file on.
+	 */
+	public function countSiteVariants(Asset $asset): int
+	{
+		return Hub::getInstance()->queries->total(Asset::find()
+			->id($asset->id)
+			->siteId(Hub::getInstance()->siteScope->getSiteIds())
+			->status(null));
+	}
+
+	/**
 	 * The files on each of the counted sites, loaded at once.
 	 *
 	 * @param Asset[] $assets

@@ -1,0 +1,56 @@
+{#
+	Panel with the elements referencing an entry, through each field or link. Its page counts them; loaded (see
+	BaseController::renderPanel()), it lists them.
+
+	Variables: count (see ReferenceService::countReferences()), or references (EntryReference[]) once loaded
+#}
+{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
+
+{% embed 'hub/_components/panel' with {
+	heading: 'References'|t('hub'),
+	description: 'Elements that reference this entry through a relation field or a link in rich text.'|t('hub'),
+	icon: 'link',
+	color: 'teal',
+	count: (loaded ?? false) ? references|reduce((total, reference) => total + reference.paths|length, 0) : count,
+	panelKey: 'references',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if references|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Element'|t('hub') }}</th>
+							<th>{{ 'Field'|t('app') }}</th>
+							<th><span class="visually-hidden">{{ 'URL'|t('app') }}</span></th>
+						</tr>
+					</thead>
+					<tbody>
+						{# One row per reference, so an element referencing through several fields is listed once for each #}
+						{% for reference in references %}
+							{% set element = reference.element %}
+							{% for path in reference.paths %}
+								<tr>
+									<td>{{ hub.element(element) }}</td>
+									<td>
+										<span class="hub-inline">
+											{% if path.field %}
+												{% set kind = usageKind.from(path.field is instance of('craft\\fields\\Link') ? 'link' : 'reference') %}
+												{{ hub.fieldType(path.field, kind.color()) }}
+											{% endif %}
+											<span>{{ path.label }}</span>
+										</span>
+									</td>
+									<td class="hub-visit-cell">{{ hub.visit(element, element is instance of('craft\\elements\\Asset') ? 'Open file'|t('hub') : 'View entry'|t('hub')) }}</td>
+								</tr>
+							{% endfor %}
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% else %}
+			{{ hub.emptyState('link-slash', 'No other elements reference this entry.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

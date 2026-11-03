@@ -183,11 +183,45 @@ it('shows an entry', function () {
 
 	expect($response->template)->toBe('hub/pages/entries/view')
 		->and($variables['entry'])->toBe($entry)
-		->and($variables['references'])->toBe([])
-		->and($variables['sites'])->toBe([$entry, $variant])
+		->and($variables['referenceCount'])->toBe(0)
+		->and($variables['referencedCount'])->toBe(0)
+		->and($variables['siteCount'])->toBe(2)
+		->and($variables)->not->toHaveKeys(['references', 'referenced', 'sites'])
 		->and($variables['stale'])->toBeTrue()
 		->and($variables['checks'])->not->toBeEmpty();
 });
+
+it('loads a panel of an entry alone, with what it lists', function () {
+	$entry = listedEntries(1)[0];
+	$variant = new Entry(['id' => 1, 'siteId' => 2]);
+	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => match (true) {
+		$query->asArray => [],
+		$query->unique => [$entry],
+		default => [$entry, $variant],
+	});
+
+	$response = $this->runAction(EntriesController::class, 'view', ['id' => 1], ['panel' => 'sites']);
+
+	expect($response->template)->toBe('hub/_panels/entries/sites')
+		->and($response->variables['sites'])->toBe([$entry, $variant])
+		->and($response->variables['loaded'])->toBeTrue()
+		->and($response->variables)->not->toHaveKeys(['checks', 'lastEdit']);
+});
+
+it('loads the checks of an entry on its diagnostics tab', function () {
+	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray ? [] : listedEntries(1));
+
+	$response = $this->runAction(EntriesController::class, 'view', ['id' => 1, 'tab' => 'diagnostics'], ['panel' => 'checks']);
+
+	expect($response->template)->toBe('hub/_panels/checks')
+		->and($response->variables['checks'])->not->toBeEmpty();
+});
+
+it('has no panels it does not know', function () {
+	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray ? [] : listedEntries(1));
+
+	$this->runAction(EntriesController::class, 'view', ['id' => 1], ['panel' => 'unknown']);
+})->throws(NotFoundHttpException::class);
 
 it('shows the history of an entry', function () {
 	$entry = listedEntries(1)[0];
@@ -204,9 +238,18 @@ it('shows the history of an entry', function () {
 
 	expect($variables['selectedTab'])->toBe('history')
 		->and($variables['hasHistory'])->toBeTrue()
-		->and($variables['revisions'])->toBe($revisions)
-		->and($variables['drafts'])->toBe([$draft])
-		->and($variables['pageInfo']->total)->toBe(2);
+		->and($variables['revisionCount'])->toBe(2)
+		->and($variables['draftCount'])->toBe(1)
+		->and($variables)->not->toHaveKeys(['revisions', 'drafts']);
+
+	$revisionsPanel = $this->runAction(EntriesController::class, 'view', ['id' => 1, 'tab' => 'history'], ['panel' => 'revisions']);
+	$draftsPanel = $this->runAction(EntriesController::class, 'view', ['id' => 1, 'tab' => 'history'], ['panel' => 'drafts']);
+
+	expect($revisionsPanel->template)->toBe('hub/_panels/entries/revisions')
+		->and($revisionsPanel->variables['revisions'])->toBe($revisions)
+		->and($revisionsPanel->variables['pageInfo']->total)->toBe(2)
+		->and($draftsPanel->template)->toBe('hub/_panels/entries/drafts')
+		->and($draftsPanel->variables['drafts'])->toBe([$draft]);
 });
 
 it('loads the history only on its tab', function () {
@@ -237,8 +280,8 @@ it('shows the drafts of entries without versioning on the history tab', function
 
 	expect($variables['hasHistory'])->toBeTrue()
 		->and($variables['hasRevisions'])->toBeFalse()
-		->and($variables['drafts'])->toBe([$draft])
-		->and($variables)->not->toHaveKeys(['revisions', 'pageInfo'])
+		->and($variables['draftCount'])->toBe(1)
+		->and($variables['revisionCount'])->toBe(0)
 		->and(array_filter(ElementQueries::executed(Entry::class), fn (EntryQuery $query) => $query->revisions))->toBeEmpty();
 });
 

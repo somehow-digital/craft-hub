@@ -44,8 +44,14 @@ class ChecksController extends BaseController
 		$diagnostics = Hub::getInstance()->diagnostics;
 
 		$kinds = [];
+		$panels = [];
 		foreach (CheckKind::cases() as $kind) {
 			$kinds[$kind->value] = ['kind' => $kind, 'checks' => array_values($diagnostics->getDefinitions($kind))];
+			$panels["hub-checks-$kind->value"] = fn () => ['hub/_panels/settings/checks', $kinds[$kind->value]];
+		}
+
+		if (($panel = $this->renderPanel($panels)) !== null) {
+			return $panel;
 		}
 
 		return $this->renderTemplate('hub/pages/settings/diagnostics', [

@@ -30,34 +30,5 @@
 		</span>
 	</header>
 
-	{% embed 'hub/_components/panel' with {
-		heading: 'Checks'|t('hub'),
-		icon: 'list-check',
-		color: failed ? 'orange' : 'green',
-		count: failed,
-	} %}
-		{% block body %}
-			<ul class="hub-task-group__list">
-				{% for item in tasks %}
-					{% set color = item.value ? item.severity.color() : 'green' %}
-					{% set inner %}
-						<span class="hub-task__icon" data-color="{{ color }}" aria-hidden="true">{{ iconSvg(item.value ? item.icon : 'circle-check') }}</span>
-						<span class="hub-task__body">
-							<span class="hub-task__label">{{ item.label }}</span>
-							<span class="hub-task__description">{{ item.description }}</span>
-						</span>
-						<span class="hub-task__value">{{ item.value|number }}</span>
-						<span class="hub-task__chevron" aria-hidden="true">{% if item.value and item.url %}{{ iconSvg('chevron-right') }}{% endif %}</span>
-					{% endset %}
-					<li>
-						{% if item.value and item.url %}
-							<a class="hub-task" href="{{ item.url }}">{{ inner }}</a>
-						{% else %}
-							<div class="hub-task{% if not item.value %} hub-task--clear{% endif %}">{{ inner }}</div>
-						{% endif %}
-					</li>
-				{% endfor %}
-			</ul>
-		{% endblock %}
-	{% endembed %}
+	{% include 'hub/_panels/diagnostics' %}
 {% endblock %}

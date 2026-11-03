@@ -36,97 +36,7 @@
 
 	<div class="hub-checks-settings">
 		{% for item in kinds %}
-			{% set kind = item.kind %}
-			{% set checks = item.checks %}
-			{% set disabled = checks|filter(check => not check.enabled)|length %}
-
-			{% embed 'hub/_components/panel' with {
-				heading: kind.label(),
-				icon: kind.icon(),
-				id: 'hub-checks-' ~ kind.value,
-			} %}
-				{% block actions %}
-					<span class="hub-checks-settings__disabled hub-muted{% if not disabled %} hidden{% endif %}" data-hub-checks-disabled>
-						{{- '{count} disabled'|t('hub', { count: disabled|number }) -}}
-					</span>
-					<span class="hub-pill" data-hub-checks-count>{{ checks|length|number }}</span>
-					<a class="btn small add icon" href="{{ url('hub/manage/settings/diagnostics/new/' ~ kind.value) }}">{{ 'New check'|t('hub') }}</a>
-				{% endblock %}
-
-				{% block body %}
-					{% import 'hub/_components/macros' as hub %}
-					{{ hub.emptyState('list-check', 'No checks exist yet.'|t('hub'), 'Checks flag the items their filter lists, on the diagnostics tabs.'|t('hub'),
-						tag('a', { href: url('hub/manage/settings/diagnostics/new/' ~ kind.value), class: 'btn add icon', text: 'New check'|t('hub') }),
-						{ id: 'hub-checks-empty-' ~ kind.value, hidden: checks|length > 0 }) }}
-					<div class="hub-table">
-						<table class="data fullwidth hub-checks-table{% if not checks|length %} hidden{% endif %}" id="hub-checks-table-{{ kind.value }}">
-							<thead>
-								<tr>
-									<th class="thin" aria-label="{{ 'Reorder'|t('app') }}"></th>
-									<th>{{ 'Name'|t('app') }}</th>
-									<th>{{ 'Filter'|t('hub') }}</th>
-									<th>{{ 'Type'|t('app') }}</th>
-									<th>{{ 'Severity'|t('hub') }}</th>
-									<th class="thin">{{ 'Enabled'|t('app') }}</th>
-									<th class="thin" aria-label="{{ 'Delete'|t('app') }}"></th>
-								</tr>
-							</thead>
-							<tbody>
-								{% for check in checks %}
-									{% set severity = check.getSeverity() %}
-									<tr class="hub-check-row{% if not check.enabled %} hub-check-row--disabled{% endif %}" data-id="{{ check.id }}" data-name="{{ check.name }}" data-hub-color="{{ severity.color() }}">
-										<td class="thin">
-											<a class="move icon" title="{{ 'Reorder'|t('app') }}" role="button"></a>
-										</td>
-										<th scope="row">
-											<div class="hub-name hub-check-row__name">
-												{{ hub.icon(check.getIcon(), check.enabled ? severity.color() : 'gray') }}
-												<div class="hub-name__text">
-													<span class="hub-name__title"><a href="{{ url('hub/manage/settings/diagnostics/' ~ check.id) }}">{{ check.name }}</a></span>
-													{% if check.description %}
-														<span class="hub-check-row__description">{{ check.description }}</span>
-													{% endif %}
-												</div>
-											</div>
-										</th>
-										<td>
-											{% set filter = check.getFilter() %}
-											{% if filter is null %}
-												<span class="hub-muted">{{ 'Deleted'|t('hub') }}</span>
-											{% elseif filter.id %}
-												<a href="{{ url('hub/manage/settings/filters/' ~ filter.id) }}">{{ filter.getName() }}</a>
-											{% else %}
-												{{ filter.getName() }}
-											{% endif %}
-										</td>
-										<td>
-											{{ check.isDefault() ? hub.badge('Default'|t('hub'), 'gray') : hub.badge('Custom'|t('hub'), 'violet') }}
-										</td>
-										<td>
-											<div class="hub-check-row__severity">
-												{{ hub.badge(severity.label(), severity.color()) }}
-												{% if check.isDefault() and severity != check.defaultSeverity %}
-													<span class="hub-muted">{{ 'Default: {severity}'|t('hub', { severity: check.defaultSeverity.label() }) }}</span>
-												{% endif %}
-											</div>
-										</td>
-										<td class="thin">
-											<button type="button" class="lightswitch small{% if check.enabled %} on{% endif %}" role="switch" aria-checked="{{ check.enabled ? 'true' : 'false' }}" aria-label="{{ 'Enabled'|t('app') }}: {{ check.name }}" data-hub-check-toggle="{{ check.id }}">
-												<div class="lightswitch-container"><div class="handle"></div></div>
-											</button>
-										</td>
-										<td class="thin">
-											{% if not check.isDefault() %}
-												<a class="delete icon" title="{{ 'Delete'|t('app') }}" role="button" tabindex="0"></a>
-											{% endif %}
-										</td>
-									</tr>
-								{% endfor %}
-							</tbody>
-						</table>
-					</div>
-				{% endblock %}
-			{% endembed %}
+			{% include 'hub/_panels/settings/checks' with { kind: item.kind, checks: item.checks } %}
 		{% endfor %}
 	</div>
 {% endblock %}
@@ -143,21 +53,28 @@ const updateHubChecksHeader = (panel) => {
 	label.classList.toggle('hidden', !disabled);
 };
 
-{% for item in kinds %}
-new Craft.AdminTable({
-	tableSelector: '#hub-checks-table-{{ item.kind.value }}',
-	noItemsSelector: '#hub-checks-empty-{{ item.kind.value }}',
-	sortable: true,
-	reorderAction: 'hub/checks/reorder',
-	reorderSuccessMessage: {{ 'Checks reordered.'|t('hub')|json_encode|raw }},
-	reorderFailMessage: {{ 'Couldn’t reorder the checks.'|t('hub')|json_encode|raw }},
-	deleteAction: 'hub/checks/delete',
-	confirmDeleteMessage: {{ 'Are you sure you want to delete “{name}”?'|t('hub')|json_encode|raw }},
-	deleteSuccessMessage: {{ 'Check deleted.'|t('hub')|json_encode|raw }},
-	deleteFailMessage: {{ 'Couldn’t delete the check.'|t('hub')|json_encode|raw }},
-	onDeleteItem: () => updateHubChecksHeader(document.getElementById('hub-checks-{{ item.kind.value }}')),
+// The tables of each kind are set up as their panel loads.
+document.getElementById('content').addEventListener('hub:loaded', (event) => {
+	const kind = event.target.querySelector('table.hub-checks-table')?.id.replace('hub-checks-table-', '');
+
+	if (!kind) {
+		return;
+	}
+
+	new Craft.AdminTable({
+		tableSelector: `#hub-checks-table-${kind}`,
+		noItemsSelector: `#hub-checks-empty-${kind}`,
+		sortable: true,
+		reorderAction: 'hub/checks/reorder',
+		reorderSuccessMessage: {{ 'Checks reordered.'|t('hub')|json_encode|raw }},
+		reorderFailMessage: {{ 'Couldn’t reorder the checks.'|t('hub')|json_encode|raw }},
+		deleteAction: 'hub/checks/delete',
+		confirmDeleteMessage: {{ 'Are you sure you want to delete “{name}”?'|t('hub')|json_encode|raw }},
+		deleteSuccessMessage: {{ 'Check deleted.'|t('hub')|json_encode|raw }},
+		deleteFailMessage: {{ 'Couldn’t delete the check.'|t('hub')|json_encode|raw }},
+		onDeleteItem: () => updateHubChecksHeader(document.getElementById(`hub-checks-${kind}`)),
+	});
 });
-{% endfor %}
 
 // Enables or disables a check right in the table.
 document.getElementById('content').addEventListener('click', async (event) => {

@@ -1,7 +1,8 @@
 {#
-	Panel listing the fields of a field layout, grouped by tab.
+	Panel listing the fields of a field layout, grouped by tab. Its page counts them; loaded (see
+	BaseController::renderPanel()), it lists them.
 
-	Variables: layout (craft\models\FieldLayout), fields (FieldInfo[] indexed by field ID)
+	Variables: layout (craft\models\FieldLayout), fields (FieldInfo[] indexed by field ID, once loaded), loaded
 #}
 {% import 'hub/_components/macros' as hub %}
 
@@ -11,6 +12,7 @@
 	heading: 'Field Layout'|t('app'),
 	icon: 'table-layout',
 	count: layout.getCustomFields()|length,
+	panelKey: 'fieldLayout',
 } %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}

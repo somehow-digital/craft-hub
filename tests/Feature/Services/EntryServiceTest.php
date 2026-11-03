@@ -244,7 +244,7 @@ it('finds the entry on each counted site', function () {
 	$variants = [new Entry(['id' => 1, 'siteId' => 1]), new Entry(['id' => 1, 'siteId' => 2])];
 	ElementQueries::respond(Entry::class, $variants);
 
-	expect($this->entries->getSiteVariants(new Entry(['id' => 1])))->toBe($variants)
+	expect($this->entries->getSiteVariantsQuery(new Entry(['id' => 1]))->all())->toBe($variants)
 		->and(ElementQueries::executed(Entry::class)[0]->siteId)->toBe([1, 2])
 		->and(ElementQueries::executed(Entry::class)[0]->orderBy)->toBe(['elements_sites.siteId' => SORT_ASC]);
 });
@@ -263,7 +263,7 @@ it('finds the saved drafts of an entry on its site, last updated first', functio
 	$drafts = [new Entry(['id' => 3, 'siteId' => 2])];
 	ElementQueries::respond(Entry::class, $drafts);
 
-	expect($this->entries->getDrafts(new Entry(['id' => 1, 'siteId' => 2])))->toBe($drafts);
+	expect($this->entries->getDraftsQuery(new Entry(['id' => 1, 'siteId' => 2]))->all())->toBe($drafts);
 
 	$query = ElementQueries::executed(Entry::class)[0];
 

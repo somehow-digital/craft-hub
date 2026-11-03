@@ -2313,6 +2313,14 @@ button.hub-visit {
 	cursor: pointer;
 }
 
+/* The reorder and delete handles of the settings tables are buttons, drawn as Craft's icons. */
+:is(.hub-checks-table, .hub-labels-table) button.icon:is(.move, .delete) {
+	padding: 0;
+	border: 0;
+	background: none;
+	font: inherit;
+}
+
 .hub-visit:hover,
 .hub-visit:focus-visible {
 	color: var(--link-color, var(--blue-600));

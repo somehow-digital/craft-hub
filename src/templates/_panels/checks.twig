@@ -1,0 +1,21 @@
+{#
+	Panel with the checks of the item of a detail page, on its diagnostics tab, the most urgent first. Its header counts
+	those failing; loaded (see BaseController::checksPanel()), it lists them all.
+
+	Variables: checks (Check[])
+#}
+{% set failedChecks = checks|filter(check => not check.passed)|length %}
+
+{% embed 'hub/_components/panel' with {
+	heading: 'Checks'|t('hub'),
+	description: 'Things to clean up or improve, most urgent first.'|t('hub'),
+	icon: 'list-check',
+	color: failedChecks ? 'orange' : 'green',
+	count: failedChecks,
+	panelKey: 'checks',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{{ hub.checks(checks) }}
+	{% endblock %}
+{% endembed %}

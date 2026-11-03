@@ -2,6 +2,7 @@
 
 namespace SomehowDigital\Craft\Hub\controllers;
 
+use Closure;
 use Craft;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Severity;
@@ -58,6 +59,10 @@ class WorkController extends BaseController
 
 		if (in_array($tab, [self::TAB_ENTRIES, self::TAB_ASSETS], true) && ($redirect = $this->keepFilters("$path/$tab")) !== null) {
 			return $redirect;
+		}
+
+		if ($tab === WorkService::SECTION_DIAGNOSTICS && ($panel = $this->renderPanel($this->diagnosticsPanels())) !== null) {
+			return $panel;
 		}
 
 		$variables = match ($tab) {
@@ -124,7 +129,7 @@ class WorkController extends BaseController
 	private function diagnosticsVariables(): array
 	{
 		$params = $this->filterParamsOfRequest();
-		$all = Hub::getInstance()->work->getDiagnostics(WorkService::CHECK_ITEM_LIMIT);
+		$all = Hub::getInstance()->work->getDiagnostics();
 		$filter = [
 			'kinds' => $params->list('kind', [CheckKind::Entries->value, CheckKind::Assets->value]),
 			'severities' => $params->list('severity', array_map(fn (Severity $severity) => $severity->value, Severity::cases())),
@@ -137,7 +142,25 @@ class WorkController extends BaseController
 				&& ($filter['checks'] === [] || in_array($check->key, $filter['checks'], true));
 		});
 
-		return ['checks' => array_values($checks), 'allChecks' => $all, 'filter' => $filter, 'snoozeDays' => WorkService::SNOOZE_DAYS, 'snoozed' => Hub::getInstance()->work->getSnoozed()];
+		return ['checks' => array_values($checks), 'allChecks' => $all, 'filter' => $filter, 'snoozeDays' => WorkService::SNOOZE_DAYS, 'snoozedCount' => Hub::getInstance()->work->countSnoozed()];
+	}
+
+	/**
+	 * Panels of the diagnostics tab, with what each lists: the check requested, keyed by its key, with the first of its
+	 * items, and what the user snoozed.
+	 *
+	 * @return array<string,Closure():array{0:string,1:array<string,mixed>}>
+	 */
+	private function diagnosticsPanels(): array
+	{
+		$work = Hub::getInstance()->work;
+		$key = Craft::$app->getRequest()->getQueryParam(self::PANEL_PARAM);
+		$check = fn () => $work->getDiagnostics(WorkService::CHECK_ITEM_LIMIT, (string)$key)[0] ?? throw new NotFoundHttpException('Check not found.');
+
+		return [
+			'hub-snoozed' => fn () => ['hub/_panels/work/snoozed', ['snoozed' => $work->getSnoozed()]],
+			...(is_string($key) && $key !== 'hub-snoozed' ? [$key => fn () => ['hub/_panels/work/check', ['check' => $check(), 'snoozeDays' => WorkService::SNOOZE_DAYS]]] : []),
+		];
 	}
 
 	/**

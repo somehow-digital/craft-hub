@@ -1,0 +1,40 @@
+{#
+	Panel with the title, slug, URI and status of an entry on each of the counted sites. Its page counts them; loaded (see
+	BaseController::renderPanel()), it lists them.
+
+	Variables: count (of EntryService::getSiteVariantsQuery()), or sites (Entry[]) once loaded
+#}
+{% embed 'hub/_components/panel' with {
+	heading: 'Sites'|t('app'),
+	description: 'Title, slug and URI of the entry on each site.'|t('hub'),
+	icon: 'globe',
+	count: (loaded ?? false) ? sites|length : count,
+	panelKey: 'sites',
+} %}
+	{% block body %}
+		<div class="hub-table">
+			<table class="data fullwidth">
+				<thead>
+					<tr>
+						<th>{{ 'Site'|t('app') }}</th>
+						<th>{{ 'Title'|t('app') }}</th>
+						<th>{{ 'Slug'|t('app') }}</th>
+						<th>{{ 'URI'|t('hub') }}</th>
+						<th>{{ 'Status'|t('app') }}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for variant in sites %}
+						<tr>
+							<th>{{ variant.site.name|t('site') }}</th>
+							<td>{{ variant.title }}</td>
+							<td><code>{{ variant.slug }}</code></td>
+							<td>{% if variant.uri %}<code>{{ variant.uri }}</code>{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+							<td><span class="status {{ variant.status }}" aria-hidden="true"></span>{{ variant.statuses()[variant.status] ?? variant.status }}</td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	{% endblock %}
+{% endembed %}

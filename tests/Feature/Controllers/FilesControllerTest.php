@@ -139,12 +139,29 @@ it('shows a file', function () {
 	expect($response->template)->toBe('hub/pages/files/view')
 		->and($variables['asset'])->toBe($asset)
 		->and($variables['fileKind']->kind)->toBe('image')
-		->and($variables['references'])->toBe([])
-		->and($variables['sites'])->toBe([$asset])
+		->and($variables['referenceCount'])->toBe(0)
+		->and($variables['siteCount'])->toBe(1)
+		->and($variables)->not->toHaveKeys(['references', 'referenced', 'sites'])
 		->and($variables['transforms'])->toBe([])
 		->and($variables['isPlayable'])->toBeFalse()
 		->and($variables['checks'])->not->toBeEmpty();
 });
+
+it('loads a panel of a file alone, with what it lists', function (string $panel, string $template, string $variable) {
+	$asset = new Asset(['id' => 1, 'siteId' => 1, 'kind' => 'image', 'filename' => 'a.jpg', 'size' => 10]);
+	ElementQueries::respond(Asset::class, fn (AssetQuery $query) => [$asset]);
+
+	$response = $this->runAction(FilesController::class, 'view', ['id' => 1], ['panel' => $panel]);
+
+	expect($response->template)->toBe($template)
+		->and($response->variables)->toHaveKey($variable)
+		->and($response->variables)->not->toHaveKey('checks');
+})->with([
+	['preview', 'hub/_panels/files/preview', 'asset'],
+	['sites', 'hub/_panels/files/sites', 'sites'],
+	['references', 'hub/_panels/files/references', 'references'],
+	['referenced', 'hub/_panels/referenced', 'referenced'],
+]);
 
 it('previews videos browsers play natively', function (string $filename, bool $playable) {
 	$asset = new Asset(['id' => 1, 'siteId' => 1, 'kind' => 'video', 'filename' => $filename, 'size' => 10]);
@@ -165,7 +182,7 @@ it('shows the transforms tab of images', function () {
 	expect($variables['selectedTab'])->toBe('transforms')
 		->and($variables['hasTransforms'])->toBeTrue()
 		->and($variables['canDeleteTransforms'])->toBeTrue()
-		->and($variables)->not->toHaveKeys(['references', 'referenced', 'sites']);
+		->and($variables)->not->toHaveKeys(['referenceCount', 'referencedCount', 'siteCount']);
 });
 
 it('only reads the transforms of images on their tab', function () {
@@ -175,7 +192,7 @@ it('only reads the transforms of images on their tab', function () {
 
 	expect($variables['transforms'])->toBe([])
 		->and($variables['hasTransforms'])->toBeTrue()
-		->and($variables)->toHaveKeys(['references', 'referenced', 'sites']);
+		->and($variables)->toHaveKeys(['referenceCount', 'referencedCount', 'siteCount']);
 });
 
 it('has no transforms tab for other files without transforms', function () {

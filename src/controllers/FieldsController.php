@@ -2,6 +2,9 @@
 
 namespace SomehowDigital\Craft\Hub\controllers;
 
+use Closure;
+use craft\fields\ContentBlock;
+use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
 use SomehowDigital\Craft\Hub\helpers\ListSelection;
@@ -94,8 +97,12 @@ class FieldsController extends BaseController
 		// The cards load their data once their panel is opened, so building them all is cheap (see renderCard()).
 		$summary = $tab === self::TAB_STATISTICS ? (new FieldsSummary())->detail($info) : [];
 
-		if ($tab === self::TAB_STATISTICS && ($card = $this->renderCard($summary)) !== null) {
-			return $card;
+		// A card or panel requested on its own is rendered without the page around it.
+		$part = ($tab === self::TAB_STATISTICS ? $this->renderCard($summary) : null)
+			?? $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn () => Hub::getInstance()->checks->forField($info)) : $this->overviewPanels($info));
+
+		if ($part !== null) {
+			return $part;
 		}
 
 		// Only the selected tab is rendered, so only its variables are computed; the checks are counted on every tab.
@@ -107,13 +114,29 @@ class FieldsController extends BaseController
 				self::TAB_ENTRIES => $this->entryListVariables("hub/structure/fields/$id/entries", field: $info->field),
 				self::TAB_STATISTICS => ['summary' => $summary],
 				self::TAB_DIAGNOSTICS => [],
-				default => [
-					'entryTypes' => Hub::getInstance()->structure->getEntryTypes(),
-					'fields' => Hub::getInstance()->structure->getFields(),
-					'volumes' => Hub::getInstance()->volumes->getVolumesOf($info->field),
-					'statistics' => Hub::getInstance()->statistics,
-				],
+				default => ['volumes' => Hub::getInstance()->volumes->getVolumesOf($info->field)],
 			},
 		]);
+	}
+
+	/**
+	 * Panels of the overview tab of a field page, with what each lists.
+	 *
+	 * @return array<string,Closure():array{0:string,1:array<string,mixed>}>
+	 */
+	private function overviewPanels(FieldInfo $info): array
+	{
+		$hub = Hub::getInstance();
+		$field = $info->field;
+
+		return [
+			'maintainers' => fn () => ['hub/_panels/maintainers', ['list' => ColumnService::LIST_FIELDS, 'item' => $field]],
+			'entryTypes' => fn () => ['hub/_panels/fields/entry-types', ['info' => $info, 'field' => $field, 'entryTypes' => $hub->structure->getEntryTypes(), 'statistics' => $hub->statistics]],
+			'sections' => fn () => ['hub/_panels/fields/sections', ['info' => $info, 'field' => $field, 'statistics' => $hub->statistics]],
+			'volumes' => fn () => ['hub/_panels/fields/volumes', ['field' => $field, 'volumes' => $hub->volumes->getVolumesOf($field), 'statistics' => $hub->statistics]],
+			'relations' => fn () => ['hub/_panels/fields/relations', ['info' => $info]],
+			...($field instanceof ContentBlock ? ['fieldLayout' => fn () => ['hub/_panels/field-layout', ['layout' => $field->getFieldLayout(), 'fields' => $hub->structure->getFields()]]] : []),
+			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::Field->value, 'id' => $field->id]],
+		];
 	}
 }

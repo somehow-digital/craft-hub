@@ -135,142 +135,17 @@
 {% endblock %}
 
 {% block overview %}
-	{% embed 'hub/_components/panel' with {
-		heading: 'Permissions'|t('app'),
-		description: 'What the user may do, granted to them directly or through their groups.'|t('hub'),
-		icon: 'key',
-		color: 'violet',
-		count: user.admin ? null : permissions|reduce((total, item) => total + item.permissions|length, 0),
-	} %}
-		{% block body %}
-			{% import 'hub/_components/macros' as hub %}
-			{% if user.admin %}
-				<p class="hub-panel__empty">
-					{{ hub.icon('user-crown', 'violet', 'small') }}
-					{{ 'Admins may do anything, regardless of their permissions.'|t('hub') }}
-				</p>
-			{% elseif permissions|length %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Permission'|t('hub') }}</th>
-								<th>{{ 'Granted'|t('hub') }}</th>
-							</tr>
-						</thead>
-						{% for heading in permissions %}
-							<tbody>
-								<tr>
-									<th colspan="2" class="hub-muted">{{ heading.heading }}</th>
-								</tr>
-								{% for permission in heading.permissions %}
-									<tr>
-										<td title="{{ permission.name }}">{{ permission.label }}</td>
-										<td>
-											<span class="hub-badges">
-												{%- if permission.direct %}{{ hub.badge('Directly'|t('hub'), 'gray', null, 'user') }}{% endif -%}
-												{%- for group in permission.groups %}
-													<a class="hub-badge" data-color="violet" href="{{ url('hub/data/users', { hubSite: hubSite, group: group.handle }) }}">{{ group.name|t('site') }}</a>
-												{%- endfor -%}
-											</span>
-										</td>
-									</tr>
-								{% endfor %}
-							</tbody>
-						{% endfor %}
-					</table>
-				</div>
-			{% else %}
-				{{ hub.emptyState('key', 'The user has no permissions, so they can only sign in on the front end.'|t('hub')) }}
-			{% endif %}
-		{% endblock %}
-	{% endembed %}
+	{% include 'hub/_panels/users/permissions' with { count: permissionCount } %}
 
-	{% embed 'hub/_components/panel' with {
-		heading: 'References'|t('hub'),
-		description: 'Elements that reference this user through a relation field.'|t('hub'),
-		icon: 'link',
-		color: 'teal',
-		count: references|reduce((total, reference) => total + reference.paths|length, 0),
-	} %}
-		{% block body %}
-			{% import 'hub/_components/macros' as hub %}
-			{% if references|length %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Element'|t('hub') }}</th>
-								<th>{{ 'Field'|t('app') }}</th>
-							</tr>
-						</thead>
-						<tbody>
-							{% for reference in references %}
-								{% for path in reference.paths %}
-									<tr>
-										<td>{{ hub.element(reference.element) }}</td>
-										<td>
-											<span class="hub-inline">
-												{% if path.field %}{{ hub.fieldType(path.field, 'teal') }}{% endif %}
-												<span>{{ path.label }}</span>
-											</span>
-										</td>
-									</tr>
-								{% endfor %}
-							{% endfor %}
-						</tbody>
-					</table>
-				</div>
-			{% else %}
-				{{ hub.emptyState('link-slash', 'No elements reference this user.'|t('hub')) }}
-			{% endif %}
-		{% endblock %}
-	{% endembed %}
+	{% include 'hub/_panels/users/references' with { count: referenceCount } %}
 
-	{% include 'hub/_components/referenced' %}
+	{% include 'hub/_panels/referenced' with { count: referencedCount } %}
 
-	{% if maintained|length %}
-		{% embed 'hub/_components/panel' with {
-			heading: 'Maintains'|t('hub'),
-			description: 'Sections, entry types, fields and volumes the user maintains, themselves or through their groups.'|t('hub'),
-			icon: 'users',
-			color: 'violet',
-			count: maintained|length,
-		} %}
-			{% block body %}
-				{% import 'hub/_components/macros' as hub %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Name'|t('app') }}</th>
-								<th>{{ 'Type'|t('app') }}</th>
-								<th>{{ 'Maintained'|t('hub') }}</th>
-							</tr>
-						</thead>
-						<tbody>
-							{% for source in maintained %}
-								<tr>
-									<th>{{ hub.chip(source.item) }}</th>
-									<td>{{ source.getKind() }}</td>
-									<td>
-										<span class="hub-badges">
-											{%- if source.users|length %}{{ hub.badge('Directly'|t('hub'), 'gray', null, 'user') }}{% endif -%}
-											{%- for group in source.groups %}
-												<a class="hub-badge" data-color="violet" href="{{ url('hub/data/users', { hubSite: hubSite, group: group.handle }) }}">{{ group.name|t('site') }}</a>
-											{%- endfor -%}
-										</span>
-									</td>
-								</tr>
-							{% endfor %}
-						</tbody>
-					</table>
-				</div>
-			{% endblock %}
-		{% endembed %}
+	{% if maintainedCount %}
+		{% include 'hub/_panels/users/maintains' with { count: maintainedCount } %}
 	{% endif %}
 
-	{% include 'hub/_components/item-activity' with { subject: 'user', id: user.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'user', id: user.id } %}
 {% endblock %}
 
 {% block list %}

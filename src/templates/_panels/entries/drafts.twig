@@ -1,0 +1,58 @@
+{#
+	Panel with the saved drafts of an entry on its site, last updated first. Its page counts them; loaded (see
+	BaseController::renderPanel()), it lists them.
+
+	Variables: entry, count (of EntryService::getDraftsQuery()), or drafts (Entry[]) once loaded
+#}
+{% set canView = entry.canView(currentUser) %}
+
+{% embed 'hub/_components/panel' with {
+	heading: 'Drafts'|t('app'),
+	description: 'Saved drafts of the entry on this site, last updated first. Publish or discard them, so changes don’t get lost.'|t('hub'),
+	icon: 'pen-to-square',
+	color: 'amber',
+	count: (loaded ?? false) ? drafts|length : count,
+	panelKey: 'drafts',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		{% if drafts|length %}
+			<div class="hub-table">
+				<table class="data fullwidth">
+					<thead>
+						<tr>
+							<th>{{ 'Draft'|t('app') }}</th>
+							<th>{{ 'Created by'|t('app') }}</th>
+							<th>{{ 'Last updated'|t('hub') }}</th>
+							<th>{{ 'Notes'|t('app') }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for draft in drafts %}
+							{% set creator = draft.getCreator() %}
+							<tr>
+								<th>
+									<span class="hub-inline">
+										{% if canView %}
+											<a href="{{ draft.cpEditUrl }}">{{ draft.draftName }}</a>
+										{% else %}
+											<span>{{ draft.draftName }}</span>
+										{% endif %}
+										{% if draft.getIsOutdated() %}
+											{{ hub.badge('Outdated'|t('hub'), 'amber', 'The entry was changed since the draft was created.'|t('hub'), 'triangle-exclamation') }}
+										{% endif %}
+									</span>
+								</th>
+								<td>{% if creator %}{{ hub.element(creator) }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+								<td>{{ hub.date(draft.dateUpdated) }}</td>
+								<td>{% if draft.draftNotes %}{{ draft.draftNotes }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		{% else %}
+			{{ hub.emptyState('file-pen', 'The entry has no drafts on this site.'|t('hub')) }}
+		{% endif %}
+	{% endblock %}
+{% endembed %}

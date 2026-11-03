@@ -132,6 +132,29 @@ class ReferenceService extends Component
 	}
 
 	/**
+	 * Number of the references of the element, like the paths {@see getReferences()} lists, counted rather than loaded.
+	 */
+	public function countReferences(ElementInterface $element): int
+	{
+		$id = (int)$element->getCanonicalId();
+
+		return $this->getReferenceCounts([$id])[$id] ?? 0;
+	}
+
+	/**
+	 * Number of the references the element makes, like the paths {@see getReferenced()} lists, counted from the rows of
+	 * the references rather than their loaded elements, so those the user may not view are counted too.
+	 */
+	public function countReferenced(ElementInterface $element): int
+	{
+		$id = (int)$element->getCanonicalId();
+		$paths = $this->nestedPaths($id);
+		$rows = array_filter($this->targetRows(array_keys($paths)), fn (array $row) => !isset($paths[(int)$row['id']]));
+
+		return count($rows) + ($element instanceof User && $element->photoId !== null ? 1 : 0);
+	}
+
+	/**
 	 * Elements that reference any of the targets, by their root owner, leaving out those that are excluded, like the elements
 	 * deleted along with the targets. Up to SOURCE_LIMIT relations and reference tags each are read, as many targets may be
 	 * referenced by many; `capped` tells whether there are more.

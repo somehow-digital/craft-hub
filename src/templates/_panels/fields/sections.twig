@@ -1,0 +1,43 @@
+{#
+	Panel with the sections an Entries or Link field can reference entries from, while there are any. Loaded (see
+	BaseController::renderPanel()), it lists them, and counts their references.
+
+	Variables: info (FieldInfo), field, and once loaded statistics (StatisticsService)
+#}
+{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind').from(field is instance of('craft\\fields\\Link') ? 'link' : 'reference') %}
+
+{% embed 'hub/_components/panel' with {
+	heading: 'Sections'|t('app'),
+	description: 'Sections this field can reference entries from.'|t('hub'),
+	icon: usageKind.icon(),
+	color: usageKind.color(),
+	count: info.sections|length,
+	panelKey: 'sections',
+} %}
+	{% block body %}
+		{% import 'hub/_components/macros' as hub %}
+		<div class="hub-table">
+			<table class="data fullwidth">
+				<thead>
+					<tr>
+						<th>{{ 'Section'|t('app') }}</th>
+						<th>{{ 'Type'|t('app') }}</th>
+						<th class="hub-num">{{ 'References'|t('hub') }}</th>
+						<th class="hub-num">{{ 'Referenced entries'|t('hub') }}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for section in info.sections %}
+						{% set references = statistics.sumReferences(siteIds, field.id, section.id) %}
+						<tr>
+							<th>{{ hub.name(section) }}</th>
+							<td>{{ hub.sectionType(section) }}</td>
+							<td class="hub-num">{{ hub.num(references.references) }}</td>
+							<td class="hub-num">{{ hub.num(references.targets) }}</td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	{% endblock %}
+{% endembed %}

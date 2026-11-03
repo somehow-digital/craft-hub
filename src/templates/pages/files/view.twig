@@ -3,7 +3,6 @@
 
 {% set volume = asset.volume %}
 {% set isImage = asset.kind == 'image' %}
-{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
 
 {% set title = asset.title %}
 {% set area = 'data' %}
@@ -124,115 +123,19 @@
 {% endblock %}
 
 {% block overview %}
-	{% if isImage %}
-		{% embed 'hub/_components/panel' with { heading: 'Preview'|t('hub'), icon: 'image', color: 'sky' } %}
-			{% block body %}
-				<div class="hub-preview">
-					{{ asset.getPreviewThumbImg(800, 400)|raw }}
-				</div>
-			{% endblock %}
-		{% endembed %}
-	{% elseif isPlayable and asset.url %}
-		{% embed 'hub/_components/panel' with { heading: 'Preview'|t('hub'), icon: 'video', color: 'sky' } %}
-			{% block body %}
-				<div class="hub-preview">
-					<video controls preload="metadata">
-						<source src="{{ asset.url }}" type="{{ asset.mimeType }}">
-					</video>
-				</div>
-			{% endblock %}
-		{% endembed %}
+	{% if isImage or (isPlayable and asset.url) %}
+		{% include 'hub/_panels/files/preview' %}
 	{% endif %}
 
-	{% include 'hub/_components/element-maintainers' with { element: asset } %}
+	{% include 'hub/_panels/element-maintainers' with { element: asset } %}
 
-	{% embed 'hub/_components/panel' with {
-		heading: 'Sites'|t('app'),
-		description: 'Title and alternative text of the file on each site.'|t('hub'),
-		icon: 'globe',
-		count: sites|length,
-	} %}
-		{% block body %}
-			{% import 'hub/_components/macros' as hub %}
-			<div class="hub-table">
-				<table class="data fullwidth">
-					<thead>
-						<tr>
-							<th>{{ 'Site'|t('app') }}</th>
-							<th>{{ 'Title'|t('app') }}</th>
-							<th>{{ 'Alternative Text'|t('app') }}</th>
-							<th>{{ 'Status'|t('app') }}</th>
-						</tr>
-					</thead>
-					<tbody>
-						{% for variant in sites %}
-							<tr{% if isImage and not variant.alt|trim %} data-severity="orange"{% endif %}>
-								<th>{{ variant.site.name|t('site') }}</th>
-								<td>{{ variant.title }}</td>
-								<td>{% if variant.alt|trim %}{{ variant.alt }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
-								<td><span class="status {{ variant.status }}" aria-hidden="true"></span>{{ variant.statuses()[variant.status] ?? variant.status }}</td>
-							</tr>
-						{% endfor %}
-					</tbody>
-				</table>
-			</div>
-		{% endblock %}
-	{% endembed %}
+	{% include 'hub/_panels/files/sites' with { count: siteCount } %}
 
-	{% embed 'hub/_components/panel' with {
-		heading: 'References'|t('hub'),
-		description: 'Elements that reference this file through a relation field or rich text, and users whose photo it is.'|t('hub'),
-		icon: 'link',
-		color: 'teal',
-		count: references|reduce((total, reference) => total + reference.paths|length, 0),
-	} %}
-		{% block body %}
-			{% import 'hub/_components/macros' as hub %}
-			{% if references|length %}
-				<div class="hub-table">
-					<table class="data fullwidth">
-						<thead>
-							<tr>
-								<th>{{ 'Element'|t('hub') }}</th>
-								<th>{{ 'Fields'|t('app') }}</th>
-								<th><span class="visually-hidden">{{ 'URL'|t('app') }}</span></th>
-							</tr>
-						</thead>
-						<tbody>
-							{% for reference in references %}
-								{# Link entries and assets to their hub page instead of their edit page #}
-								{% set element = reference.element %}
-								{% set hubUrl = element is instance of('craft\\elements\\Entry') or element is instance of('craft\\elements\\Asset') ? hub.url(element)|trim : null %}
-								<tr>
-									<td>{{ elementChip(element, { hyperlink: true, attributes: hubUrl ? { data: { 'cp-url': hubUrl } } : {} }) }}</td>
-									<td>
-										<ul class="hub-list hub-list--plain">
-											{% for path in reference.paths %}
-												<li class="hub-inline">
-													{% if path.field %}
-														{% set kind = usageKind.from(path.field is instance of('craft\\fields\\Link') ? 'link' : 'reference') %}
-														{{ hub.fieldType(path.field, kind.color()) }}
-													{% endif %}
-													<span>{{ path.label }}</span>
-												</li>
-											{% endfor %}
-										</ul>
-									</td>
-									<td class="hub-visit-cell">{{ hub.visit(element, element is instance of('craft\\elements\\Asset') ? 'Open file'|t('hub') : 'View entry'|t('hub')) }}</td>
-								</tr>
-							{% endfor %}
-						</tbody>
-					</table>
-				</div>
-			{% else %}
-				{{ hub.emptyState('link-slash', 'No elements reference this file.'|t('hub')) }}
-			{% endif %}
-		{% endblock %}
-	{% endembed %}
+	{% include 'hub/_panels/files/references' with { count: referenceCount } %}
 
-	{% include 'hub/_components/referenced' %}
+	{% include 'hub/_panels/referenced' with { count: referencedCount } %}
 
-	{% include 'hub/_components/item-activity' with { subject: 'asset', id: asset.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'asset', id: asset.id } %}
 {% endblock %}
 
 {% block list %}

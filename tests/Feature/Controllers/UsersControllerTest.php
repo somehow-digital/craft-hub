@@ -197,8 +197,10 @@ it('shows a user', function () {
 		->and($variables['user'])->toBe($user)
 		->and($variables['selectedTab'])->toBe('overview')
 		->and($variables['groups'])->toBe([])
-		->and($variables['permissions'])->toBe([])
-		->and($variables['references'])->toBe([])
+		->and($variables['permissionCount'])->toBe(0)
+		->and($variables['referenceCount'])->toBe(0)
+		->and($variables['maintainedCount'])->toBe(0)
+		->and($variables)->not->toHaveKeys(['permissions', 'references', 'referenced', 'maintained'])
 		->and($variables['twoFactor'])->toBeFalse()
 		->and($variables['requires2fa'])->toBeFalse()
 		->and(checkHeadings($variables['checks'], failed: false))->toBe(['Locked', 'Two-step verification', 'Sign-ins', 'Pending', 'Suspended', 'Email'])
@@ -212,8 +214,29 @@ it('does not list the permissions of admins', function () {
 	$users->shouldNotReceive('getPermissions');
 	$this->hub()->set('users', $users);
 
-	expect($this->runAction(UsersController::class, 'view', ['id' => 3])->variables['permissions'])->toBe([]);
+	$users->shouldNotReceive('countPermissions');
+
+	expect($this->runAction(UsersController::class, 'view', ['id' => 3])->variables['permissionCount'])->toBe(0)
+		->and($this->runAction(UsersController::class, 'view', ['id' => 3], ['panel' => 'permissions'])->variables['permissions'])->toBe([]);
 });
+
+it('loads a panel of a user alone, with what it lists', function (string $panel, string $template, string $variable) {
+	[$user] = listedUsers(3);
+	ElementQueries::respond(User::class, fn (UserQuery $query) => $query->id === 3 ? [$user] : []);
+
+	$response = $this->runAction(UsersController::class, 'view', ['id' => 3], ['panel' => $panel]);
+
+	expect($response->template)->toBe($template)
+		->and($response->variables)->toHaveKey($variable)
+		->and($response->variables['loaded'])->toBeTrue()
+		->and($response->variables)->not->toHaveKeys(['checks', 'twoFactor']);
+})->with([
+	['permissions', 'hub/_panels/users/permissions', 'permissions'],
+	['references', 'hub/_panels/users/references', 'references'],
+	['referenced', 'hub/_panels/referenced', 'referenced'],
+	['maintains', 'hub/_panels/users/maintains', 'maintained'],
+	['activity', 'hub/_panels/activity', 'subject'],
+]);
 
 it('remembers the filters of the list tabs', function (string $tab) {
 	[$user] = listedUsers(3);
@@ -316,9 +339,13 @@ it('shows a user group', function () {
 		->and($variables['info']['group'])->toBe($group)
 		->and($variables['info']['users'])->toBe(2)
 		->and($variables['selectedTab'])->toBe('overview')
-		->and($variables['maintained'])->toBe([])
-		->and(array_column($variables['permissions'][0]['permissions'], 'name'))->toBe(['accesscp'])
-		->and($variables)->not->toHaveKey('users');
+		->and($variables['maintainedCount'])->toBe(0)
+		->and($variables)->not->toHaveKeys(['users', 'permissions', 'maintained']);
+
+	$panel = $this->runAction(UsersController::class, 'group', ['id' => 1], ['panel' => 'permissions']);
+
+	expect($panel->template)->toBe('hub/_panels/groups/permissions')
+		->and(array_column($panel->variables['permissions'][0]['permissions'], 'name'))->toBe(['accesscp']);
 });
 
 it('lists the users of a user group on a tab of their own', function () {

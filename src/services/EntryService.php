@@ -257,18 +257,15 @@ class EntryService extends Component
 	}
 
 	/**
-	 * The entry on each of the counted sites, to compare titles, slugs and statuses.
-	 *
-	 * @return Entry[]
+	 * Query of the entry on each of the counted sites, to compare titles, slugs and statuses.
 	 */
-	public function getSiteVariants(Entry $entry): array
+	public function getSiteVariantsQuery(Entry $entry): EntryQuery
 	{
 		return Entry::find()
 			->id($entry->id)
 			->siteId(Hub::getInstance()->siteScope->getSiteIds())
 			->status(null)
-			->orderBy(['elements_sites.siteId' => SORT_ASC])
-			->all();
+			->orderBy(['elements_sites.siteId' => SORT_ASC]);
 	}
 
 	/**
@@ -285,20 +282,17 @@ class EntryService extends Component
 	}
 
 	/**
-	 * Saved drafts of the entry on its site, last updated first, with their creators. Provisional drafts, the unsaved
-	 * changes of each user, are left out.
-	 *
-	 * @return Entry[]
+	 * Query of the saved drafts of the entry on its site, last updated first, with their creators. Provisional drafts,
+	 * the unsaved changes of each user, are left out.
 	 */
-	public function getDrafts(Entry $entry): array
+	public function getDraftsQuery(Entry $entry): EntryQuery
 	{
 		return Entry::find()
 			->draftOf($entry)
 			->siteId($entry->siteId)
 			->status(null)
 			->orderBy(['dateUpdated' => SORT_DESC])
-			->with(['draftCreator'])
-			->all();
+			->with(['draftCreator']);
 	}
 
 	/**
