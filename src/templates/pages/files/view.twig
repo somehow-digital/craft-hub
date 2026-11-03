@@ -104,7 +104,7 @@
 		{% if asset.uploader %}
 			<div class="data">
 				<dt class="heading">{{ 'Uploader'|t('hub') }}</dt>
-				<dd class="value">{{ hub.link(hub.url(asset.uploader), asset.uploader.friendlyName) }}</dd>
+				<dd class="value">{{ hub.user(asset.uploader) }}</dd>
 			</div>
 		{% endif %}
 		<div class="data">

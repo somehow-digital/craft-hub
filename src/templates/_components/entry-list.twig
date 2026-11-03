@@ -106,7 +106,7 @@
 												{%- elseif column.key == 'owner' -%}
 													{% if entry.owner %}{{ hub.element(entry.owner) }}{% else %}<span class="hub-muted">—</span>{% endif %}
 												{%- elseif column.key == 'creator' -%}
-													{% if entry.authors|length %}<span class="hub-chips">{% for author in entry.authors %}{{ hub.element(author) }}{% endfor %}</span>{% else %}<span class="hub-muted">—</span>{% endif %}
+													{% if entry.authors|length %}<span class="hub-chips">{% for author in entry.authors %}{{ hub.user(author) }}{% endfor %}</span>{% else %}<span class="hub-muted">—</span>{% endif %}
 												{%- elseif column.key == 'type' -%}
 													{{ hub.chip(entry.type) }}
 												{%- elseif column.key == 'status' -%}

@@ -1,7 +1,7 @@
 {#
 	A row of the activity log. Batches toggle the rows of their first activities, which follow them hidden, and link to
 	those matching the filters, or all of them, past those (see ActivityService::BATCH_PREVIEW). Their chevron, their number of changes and the row itself
-	toggle them. Their action and the type of their subject link to the log filtered by them, like their user.
+	toggle them. Their action and the type of their subject link to the log filtered by them; their user is shown by their chip (see the `user` macro).
 
 	Variables: activity (see Activity), columns, listPath, batched (whether the row is of an activity within a batch)
 #}
@@ -49,11 +49,10 @@
 				</a>
 			{%- elseif column.key == 'user' -%}
 				{% if activity.userId %}
-					<a class="hub-activity-user" href="{{ url(listPath, { user: activity.userId }) }}" title="{{ 'Show only their activity'|t('hub') }}">
-						{%- if activity.user %}{{ hub.avatar(activity.user, 'small') }}{% else %}{{ hub.icon('user-slash', 'gray', 'small') }}{% endif -%}
-						<span>{{ activity.user.name ?? activity.userName }}</span>
-					</a>
-					{%- if activity.impersonatorName %} {{ hub.badge('by {name}'|t('hub', { name: activity.impersonatorName }), 'orange', 'Impersonated'|t('hub'), 'user-secret') }}{% endif -%}
+					<span class="hub-activity-user">
+						{{- hub.user(activity.user, activity.userName) -}}
+						{%- if activity.impersonatorName %}{{ hub.badge('by {name}'|t('hub', { name: activity.impersonatorName }), 'orange', 'Impersonated'|t('hub'), 'user-secret') }}{% endif -%}
+					</span>
 				{% else %}
 					<span class="hub-muted" title="{{ 'Done by a guest, the system or on the command line'|t('hub') }}">{{ 'No user'|t('hub') }}</span>
 				{% endif %}

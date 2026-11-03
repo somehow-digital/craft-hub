@@ -438,7 +438,7 @@ table.data th.hub-num {
 .hub-activity-user {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
+	gap: 4px;
 	white-space: nowrap;
 }
 
