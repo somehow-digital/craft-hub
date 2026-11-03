@@ -29,13 +29,16 @@
 
 {% block content %}
 	{% if settings is defined %}
-		{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/labels' } %}
+		{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/labels', readOnly: readOnly, overrides: overrides, settings: settings } only %}
 			{% block fields %}
 				{% include 'hub/_components/setting' with { name: 'enableLabels', field: {
 					first: true,
 					label: 'Labels'|t('hub'),
 					instructions: 'Whether items can be labeled and lists filtered by their labels. The labels can be managed either way.'|t('hub'),
-				} } %}
+				},
+				overrides: overrides,
+				readOnly: readOnly,
+				settings: settings, } only %}
 			{% endblock %}
 		{% endembed %}
 		<hr>
@@ -51,7 +54,12 @@
 		icon: 'tags',
 		id: 'hub-labels-settings',
 		collapsible: false,
-	} %}
+		labels: labels,
+		lists: lists,
+		unused: unused,
+		counts: counts,
+		maxCount: maxCount,
+	} only %}
 		{% block actions %}
 			<span class="hub-labels-settings__unused hub-muted{% if not unused %} hidden{% endif %}" data-hub-labels-unused>
 				{{- '{count} unused'|t('hub', { count: unused|number }) -}}

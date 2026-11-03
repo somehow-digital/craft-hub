@@ -70,22 +70,24 @@ class FilesController extends BaseController
 		$columns = $hub->columns->getColumns(ColumnService::LIST_TRASHED_FILES);
 
 		return $this->renderTemplate('hub/pages/files/trash', [
-			'assets' => $results,
-			'pageInfo' => $pageInfo,
-			'deleters' => in_array('deleter', $hub->columns->getShownKeys($columns), true)
-				? $trash->getDeleters(ActivitySubject::Asset, array_map(fn (Asset $asset) => (int)$asset->id, $results))
-				: [],
-			'volumes' => Craft::$app->getVolumes()->getAllVolumes(),
-			'fileKinds' => $hub->volumes->getAllKinds(),
-			'kindOptions' => $this->showsFilterOptions($selection) ? $this->pickedKindOptions($filter->kinds) : [],
-			'optionsUrls' => ['kind' => $this->filterOptionsUrl('kind')],
-			'filter' => $filter,
-			'filtered' => $filter != new TrashedFileFilter(),
-			'listPath' => $path,
-			'columns' => $columns,
-			...$selection->variables($filter),
+			'list' => [
+				'assets' => $results,
+				'pageInfo' => $pageInfo,
+				'deleters' => in_array('deleter', $hub->columns->getShownKeys($columns), true)
+					? $trash->getDeleters(ActivitySubject::Asset, array_map(fn (Asset $asset) => (int)$asset->id, $results))
+					: [],
+				'volumes' => Craft::$app->getVolumes()->getAllVolumes(),
+				'fileKinds' => $hub->volumes->getAllKinds(),
+				'kindOptions' => $this->showsFilterOptions($selection) ? $this->pickedKindOptions($filter->kinds) : [],
+				'optionsUrls' => ['kind' => $this->filterOptionsUrl('kind')],
+				'filter' => $filter,
+				'filtered' => $filter != new TrashedFileFilter(),
+				'listPath' => $path,
+				'columns' => $columns,
+				...$selection->variables($filter),
+				...$sort->variables($path),
+			],
 			'extraTabs' => $this->trashTabs(),
-			...$sort->variables($path),
 		]);
 	}
 

@@ -13,7 +13,12 @@
 	color: 'teal',
 	count: relationFields|length,
 	panelKey: 'relations',
-} %}
+	loaded: loaded ?? false,
+	relationFields: relationFields,
+	volume: volume,
+	siteIds: siteIds,
+	statistics: statistics ?? null,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% if relationFields|length %}

@@ -235,17 +235,17 @@ it('only lets users who may view the list change their own filters', function (s
 it('offers the saved filters in the list, applying the condition of a custom one', function () {
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['filter' => 'public']);
 
-	expect($variables->variables['savedFilters']['current'])->toBe('public')
-		->and($variables->variables['filter']->savedFilter)->toBe('public')
-		->and(array_keys($variables->variables['sections']))->toBe([1, 2])
-		->and(array_column($variables->variables['savedFilters']['own'], 'name'))->toBe(['Channels']);
+	expect($variables->variables['list']['savedFilters']['current'])->toBe('public')
+		->and($variables->variables['list']['filter']->savedFilter)->toBe('public')
+		->and(array_keys($variables->variables['list']['sections']))->toBe([1, 2])
+		->and(array_column($variables->variables['list']['savedFilters']['own'], 'name'))->toBe(['Channels']);
 });
 
 it('ignores unknown custom filters in the list', function () {
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['filter' => 'bogus']);
 
-	expect($variables->variables['filter']->savedFilter)->toBeNull()
-		->and($variables->variables['savedFilters']['current'])->toBeNull();
+	expect($variables->variables['list']['filter']->savedFilter)->toBeNull()
+		->and($variables->variables['list']['savedFilters']['current'])->toBeNull();
 });
 
 it('renames no own filter to the name of another one', function () {

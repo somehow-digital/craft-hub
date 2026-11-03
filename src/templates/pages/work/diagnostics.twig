@@ -21,7 +21,7 @@
 		{% set severityOptions = severityOptions|merge({ (severity.value): { label: severity.label(), color: severity.color() } }) %}
 	{% endfor %}
 
-	{% embed 'hub/_components/panel' %}
+	{% embed 'hub/_components/panel' with { workPath: workPath, checkOptions: checkOptions, filter: filter, severityOptions: severityOptions } only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			<form method="get" class="hub-filters" action="{{ url(workPath ~ '/diagnostics') }}" data-hub-submit>
@@ -37,12 +37,12 @@
 	{% endembed %}
 
 	{% for check in checks %}
-		{% include 'hub/_panels/work/check' %}
+		{% include 'hub/_panels/work/check' with { check: check, snoozeDays: snoozeDays } only %}
 	{% else %}
 		{{ hub.emptyState('circle-check', 'All clear'|t('hub'), allChecks|length ? 'No issues match these filters.'|t('hub') : 'No issues in your entries and assets.'|t('hub')) }}
 	{% endfor %}
 
 	{% if snoozedCount %}
-		{% include 'hub/_panels/work/snoozed' with { count: snoozedCount } %}
+		{% include 'hub/_panels/work/snoozed' with { count: snoozedCount } only %}
 	{% endif %}
 {% endblock %}

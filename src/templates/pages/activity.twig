@@ -18,82 +18,82 @@
 {% set selectedSubnavItem = 'activity' %}
 {% set crumbs = [
 	{ label: 'Hub'|t('hub'), url: url('hub/manage') },
-	{ label: title, url: url(listPath), current: not batch },
+	{ label: title, url: url(list.listPath), current: not list.batch },
 ] %}
-{% if batch %}
-	{% set crumbs = crumbs|merge([{ label: batch.title, url: url(listPath, { batch: batch.id }), current: true }]) %}
+{% if list.batch %}
+	{% set crumbs = crumbs|merge([{ label: list.batch.title, url: url(list.listPath, { batch: list.batch.id }), current: true }]) %}
 {% endif %}
 
 {% set actionOptions = {} %}
-{% for action in actions %}
+{% for action in list.actions %}
 	{% set actionOptions = actionOptions|merge({ (action.value): { label: action.label(), icon: action.icon(), color: action.color() } }) %}
 {% endfor %}
 
 {% set typeOptions = {} %}
-{% for subject in subjects %}
+{% for subject in list.subjects %}
 	{% set typeOptions = typeOptions|merge({ (subject.value): { label: subject.label(), icon: subject.icon(), color: subject.color() } }) %}
 {% endfor %}
 
 {% block content %}
 	<p class="hub-activity-summary">
-		{% if batch %}
-			{{ 'What was done by “{name}” ({action}), {date}.'|t('hub', { name: batch.title, action: batch.action.label(), date: batch.dateCreated|datetime('short') }) }}
-			<a href="{{ url(listPath) }}">{{ 'Show all activity'|t('hub') }}</a>
-		{% elseif filter.item %}
+		{% if list.batch %}
+			{{ 'What was done by “{name}” ({action}), {date}.'|t('hub', { name: list.batch.title, action: list.batch.action.label(), date: list.batch.dateCreated|datetime('short') }) }}
+			<a href="{{ url(list.listPath) }}">{{ 'Show all activity'|t('hub') }}</a>
+		{% elseif list.filter.item %}
 			{{ 'What was done to a single item.'|t('hub') }}
-			<a href="{{ url(listPath) }}">{{ 'Show all activity'|t('hub') }}</a>
+			<a href="{{ url(list.listPath) }}">{{ 'Show all activity'|t('hub') }}</a>
 		{% else %}
-			{{ retentionDays
-				? 'What users did, as Craft tells it, kept for {days, plural, =1{one day} other{# days}}.'|t('hub', { days: retentionDays })
+			{{ list.retentionDays
+				? 'What users did, as Craft tells it, kept for {days, plural, =1{one day} other{# days}}.'|t('hub', { days: list.retentionDays })
 				: 'What users did, as Craft tells it, kept forever.'|t('hub') }}
 		{% endif %}
 	</p>
 
-	{% embed 'hub/_components/panel' %}
+	{% embed 'hub/_components/panel' with { list: list, actionOptions: actionOptions, typeOptions: typeOptions } only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
-			<form method="get" class="hub-filters" action="{{ url(listPath) }}" data-hub-submit>
-				{{ hub.search('Search by name or IP address'|t('hub'), filter.search) }}
-				{{ hub.dropdown('Action'|t('hub'), 'bolt', hub.choices('event', actionOptions, filter.actions)) }}
-				{{ hub.dropdown('Type'|t('app'), 'shapes', hub.choices('type', typeOptions, filter.subjects)) }}
-				{{ hub.dropdown('User'|t('app'), 'user', hub.choices('user', userOptions, filter.users, { lazy: optionsUrls.user })) }}
-				{{ hub.dropdown('Date'|t('app'), 'calendar', hub.range('date', 'Date'|t('app'), filter.dateFrom, filter.dateTo, { type: 'date' })) }}
+			<form method="get" class="hub-filters" action="{{ url(list.listPath) }}" data-hub-submit>
+				{{ hub.search('Search by name or IP address'|t('hub'), list.filter.search) }}
+				{{ hub.dropdown('Action'|t('hub'), 'bolt', hub.choices('event', actionOptions, list.filter.actions)) }}
+				{{ hub.dropdown('Type'|t('app'), 'shapes', hub.choices('type', typeOptions, list.filter.subjects)) }}
+				{{ hub.dropdown('User'|t('app'), 'user', hub.choices('user', list.userOptions, list.filter.users, { lazy: list.optionsUrls.user })) }}
+				{{ hub.dropdown('Date'|t('app'), 'calendar', hub.range('date', 'Date'|t('app'), list.filter.dateFrom, list.filter.dateTo, { type: 'date' })) }}
 				{{ hub.addFilter() }}
-				{{ hiddenInput('sort', sort) }}
-				{{ hiddenInput('dir', dir) }}
-				{% if batch %}{{ hiddenInput('batch', batch.id) }}{% endif %}
-				{% if filter.item %}{{ hiddenInput('item', filter.item) }}{% endif %}
+				{{ hiddenInput('sort', list.sort) }}
+				{{ hiddenInput('dir', list.dir) }}
+				{% if list.batch %}{{ hiddenInput('batch', list.batch.id) }}{% endif %}
+				{% if list.filter.item %}{{ hiddenInput('item', list.filter.item) }}{% endif %}
 				{{ hub.clearFilters() }}
 			</form>
 
-			{% if activities|length %}
-				{% embed 'hub/_components/bulk' with { bulkActions: [], bulkList: 'activity' } %}
+			{% if list.activities|length %}
+				{% embed 'hub/_components/bulk' with { list: list|merge({ bulkActions: [] }), bulkList: 'activity' } only %}
 					{% block table %}
 						{% import 'hub/_components/macros' as hub %}
 						<div class="hub-table">
 							<table class="data fullwidth">
 								<thead>
 									<tr>
-										{{ hub.sortHeader('Subject'|t('hub'), 'subject', sortHeaders) }}
-										{{ hub.columnHeaders(columns, sortHeaders, 'activity') }}
+										{{ hub.sortHeader('Subject'|t('hub'), 'subject', list.sortHeaders) }}
+										{{ hub.columnHeaders(list.columns, list.sortHeaders, 'activity') }}
 									</tr>
 								</thead>
 								<tbody>
-									{% set groupByDay = not sort or sort == 'date' %}
+									{% set groupByDay = not list.sort or list.sort == 'date' %}
 									{% set today = now|date('Y-m-d') %}
 									{% set yesterday = now|date_modify('-1 day')|date('Y-m-d') %}
 									{% set currentDay = null %}
-									{% for activity in activities %}
+									{% for activity in list.activities %}
 										{% set day = activity.dateCreated|date('Y-m-d') %}
 										{% if groupByDay and day != currentDay %}
 											{% set currentDay = day %}
 											<tr class="hub-activity-day">
-												<td colspan="{{ columns|length + 1 }}">
+												<td colspan="{{ list.columns|length + 1 }}">
 													{{- day == today ? 'Today'|t('app') : (day == yesterday ? 'Yesterday'|t('app') : activity.dateCreated|date('full')) -}}
 												</td>
 											</tr>
 										{% endif %}
-										{% include 'hub/_components/activity-row' with { batched: false } %}
+										{% include 'hub/_components/activity-row' with { batched: false, activity: activity, listPath: list.listPath, columns: list.columns } only %}
 									{% endfor %}
 								</tbody>
 							</table>
@@ -101,10 +101,10 @@
 					{% endblock %}
 					{% block footer %}
 						{% include '_includes/pagination' with {
-							pageInfo: pageInfo,
+							pageInfo: list.pageInfo,
 							itemLabel: 'activity'|t('hub'),
 							itemsLabel: 'activities'|t('hub'),
-						} %}
+						} only %}
 					{% endblock %}
 				{% endembed %}
 			{% else %}

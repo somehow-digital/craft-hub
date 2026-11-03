@@ -33,7 +33,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'fields', id: field.id } %}
+		{% include 'hub/_components/detail-labels' with { list: 'fields', id: field.id } only %}
 		<div class="data">
 			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
 			<dd class="value"><code>{{ field.handle }}</code></dd>
@@ -85,29 +85,29 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/maintainers' with { list: 'fields', item: field } %}
+	{% include 'hub/_panels/maintainers' with { list: 'fields', item: field, hubSite: hubSite } only %}
 
 	{% if info.isNested %}
-		{% include 'hub/_panels/fields/entry-types' %}
+		{% include 'hub/_panels/fields/entry-types' with { info: info, field: field, siteIds: siteIds } only %}
 	{% endif %}
 
 	{% if info.sections|length %}
-		{% include 'hub/_panels/fields/sections' %}
+		{% include 'hub/_panels/fields/sections' with { info: info, field: field, siteIds: siteIds } only %}
 	{% endif %}
 
 	{% if volumes|length %}
-		{% include 'hub/_panels/fields/volumes' %}
+		{% include 'hub/_panels/fields/volumes' with { volumes: volumes, field: field, siteIds: siteIds } only %}
 	{% endif %}
 
-	{% include 'hub/_panels/fields/relations' %}
+	{% include 'hub/_panels/fields/relations' with { info: info } only %}
 
 	{% if field is instance of('craft\\fields\\ContentBlock') %}
-		{% include 'hub/_panels/field-layout' with { layout: field.getFieldLayout() } %}
+		{% include 'hub/_panels/field-layout' with { layout: field.getFieldLayout() } only %}
 	{% endif %}
 
-	{% include 'hub/_panels/activity' with { subject: 'field', id: field.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'field', id: field.id } only %}
 {% endblock %}
 
 {% block list %}
-	{% include 'hub/_components/entry-list' %}
+	{% include 'hub/_components/entry-list' with { list: list, hubSite: hubSite } only %}
 {% endblock %}

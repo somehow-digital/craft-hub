@@ -13,7 +13,10 @@
 	color: 'amber',
 	count: (loaded ?? false) ? drafts|length : count,
 	panelKey: 'drafts',
-} %}
+	loaded: loaded ?? false,
+	drafts: drafts ?? null,
+	canView: canView,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% if drafts|length %}

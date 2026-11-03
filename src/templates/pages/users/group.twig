@@ -40,7 +40,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'userGroups', id: group.id } %}
+		{% include 'hub/_components/detail-labels' with { list: 'userGroups', id: group.id } only %}
 		<div class="data">
 			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
 			<dd class="value"><code>{{ group.handle }}</code></dd>
@@ -74,15 +74,15 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/groups/permissions' with { count: info.permissions } %}
+	{% include 'hub/_panels/groups/permissions' with { count: info.permissions } only %}
 
 	{% if maintainedCount %}
-		{% include 'hub/_panels/groups/maintains' with { count: maintainedCount } %}
+		{% include 'hub/_panels/groups/maintains' with { count: maintainedCount } only %}
 	{% endif %}
 
-	{% include 'hub/_panels/activity' with { subject: 'userGroup', id: group.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'userGroup', id: group.id } only %}
 {% endblock %}
 
 {% block list %}
-	{% include 'hub/_components/user-list' %}
+	{% include 'hub/_components/user-list' with { list: list, hubSite: hubSite } only %}
 {% endblock %}

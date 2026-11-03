@@ -12,7 +12,11 @@
 	color: 'violet',
 	count: user.admin ? null : ((loaded ?? false) ? permissions|reduce((total, item) => total + item.permissions|length, 0) : count),
 	panelKey: 'permissions',
-} %}
+	loaded: loaded ?? false,
+	user: user,
+	permissions: permissions ?? null,
+	hubSite: hubSite,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% if user.admin %}

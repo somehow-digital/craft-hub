@@ -11,7 +11,9 @@
 	color: 'violet',
 	count: (loaded ?? false) ? permissions|reduce((total, item) => total + item.permissions|length, 0) : count,
 	panelKey: 'permissions',
-} %}
+	loaded: loaded ?? false,
+	permissions: permissions ?? null,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% if permissions|length %}

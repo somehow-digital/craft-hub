@@ -11,7 +11,12 @@
 	color: 'teal',
 	count: volumes|length,
 	panelKey: 'volumes',
-} %}
+	loaded: loaded ?? false,
+	volumes: volumes,
+	field: field,
+	siteIds: siteIds,
+	statistics: statistics ?? null,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		<div class="hub-table">

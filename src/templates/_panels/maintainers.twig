@@ -19,7 +19,13 @@
 		color: 'violet',
 		count: count,
 		panelKey: 'maintainers',
-	} %}
+		loaded: loaded ?? false,
+		maintainers: maintainers,
+		canManage: canManage,
+		hubSite: hubSite,
+		list: list,
+		item: item,
+	} only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			{% import '_includes/forms.twig' as forms %}

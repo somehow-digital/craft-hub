@@ -10,7 +10,9 @@
 	icon: 'globe',
 	count: (loaded ?? false) ? sites|length : count,
 	panelKey: 'sites',
-} %}
+	loaded: loaded ?? false,
+	sites: sites ?? null,
+} only %}
 	{% block body %}
 		<div class="hub-table">
 			<table class="data fullwidth">

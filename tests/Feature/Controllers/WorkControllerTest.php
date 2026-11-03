@@ -158,7 +158,7 @@ it('leaves the variables of the lists on its tabs alone', function () {
 
 	$behavior = $this->runAction(WorkController::class, 'index', ['tab' => 'entries']);
 
-	expect($behavior->variables['sections'])->not->toHaveKey('drafts')
+	expect($behavior->variables['list']['sections'])->not->toHaveKey('drafts')
 		->and($behavior->variables['workSections'])->toHaveKey('drafts');
 });
 

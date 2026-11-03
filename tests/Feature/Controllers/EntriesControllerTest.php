@@ -45,21 +45,21 @@ it('lists the entries', function () {
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/entries/index')
-		->and($variables['entries'])->toBe($entries)
-		->and($variables['pageInfo']->total)->toBe(2)
-		->and(array_keys($variables['statuses']))->toBe(['live', 'pending', 'expired', 'disabled'])
-		->and($variables['staleMonths'])->toBe(12)
-		->and(array_map(fn (SectionInfo $info) => $info->section->handle, array_values($variables['sections'])))->toBe(['archive', 'news', 'pages', 'settings'])
-		->and(array_map(fn (EntryTypeInfo $info) => $info->entryType->handle, array_values($variables['entryTypes'])))->toBe(['article', 'block', 'empty', 'page'])
-		->and(array_keys($variables['nestedFields']))->toBe([2])
-		->and(array_column($variables['columns'], 'key'))->toContain('origin', 'owner')
-		->and($variables['listFixed'])->toBeNull()
-		->and($variables['listPath'])->toBe('hub/data/entries')
-		->and($variables['sort'])->toBeNull()
+		->and($variables['list']['entries'])->toBe($entries)
+		->and($variables['list']['pageInfo']->total)->toBe(2)
+		->and(array_keys($variables['list']['statuses']))->toBe(['live', 'pending', 'expired', 'disabled'])
+		->and($variables['list']['staleMonths'])->toBe(12)
+		->and(array_map(fn (SectionInfo $info) => $info->section->handle, array_values($variables['list']['sections'])))->toBe(['archive', 'news', 'pages', 'settings'])
+		->and(array_map(fn (EntryTypeInfo $info) => $info->entryType->handle, array_values($variables['list']['entryTypes'])))->toBe(['article', 'block', 'empty', 'page'])
+		->and(array_keys($variables['list']['nestedFields']))->toBe([2])
+		->and(array_column($variables['list']['columns'], 'key'))->toContain('origin', 'owner')
+		->and($variables['list']['listFixed'])->toBeNull()
+		->and($variables['list']['listPath'])->toBe('hub/data/entries')
+		->and($variables['list']['sort'])->toBeNull()
 		// The options of the user filters are loaded as their dropdowns open.
-		->and($variables['authorOptions'])->toBe([])
-		->and($variables['editorOptions'])->toBe([])
-		->and($variables['optionsUrls']['author'])->toContain('hub/options/index', 'filter=author')
+		->and($variables['list']['authorOptions'])->toBe([])
+		->and($variables['list']['editorOptions'])->toBe([])
+		->and($variables['list']['optionsUrls']['author'])->toContain('hub/options/index', 'filter=author')
 		->and($this->db()->queriesMatching('entries_authors'))->toBe([]);
 });
 
@@ -69,8 +69,8 @@ it('shows the users picked in its filters', function () {
 
 	$variables = $this->runAction(EntriesController::class, 'index', query: ['author' => 'me,4', 'editor' => 'me'])->variables;
 
-	expect(array_keys($variables['authorOptions']))->toBe(['me', 4])
-		->and(array_keys($variables['editorOptions']))->toBe(['me']);
+	expect(array_keys($variables['list']['authorOptions']))->toBe(['me', 4])
+		->and(array_keys($variables['list']['editorOptions']))->toBe(['me']);
 });
 
 it('reads the filters of the entries list', function () {
@@ -93,7 +93,7 @@ it('reads the filters of the entries list', function () {
 		'myDrafts' => '1',
 		'sort' => 'title',
 	])->variables;
-	$filter = $variables['filter'];
+	$filter = $variables['list']['filter'];
 
 	expect($filter->search)->toBe('term')
 		->and($filter->sections)->toBe(['news'])
@@ -112,13 +112,13 @@ it('reads the filters of the entries list', function () {
 		->and($filter->staleMonths)->toBe(12)
 		->and($filter->drafts)->toBeTrue()
 		->and($filter->myDrafts)->toBeTrue()
-		->and($variables['sort'])->toBe('title')
-		->and($variables['sortHeaders']['title']['url'])->toContain('section=news')
-		->and($variables['sortHeaders']['title']['url'])->toContain('dir=desc');
+		->and($variables['list']['sort'])->toBe('title')
+		->and($variables['list']['sortHeaders']['title']['url'])->toContain('section=news')
+		->and($variables['list']['sortHeaders']['title']['url'])->toContain('dir=desc');
 });
 
 it('ignores unknown usage values and origins', function () {
-	$filter = $this->runAction(EntriesController::class, 'index', query: ['usage' => 'any', 'origin' => 'any'])->variables['filter'];
+	$filter = $this->runAction(EntriesController::class, 'index', query: ['usage' => 'any', 'origin' => 'any'])->variables['list']['filter'];
 
 	expect($filter->usage)->toBeNull()
 		->and($filter->origin)->toBeNull();
@@ -164,9 +164,9 @@ it('paginates lists on detail pages by the page of the URL', function () {
 	$controller = Craft::createObject(SomehowDigital\Craft\Hub\controllers\SectionsController::class, ['test', $this->hub()]);
 	$variables = (fn () => $this->entryListVariables('hub/structure/sections/1/entries'))->call($controller);
 
-	expect($variables['pageInfo']->currentPage)->toBe(2)
-		->and($variables['pageInfo']->totalPages)->toBe(2)
-		->and($variables['pageInfo']->total)->toBe(60);
+	expect($variables['list']['pageInfo']->currentPage)->toBe(2)
+		->and($variables['list']['pageInfo']->totalPages)->toBe(2)
+		->and($variables['list']['pageInfo']->total)->toBe(60);
 });
 
 it('shows an entry', function () {
@@ -362,8 +362,8 @@ it('leaves out the data of hidden columns', function () {
 	$variables = $this->runAction(EntriesController::class, 'index')->variables;
 
 	expect(listingQuery()->with)->toBeEmpty()
-		->and($variables['referenceCounts'])->toBe([])
-		->and($variables['entries'])->toHaveCount(2);
+		->and($variables['list']['referenceCounts'])->toBe([])
+		->and($variables['list']['entries'])->toHaveCount(2);
 });
 
 it('lists only the selected entries while reviewing them, whatever the filters', function () {
@@ -375,9 +375,9 @@ it('lists only the selected entries while reviewing them, whatever the filters',
 	$variables = $this->runAction(EntriesController::class, 'index', query: ['selection' => '1', 'status' => 'live'])->variables;
 	$ids = array_map(fn (EntryQuery $query) => $query->id, ElementQueries::executed(Entry::class));
 
-	expect($variables['filter']->statuses)->toBe([])
+	expect($variables['list']['filter']->statuses)->toBe([])
 		->and($ids)->toContain([5, 6])
-		->and($variables['bulkSelection']['ids'])->toBe([5])
+		->and($variables['list']['bulkSelection']['ids'])->toBe([5])
 		->and($this->session['hub:bulk:selection:entries:hub/data/entries'])->toBe([5]);
 });
 
@@ -431,14 +431,14 @@ it('lists the trashed entries with who deleted them', function () {
 	$query = ElementQueries::executed(Entry::class)[0];
 
 	expect($response->template)->toBe('hub/pages/entries/trash')
-		->and($variables['entries'])->toBe($entries)
-		->and($variables['deleters'])->toBe([2 => ['user' => null, 'name' => 'Editor']])
-		->and(array_column($variables['sections'], 'handle'))->toContain('news')
-		->and(array_column($variables['columns'], 'key'))->toBe(['type', 'origin', 'owner', 'deleted', 'deleter'])
-		->and($variables['filtered'])->toBeFalse()
-		->and($variables['listPath'])->toBe('hub/data/entries/trash')
-		->and(array_keys($variables['bulkActions']))->toBe(['export', 'restore', 'restoreWithRelations', 'deletePermanently'])
-		->and($variables['sort'])->toBeNull()
+		->and($variables['list']['entries'])->toBe($entries)
+		->and($variables['list']['deleters'])->toBe([2 => ['user' => null, 'name' => 'Editor']])
+		->and(array_column($variables['list']['sections'], 'handle'))->toContain('news')
+		->and(array_column($variables['list']['columns'], 'key'))->toBe(['type', 'origin', 'owner', 'deleted', 'deleter'])
+		->and($variables['list']['filtered'])->toBeFalse()
+		->and($variables['list']['listPath'])->toBe('hub/data/entries/trash')
+		->and(array_keys($variables['list']['bulkActions']))->toBe(['export', 'restore', 'restoreWithRelations', 'deletePermanently'])
+		->and($variables['list']['sort'])->toBeNull()
 		->and($query->trashed)->toBeTrue();
 });
 
@@ -454,7 +454,7 @@ it('reads the filters of the trashed entries list', function () {
 		'deletedTo' => '2024-01-31',
 		'sort' => 'title',
 	])->variables;
-	$filter = $variables['filter'];
+	$filter = $variables['list']['filter'];
 
 	expect($filter->search)->toBe('term')
 		->and($filter->sections)->toBe(['news'])
@@ -462,6 +462,6 @@ it('reads the filters of the trashed entries list', function () {
 		->and($filter->types)->toBe(['article'])
 		->and($filter->deletedFrom->format('Y-m-d'))->toBe('2024-01-01')
 		->and($filter->deletedTo->format('Y-m-d'))->toBe('2024-01-31')
-		->and($variables['filtered'])->toBeTrue()
-		->and($variables['sort'])->toBe('title');
+		->and($variables['list']['filtered'])->toBeTrue()
+		->and($variables['list']['sort'])->toBe('title');
 });

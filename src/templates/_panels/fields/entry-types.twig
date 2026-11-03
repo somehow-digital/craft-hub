@@ -11,7 +11,13 @@
 	color: 'violet',
 	count: info.entryTypes|length,
 	panelKey: 'entryTypes',
-} %}
+	loaded: loaded ?? false,
+	info: info,
+	field: field,
+	siteIds: siteIds,
+	entryTypes: entryTypes ?? null,
+	statistics: statistics ?? null,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% if info.entryTypes|length %}

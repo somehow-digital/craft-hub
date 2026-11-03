@@ -54,17 +54,17 @@ it('lists the files', function () {
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/files/index')
-		->and($variables['assets'])->toBe([$asset])
-		->and($variables['fileKinds']['image']->getIcon())->toBe('image')
-		->and(array_map(fn ($volume) => $volume->id, $variables['volumes']))->toBe([2, 1])
+		->and($variables['list']['assets'])->toBe([$asset])
+		->and($variables['list']['fileKinds']['image']->getIcon())->toBe('image')
+		->and(array_map(fn ($volume) => $volume->id, $variables['list']['volumes']))->toBe([2, 1])
 		// The options read from the database are loaded as their dropdowns open.
-		->and($variables['kindOptions'])->toBe([])
-		->and($variables['extensionOptions'])->toBe([])
-		->and($variables['uploaderOptions'])->toBe([])
-		->and($variables['optionsUrls']['extension'])->toContain('filter=extension')
+		->and($variables['list']['kindOptions'])->toBe([])
+		->and($variables['list']['extensionOptions'])->toBe([])
+		->and($variables['list']['uploaderOptions'])->toBe([])
+		->and($variables['list']['optionsUrls']['extension'])->toContain('filter=extension')
 		->and($this->db()->queriesMatching('GROUP BY `assets`.`kind`'))->toBe([])
 		->and($this->db()->queriesMatching('AS `extension`'))->toBe([])
-		->and($variables['listFixed'])->toBeNull();
+		->and($variables['list']['listFixed'])->toBeNull();
 });
 
 it('shows the options picked in its filters', function () {
@@ -72,10 +72,10 @@ it('shows the options picked in its filters', function () {
 
 	$variables = $this->runAction(FilesController::class, 'index', query: ['kind' => 'pdf,bogus', 'extension' => 'jpg', 'uploader' => 'me'])->variables;
 
-	expect($variables['filter']->kinds)->toBe(['pdf'])
-		->and(array_keys($variables['kindOptions']))->toBe(['pdf'])
-		->and($variables['extensionOptions'])->toBe(['jpg' => 'jpg'])
-		->and(array_keys($variables['uploaderOptions']))->toBe(['me']);
+	expect($variables['list']['filter']->kinds)->toBe(['pdf'])
+		->and(array_keys($variables['list']['kindOptions']))->toBe(['pdf'])
+		->and($variables['list']['extensionOptions'])->toBe(['jpg' => 'jpg'])
+		->and(array_keys($variables['list']['uploaderOptions']))->toBe(['me']);
 });
 
 it('reads the filters of the files list', function () {
@@ -94,7 +94,7 @@ it('reads the filters of the files list', function () {
 		'uploadedFrom' => '2024-01-01',
 		'alt' => '1',
 		'oversized' => '1',
-	])->variables['filter'];
+	])->variables['list']['filter'];
 
 	expect($filter->search)->toBe('logo')
 		->and($filter->volumes)->toBe(['images'])
@@ -266,7 +266,7 @@ it('leaves out the download for users who may not download files', function () {
 	ElementQueries::respond(Asset::class, [new Asset(['id' => 1, 'siteId' => 1, 'kind' => 'image', 'filename' => 'a.jpg'])]);
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Assets->viewPermission()]);
 
-	expect($this->runAction(FilesController::class, 'index')->variables['canDownload'])->toBeFalse();
+	expect($this->runAction(FilesController::class, 'index')->variables['list']['canDownload'])->toBeFalse();
 });
 
 it('fails to delete transforms of files that do not exist', function () {
@@ -336,14 +336,14 @@ it('lists the trashed files', function () {
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/files/trash')
-		->and($variables['assets'])->toBe([$asset])
-		->and($variables['deleters'])->toBe([])
-		->and($variables['fileKinds']['image']->getIcon())->toBe('image')
-		->and($variables['kindOptions'])->toBe([])
-		->and(array_column($variables['volumes'], 'handle'))->toEqualCanonicalizing(['images', 'documents'])
-		->and(array_column($variables['columns'], 'key'))->toBe(['volume', 'kind', 'size', 'file', 'deleted', 'deleter'])
-		->and($variables['listPath'])->toBe('hub/data/assets/trash')
-		->and(array_keys($variables['bulkActions']))->toBe(['export', 'restore', 'restoreWithRelations', 'deletePermanently'])
+		->and($variables['list']['assets'])->toBe([$asset])
+		->and($variables['list']['deleters'])->toBe([])
+		->and($variables['list']['fileKinds']['image']->getIcon())->toBe('image')
+		->and($variables['list']['kindOptions'])->toBe([])
+		->and(array_column($variables['list']['volumes'], 'handle'))->toEqualCanonicalizing(['images', 'documents'])
+		->and(array_column($variables['list']['columns'], 'key'))->toBe(['volume', 'kind', 'size', 'file', 'deleted', 'deleter'])
+		->and($variables['list']['listPath'])->toBe('hub/data/assets/trash')
+		->and(array_keys($variables['list']['bulkActions']))->toBe(['export', 'restore', 'restoreWithRelations', 'deletePermanently'])
 		->and(ElementQueries::executed(Asset::class)[0]->trashed)->toBeTrue();
 });
 
@@ -358,15 +358,15 @@ it('reads the filters of the trashed files list', function () {
 		'deletedFrom' => '2024-01-01',
 		'sort' => 'size',
 	])->variables;
-	$filter = $variables['filter'];
+	$filter = $variables['list']['filter'];
 
 	expect($filter->search)->toBe('logo')
 		->and($filter->volumes)->toBe(['images'])
 		->and($filter->kinds)->toBe(['image'])
 		->and($filter->file)->toBe('kept')
 		->and($filter->deletedFrom->format('Y-m-d'))->toBe('2024-01-01')
-		->and($variables['filtered'])->toBeTrue()
-		->and($variables['sort'])->toBe('size');
+		->and($variables['list']['filtered'])->toBeTrue()
+		->and($variables['list']['sort'])->toBe('size');
 });
 
 it('leaves out the options picked in the filters for requests only reading the results', function () {
@@ -377,7 +377,7 @@ it('leaves out the options picked in the filters for requests only reading the r
 	$variables = $this->runAction(FilesController::class, 'index', query: ['extension' => 'jpg', 'uploader' => 'me'])->variables;
 	Craft::$app->getRequest()->getHeaders()->remove(BaseController::RESULTS_HEADER);
 
-	expect($variables['assets'])->toBe([$asset])
-		->and($variables['extensionOptions'])->toBe([])
-		->and($variables['uploaderOptions'])->toBe([]);
+	expect($variables['list']['assets'])->toBe([$asset])
+		->and($variables['list']['extensionOptions'])->toBe([])
+		->and($variables['list']['uploaderOptions'])->toBe([]);
 });

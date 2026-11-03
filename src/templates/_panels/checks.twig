@@ -13,7 +13,9 @@
 	color: failedChecks ? 'orange' : 'green',
 	count: failedChecks,
 	panelKey: 'checks',
-} %}
+	loaded: loaded ?? false,
+	checks: checks,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{{ hub.checks(checks) }}

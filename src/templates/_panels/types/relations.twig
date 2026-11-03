@@ -11,7 +11,12 @@
 	color: 'teal',
 	count: info.sections|length + info.relationCount,
 	panelKey: 'relations',
-} %}
+	loaded: loaded ?? false,
+	info: info,
+	entryType: entryType,
+	siteIds: siteIds,
+	statistics: statistics ?? null,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}

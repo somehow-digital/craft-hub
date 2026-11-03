@@ -70,21 +70,23 @@ class EntriesController extends BaseController
 		$columns = $hub->columns->getColumns(ColumnService::LIST_TRASHED_ENTRIES);
 
 		return $this->renderTemplate('hub/pages/entries/trash', [
-			'entries' => $results,
-			'pageInfo' => $pageInfo,
-			'deleters' => in_array('deleter', $hub->columns->getShownKeys($columns), true)
-				? $trash->getDeleters(ActivitySubject::Entry, array_map(fn (Entry $entry) => (int)$entry->id, $results))
-				: [],
-			'sections' => $entries->getAllSections(),
-			'nestedFields' => array_filter($hub->structure->getFields(), fn (FieldInfo $info) => $info->isNested),
-			'entryTypes' => $entries->getAllEntryTypes(),
-			'filter' => $filter,
-			'filtered' => $filter != new TrashedEntryFilter(),
-			'listPath' => $path,
-			'columns' => $columns,
-			...$selection->variables($filter),
+			'list' => [
+				'entries' => $results,
+				'pageInfo' => $pageInfo,
+				'deleters' => in_array('deleter', $hub->columns->getShownKeys($columns), true)
+					? $trash->getDeleters(ActivitySubject::Entry, array_map(fn (Entry $entry) => (int)$entry->id, $results))
+					: [],
+				'sections' => $entries->getAllSections(),
+				'nestedFields' => array_filter($hub->structure->getFields(), fn (FieldInfo $info) => $info->isNested),
+				'entryTypes' => $entries->getAllEntryTypes(),
+				'filter' => $filter,
+				'filtered' => $filter != new TrashedEntryFilter(),
+				'listPath' => $path,
+				'columns' => $columns,
+				...$selection->variables($filter),
+				...$sort->variables($path),
+			],
 			'extraTabs' => $this->trashTabs(),
-			...$sort->variables($path),
 		]);
 	}
 

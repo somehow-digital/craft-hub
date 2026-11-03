@@ -13,13 +13,13 @@ it('lists the entry types', function () {
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/types/index')
-		->and(array_keys($variables['entryTypes']))->toBe([10, 11])
-		->and($variables['total'])->toBe(5)
-		->and($variables['pageInfo']->total)->toBe(2)
-		->and($variables['pageInfo']->totalPages)->toBe(1)
-		->and($variables['filter']->kinds)->toBe(['section'])
-		->and($variables['activities'])->toBe([10 => 'recent', 11 => 'recent'])
-		->and($variables['sort'])->toBe('entries')
+		->and(array_keys($variables['list']['entryTypes']))->toBe([10, 11])
+		->and($variables['list']['total'])->toBe(5)
+		->and($variables['list']['pageInfo']->total)->toBe(2)
+		->and($variables['list']['pageInfo']->totalPages)->toBe(1)
+		->and($variables['list']['filter']->kinds)->toBe(['section'])
+		->and($variables['list']['activities'])->toBe([10 => 'recent', 11 => 'recent'])
+		->and($variables['list']['sort'])->toBe('entries')
 		->and($variables)->not->toHaveKey('summary');
 });
 
@@ -63,9 +63,9 @@ it('lists the entries of an entry type on a tab of its own', function () {
 	$variables = $this->runAction(TypesController::class, 'view', ['id' => 10, 'tab' => 'entries'])->variables;
 
 	expect($variables['selectedTab'])->toBe('entries')
-		->and($variables['listFixed'])->toBe('type')
-		->and($variables['listPath'])->toBe('hub/structure/entry-types/10/entries')
-		->and($variables)->toHaveKey('entries')
+		->and($variables['list']['listFixed'])->toBe('type')
+		->and($variables['list']['listPath'])->toBe('hub/structure/entry-types/10/entries')
+		->and($variables['list'])->toHaveKey('entries')
 		->and($variables)->not->toHaveKey('summary');
 });
 
@@ -84,10 +84,10 @@ it('shows nested entry types without an entries list', function () {
 it('lists the nested entries of an entry type on a tab of its own', function () {
 	$variables = $this->runAction(TypesController::class, 'view', ['id' => 12, 'tab' => 'entries'])->variables;
 
-	expect($variables['listFixed'])->toBe('type')
-		->and($variables['sections'])->toBe([])
-		->and(array_keys($variables['nestedFields']))->toBe([2])
-		->and(array_column($variables['columns'], 'key'))->toContain('origin', 'owner');
+	expect($variables['list']['listFixed'])->toBe('type')
+		->and($variables['list']['sections'])->toBe([])
+		->and(array_keys($variables['list']['nestedFields']))->toBe([2])
+		->and(array_column($variables['list']['columns'], 'key'))->toContain('origin', 'owner');
 });
 
 it('counts the flagged nested entries of nested entry types on their diagnostics tab', function () {
@@ -118,6 +118,6 @@ it('leaves out the data of hidden columns', function () {
 
 	$variables = $this->runAction(TypesController::class, 'index')->variables;
 
-	expect($variables['activities'])->toBe([])
-		->and($variables['entryTypes'])->not->toBeEmpty();
+	expect($variables['list']['activities'])->toBe([])
+		->and($variables['list']['entryTypes'])->not->toBeEmpty();
 });

@@ -5,7 +5,18 @@
 	Variables: info (SectionInfo), section, and once loaded entryTypes (EntryTypeInfo[] by their ID), statistics
 	(StatisticsService)
 #}
-{% embed 'hub/_components/panel' with { heading: 'Entry Types'|t('hub'), icon: 'shapes', count: info.entryTypes|length, panelKey: 'entryTypes' } %}
+{% embed 'hub/_components/panel' with {
+	heading: 'Entry Types'|t('hub'),
+	icon: 'shapes',
+	count: info.entryTypes|length,
+	panelKey: 'entryTypes',
+	loaded: loaded ?? false,
+	info: info,
+	section: section,
+	siteIds: siteIds,
+	entryTypes: entryTypes ?? null,
+	statistics: statistics ?? null,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		<div class="hub-table">

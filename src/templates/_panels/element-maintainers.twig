@@ -16,7 +16,9 @@
 		color: 'violet',
 		count: count,
 		panelKey: 'maintainers',
-	} %}
+		loaded: loaded ?? false,
+		sources: sources,
+	} only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			<div class="hub-table">

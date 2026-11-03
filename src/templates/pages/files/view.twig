@@ -48,7 +48,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'files', id: asset.id } %}
+		{% include 'hub/_components/detail-labels' with { list: 'files', id: asset.id } only %}
 		<div class="data">
 			<dt class="heading">{{ 'Filename'|t('app') }}</dt>
 			<dd class="value"><code>{{ asset.filename }}</code></dd>
@@ -124,18 +124,18 @@
 
 {% block overview %}
 	{% if isImage or (isPlayable and asset.url) %}
-		{% include 'hub/_panels/files/preview' %}
+		{% include 'hub/_panels/files/preview' with { asset: asset, isImage: isImage } only %}
 	{% endif %}
 
-	{% include 'hub/_panels/element-maintainers' with { element: asset } %}
+	{% include 'hub/_panels/element-maintainers' with { element: asset } only %}
 
-	{% include 'hub/_panels/files/sites' with { count: siteCount } %}
+	{% include 'hub/_panels/files/sites' with { count: siteCount, isImage: isImage } only %}
 
-	{% include 'hub/_panels/files/references' with { count: referenceCount } %}
+	{% include 'hub/_panels/files/references' with { count: referenceCount } only %}
 
-	{% include 'hub/_panels/referenced' with { count: referencedCount } %}
+	{% include 'hub/_panels/referenced' with { count: referencedCount } only %}
 
-	{% include 'hub/_panels/activity' with { subject: 'asset', id: asset.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'asset', id: asset.id } only %}
 {% endblock %}
 
 {% block list %}
@@ -146,7 +146,10 @@
 		color: 'violet',
 		count: transforms|length,
 		collapsible: false,
-	} %}
+		canDeleteTransforms: canDeleteTransforms,
+		transforms: transforms,
+		asset: asset,
+	} only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			{# Transforms are selected for deletion by users who can save the file, previewing the transforms deleted. #}
@@ -159,14 +162,20 @@
 				titles: { one: 'Delete “{name}”?'|t('hub'), some: 'Delete {count} selected transforms?'|t('hub') },
 			} } : {} %}
 			{% if transforms|length %}
-				{% embed 'hub/_components/bulk' with { bulkSelection: null, bulkNone: 'No transforms selected'|t('hub'), bulkAction: 'hub/files/delete-transforms', bulkParams: { assetId: asset.id } } %}
+				{% embed 'hub/_components/bulk' with {
+					list: { bulkActions: bulkActions, bulkSelection: null },
+					bulkNone: 'No transforms selected'|t('hub'),
+					bulkAction: 'hub/files/delete-transforms',
+					bulkParams: { assetId: asset.id },
+					transforms: transforms,
+				} only %}
 					{% block table %}
 						{% import 'hub/_components/macros' as hub %}
 						<div class="hub-table">
 							<table class="data fullwidth">
 								<thead>
 									<tr>
-										{{ hub.bulkAll(bulkActions) }}
+										{{ hub.bulkAll(list.bulkActions) }}
 										<th>{{ 'Transform'|t('hub') }}</th>
 										<th>{{ 'Dimensions'|t('app') }}</th>
 										<th>{{ 'Format'|t('app') }}</th>
@@ -180,7 +189,7 @@
 								<tbody>
 									{% for transform in transforms %}
 										<tr{% if transform.error %} data-severity="red"{% endif %}>
-											{{ hub.bulkItem(bulkActions, transform.id, transform.transformString, 'transformIds[]') }}
+											{{ hub.bulkItem(list.bulkActions, transform.id, transform.transformString, 'transformIds[]') }}
 											<th><code>{{ transform.transformString }}</code></th>
 											<td>{% if transform.width and transform.height %}{{ transform.width|number }} × {{ transform.height|number }} px{% else %}<span class="hub-muted">—</span>{% endif %}</td>
 											<td>{% if transform.outputFormat %}<code>{{ transform.outputFormat }}</code>{% if not transform.format %} <span class="hub-muted" title="{{ 'Picked by Craft, as the transform doesn’t set a format'|t('hub') }}">{{ 'auto'|t('hub') }}</span>{% endif %}{% else %}<span class="hub-muted">—</span>{% endif %}</td>

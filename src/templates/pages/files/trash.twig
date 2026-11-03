@@ -6,5 +6,5 @@
 {% set selectedTab = 'trash' %}
 
 {% block content %}
-	{% include 'hub/_components/trashed-file-list' %}
+	{% include 'hub/_components/trashed-file-list' with { list: list } only %}
 {% endblock %}

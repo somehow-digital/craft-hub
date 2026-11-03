@@ -242,13 +242,13 @@ it('shows the labels of the items of a list and filters it by them', function ()
 
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['label' => '2,bogus'])->variables;
 
-	expect($variables['filter']->labels)->toBe(['2'])
-		->and(array_keys($variables['sections']))->toBe([2])
-		->and($variables['labelList'])->toBe(ColumnService::LIST_SECTIONS)
-		->and(array_keys($variables['itemLabels']))->toBe([2])
-		->and(array_keys($variables['labelOptions']))->toBe([1, 2, LabelService::LABEL_NONE])
-		->and($variables['labelOptions'][2])->toBe(['label' => 'Review', 'title' => 'Needs a look', 'icon' => 'tag', 'color' => 'gray'])
-		->and($variables['canManageLabels'])->toBeTrue();
+	expect($variables['list']['filter']->labels)->toBe(['2'])
+		->and(array_keys($variables['list']['sections']))->toBe([2])
+		->and($variables['list']['labelList'])->toBe(ColumnService::LIST_SECTIONS)
+		->and(array_keys($variables['list']['itemLabels']))->toBe([2])
+		->and(array_keys($variables['list']['labelOptions']))->toBe([1, 2, LabelService::LABEL_NONE])
+		->and($variables['list']['labelOptions'][2])->toBe(['label' => 'Review', 'title' => 'Needs a look', 'icon' => 'tag', 'color' => 'gray'])
+		->and($variables['list']['canManageLabels'])->toBeTrue();
 });
 
 it('offers no labels to filter by while there are none', function () {
@@ -256,9 +256,9 @@ it('offers no labels to filter by while there are none', function () {
 
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['label' => 'none'])->variables;
 
-	expect($variables['filter']->labels)->toBe([])
-		->and($variables['labelOptions'])->toBe([])
-		->and($variables['itemLabels'])->toBe([]);
+	expect($variables['list']['filter']->labels)->toBe([])
+		->and($variables['list']['labelOptions'])->toBe([])
+		->and($variables['list']['itemLabels'])->toBe([]);
 });
 
 it('shows no labels and filters by none while labels are disabled', function () {
@@ -271,11 +271,11 @@ it('shows no labels and filters by none while labels are disabled', function () 
 		$this->hub()->getSettings()->enableLabels = true;
 	}
 
-	expect($variables['filter']->labels)->toBe([])
-		->and($variables['labels'])->toBe([])
-		->and($variables['labelOptions'])->toBe([])
-		->and($variables['itemLabels'])->toBe([])
-		->and($variables['canManageLabels'])->toBeFalse();
+	expect($variables['list']['filter']->labels)->toBe([])
+		->and($variables['list']['labels'])->toBe([])
+		->and($variables['list']['labelOptions'])->toBe([])
+		->and($variables['list']['itemLabels'])->toBe([])
+		->and($variables['list']['canManageLabels'])->toBeFalse();
 });
 
 it('labels no items and counts no labels while labels are disabled', function (string $action) {

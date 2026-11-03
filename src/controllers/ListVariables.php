@@ -139,7 +139,7 @@ trait ListVariables
 	}
 
 	/**
-	 * Variables of the entries list, filtered, sorted and paginated on the server. On section, entry type, field and user
+	 * Variables of the entries list, as `list`, filtered, sorted and paginated on the server. On section, entry type, field and user
 	 * pages, it is limited to the entries of that section, entry type, nested entry field or author.
 	 *
 	 * @param string $path page the list is on, for its filters and sorting
@@ -233,32 +233,32 @@ trait ListVariables
 			? $hub->references->getReferenceCounts(array_map(fn (Entry $entry) => $entry->id, $results))
 			: [];
 
-		return [
-			'entries' => $results,
-			'pageInfo' => $pageInfo,
-			'referenceCounts' => $referenceCounts,
-			'lastEdited' => in_array('updated', $shown, true) ? $hub->edits->getLastEdited($results) : [],
-			'sections' => array_filter($hub->structure->getSections(), fn (SectionInfo $info) => isset($sectionIds[$info->section->id])),
-			'nestedFields' => array_filter($nestedFields, fn (FieldInfo $info) => isset($fieldIds[$info->field->id])),
-			'entryTypes' => array_filter($entryTypes, fn (EntryTypeInfo $info) => isset($typeIds[$info->entryType->id])),
-			'statuses' => array_intersect_key(Entry::statuses(), array_flip($entries->getStatuses())),
-			'staleMonths' => $months,
-			'authorOptions' => $author !== null || !$options ? [] : $this->pickedUserOptions($filter->authors),
-			'editorOptions' => $options ? $this->pickedUserOptions($filter->editors) : [],
-			'optionsUrls' => array_map(fn (string $name) => $this->filterOptionsUrl($name, ['section' => $section?->id, 'type' => $entryType?->id, 'field' => $field?->id]), ['author' => 'author', 'editor' => 'editor']),
-			'filter' => $filter,
-			'listPath' => $path,
-			'listFixed' => $listFixed,
-			'columns' => $columns,
-			...$this->savedFilterVariables(CheckKind::Entries, $path, $filter->savedFilter),
-			...$this->labelVariables(ColumnService::LIST_ENTRIES, array_map(fn (Entry $entry) => $entry->id, $results)),
-			...$selection->variables($filter),
-			...$sort->variables($path),
-		];
+		return ['list' => [
+				'entries' => $results,
+				'pageInfo' => $pageInfo,
+				'referenceCounts' => $referenceCounts,
+				'lastEdited' => in_array('updated', $shown, true) ? $hub->edits->getLastEdited($results) : [],
+				'sections' => array_filter($hub->structure->getSections(), fn (SectionInfo $info) => isset($sectionIds[$info->section->id])),
+				'nestedFields' => array_filter($nestedFields, fn (FieldInfo $info) => isset($fieldIds[$info->field->id])),
+				'entryTypes' => array_filter($entryTypes, fn (EntryTypeInfo $info) => isset($typeIds[$info->entryType->id])),
+				'statuses' => array_intersect_key(Entry::statuses(), array_flip($entries->getStatuses())),
+				'staleMonths' => $months,
+				'authorOptions' => $author !== null || !$options ? [] : $this->pickedUserOptions($filter->authors),
+				'editorOptions' => $options ? $this->pickedUserOptions($filter->editors) : [],
+				'optionsUrls' => array_map(fn (string $name) => $this->filterOptionsUrl($name, ['section' => $section?->id, 'type' => $entryType?->id, 'field' => $field?->id]), ['author' => 'author', 'editor' => 'editor']),
+				'filter' => $filter,
+				'listPath' => $path,
+				'listFixed' => $listFixed,
+				'columns' => $columns,
+				...$this->savedFilterVariables(CheckKind::Entries, $path, $filter->savedFilter),
+				...$this->labelVariables(ColumnService::LIST_ENTRIES, array_map(fn (Entry $entry) => $entry->id, $results)),
+				...$selection->variables($filter),
+				...$sort->variables($path),
+		]];
 	}
 
 	/**
-	 * Variables of the files list, filtered, sorted and paginated on the server.
+	 * Variables of the files list, as `list`, filtered, sorted and paginated on the server.
 	 * On volume and user pages, it is limited to the files of that volume or uploader.
 	 *
 	 * @param string $path page the list is on, for its filters and sorting
@@ -298,34 +298,34 @@ trait ListVariables
 		// Files without references are flagged next to their name, which is always shown.
 		$referenceCounts = $hub->references->getReferenceCounts(array_map(fn (Asset $asset) => $asset->id, $assets));
 
-		return [
-			'assets' => $assets,
-			'pageInfo' => $pageInfo,
-			'referenceCounts' => $referenceCounts,
-			'canDownload' => $hub->access->canAct(Page::Assets, Hub::PERMISSION_DOWNLOAD_ASSETS),
-			'fileKinds' => $fileKinds,
-			'volumes' => $hub->volumes->getVolumeModels(),
-			'kindOptions' => $options ? $this->pickedKindOptions($filter->kinds) : [],
-			'extensionOptions' => $options ? array_combine($filter->extensions, $filter->extensions) : [],
-			'uploaderOptions' => $uploader !== null || !$options ? [] : $this->pickedUserOptions($filter->uploaders),
-			'optionsUrls' => [
-				'kind' => $this->filterOptionsUrl('kind'),
-				'extension' => $this->filterOptionsUrl('extension', ['volume' => $volume?->id]),
-				'uploader' => $this->filterOptionsUrl('uploader', ['volume' => $volume?->id]),
-			],
-			'filter' => $filter,
-			'listPath' => $path,
-			'listFixed' => match (true) {
-				$volume !== null => 'volume',
-				$uploader !== null => 'uploader',
-				default => null,
-			},
-			'columns' => $columns,
-			...$this->savedFilterVariables(CheckKind::Assets, $path, $filter->savedFilter),
-			...$this->labelVariables(ColumnService::LIST_FILES, array_map(fn (Asset $asset) => $asset->id, $assets)),
-			...$selection->variables($filter),
-			...$sort->variables($path),
-		];
+		return ['list' => [
+				'assets' => $assets,
+				'pageInfo' => $pageInfo,
+				'referenceCounts' => $referenceCounts,
+				'canDownload' => $hub->access->canAct(Page::Assets, Hub::PERMISSION_DOWNLOAD_ASSETS),
+				'fileKinds' => $fileKinds,
+				'volumes' => $hub->volumes->getVolumeModels(),
+				'kindOptions' => $options ? $this->pickedKindOptions($filter->kinds) : [],
+				'extensionOptions' => $options ? array_combine($filter->extensions, $filter->extensions) : [],
+				'uploaderOptions' => $uploader !== null || !$options ? [] : $this->pickedUserOptions($filter->uploaders),
+				'optionsUrls' => [
+					'kind' => $this->filterOptionsUrl('kind'),
+					'extension' => $this->filterOptionsUrl('extension', ['volume' => $volume?->id]),
+					'uploader' => $this->filterOptionsUrl('uploader', ['volume' => $volume?->id]),
+				],
+				'filter' => $filter,
+				'listPath' => $path,
+				'listFixed' => match (true) {
+					$volume !== null => 'volume',
+					$uploader !== null => 'uploader',
+					default => null,
+				},
+				'columns' => $columns,
+				...$this->savedFilterVariables(CheckKind::Assets, $path, $filter->savedFilter),
+				...$this->labelVariables(ColumnService::LIST_FILES, array_map(fn (Asset $asset) => $asset->id, $assets)),
+				...$selection->variables($filter),
+				...$sort->variables($path),
+		]];
 	}
 
 	/**
@@ -402,7 +402,7 @@ trait ListVariables
 	}
 
 	/**
-	 * Variables of the users list, filtered, sorted and paginated on the server.
+	 * Variables of the users list, as `list`, filtered, sorted and paginated on the server.
 	 *
 	 * @param string $path page the list is on, for its filters and sorting
 	 * @return array<string,mixed>
@@ -436,23 +436,23 @@ trait ListVariables
 		$ids = array_map(fn (User $user) => $user->id, $results);
 		$twoFactor = in_array('twoFactor', $shown, true) ? $users->getTwoFactor($ids) : [];
 
-		return [
-			'users' => $results,
-			'pageInfo' => $pageInfo,
-			'entryCounts' => in_array('entries', $shown, true) ? $users->getEntryCounts($ids) : [],
-			'assetCounts' => in_array('assets', $shown, true) ? $users->getAssetCounts($ids) : [],
-			'twoFactor' => $twoFactor,
-			'groups' => $groups,
-			'statuses' => User::statuses(),
-			'idleMonths' => $hub->filters->getThreshold(CheckKind::Users, 'idle'),
-			'filter' => $filter,
-			'listPath' => $path,
-			'listFixed' => $group !== null ? 'group' : null,
-			'columns' => $columns,
-			...$this->savedFilterVariables(CheckKind::Users, $path, $filter->savedFilter),
-			...$this->labelVariables(ColumnService::LIST_USERS, $ids),
-			...$selection->variables($filter),
-			...$sort->variables($path),
-		];
+		return ['list' => [
+				'users' => $results,
+				'pageInfo' => $pageInfo,
+				'entryCounts' => in_array('entries', $shown, true) ? $users->getEntryCounts($ids) : [],
+				'assetCounts' => in_array('assets', $shown, true) ? $users->getAssetCounts($ids) : [],
+				'twoFactor' => $twoFactor,
+				'groups' => $groups,
+				'statuses' => User::statuses(),
+				'idleMonths' => $hub->filters->getThreshold(CheckKind::Users, 'idle'),
+				'filter' => $filter,
+				'listPath' => $path,
+				'listFixed' => $group !== null ? 'group' : null,
+				'columns' => $columns,
+				...$this->savedFilterVariables(CheckKind::Users, $path, $filter->savedFilter),
+				...$this->labelVariables(ColumnService::LIST_USERS, $ids),
+				...$selection->variables($filter),
+				...$sort->variables($path),
+		]];
 	}
 }

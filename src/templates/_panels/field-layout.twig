@@ -13,7 +13,10 @@
 	icon: 'table-layout',
 	count: layout.getCustomFields()|length,
 	panelKey: 'fieldLayout',
-} %}
+	loaded: loaded ?? false,
+	tabs: tabs,
+	fields: fields ?? null,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% for tab in tabs %}

@@ -11,7 +11,9 @@
 	color: 'teal',
 	count: info.layouts|length,
 	panelKey: 'relations',
-} %}
+	loaded: loaded ?? false,
+	info: info,
+} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{% if info.layouts|length %}

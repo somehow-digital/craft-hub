@@ -82,7 +82,7 @@ it('requires access to the hub', function () {
 it('renders the lists with the columns of the user', function () {
 	$this->preferences[1] = [ColumnService::PREFERENCE => [ColumnService::LIST_SECTIONS => ['order' => ['updated'], 'hidden' => ['uri']]]];
 
-	$columns = $this->runAction(SectionsController::class, 'index')->variables['columns'];
+	$columns = $this->runAction(SectionsController::class, 'index')->variables['list']['columns'];
 
 	expect($columns[0]['key'])->toBe('updated')
 		->and(array_column($columns, 'visible', 'key')['uri'])->toBeFalse();

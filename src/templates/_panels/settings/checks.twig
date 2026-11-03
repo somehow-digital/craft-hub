@@ -11,7 +11,11 @@
 	heading: kind.label(),
 	icon: kind.icon(),
 	id: 'hub-checks-' ~ kind.value,
-} %}
+	loaded: loaded ?? false,
+	disabled: disabled,
+	checks: checks,
+	kind: kind,
+} only %}
 	{% block actions %}
 		<span class="hub-checks-settings__disabled hub-muted{% if not disabled %} hidden{% endif %}" data-hub-checks-disabled>
 			{{- '{count} disabled'|t('hub', { count: disabled|number }) -}}

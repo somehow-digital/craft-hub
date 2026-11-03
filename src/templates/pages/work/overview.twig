@@ -16,7 +16,20 @@
 	<div class="hub-work-grid">
 		{% if workSections.diagnostics is defined %}
 			{% set section = workSections.diagnostics %}
-			{% embed 'hub/_components/panel' with { heading: section.label, description: section.description, icon: section.icon, color: section.color, count: section.count, collapsible: false, id: 'hub-work-diagnostics' } %}
+			{% embed 'hub/_components/panel' with {
+				heading: section.label,
+				description: section.description,
+				icon: section.icon,
+				color: section.color,
+				count: section.count,
+				collapsible: false,
+				id: 'hub-work-diagnostics',
+				diagnostics: diagnostics,
+				itemLimit: itemLimit,
+				workPath: workPath,
+				hubSite: hubSite,
+				section: section,
+			} only %}
 				{% block body %}
 					{% import 'hub/_components/work-macros' as work %}
 					{% if diagnostics|length %}
@@ -53,7 +66,16 @@
 
 		{% if maintained|length %}
 			{% set section = workSections.maintained %}
-			{% embed 'hub/_components/panel' with { heading: section.label, description: section.description, icon: section.icon, color: section.color, count: maintained|length, collapsible: false, id: 'hub-work-maintained' } %}
+			{% embed 'hub/_components/panel' with {
+				heading: section.label,
+				description: section.description,
+				icon: section.icon,
+				color: section.color,
+				count: maintained|length,
+				collapsible: false,
+				id: 'hub-work-maintained',
+				maintained: maintained,
+			} only %}
 				{% block body %}
 					{% import 'hub/_components/macros' as hub %}
 					{% import 'hub/_components/work-macros' as work %}

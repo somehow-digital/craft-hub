@@ -47,16 +47,18 @@ class SectionsController extends BaseController
 		$shown = $hub->columns->getShownKeys($columns);
 
 		return $this->renderTemplate('hub/pages/sections/index', [
-			'sections' => $sections,
-			'pageInfo' => $pageInfo,
-			'total' => count($all),
-			'activities' => in_array('updated', $shown, true) ? array_map(fn (SectionInfo $info) => $info->stats->getActivity($months), $sections) : [],
-			'filter' => $filter,
-			'columns' => $columns,
-			...$this->savedFilterVariables(CheckKind::Sections, 'hub/structure/sections', $filter->savedFilter),
-			...$this->labelVariables(ColumnService::LIST_SECTIONS, array_keys($sections)),
-			...$selection->variables($filter),
-			...$sort->variables('hub/structure/sections'),
+			'list' => [
+				'sections' => $sections,
+				'pageInfo' => $pageInfo,
+				'total' => count($all),
+				'activities' => in_array('updated', $shown, true) ? array_map(fn (SectionInfo $info) => $info->stats->getActivity($months), $sections) : [],
+				'filter' => $filter,
+				'columns' => $columns,
+				...$this->savedFilterVariables(CheckKind::Sections, 'hub/structure/sections', $filter->savedFilter),
+				...$this->labelVariables(ColumnService::LIST_SECTIONS, array_keys($sections)),
+				...$selection->variables($filter),
+				...$sort->variables('hub/structure/sections'),
+			],
 		]);
 	}
 

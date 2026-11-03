@@ -751,7 +751,7 @@
 {% macro previewPages(pageInfo) %}
 	{%- if pageInfo.totalPages > 1 -%}
 		<footer class="hub-deletion__pages" data-hub-preview-pages="{{ pageInfo.currentPage }}">
-			{% include '_includes/pagination' with { pageInfo: pageInfo } %}
+			{% include '_includes/pagination' with { pageInfo: pageInfo } only %}
 			<p class="hub-deletion__more">{{ 'The totals above cover the items of all pages.'|t('hub') }}</p>
 		</footer>
 	{%- endif -%}

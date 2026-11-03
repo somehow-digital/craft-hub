@@ -48,17 +48,19 @@ class TypesController extends BaseController
 		$shown = $hub->columns->getShownKeys($columns);
 
 		return $this->renderTemplate('hub/pages/types/index', [
-			'entryTypes' => $entryTypes,
-			'pageInfo' => $pageInfo,
-			'total' => count($all),
-			'kinds' => UsageKind::listed(),
-			'activities' => in_array('updated', $shown, true) ? array_map(fn (EntryTypeInfo $info) => $info->stats->getActivity($months), $entryTypes) : [],
-			'filter' => $filter,
-			'columns' => $columns,
-			...$this->savedFilterVariables(CheckKind::EntryTypes, 'hub/structure/entry-types', $filter->savedFilter),
-			...$this->labelVariables(ColumnService::LIST_ENTRY_TYPES, array_keys($entryTypes)),
-			...$selection->variables($filter),
-			...$sort->variables('hub/structure/entry-types'),
+			'list' => [
+				'entryTypes' => $entryTypes,
+				'pageInfo' => $pageInfo,
+				'total' => count($all),
+				'kinds' => UsageKind::listed(),
+				'activities' => in_array('updated', $shown, true) ? array_map(fn (EntryTypeInfo $info) => $info->stats->getActivity($months), $entryTypes) : [],
+				'filter' => $filter,
+				'columns' => $columns,
+				...$this->savedFilterVariables(CheckKind::EntryTypes, 'hub/structure/entry-types', $filter->savedFilter),
+				...$this->labelVariables(ColumnService::LIST_ENTRY_TYPES, array_keys($entryTypes)),
+				...$selection->variables($filter),
+				...$sort->variables('hub/structure/entry-types'),
+			],
 		]);
 	}
 

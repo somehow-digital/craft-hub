@@ -67,7 +67,7 @@
 			</div>
 		</div>
 	{% else %}
-		{% embed 'hub/_components/panel' with { heading: 'Check'|t('hub'), icon: 'list-check', color: 'gray', collapsible: false } %}
+		{% embed 'hub/_components/panel' with { heading: 'Check'|t('hub'), icon: 'list-check', color: 'gray', collapsible: false, check: check } only %}
 			{% block body %}
 				{% import '_includes/forms' as forms %}
 				<div class="hub-panel__fields">
@@ -125,7 +125,11 @@
 		icon: 'filter',
 		color: 'blue',
 		collapsible: false,
-	} %}
+		check: check,
+		filter: filter,
+		kind: kind,
+		filters: filters,
+	} only %}
 		{% block body %}
 			{% import '_includes/forms' as forms %}
 			{% import 'hub/_components/macros' as hub %}
@@ -166,7 +170,13 @@
 		icon: 'eye',
 		color: 'gray',
 		collapsible: false,
-	} %}
+		check: check,
+		severity: severity,
+		mirror: mirror,
+		title: title,
+		severityLabels: severityLabels,
+		severityColors: severityColors,
+	} only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			<ul class="hub-checks">

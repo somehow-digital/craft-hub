@@ -33,7 +33,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'sections', id: section.id } %}
+		{% include 'hub/_components/detail-labels' with { list: 'sections', id: section.id } only %}
 		<div class="data">
 			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
 			<dd class="value"><code>{{ section.handle }}</code></dd>
@@ -89,21 +89,21 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/maintainers' with { list: 'sections', item: section } %}
+	{% include 'hub/_panels/maintainers' with { list: 'sections', item: section, hubSite: hubSite } only %}
 
-	{% include 'hub/_panels/sections/sites' %}
+	{% include 'hub/_panels/sections/sites' with { section: section, selectedSites: selectedSites } only %}
 
 	{% if (section.previewTargets ?? [])|length %}
-		{% include 'hub/_panels/sections/preview-targets' %}
+		{% include 'hub/_panels/sections/preview-targets' with { section: section } only %}
 	{% endif %}
 
-	{% include 'hub/_panels/sections/entry-types' %}
+	{% include 'hub/_panels/sections/entry-types' with { info: info, section: section, siteIds: siteIds } only %}
 
-	{% include 'hub/_panels/sections/relations' %}
+	{% include 'hub/_panels/sections/relations' with { info: info, section: section, siteIds: siteIds } only %}
 
-	{% include 'hub/_panels/activity' with { subject: 'section', id: section.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'section', id: section.id } only %}
 {% endblock %}
 
 {% block list %}
-	{% include 'hub/_components/entry-list' %}
+	{% include 'hub/_components/entry-list' with { list: list, hubSite: hubSite } only %}
 {% endblock %}

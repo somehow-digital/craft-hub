@@ -59,7 +59,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'entries', id: entry.id } %}
+		{% include 'hub/_components/detail-labels' with { list: 'entries', id: entry.id } only %}
 		<div class="data">
 			<dt class="heading">{{ 'Status'|t('app') }}</dt>
 			<dd class="value"><span class="status {{ entry.status }}" aria-hidden="true"></span>{{ entry.statuses()[entry.status] ?? entry.status }}</dd>
@@ -144,22 +144,22 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/element-maintainers' with { element: entry } %}
+	{% include 'hub/_panels/element-maintainers' with { element: entry } only %}
 
-	{% include 'hub/_panels/entries/sites' with { count: siteCount } %}
+	{% include 'hub/_panels/entries/sites' with { count: siteCount } only %}
 
-	{% include 'hub/_panels/entries/references' with { count: referenceCount } %}
+	{% include 'hub/_panels/entries/references' with { count: referenceCount } only %}
 
-	{% include 'hub/_panels/referenced' with { count: referencedCount } %}
+	{% include 'hub/_panels/referenced' with { count: referencedCount } only %}
 
-	{% include 'hub/_panels/activity' with { subject: 'entry', id: entry.id } %}
+	{% include 'hub/_panels/activity' with { subject: 'entry', id: entry.id } only %}
 {% endblock %}
 
 {% block list %}
 	{# Entries without versioning have drafts only. #}
 	{% if hasRevisions %}
-		{% include 'hub/_panels/entries/revisions' with { count: revisionCount } %}
+		{% include 'hub/_panels/entries/revisions' with { count: revisionCount, entry: entry } only %}
 	{% endif %}
 
-	{% include 'hub/_panels/entries/drafts' with { count: draftCount } %}
+	{% include 'hub/_panels/entries/drafts' with { count: draftCount, entry: entry } only %}
 {% endblock %}
