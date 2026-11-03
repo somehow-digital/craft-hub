@@ -381,7 +381,7 @@ class DiagnosticsService extends Component
 		}
 
 		$groups = self::GROUPS[$definition->kind->value] ?? [];
-		$key = $definition->getKey() . ':' . implode(',', Hub::getInstance()->siteScope->getSiteIds());
+		$key = $this->countsKey($definition);
 
 		if (!isset($this->counts[$key])) {
 			$queries = Hub::getInstance()->queries;
@@ -389,6 +389,41 @@ class DiagnosticsService extends Component
 		}
 
 		return $this->counts[$key][Aggregator::key(array_map(fn (string $alias) => $criteria[$alias] ?? null, array_keys($groups)))] ?? 0;
+	}
+
+	/**
+	 * Key of the counts of a check, which are those of the site scope.
+	 */
+	private function countsKey(CheckDefinition $definition): string
+	{
+		return $definition->getKey() . ':' . implode(',', Hub::getInstance()->siteScope->getSiteIds());
+	}
+
+	/**
+	 * Whether a check flags any of the entries or assets of a section, entry type or volume. Unless they're counted for all
+	 * of those already, the first of them is looked up alone, which on large sites is much faster than counting them all.
+	 *
+	 * @param array<string,int> $criteria value of each column of the kind, by its alias, see {@see GROUPS}
+	 */
+	public function hasFailing(CheckDefinition $definition, array $criteria): bool
+	{
+		$query = $this->getFailingQuery($definition);
+		$columns = self::GROUPS[$definition->kind->value] ?? [];
+
+		if ($query === null || isset($this->counts[$this->countsKey($definition)])) {
+			return $this->countFailing($definition, $criteria) > 0;
+		}
+
+		$condition = ['and'];
+
+		foreach ($criteria as $alias => $value) {
+			$condition[] = [$columns[$alias] => $value];
+		}
+
+		// First, so the database finds the elements of the item before evaluating the check's conditions.
+		$query->where($query->where !== null && $query->where !== [] ? ['and', $condition, $query->where] : $condition);
+
+		return Hub::getInstance()->queries->exists($query);
 	}
 
 	/**

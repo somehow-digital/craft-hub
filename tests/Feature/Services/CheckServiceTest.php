@@ -127,3 +127,22 @@ it('leaves out disabled checks and checks custom ones', function () {
 		->and($checks['sections.public']->severity)->toBe(Severity::Warning)
 		->and($checks['sections.public']->passedDescription)->toBe('Not flagged by this check.');
 });
+
+it('only tells whether the entries of a section fail the checks of entries without counting them, if asked to', function () {
+	ElementQueries::respond(Entry::class, [new Entry(['id' => 5])]);
+
+	$checks = byKey($this->checks->forSection($this->structure->getSection(1), counted: false));
+
+	expect($checks['entries.drafts']->passed)->toBeFalse()
+		->and($checks['entries.drafts']->count)->toBeNull()
+		->and($checks['entries.drafts']->url)->toContain('hub/structure/sections/1/entries')
+		->and($this->db()->counts())->toBe([]);
+});
+
+it('takes the counted checks of an item for whether they fail, as they tell that as well', function () {
+	$info = $this->structure->getSection(1);
+	$counted = $this->checks->forSection($info);
+
+	expect($this->checks->forSection($info, counted: false))->toBe($counted)
+		->and(ElementQueries::executed(Entry::class))->toBe([]);
+});

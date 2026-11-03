@@ -2,6 +2,7 @@
 
 namespace SomehowDigital\Craft\Hub\services;
 
+use Closure;
 use craft\models\UserGroup;
 use DateTime;
 use SomehowDigital\Craft\Hub\conditions\InfoCondition;
@@ -20,7 +21,8 @@ use yii\base\Component;
 
 /**
  * Filters and sorts the lists of sections, entry types, fields, volumes and user groups.
- * Unlike entries and files, there are few of them and their details are computed anyway, so they are filtered in memory.
+ * Unlike entries and files, there are few of them, so they are filtered in memory. Their statistics are read only for the
+ * filters asking for them, as they count all entries, assets and references of the site, which takes a while on large sites.
  */
 class ListService extends Component
 {
@@ -59,9 +61,9 @@ class ListService extends Component
 			&& $this->matchesCondition($condition, $info)
 			&& $this->matchesAny($filter->types, [$info->section->type])
 			&& $this->matchesUrls($filter->urls, $info->hasUrls)
-			&& $this->inRange($info->stats->total, $filter->entriesMin, $filter->entriesMax)
-			&& $this->inRange($info->references->references, $filter->referencesMin, $filter->referencesMax)
-			&& $this->matchesAny($filter->activities, [$info->stats->getActivity($months)])
+			&& $this->inRange(fn () => $info->stats->total, $filter->entriesMin, $filter->entriesMax)
+			&& $this->inRange(fn () => $info->references->references, $filter->referencesMin, $filter->referencesMax)
+			&& $this->matchesAny($filter->activities, fn () => [$info->stats->getActivity($months)])
 			&& (!$filter->empty || $info->isEmpty()));
 
 		return $this->sort($sections, $direction, fn (SectionInfo $info) => match ($sort) {
@@ -105,9 +107,9 @@ class ListService extends Component
 			&& $this->matchesLabels($filter->labels, $labeled, $info->entryType->id)
 			&& $this->matchesCondition($condition, $info)
 			&& $this->matchesAny($filter->kinds, $info->getKindValues())
-			&& $this->inRange($info->stats->total, $filter->entriesMin, $filter->entriesMax)
-			&& $this->inRange(count($info->sections) + $info->getRelationCount(), $filter->relationsMin, $filter->relationsMax)
-			&& $this->matchesAny($filter->activities, [$info->stats->getActivity($months)]));
+			&& $this->inRange(fn () => $info->stats->total, $filter->entriesMin, $filter->entriesMax)
+			&& $this->inRange(fn () => count($info->sections) + $info->getRelationCount(), $filter->relationsMin, $filter->relationsMax)
+			&& $this->matchesAny($filter->activities, fn () => [$info->stats->getActivity($months)]));
 
 		return $this->sort($entryTypes, $direction, fn (EntryTypeInfo $info) => match ($sort) {
 			self::SORT_ENTRIES => $info->stats->total,
@@ -205,10 +207,10 @@ class ListService extends Component
 			&& $this->matchesCondition($condition, $info)
 			&& $this->matchesAny($filter->kinds, $info->getKindValues())
 			&& $this->matchesUrls($filter->urls, $info->hasUrls)
-			&& $this->inRange($info->stats->total, $filter->assetsMin, $filter->assetsMax)
-			&& $this->inRange($info->stats->size, $megabytes($filter->sizeMin), $megabytes($filter->sizeMax))
-			&& $this->inRange($info->stats->missingAlt, $filter->altMin, $filter->altMax)
-			&& $this->inDateRange($info->stats->lastUploaded, $filter->uploadedFrom, $filter->uploadedTo)
+			&& $this->inRange(fn () => $info->stats->total, $filter->assetsMin, $filter->assetsMax)
+			&& $this->inRange(fn () => $info->stats->size, $megabytes($filter->sizeMin), $megabytes($filter->sizeMax))
+			&& $this->inRange(fn () => $info->stats->missingAlt, $filter->altMin, $filter->altMax)
+			&& $this->inDateRange(fn () => $info->stats->lastUploaded, $filter->uploadedFrom, $filter->uploadedTo)
 			&& (!$filter->empty || $info->isEmpty()));
 
 		return $this->sort($volumes, $direction, fn (VolumeInfo $info) => match ($sort) {
@@ -337,11 +339,11 @@ class ListService extends Component
 	 * Whether any of the item's values is one of the filtered ones.
 	 *
 	 * @param string[] $filtered
-	 * @param string[] $values
+	 * @param string[]|Closure():string[] $values a closure for values read only while filtered by them
 	 */
-	private function matchesAny(array $filtered, array $values): bool
+	private function matchesAny(array $filtered, array|Closure $values): bool
 	{
-		return $filtered === [] || array_intersect($values, $filtered) !== [];
+		return $filtered === [] || array_intersect($values instanceof Closure ? $values() : $values, $filtered) !== [];
 	}
 
 	private function matchesUrls(?string $urls, bool $hasUrls): bool
@@ -349,19 +351,32 @@ class ListService extends Component
 		return $urls === null || ($urls === self::URLS_YES) === $hasUrls;
 	}
 
-	private function inRange(int $value, int|float|null $min, int|float|null $max): bool
+	/**
+	 * @param int|Closure():int $value a closure for values read only while filtered by them
+	 */
+	private function inRange(int|Closure $value, int|float|null $min, int|float|null $max): bool
 	{
+		if ($min === null && $max === null) {
+			return true;
+		}
+
+		$value = $value instanceof Closure ? $value() : $value;
+
 		return ($min === null || $value >= $min) && ($max === null || $value <= $max);
 	}
 
 	/**
 	 * Whether the date is between the days, both included; items without a date only match open ranges.
+	 *
+	 * @param DateTime|null|Closure():(DateTime|null) $date a closure for dates read only while filtered by them
 	 */
-	private function inDateRange(?DateTime $date, ?DateTime $from, ?DateTime $to): bool
+	private function inDateRange(DateTime|Closure|null $date, ?DateTime $from, ?DateTime $to): bool
 	{
 		if ($from === null && $to === null) {
 			return true;
 		}
+
+		$date = $date instanceof Closure ? $date() : $date;
 
 		return $date !== null
 			&& ($from === null || $date >= (clone $from)->setTime(0, 0))

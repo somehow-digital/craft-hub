@@ -230,3 +230,15 @@ it('lists the sort columns with their default direction', function () {
 		->and(array_keys($this->lists->getVolumeSortColumns()))->toBe(['name', 'fs', 'assets', 'size', 'alt', 'references', 'uploaded'])
 		->and($this->lists->getUserGroupSortColumns())->toBe(['name' => SORT_ASC, 'users' => SORT_DESC, 'permissions' => SORT_DESC]);
 });
+
+it('reads the statistics of sections only while filtered by them, as they are counted for the whole site', function () {
+	$this->lists->getSections(listFilter(SectionFilter::class, ['types' => ['channel']]));
+
+	expect($this->db()->queriesMatching('{{hubEntryRows}}'))->toBe([])
+		->and($this->db()->queriesMatching('FROM {{%relations}} {{relations}}'))->toBe([]);
+
+	$this->lists->getSections(listFilter(SectionFilter::class, ['empty' => true]));
+
+	expect($this->db()->queriesMatching('{{hubEntryRows}}'))->not->toBe([])
+		->and($this->db()->queriesMatching('FROM {{%relations}} {{relations}}'))->toBe([]);
+});

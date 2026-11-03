@@ -12,6 +12,7 @@ use craft\helpers\Db;
 use DateTime;
 use SomehowDigital\Craft\Hub\helpers\Aggregator;
 use SomehowDigital\Craft\Hub\helpers\SiteSet;
+use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\AssetStatistics;
 use SomehowDigital\Craft\Hub\models\EntryStatistics;
 use SomehowDigital\Craft\Hub\models\ReferenceStatistics;
@@ -107,7 +108,7 @@ class StatisticsService extends Component
 				'draft' => new Expression('CASE WHEN ' . self::IS_DRAFT . ' THEN 1 ELSE 0 END'),
 				'lastEdited' => new Expression(self::LAST_EDITED),
 			])
-			->andWhere(['exists', $onSites])
+			->andWhere($this->onSitesCondition($siteIds, $onSites))
 			->andWhere($nested ? ['entries.sectionId' => null] : ['not', ['entries.sectionId' => null]]);
 
 		$results = (new Query())
@@ -307,7 +308,7 @@ class StatisticsService extends Component
 				'size' => new Expression('COALESCE([[assets.size]], 0)'),
 				'dateCreated' => 'elements.dateCreated',
 			])
-			->andWhere(['exists', $onSites]);
+			->andWhere($this->onSitesCondition($siteIds, $onSites));
 
 		$results = (new Query())
 			->select([
@@ -820,5 +821,16 @@ class StatisticsService extends Component
 		sort($siteIds);
 
 		return implode(',', $siteIds);
+	}
+
+	/**
+	 * Condition matching the elements on any of the sites, or nothing on all sites, which every element is on one of.
+	 *
+	 * @param int[] $siteIds
+	 * @return array<int|string,mixed>
+	 */
+	private function onSitesCondition(array $siteIds, Query $onSites): array
+	{
+		return Hub::getInstance()->siteScope->coversAllSites($siteIds) ? [] : ['exists', $onSites];
 	}
 }

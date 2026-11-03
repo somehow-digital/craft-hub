@@ -200,3 +200,28 @@ it('gives the default checks without a row one, numbering the checks of each kin
 		->and(implode("\n", $inserts))->toContain("'fields', 'unused', TRUE, 1")
 		->and($this->db()->queriesMatching('UPDATE {{%hub_checks}}')[0])->toContain('`sortOrder`=2')->toContain('`id`=1');
 });
+
+it('tells whether a check flags any element of an item by looking up the first of them, narrowed to it first', function () {
+	ElementQueries::respond(Entry::class, fn (ElementQuery $query) => str_contains(conditionSql($query->where), '`entries`.`sectionId`=1') ? [new Entry(['id' => 5])] : []);
+	$check = $this->diagnostics->getDefinition('entries.drafts');
+
+	expect($this->diagnostics->hasFailing($check, ['sectionId' => 1]))->toBeTrue()
+		->and($this->diagnostics->hasFailing($check, ['sectionId' => 2, 'typeId' => 10]))->toBeFalse()
+		->and(conditionSql(ElementQueries::executed(Entry::class)[1]->where))->toContain('(`entries`.`sectionId`=2) AND (`entries`.`typeId`=10)')
+		->and(conditions(ElementQueries::executed(Entry::class)[1])[0])->toBe(['and', ['entries.sectionId' => 2], ['entries.typeId' => 10]])
+		->and($this->db()->counts())->toBe([]);
+});
+
+it('tells whether a check flags any element of an item by its counts, once they are counted', function () {
+	$this->db()->respondToCounts(fn () => [['sectionId' => 1, 'typeId' => 10, 'total' => 3]]);
+	$check = $this->diagnostics->getDefinition('entries.drafts');
+	$this->diagnostics->countFailing($check);
+
+	expect($this->diagnostics->hasFailing($check, ['sectionId' => 1]))->toBeTrue()
+		->and($this->diagnostics->hasFailing($check, ['sectionId' => 2]))->toBeFalse()
+		->and(ElementQueries::executed(Entry::class))->toBe([]);
+});
+
+it('tells whether a check flags an item of a structure page by its filter', function () {
+	expect($this->diagnostics->hasFailing($this->diagnostics->getDefinition('sections.empty'), []))->toBeTrue();
+});

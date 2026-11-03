@@ -113,6 +113,17 @@ class SiteScopeService extends Component
 	}
 
 	/**
+	 * Whether the sites are all sites, including disabled ones. Every element is on one of them, so conditions matching
+	 * elements on any of them can be left out, which saves looking up the sites of each element on large sites.
+	 *
+	 * @param int[] $siteIds
+	 */
+	public function coversAllSites(array $siteIds): bool
+	{
+		return array_diff(Craft::$app->getSites()->getAllSiteIds(true), $siteIds) === [];
+	}
+
+	/**
 	 * Narrows a query of elements to the counted sites, each element once, in the first selected site or the current one if
 	 * it's there. Elements are changed in the site they're loaded in, and Craft checks the user may edit that one.
 	 *

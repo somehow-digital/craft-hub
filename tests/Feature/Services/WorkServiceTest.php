@@ -8,8 +8,10 @@ use craft\models\UserGroup;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Severity;
 use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\models\Check;
 use SomehowDigital\Craft\Hub\models\CheckDefinition;
 use SomehowDigital\Craft\Hub\models\MaintainerSource;
+use SomehowDigital\Craft\Hub\services\CheckService;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use SomehowDigital\Craft\Hub\services\DiagnosticsService;
 use SomehowDigital\Craft\Hub\services\MaintainerService;
@@ -49,7 +51,7 @@ it('needs both accessing the plugin and its permission to view the work of a use
 it('counts nothing for users who may not view their work or without a user', function () {
 	$this->actingAs(permissions: ['accessPlugin-hub']);
 
-	expect($this->work->getCounts())->toBe(['drafts' => 0, 'diagnostics' => 0, 'comingUp' => 0])
+	expect($this->work->getCounts())->toBe(['drafts' => 0, 'diagnostics' => 0, 'comingUp' => 0, 'checks' => []])
 		->and(ElementQueries::$executed)->toBe([]);
 });
 
@@ -288,4 +290,93 @@ it('removes the snoozes that ran out and those of checks that no longer exist', 
 		->toContain('`dateUntil` <=')
 		->toContain('NOT IN')
 		->toContain('entries.stale');
+});
+
+it('narrows the checks to the user\'s items first, so databases find those before evaluating the checks', function () {
+	$entries = workDefinition(CheckKind::Entries, 'disabled');
+	$assets = workDefinition(CheckKind::Assets, 'large');
+
+	$diagnostics = Mockery::mock(DiagnosticsService::class)->makePartial();
+	$diagnostics->shouldReceive('getEnabledChecks')->andReturnUsing(fn (CheckKind $kind) => $kind === CheckKind::Entries ? [$entries] : [$assets]);
+	$diagnostics->shouldReceive('getFailingQuery')->andReturnUsing(fn (CheckDefinition $definition) => $definition === $entries
+		? Entry::find()->andWhere(['elements.enabled' => false])
+		: Asset::find()->andWhere(['>', 'assets.size', 1]));
+	$this->hub()->set('diagnostics', $diagnostics);
+
+	$this->work->getCounts();
+
+	$entrySql = ($this->sql)(ElementQueries::executed(Entry::class)[0]);
+	$assetSql = ($this->sql)(ElementQueries::executed(Asset::class)[0]);
+
+	expect(strpos($entrySql, '`hubWorkAuthors`'))->toBeLessThan(strpos($entrySql, '`elements`.`enabled`'))
+		->and(strpos($assetSql, '`assets`.`uploaderId`=7'))->toBeLessThan(strpos($assetSql, '`assets`.`size`'))
+		->and(strpos($entrySql, '`elements`.`enabled`'))->toBeLessThan(strpos($entrySql, '`hubSnoozes`'));
+});
+
+it('counts the checks once for the navigation and the page, keeping the counts of each', function () {
+	$notice = workDefinition(CheckKind::Entries, 'stale');
+	$error = workDefinition(CheckKind::Assets, 'large', Severity::Error);
+
+	$diagnostics = Mockery::mock(DiagnosticsService::class)->makePartial();
+	$diagnostics->shouldReceive('getEnabledChecks')->andReturnUsing(fn (CheckKind $kind) => $kind === CheckKind::Entries ? [$notice] : [$error]);
+	$diagnostics->shouldReceive('getFailingQuery')->andReturnUsing(fn (CheckDefinition $definition) => $definition === $notice ? Entry::find() : Asset::find());
+	$this->hub()->set('diagnostics', $diagnostics);
+
+	ElementQueries::respond(Entry::class, [new Entry(['id' => 1]), new Entry(['id' => 2])]);
+	ElementQueries::respond(Asset::class, [new Asset(['id' => 3])]);
+
+	$counts = $this->work->getCounts();
+	$executed = count(ElementQueries::$executed);
+	$checks = (new WorkService())->getDiagnostics();
+
+	expect($counts['checks'])->toBe(['entries.stale' => 2, 'assets.large' => 1])
+		->and($counts['diagnostics'])->toBe(3)
+		->and(array_map(fn ($check) => $check->count, $checks))->toBe([1, 2])
+		->and(count(ElementQueries::$executed))->toBe($executed);
+});
+
+it('counts again once the user changed their entries or assets', function () {
+	$this->hub()->getSettings()->enableDiagnostics = false;
+	ElementQueries::respond(Entry::class, [new Entry(['id' => 1])]);
+
+	try {
+		$this->work->getCounts();
+		$first = count(ElementQueries::$executed);
+		$this->work->forgetCounts();
+		$this->work->getCounts();
+		$second = count(ElementQueries::$executed);
+
+		// Forgotten again once counted again.
+		$this->work->forgetCounts();
+		$this->work->getCounts();
+
+		expect($second)->toBeGreaterThan($first)
+			->and(count(ElementQueries::$executed))->toBeGreaterThan($second);
+	} finally {
+		$this->hub()->getSettings()->enableDiagnostics = true;
+	}
+});
+
+it('only tells whether what the user maintains fails the checks of what it holds, without counting those', function () {
+	$this->section(1, 'news');
+	$this->volume(3, 'images');
+	$sources = [
+		new MaintainerSource(ColumnService::LIST_SECTIONS, $this->section(1, 'news'), [], []),
+		new MaintainerSource(ColumnService::LIST_VOLUMES, $this->volume(3, 'images'), [], []),
+	];
+	$maintainers = Mockery::mock(MaintainerService::class)->makePartial();
+	$maintainers->shouldReceive('getMaintainedBy')->andReturn($sources);
+	$this->hub()->set('maintainers', $maintainers);
+
+	$failed = new Check('Drafts', '', '', Severity::Warning, 'file-pen', false);
+	$checks = Mockery::mock(CheckService::class);
+	$checks->shouldReceive('forSection')->once()->with(Mockery::any(), false)->andReturn([$failed]);
+	$checks->shouldReceive('forVolume')->once()->with(Mockery::any(), false)->andReturn([]);
+	$this->hub()->set('checks', $checks);
+	$this->actingAs(permissions: ['accessPlugin-hub', Hub::PERMISSION_ACCESS_STRUCTURE, 'hub-viewSections', 'hub-viewVolumes']);
+
+	$maintained = $this->work->getMaintained();
+
+	expect(array_column($maintained, 'failed'))->toBe([1, 0])
+		->and($maintained[0]['severity'])->toBe(Severity::Warning);
 });

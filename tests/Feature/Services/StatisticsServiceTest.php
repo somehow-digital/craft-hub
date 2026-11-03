@@ -139,6 +139,7 @@ it('reads asset counts grouped by volume and file kind', function () {
 });
 
 it('counts assets on the given sites, with their references and alternative texts on those sites', function () {
+	$this->site(3, 'fr');
 	$this->statistics->getAssetRows([1, 2]);
 
 	$sql = $this->db()->queriesMatching('{{hubAssetRows}}')[0];
@@ -266,4 +267,19 @@ it('counts the rows of a snapshot for any sites, like the live ones', function (
 		->and($statistics->sumReferences([1], volumeId: 3)->targets)->toBe(4)
 		->and($statistics->sumReferences([2], 6)->references)->toBe(0)
 		->and($this->db()->queries)->toBe([]);
+});
+
+it('leaves out matching the sites of entries and assets on all sites, as every element is on one of them', function () {
+	$this->site(2, 'de');
+	$this->statistics->getEntryRows([1, 2], nested: false);
+	$this->statistics->getAssetRows([2, 1]);
+
+	$entries = $this->db()->queriesMatching('{{hubEntryRows}}')[0];
+	$assets = $this->db()->queriesMatching('{{hubAssetRows}}')[0];
+
+	// Whether entries are enabled is still told by their sites.
+	expect(substr_count($entries, '`elements_sites`.`siteId` IN (1, 2)'))->toBe(1)
+		->and($entries)->toContain('`elements_sites`.`enabled`=TRUE')
+		->and($assets)->not->toContain('`elements_sites`')
+		->and($assets)->toContain('`hubAssetsSites`.`siteId` IN (2, 1)');
 });
