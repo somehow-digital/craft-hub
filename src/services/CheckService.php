@@ -52,26 +52,28 @@ class CheckService extends Component
 	}
 
 	/**
+	 * @param bool $counted see forItem()
 	 * @return Check[]
 	 */
-	public function forSection(SectionInfo $info): array
+	public function forSection(SectionInfo $info, bool $counted = true): array
 	{
 		$id = (int)$info->section->id;
 
-		return $this->forItem(CheckKind::Sections, $id, [CheckKind::Entries, ['sectionId' => $id], "hub/structure/sections/$id/entries"]);
+		return $this->forItem(CheckKind::Sections, $id, [CheckKind::Entries, ['sectionId' => $id], "hub/structure/sections/$id/entries"], $counted);
 	}
 
 	/**
 	 * Entry types used by no section or field have no entries, whose checks are left out.
 	 *
+	 * @param bool $counted see forItem()
 	 * @return Check[]
 	 */
-	public function forEntryType(EntryTypeInfo $info): array
+	public function forEntryType(EntryTypeInfo $info, bool $counted = true): array
 	{
 		$id = (int)$info->entryType->id;
 		$entries = $info->sections !== [] || $info->nestedFields !== [] ? [CheckKind::Entries, ['typeId' => $id], "hub/structure/entry-types/$id/entries"] : null;
 
-		return $this->forItem(CheckKind::EntryTypes, $id, $entries);
+		return $this->forItem(CheckKind::EntryTypes, $id, $entries, $counted);
 	}
 
 	/**
@@ -83,13 +85,14 @@ class CheckService extends Component
 	}
 
 	/**
+	 * @param bool $counted see forItem()
 	 * @return Check[]
 	 */
-	public function forVolume(VolumeInfo $info): array
+	public function forVolume(VolumeInfo $info, bool $counted = true): array
 	{
 		$id = (int)$info->volume->id;
 
-		return $this->forItem(CheckKind::Volumes, $id, [CheckKind::Assets, ['volumeId' => $id], "hub/structure/volumes/$id/assets"]);
+		return $this->forItem(CheckKind::Volumes, $id, [CheckKind::Assets, ['volumeId' => $id], "hub/structure/volumes/$id/assets"], $counted);
 	}
 
 	/**
@@ -97,18 +100,22 @@ class CheckService extends Component
 	 *
 	 * @param array{0:CheckKind,1:array<string,int>,2:string}|null $held kind of the elements the item holds, the columns
 	 *     narrowing them to its own (see DiagnosticsService::countFailing()) and the path of its tab listing them
+	 * @param bool $counted whether the elements it holds are counted for each of their checks, or only told whether any
+	 *     fail it, leaving the checks without a count, which on large sites is much faster
 	 * @return Check[]
 	 */
-	private function forItem(CheckKind $kind, int $id, ?array $held = null): array
+	private function forItem(CheckKind $kind, int $id, ?array $held = null, bool $counted = true): array
 	{
-		return $this->checks["$kind->value:$id"] ??= $this->check($kind, $id, $held);
+		// Counted checks tell whether any element fails them as well.
+		return $this->checks["$kind->value:$id"]
+			?? ($counted ? $this->checks["$kind->value:$id"] = $this->check($kind, $id, $held, true) : $this->checks["$kind->value:$id:any"] ??= $this->check($kind, $id, $held, false));
 	}
 
 	/**
 	 * @param array{0:CheckKind,1:array<string,int>,2:string}|null $held
 	 * @return Check[]
 	 */
-	private function check(CheckKind $kind, int $id, ?array $held): array
+	private function check(CheckKind $kind, int $id, ?array $held, bool $counted): array
 	{
 		$diagnostics = Hub::getInstance()->diagnostics;
 		$checks = [];
@@ -118,18 +125,35 @@ class CheckService extends Component
 		}
 
 		if ($held !== null) {
-			[$heldKind, $criteria, $path] = $held;
-			$canView = Hub::getInstance()->access->canView($heldKind->page());
-
-			foreach ($diagnostics->getEnabledChecks($heldKind) as $definition) {
-				$count = $diagnostics->countFailing($definition, $criteria);
-				$check = $this->create($definition, $definition->getListName(), $definition->getListDescription(), Craft::t('hub', 'Nothing is flagged by this check.'), $count === 0);
-				$check->count = $count ?: null;
-				$checks[] = $check->link($canView ? Hub::getInstance()->siteScope->pageUrl($path, $definition->getFilter()?->getListParams() ?? []) : null, Craft::t('hub', 'Show list'));
-			}
+			$checks = [...$checks, ...$this->heldChecks($held, $counted)];
 		}
 
 		return $diagnostics->sort($checks, $kind, fn (Check $check) => [(string)$check->key, $check->passed, $check->severity]);
+	}
+
+	/**
+	 * The checks of the elements an item holds, each linking to the list of those it flags.
+	 *
+	 * @param array{0:CheckKind,1:array<string,int>,2:string} $held see forItem()
+	 * @param bool $counted see forItem()
+	 * @return Check[]
+	 */
+	private function heldChecks(array $held, bool $counted): array
+	{
+		$hub = Hub::getInstance();
+		[$kind, $criteria, $path] = $held;
+		$canView = $hub->access->canView($kind->page());
+		$checks = [];
+
+		foreach ($hub->diagnostics->getEnabledChecks($kind) as $definition) {
+			$count = $counted ? $hub->diagnostics->countFailing($definition, $criteria) : null;
+			$failed = $count !== null ? $count > 0 : $hub->diagnostics->hasFailing($definition, $criteria);
+			$check = $this->create($definition, $definition->getListName(), $definition->getListDescription(), Craft::t('hub', 'Nothing is flagged by this check.'), !$failed);
+			$check->count = $count ?: null;
+			$checks[] = $check->link($canView ? $hub->siteScope->pageUrl($path, $definition->getFilter()?->getListParams() ?? []) : null, Craft::t('hub', 'Show list'));
+		}
+
+		return $checks;
 	}
 
 	private function create(CheckDefinition $definition, string $heading, string $description, string $passedDescription, bool $passed): Check

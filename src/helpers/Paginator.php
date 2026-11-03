@@ -68,7 +68,9 @@ final class Paginator
 	{
 		$queries = Hub::getInstance()->queries;
 
-		return $this->paginate($queries->total($query), fn (int $offset, int $limit) => $queries->page($query, $offset, $limit));
+		$total = $queries->total($query);
+
+		return $this->paginate($total, fn (int $offset, int $limit) => $queries->page($query, $offset, $limit, $total));
 	}
 
 	/**

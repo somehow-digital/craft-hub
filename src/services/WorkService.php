@@ -61,6 +61,9 @@ class WorkService extends Component
 	/** @var array<int,array{definition:CheckDefinition,query:ElementQuery}>|null memoized, as the counts and the page share them */
 	private ?array $diagnosticsQueries = null;
 
+	/** whether the counts of the current user were forgotten since they were last counted in this request */
+	private bool $forgotten = false;
+
 	/**
 	 * Whether the current user may open their work.
 	 */
@@ -72,17 +75,18 @@ class WorkService extends Component
 	}
 
 	/**
-	 * How many items each section of the page holds for the current user, kept for a few minutes per user and site scope,
-	 * or until they snooze something.
+	 * How many items each section of the page holds for the current user, and each check flags, kept for a few minutes per
+	 * user and site scope, or until they snooze something or change their entries or assets. Counting the checks takes the
+	 * longest on large sites, so the navigation, the widget and the page all show these.
 	 *
-	 * @return array{drafts:int,diagnostics:int,comingUp:int}
+	 * @return array{drafts:int,diagnostics:int,comingUp:int,checks:array<string,int>} checks by their key
 	 */
 	public function getCounts(): array
 	{
 		$userId = $this->userId();
 
 		if ($userId === null || !$this->canView()) {
-			return ['drafts' => 0, 'diagnostics' => 0, 'comingUp' => 0];
+			return ['drafts' => 0, 'diagnostics' => 0, 'comingUp' => 0, 'checks' => []];
 		}
 
 		$key = sprintf('hub:work:counts:%d:%s', $userId, implode(',', Hub::getInstance()->siteScope->getSiteIds()));
@@ -153,19 +157,20 @@ class WorkService extends Component
 	public function getDrafts(int $limit = self::LIST_LIMIT): array
 	{
 		$query = $this->draftsQuery();
+		$total = $this->total($query);
 		$items = [];
 
-		foreach ($query !== null ? $this->items($query, $limit) : [] as $entry) {
+		foreach ($query !== null ? $this->items($query, $total, $limit) : [] as $entry) {
 			$items[] = ['element' => $entry, 'note' => $this->draftNote($entry), 'date' => $entry->dateUpdated];
 		}
 
-		return ['items' => $items, 'total' => $this->total($query)];
+		return ['items' => $items, 'total' => $total];
 	}
 
 	/**
 	 * Checks flagging entries the current user is an author of and assets they uploaded, the most urgent first, each with
 	 * the first of the items, if any are asked for, and a link to all of them; items they snoozed for a check aren't
-	 * counted, and checks without any are left out.
+	 * counted, and checks without any are left out. Their counts are those of {@see getCounts()}.
 	 *
 	 * @param int $limit items listed per check
 	 * @param string|null $key the check to read alone, see CheckDefinition::getKey()
@@ -174,19 +179,20 @@ class WorkService extends Component
 	public function getDiagnostics(int $limit = 0, ?string $key = null): array
 	{
 		$checks = [];
+		$totals = $this->getCounts()['checks'];
 
 		foreach ($this->diagnosticsQueries() as ['definition' => $definition, 'query' => $query]) {
 			if ($key !== null && $definition->getKey() !== $key) {
 				continue;
 			}
 
-			$total = $this->total($query);
+			$total = $totals[$definition->getKey()] ?? 0;
 
 			if ($total > 0) {
 				$check = new Check($definition->getListName(), $definition->getListDescription(), '', $definition->getSeverity(), $definition->getIcon(), false);
 				$check->key = $definition->getKey();
 				$check->count = $total;
-				$check->items = $this->items((clone $query)->orderBy(['elements.dateUpdated' => SORT_DESC]), $limit);
+				$check->items = $this->items((clone $query)->orderBy(['elements.dateUpdated' => SORT_DESC]), $total, $limit);
 				$checks[] = $check->link($this->listUrl($definition), Craft::t('hub', 'Show list'));
 			}
 		}
@@ -205,10 +211,11 @@ class WorkService extends Component
 	public function getComingUp(int $limit = self::LIST_LIMIT): array
 	{
 		$query = $this->comingUpQuery();
+		$total = $this->total($query);
 		$now = new DateTime();
 		$items = [];
 
-		foreach ($query !== null ? $this->items($query, $limit) : [] as $entry) {
+		foreach ($query !== null ? $this->items($query, $total, $limit) : [] as $entry) {
 			/** @var Entry $entry */
 			$publishes = $entry->postDate !== null && $entry->postDate > $now;
 			$items[] = [
@@ -218,7 +225,7 @@ class WorkService extends Component
 			];
 		}
 
-		return ['items' => $items, 'total' => $this->total($query)];
+		return ['items' => $items, 'total' => $total];
 	}
 
 	/**
@@ -358,6 +365,21 @@ class WorkService extends Component
 	}
 
 	/**
+	 * Forgets the counts of the current user, as they changed their entries or assets, so what they fixed leaves their
+	 * work right away; changes of others show once the counts run out. Only once until they're counted again, as bulk
+	 * actions save many elements.
+	 */
+	public function forgetCounts(): void
+	{
+		$userId = $this->userId();
+
+		if ($userId !== null && !$this->forgotten) {
+			$this->forgotten = true;
+			TagDependency::invalidate(Craft::$app->getCache(), $this->cacheTag($userId));
+		}
+	}
+
+	/**
 	 * Removes the snoozes that ran out and those of checks that no longer exist; those of users and elements are deleted
 	 * along with them.
 	 */
@@ -373,14 +395,22 @@ class WorkService extends Component
 	}
 
 	/**
-	 * @return array{drafts:int,diagnostics:int,comingUp:int}
+	 * @return array{drafts:int,diagnostics:int,comingUp:int,checks:array<string,int>}
 	 */
 	private function countAll(): array
 	{
+		$this->forgotten = false;
+		$checks = [];
+
+		foreach ($this->diagnosticsQueries() as ['definition' => $definition, 'query' => $query]) {
+			$checks[$definition->getKey()] = $this->total($query);
+		}
+
 		return [
 			'drafts' => $this->total($this->draftsQuery()),
-			'diagnostics' => array_sum(array_map(fn (array $item) => $this->total($item['query']), $this->diagnosticsQueries())),
+			'diagnostics' => array_sum($checks),
 			'comingUp' => $this->total($this->comingUpQuery()),
+			'checks' => $checks,
 		];
 	}
 
@@ -406,7 +436,7 @@ class WorkService extends Component
 						$query = $hub->diagnostics->getFailingQuery($definition);
 
 						if ($query !== null) {
-							$query->andWhere($kind === CheckKind::Entries ? $this->authoredCondition($userId) : ['assets.uploaderId' => $userId]);
+							$this->narrowFirst($query, $kind === CheckKind::Entries ? $this->authoredCondition($userId) : ['assets.uploaderId' => $userId]);
 							$query->andWhere($this->notSnoozedCondition($userId, $definition->getKey()));
 							$queries[] = ['definition' => $definition, 'query' => $query];
 						}
@@ -510,6 +540,18 @@ class WorkService extends Component
 	}
 
 	/**
+	 * Puts a condition before those of a query. Databases plan large queries partly in the order of their conditions,
+	 * PostgreSQL once they join more than eight tables, so the user's few items are found first rather than evaluating the
+	 * conditions of a check, like the references of an element, for all elements of the site.
+	 *
+	 * @param array<int|string,mixed> $condition
+	 */
+	private function narrowFirst(ElementQuery $query, array $condition): void
+	{
+		$query->where($query->where !== null && $query->where !== [] ? ['and', $condition, $query->where] : $condition);
+	}
+
+	/**
 	 * Condition leaving out the queried elements the user snoozed a check for.
 	 *
 	 * @return array<int,mixed>
@@ -535,7 +577,8 @@ class WorkService extends Component
 	}
 
 	/**
-	 * The checks of what a user maintains, while diagnostics are enabled.
+	 * The checks of what a user maintains, while diagnostics are enabled. Only whether they pass is shown, so the elements
+	 * it holds aren't counted.
 	 *
 	 * @return Check[]
 	 */
@@ -550,10 +593,10 @@ class WorkService extends Component
 		$id = (int)$source->item->id;
 
 		return match ($source->list) {
-			ColumnService::LIST_SECTIONS => ($info = $hub->structure->getSection($id)) !== null ? $hub->checks->forSection($info) : [],
-			ColumnService::LIST_ENTRY_TYPES => ($info = $hub->structure->getEntryType($id)) !== null ? $hub->checks->forEntryType($info) : [],
+			ColumnService::LIST_SECTIONS => ($info = $hub->structure->getSection($id)) !== null ? $hub->checks->forSection($info, counted: false) : [],
+			ColumnService::LIST_ENTRY_TYPES => ($info = $hub->structure->getEntryType($id)) !== null ? $hub->checks->forEntryType($info, counted: false) : [],
 			ColumnService::LIST_FIELDS => ($info = $hub->structure->getField($id)) !== null ? $hub->checks->forField($info) : [],
-			ColumnService::LIST_VOLUMES => ($info = $hub->volumes->getVolume($id)) !== null ? $hub->checks->forVolume($info) : [],
+			ColumnService::LIST_VOLUMES => ($info = $hub->volumes->getVolume($id)) !== null ? $hub->checks->forVolume($info, counted: false) : [],
 			default => [],
 		};
 	}
@@ -581,10 +624,11 @@ class WorkService extends Component
 	}
 
 	/**
+	 * @param int $total the elements the query matches
 	 * @return ElementInterface[]
 	 */
-	private function items(ElementQuery $query, int $limit = self::ITEM_LIMIT): array
+	private function items(ElementQuery $query, int $total, int $limit = self::ITEM_LIMIT): array
 	{
-		return $limit > 0 ? Hub::getInstance()->queries->page(clone $query, 0, $limit) : [];
+		return $limit > 0 && $total > 0 ? Hub::getInstance()->queries->page(clone $query, 0, $limit, $total) : [];
 	}
 }

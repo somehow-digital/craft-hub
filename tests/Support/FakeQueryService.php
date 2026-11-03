@@ -10,7 +10,7 @@ use SomehowDigital\Craft\Hub\services\QueryService;
  * Counts element queries without preparing them, as preparing them takes most of Craft.
  *
  * Counts are built on the unprepared query and answered by the {@see FakeConnection},
- * while totals and pages are answered by {@see ElementQueries}, like the queries themselves.
+ * while totals, pages and whether queries match anything are answered by {@see ElementQueries}, like the queries themselves.
  */
 class FakeQueryService extends QueryService
 {
@@ -19,7 +19,12 @@ class FakeQueryService extends QueryService
 		return count(ElementQueries::resolve($query));
 	}
 
-	public function page(ElementQuery $query, int $offset, int $limit): array
+	public function exists(ElementQuery $query): bool
+	{
+		return ElementQueries::resolve($query) !== [];
+	}
+
+	public function page(ElementQuery $query, int $offset, int $limit, ?int $total = null): array
 	{
 		return array_slice(ElementQueries::resolve($query), $offset, $limit);
 	}

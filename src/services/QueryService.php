@@ -8,6 +8,7 @@ use craft\db\Table;
 use craft\elements\db\ElementQuery;
 use craft\elements\db\UserQuery;
 use craft\elements\Entry;
+use SomehowDigital\Craft\Hub\Hub;
 use yii\base\Component;
 use yii\db\Expression;
 
@@ -134,13 +135,24 @@ class QueryService extends Component
 	}
 
 	/**
+	 * Whether a query matches any element, on any of its sites; the first row found tells, without counting the rest.
+	 */
+	public function exists(ElementQuery $query): bool
+	{
+		[$rows] = $this->elementRows($query, []);
+
+		return $rows->select(['hubId' => 'elements.id'])->limit(1)->scalar() !== false;
+	}
+
+	/**
 	 * IDs of the elements on a page of a query, in its order.
 	 *
+	 * @param int|null $total the elements the query matches, if counted already, see pageSites()
 	 * @return int[]
 	 */
-	public function pageIds(ElementQuery $query, int $offset, int $limit): array
+	public function pageIds(ElementQuery $query, int $offset, int $limit, ?int $total = null): array
 	{
-		return array_keys($this->pageSites($query, $offset, $limit));
+		return array_keys($this->pageSites($query, $offset, $limit, $total));
 	}
 
 	/**
@@ -149,11 +161,12 @@ class QueryService extends Component
 	 * They are loaded by their ID on the site found for them, so the criteria aren't evaluated again;
 	 * only elements matching on all sites or none are loaded on their preferred site, without the criteria too.
 	 *
+	 * @param int|null $total the elements the query matches, if counted already, see pageSites()
 	 * @return array<int,mixed>
 	 */
-	public function page(ElementQuery $query, int $offset, int $limit): array
+	public function page(ElementQuery $query, int $offset, int $limit, ?int $total = null): array
 	{
-		$sites = $this->pageSites($query, $offset, $limit);
+		$sites = $this->pageSites($query, $offset, $limit, $total);
 		$bySite = [];
 
 		foreach ($sites as $id => $siteId) {
@@ -192,40 +205,77 @@ class QueryService extends Component
 	 * Elements on a page of a query, in its order, with the site each of them is found on,
 	 * or null if they match on all of their sites or none, so any of them is.
 	 *
+	 * Given the number of elements the query matches, pages past them aren't looked up. Databases may find a page by walking
+	 * an index of all elements in its order, like their date, until it's full, which only pays off if it fills up before the
+	 * end: if it holds the last of the elements, the walk visits all elements of the site to find them, which takes long on
+	 * large sites when few of them match, like the items of a single user. Those pages are sorted once all elements are found.
+	 * Ranking the sites of each element finds all of them before sorting them already.
+	 *
 	 * @return array<int,int|null> element ID => site ID
 	 */
-	private function pageSites(ElementQuery $query, int $offset, int $limit): array
+	private function pageSites(ElementQuery $query, int $offset, int $limit, ?int $total): array
 	{
+		if ($total !== null && $offset >= $total) {
+			return [];
+		}
+
 		$orderBy = $query->orderBy ?? [];
 		[$rows, $single] = $this->elementRows($query, array_map('strval', array_keys($orderBy)));
+
+		if (!$single) {
+			return $this->rankedPageSites($query, $rows, $orderBy, $offset, $limit);
+		}
+
+		$ids = $total !== null && $offset + $limit >= $total
+			? $this->sortedPageIds($rows, $orderBy, $offset, $limit)
+			: $rows->select(['hubId' => 'elements.id'])->orderBy($orderBy ?: ['elements.id' => SORT_ASC])->offset($offset)->limit($limit)->column();
 		$siteId = $this->isSingleSite($query) ? (int)(is_array($query->siteId) ? reset($query->siteId) : $query->siteId) : null;
 
-		if ($single) {
-			$ids = $rows
-				->select(['hubId' => 'elements.id'])
-				->orderBy($orderBy ?: ['elements.id' => SORT_ASC])
-				->offset($offset)
-				->limit($limit)
-				->column();
+		return array_fill_keys(array_map('intval', $ids), $siteId);
+	}
 
-			return array_fill_keys(array_map('intval', $ids), $siteId);
-		}
+	/**
+	 * IDs of the elements on a page of rows with a single one for each element, sorted once all of them are found.
+	 *
+	 * @param array<string,int> $orderBy
+	 * @return array<int,mixed>
+	 */
+	private function sortedPageIds(Query $rows, array $orderBy, int $offset, int $limit): array
+	{
+		[$select, $sort] = $this->sortColumns($orderBy);
 
-		$select = [
-			'hubId' => 'elements.id',
-			'hubSiteId' => 'elements_sites.siteId',
-			'hubRank' => new Expression(sprintf('ROW_NUMBER() OVER (PARTITION BY [[elements.id]] ORDER BY %s, [[elements_sites.id]])', $this->preferSql($query))),
-		];
-		$sort = [];
+		// Kept apart from the sort, so databases don't sort the rows as they find them: by an offset on PostgreSQL, and a
+		// limit on MySQL, which leaves out offsets of 0.
+		$rows->select(['hubId' => 'elements.id', ...$select]);
+		Craft::$app->getDb()->getIsPgsql() ? $rows->offset(new Expression('0')) : $rows->limit(PHP_INT_MAX);
 
-		foreach (array_keys($orderBy) as $i => $column) {
-			$select["hubSort$i"] = $column;
-			$sort["hubSort$i"] = $orderBy[$column];
-		}
+		return (new Query())
+			->select(['hubId'])
+			->from(['hubRows' => $rows])
+			->orderBy($sort ?: ['hubId' => SORT_ASC])
+			->offset($offset)
+			->limit($limit)
+			->column();
+	}
+
+	/**
+	 * Elements on a page of rows of elements on several sites, with the site each is found on, ranking the sites of each.
+	 *
+	 * @param array<string,int> $orderBy
+	 * @return array<int,int|null> element ID => site ID
+	 */
+	private function rankedPageSites(ElementQuery $query, Query $rows, array $orderBy, int $offset, int $limit): array
+	{
+		[$select, $sort] = $this->sortColumns($orderBy);
 
 		$rows = (new Query())
 			->select(['hubId', 'hubSiteId'])
-			->from(['hubRows' => $rows->select($select)])
+			->from(['hubRows' => $rows->select([
+				'hubId' => 'elements.id',
+				'hubSiteId' => 'elements_sites.siteId',
+				'hubRank' => new Expression(sprintf('ROW_NUMBER() OVER (PARTITION BY [[elements.id]] ORDER BY %s, [[elements_sites.id]])', $this->preferSql($query))),
+				...$select,
+			])])
 			->where(['hubRank' => 1])
 			->orderBy($sort ?: ['hubId' => SORT_ASC])
 			->offset($offset)
@@ -239,6 +289,25 @@ class QueryService extends Component
 		}
 
 		return $sites;
+	}
+
+	/**
+	 * The columns of the order of a page, selected as `hubSort0` and so on, and the order by those.
+	 *
+	 * @param array<string,int> $orderBy
+	 * @return array{0:array<string,string>,1:array<string,int>}
+	 */
+	private function sortColumns(array $orderBy): array
+	{
+		$select = [];
+		$sort = [];
+
+		foreach (array_keys($orderBy) as $i => $column) {
+			$select["hubSort$i"] = (string)$column;
+			$sort["hubSort$i"] = $orderBy[$column];
+		}
+
+		return [$select, $sort];
 	}
 
 	/**
@@ -293,7 +362,8 @@ class QueryService extends Component
 	}
 
 	/**
-	 * The conditions of a query, with the condition of its sites matching an element on any of them in a subquery.
+	 * The conditions of a query, with the condition of its sites matching an element on any of them in a subquery, or
+	 * left out on all sites, which every element is on one of.
 	 */
 	private function matchSites(mixed $condition, int &$found): mixed
 	{
@@ -304,10 +374,7 @@ class QueryService extends Component
 		if (array_keys($condition) === ['elements_sites.siteId']) {
 			$found++;
 
-			return ['exists', (new Query())
-				->from(['hubSites' => Table::ELEMENTS_SITES])
-				->where('[[hubSites.elementId]] = [[elements.id]]')
-				->andWhere(['hubSites.siteId' => $condition['elements_sites.siteId']])];
+			return $this->onSitesCondition($condition['elements_sites.siteId']);
 		}
 
 		if (is_string($condition[0] ?? null) && strtolower($condition[0]) === 'and') {
@@ -317,6 +384,24 @@ class QueryService extends Component
 		}
 
 		return $condition;
+	}
+
+	/**
+	 * Condition matching an element on any of the sites, in a subquery, or nothing on all sites, which every element is on
+	 * one of.
+	 *
+	 * @return array<int|string,mixed>
+	 */
+	private function onSitesCondition(mixed $siteIds): array
+	{
+		if (Hub::getInstance()->siteScope->coversAllSites(array_map('intval', (array)$siteIds))) {
+			return ['and'];
+		}
+
+		return ['exists', (new Query())
+			->from(['hubSites' => Table::ELEMENTS_SITES])
+			->where('[[hubSites.elementId]] = [[elements.id]]')
+			->andWhere(['hubSites.siteId' => $siteIds])];
 	}
 
 	/**

@@ -8,6 +8,15 @@ use SomehowDigital\Craft\Hub\services\QueryService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 use SomehowDigital\Craft\Hub\Tests\Support\FakeQueryService;
 
+/** what keeps the rows of a query apart from what's done with them on PostgreSQL */
+const QUERY_FENCE = 'OFFSET 0';
+
+/** what ranks the sites of elements to page them */
+const QUERY_RANK = 'ROW_NUMBER()';
+
+/** what tells whether a query matches anything */
+const QUERY_FIRST_ROW = 'LIMIT 1';
+
 beforeEach(function () {
 	$this->site(2, 'de');
 	$this->queries = new FakeQueryService();
@@ -67,9 +76,9 @@ it('keeps the rows of elements on a single site apart from the counts on Postgre
 	$queries->count(Entry::find()->siteId(2), ['typeId' => 'entries.typeId'], ['live' => ['elements.enabled' => true]]);
 	$queries->count(Entry::find()->siteId([1, 2]), ['typeId' => 'entries.typeId'], ['live' => ['elements.enabled' => true]]);
 
-	expect(str_contains($this->db()->counts()[0], 'OFFSET 0'))->toBe($fenced)
+	expect(str_contains($this->db()->counts()[0], QUERY_FENCE))->toBe($fenced)
 		// Elements on several sites are grouped, which keeps them apart already.
-		->and($this->db()->counts()[1])->not->toContain('OFFSET 0');
+		->and($this->db()->counts()[1])->not->toContain(QUERY_FENCE);
 })->with([
 	'MySQL' => ['mysql', false],
 	'PostgreSQL' => ['pgsql', true],
@@ -80,17 +89,40 @@ it('ranks the sites of elements on several sites to page them', function () {
 
 	$sql = $this->db()->queriesMatching('hubRank')[0];
 
-	expect($sql)->toContain('ROW_NUMBER() OVER (PARTITION BY `elements`.`id`')
+	expect($sql)->toContain(QUERY_RANK . ' OVER (PARTITION BY `elements`.`id`')
 		->and($sql)->toContain('ORDER BY `hubSort0` DESC')
 		->and($sql)->toContain('LIMIT 25 OFFSET 50');
 });
+
+it('skips pages past the elements a query matches', function () {
+	expect($this->queries->pageIds(Entry::find()->siteId([2]), 50, 25, 50))->toBe([])
+		->and($this->queries->pageIds(Entry::find()->siteId([1, 2]), 75, 25, 60))->toBe([])
+		->and($this->db()->queriesMatching('hubId'))->toBe([]);
+});
+
+it('sorts the pages of elements on a single site holding the last of them once all are found', function (string $driver, int $total, ?string $fence) {
+	$this->createApp($driver);
+	$this->site(2, 'de');
+	(new FakeQueryService())->pageIds(Entry::find()->siteId([2])->orderBy(['elements.dateCreated' => SORT_DESC, 'elements.id' => SORT_DESC]), 0, 25, $total);
+
+	$sql = $this->db()->queriesMatching('hubId')[0];
+	$quote = fn (string $sql) => $driver === 'pgsql' ? str_replace('`', '"', $sql) : $sql;
+
+	expect($sql)->toContain($quote($fence !== null ? 'ORDER BY `hubSort0` DESC, `hubSort1` DESC' : 'ORDER BY `elements`.`dateCreated` DESC, `elements`.`id` DESC'))
+		->and($fence !== null ? str_contains($sql, $quote("$fence) `hubRows`")) : !str_contains($sql, 'hubRows'))->toBeTrue()
+		->and($sql)->toEndWith('LIMIT 25');
+})->with([
+	'the last of them on MySQL' => ['mysql', 25, 'LIMIT ' . PHP_INT_MAX],
+	'the last of them on PostgreSQL' => ['pgsql', 25, QUERY_FENCE],
+	'more than the page' => ['mysql', 26, null],
+]);
 
 it('pages elements on a single site without ranking their sites', function () {
 	$this->queries->pageIds(Entry::find()->siteId([2])->orderBy(['elements.dateUpdated' => SORT_DESC, 'elements.id' => SORT_DESC]), 50, 25);
 
 	$sql = $this->db()->queriesMatching('hubId')[0];
 
-	expect($sql)->not->toContain('ROW_NUMBER()')
+	expect($sql)->not->toContain(QUERY_RANK)
 		->and($sql)->toContain('ORDER BY `elements`.`dateUpdated` DESC, `elements`.`id` DESC')
 		->and($sql)->toContain('LIMIT 25 OFFSET 50');
 });
@@ -109,6 +141,43 @@ describe('elements without criteria depending on their site', function () {
 					->andWhere($query->where ?? []);
 			}
 		};
+
+		// Not all sites, as the sites of elements on all of them aren't matched.
+		$this->site(3, 'fr');
+	});
+
+	it('leaves out matching their sites on all sites, as every element is on one of them', function () {
+		$this->queries->pageIds(Entry::find()->siteId([1, 2, 3])->orderBy(['elements.dateUpdated' => SORT_DESC]), 0, 25);
+		$this->queries->count(Entry::find()->siteId([3, 2, 1]), ['kind' => 'assets.kind']);
+
+		foreach ([$this->db()->queriesMatching('hubId')[0], $this->db()->counts()[0]] as $sql) {
+			expect($sql)->not->toContain('hubSites')
+				->and($sql)->not->toContain('elements_sites')
+				->and($sql)->not->toContain(QUERY_RANK);
+		}
+	});
+
+	it('tells whether any of them matches by the first row found', function () {
+		$this->db()->respond(QUERY_FIRST_ROW, fn (string $sql) => str_contains($sql, 'IN (1, 2)') ? [['hubId' => '5']] : []);
+		$rows = (new ReflectionMethod($this->queries, 'rows'))->getClosure($this->queries);
+
+		// Rows like those of the other tests, of the service itself rather than the fake answering whether queries match.
+		$queries = new class($rows) extends QueryService {
+			public function __construct(private Closure $elementRows)
+			{
+				parent::__construct();
+			}
+
+			protected function rows(ElementQuery $query): Query
+			{
+				return ($this->elementRows)($query);
+			}
+		};
+
+		expect($queries->exists(Entry::find()->siteId([1, 2])))->toBeTrue()
+			->and($queries->exists(Entry::find()->siteId([1, 3])))->toBeFalse()
+			->and($this->db()->queriesMatching(QUERY_FIRST_ROW)[0])->toContain('EXISTS (SELECT *')
+			->and($this->db()->queriesMatching(QUERY_FIRST_ROW)[0])->not->toContain('COUNT(');
 	});
 
 	it('pages them by a row of each, matching their sites with a subquery', function () {
@@ -116,7 +185,7 @@ describe('elements without criteria depending on their site', function () {
 
 		$sql = $this->db()->queriesMatching('hubId')[0];
 
-		expect($sql)->not->toContain('ROW_NUMBER()')
+		expect($sql)->not->toContain(QUERY_RANK)
 			->and($sql)->not->toContain('JOIN `elements_sites`')
 			->and($sql)->toContain('EXISTS (SELECT *')
 			->and($sql)->toContain('`hubSites`.`siteId` IN (1, 2)')
