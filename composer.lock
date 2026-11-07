@@ -4691,16 +4691,16 @@
         },
         {
             "name": "symfony/filesystem",
-            "version": "v8.1.9",
+            "version": "v8.1.11",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/filesystem.git",
-                "reference": "43d109c803d22c00bb820ed45df250b6a8792ca2"
+                "reference": "58f57b6a33e3495f7f41e01258f1ae5ef76cccd2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/filesystem/zipball/43d109c803d22c00bb820ed45df250b6a8792ca2",
-                "reference": "43d109c803d22c00bb820ed45df250b6a8792ca2",
+                "url": "https://api.github.com/repos/symfony/filesystem/zipball/58f57b6a33e3495f7f41e01258f1ae5ef76cccd2",
+                "reference": "58f57b6a33e3495f7f41e01258f1ae5ef76cccd2",
                 "shasum": ""
             },
             "require": {
@@ -4738,7 +4738,7 @@
             "description": "Provides basic utilities for the filesystem",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/filesystem/tree/v8.1.9"
+                "source": "https://github.com/symfony/filesystem/tree/v8.1.11"
             },
             "funding": [
                 {
@@ -4758,8 +4758,8 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-10-06T20:05:50+00:00",
-            "published-time": "2026-10-14T06:48:55+00:00"
+            "time": "2026-11-04T08:39:20+00:00",
+            "published-time": "2026-11-04T11:32:01+00:00"
         },
         {
             "name": "symfony/http-client",
@@ -12205,16 +12205,16 @@
         },
         {
             "name": "symplify/easy-coding-standard",
-            "version": "13.3.13",
+            "version": "13.3.14",
             "source": {
                 "type": "git",
                 "url": "https://github.com/ecsphp/ecs.git",
-                "reference": "ceb2ac9fd79dc30841dbecb4e259f88ceb9d5600"
+                "reference": "c6a379b5d5cce68c60d2dbd1211989bdf58eacaf"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/ecsphp/ecs/zipball/ceb2ac9fd79dc30841dbecb4e259f88ceb9d5600",
-                "reference": "ceb2ac9fd79dc30841dbecb4e259f88ceb9d5600",
+                "url": "https://api.github.com/repos/ecsphp/ecs/zipball/c6a379b5d5cce68c60d2dbd1211989bdf58eacaf",
+                "reference": "c6a379b5d5cce68c60d2dbd1211989bdf58eacaf",
                 "shasum": ""
             },
             "require": {
@@ -12247,10 +12247,10 @@
             ],
             "support": {
                 "issues": "https://github.com/ecsphp/ecs/issues",
-                "source": "https://github.com/ecsphp/ecs/tree/13.3.13"
+                "source": "https://github.com/ecsphp/ecs/tree/13.3.14"
             },
-            "time": "2026-11-02T22:11:38+00:00",
-            "published-time": "2026-11-02T22:31:00+00:00"
+            "time": "2026-11-05T16:53:58+00:00",
+            "published-time": "2026-11-05T16:54:06+00:00"
         },
         {
             "name": "ta-tikoma/phpunit-architecture-test",
