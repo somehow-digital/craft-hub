@@ -15,6 +15,7 @@ use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\SavedFilter;
 use SomehowDigital\Craft\Hub\services\ActivityService;
+use SomehowDigital\Craft\Hub\services\FilterService;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
@@ -24,7 +25,7 @@ beforeEach(function (): void {
 	$this->createContentModel();
 
 	// Filters offered to everyone have no user; the others are those of user 1.
-	$this->db()->respond('FROM {{%hub_filters}}', fn(string $sql): array => str_contains($sql, '`userId` IS NULL') ? [
+	$this->db()->respond('FROM ' . FilterService::TABLE, fn(string $sql): array => str_contains($sql, GLOBAL_FILTERS) ? [
 		['id' => 1, 'kind' => 'sections', 'handle' => 'empty', 'userId' => null, 'name' => null, 'description' => null, 'icon' => null, 'params' => null, 'matchCondition' => null, 'enabled' => 1, 'sortOrder' => 1, 'uid' => 'empty'],
 		[
 			'id' => 2, 'kind' => 'sections', 'handle' => null, 'userId' => null, 'name' => 'Public', 'description' => 'With URLs.', 'icon' => null, 'params' => null,
@@ -117,7 +118,7 @@ it('saves only the name and whether a predefined filter is enabled', function ()
 });
 
 it('saves the threshold of a predefined filter, or clears it for its default', function (): void {
-	$this->db()->respond('FROM {{%hub_filters}}', [thresholdRow('sections', 'stale', 6)]);
+	$this->db()->respond('FROM ' . FilterService::TABLE, [thresholdRow('sections', 'stale', 6)]);
 	$id = crc32('sections.stale');
 
 	($this->post)('save', ['filterId' => $id, 'threshold' => '3']);
@@ -144,7 +145,7 @@ it('deletes no custom filter whose items checks flag', function (): void {
 
 	expect($response->getStatusCode())->toBe(400)
 		->and($response->data['message'])->toContain('Public')
-		->and($this->db()->queriesMatching('DELETE FROM {{%hub_filters}}'))->toBe([]);
+		->and($this->db()->queriesMatching('DELETE FROM ' . FilterService::TABLE))->toBe([]);
 });
 
 it('saves no filter of an unknown kind', function (): void {
@@ -154,7 +155,7 @@ it('saves no filter of an unknown kind', function (): void {
 it('deletes custom filters, but no predefined ones', function (): void {
 	($this->post)('delete', ['id' => 2]);
 
-	expect($this->db()->queriesMatching('DELETE FROM {{%hub_filters}}')[0])->toContain('`id`=2');
+	expect($this->db()->queriesMatching('DELETE FROM ' . FilterService::TABLE)[0])->toContain('`id`=2');
 
 	($this->post)('delete', ['id' => 1]);
 })->throws(BadRequestHttpException::class);
@@ -214,7 +215,7 @@ it('fails to save an own filter without filters or a name', function (array $bod
 ]);
 
 it('renames and deletes the own filters of the user only', function (): void {
-	$this->db()->respond('DELETE FROM {{%hub_filters}}', 1);
+	$this->db()->respond('DELETE FROM ' . FilterService::TABLE, 1);
 
 	$renamed = ($this->post)('rename-own', ['kind' => 'sections', 'id' => 5, 'name' => 'All channels'])->data;
 	$deleted = ($this->post)('delete-own', ['kind' => 'sections', 'id' => 5])->data;
@@ -222,7 +223,7 @@ it('renames and deletes the own filters of the user only', function (): void {
 	expect($renamed['message'])->toBe('Filter renamed.')
 		->and($this->db()->queriesMatching('UPDATE {{%hub_filters}}')[0])->toContain("'All channels'")
 		->and($deleted['message'])->toBe('Filter deleted.')
-		->and($this->db()->queriesMatching('DELETE FROM {{%hub_filters}}')[0])->toContain('`id`=5')->toContain('`userId`=1');
+		->and($this->db()->queriesMatching('DELETE FROM ' . FilterService::TABLE)[0])->toContain('`id`=5')->toContain('`userId`=1');
 });
 
 it('renames no own filter of another kind', function (): void {
@@ -251,7 +252,7 @@ it('ignores unknown custom filters in the list', function (): void {
 });
 
 it('renames no own filter to the name of another one', function (): void {
-	$this->db()->respond('FROM {{%hub_filters}}', fn(string $sql): array => str_contains($sql, '`userId` IS NULL') ? [] : [
+	$this->db()->respond('FROM ' . FilterService::TABLE, fn(string $sql): array => str_contains($sql, GLOBAL_FILTERS) ? [] : [
 		['id' => 5, 'kind' => 'sections', 'handle' => null, 'userId' => 1, 'name' => 'Channels', 'description' => null, 'icon' => null, 'params' => Json::encode(['type' => 'channel']), 'matchCondition' => null, 'enabled' => 1, 'sortOrder' => 0, 'uid' => 'channels'],
 		['id' => 6, 'kind' => 'sections', 'handle' => null, 'userId' => 1, 'name' => 'Singles', 'description' => null, 'icon' => null, 'params' => Json::encode(['type' => 'single']), 'matchCondition' => null, 'enabled' => 1, 'sortOrder' => 1, 'uid' => 'singles'],
 	]);

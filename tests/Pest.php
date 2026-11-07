@@ -8,6 +8,9 @@ use SomehowDigital\Craft\Hub\Tests\TestCase;
 
 pest()->extend(TestCase::class)->in('Unit', 'Feature');
 
+/** The condition by which the queries of the filters select the predefined ones, which belong to no user. */
+const GLOBAL_FILTERS = '`userId` IS NULL';
+
 /**
  * The SQL of a query, with its params filled in.
  */

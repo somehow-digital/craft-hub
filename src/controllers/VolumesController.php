@@ -26,11 +26,14 @@ use yii\web\Response;
  */
 class VolumesController extends BaseController
 {
+	/** The path of the list. */
+	private const PATH = 'hub/structure/volumes';
+
 	protected ?Page $page = Page::Volumes;
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/structure/volumes')) instanceof Response) {
+		if (($redirect = $this->keepFilters(self::PATH)) instanceof Response) {
 			return $redirect;
 		}
 
@@ -40,7 +43,7 @@ class VolumesController extends BaseController
 		$all = $hub->volumes->getVolumes();
 
 		// While reviewing the selection, the filters don't apply.
-		$selection = ListSelection::fromRequest(ColumnService::LIST_VOLUMES, 'hub/structure/volumes');
+		$selection = ListSelection::fromRequest(ColumnService::LIST_VOLUMES, self::PATH);
 		/** @var VolumeFilter $filter */
 		$filter = $selection->review ? new VolumeFilter() : $this->listFilterFromRequest(CheckKind::Volumes);
 		$sort = ListSort::fromRequest($lists->getVolumeSortColumns(), ListService::SORT_NAME);
@@ -55,10 +58,10 @@ class VolumesController extends BaseController
 				'fileKinds' => $fileKinds,
 				'filter' => $filter,
 				'columns' => $columns,
-				...$this->savedFilterVariables(CheckKind::Volumes, 'hub/structure/volumes', $filter->savedFilter),
+				...$this->savedFilterVariables(CheckKind::Volumes, self::PATH, $filter->savedFilter),
 				...$this->labelVariables(ColumnService::LIST_VOLUMES, array_keys($volumes)),
 				...$selection->variables($filter),
-				...$sort->variables('hub/structure/volumes'),
+				...$sort->variables(self::PATH),
 			],
 		]);
 	}

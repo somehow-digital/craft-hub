@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
+use craft\db\Table;
 use craft\elements\Asset;
 use craft\elements\db\ElementQuery;
 use craft\elements\Entry;
@@ -48,7 +49,7 @@ it('previews the entries the user may delete, with the nested entries and drafts
 	// One level of nested entries, then none.
 	$this->db()->respond('[[entries.primaryOwnerId]]', fn(string $sql): int => substr_count($sql, 'primaryOwnerId') > 1 ? 0 : 3);
 	$this->db()->respond('INNER JOIN {{%drafts}}', 2);
-	$this->db()->respond('FROM {{%structureelements}}', fn(string $sql): array|int => str_contains($sql, 'COUNT(') ? 4 : []);
+	$this->db()->respond('FROM ' . Table::STRUCTUREELEMENTS, fn(string $sql): array|int => str_contains($sql, 'COUNT(') ? 4 : []);
 
 	$preview = $this->service->getPreview('entries', [1, 2, 3]);
 
@@ -58,7 +59,7 @@ it('previews the entries the user may delete, with the nested entries and drafts
 		->and(($this->effects)($preview, DeletionPreview::TONE_DELETED))->toBe(['3 Nested entries', '2 Drafts'])
 		->and(($this->effects)($preview, DeletionPreview::TONE_CHANGED))->toBe(['4 Child entries moved up'])
 		->and(($this->groups)($preview->items[0]))->toBe(['1 Nested entry (1)', '1 Draft (1)'])
-		->and($this->db()->queriesMatching('FROM {{%structureelements}}')[0])->toContain('NOT (`children`.`elementId`=1)');
+		->and($this->db()->queriesMatching('FROM ' . Table::STRUCTUREELEMENTS)[0])->toContain('NOT (`children`.`elementId`=1)');
 });
 
 it('lists the elements referencing each entry, apart from those deleted along with them', function (): void {
@@ -89,7 +90,7 @@ it('moves up the children of the entries shown that stay, reading them at once',
 		default => [($this->entry)(7)],
 	});
 	Craft::$app->getElements()->shouldReceive('canDelete')->andReturn(true);
-	$this->db()->respond('FROM {{%structureelements}}', fn(string $sql): array|int => str_contains($sql, 'COUNT(') ? 1 : [['parentId' => 2, 'childId' => 7]]);
+	$this->db()->respond('FROM ' . Table::STRUCTUREELEMENTS, fn(string $sql): array|int => str_contains($sql, 'COUNT(') ? 1 : [['parentId' => 2, 'childId' => 7]]);
 
 	$preview = $this->service->getPreview('entries', [1, 2]);
 

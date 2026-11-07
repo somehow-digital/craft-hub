@@ -538,7 +538,7 @@ parameters:
 			path: src/controllers/BaseController.php
 
 		-
-			rawMessage: 'Cognitive complexity for "SomehowDigital\Craft\Hub\controllers\BaseController::entryListVariables()" is 38, keep it under 9'
+			rawMessage: 'Cognitive complexity for "SomehowDigital\Craft\Hub\controllers\BaseController::entryListVariables()" is 34, keep it under 9'
 			identifier: complexity.functionLike
 			count: 1
 			path: src/controllers/BaseController.php
@@ -7643,12 +7643,6 @@ parameters:
 
 		-
 			rawMessage: 'Parameter #2 $results of static method SomehowDigital\Craft\Hub\Tests\Support\ElementQueries::respond() expects array<int, mixed>|(callable(craft\elements\db\ElementQuery): array<int, mixed>), Closure(craft\elements\db\EntryQuery): array{craft\elements\Entry} given.'
-			identifier: argument.type
-			count: 1
-			path: tests/Feature/Controllers/EntriesControllerTest.php
-
-		-
-			rawMessage: 'Parameter #2 $results of static method SomehowDigital\Craft\Hub\Tests\Support\ElementQueries::respond() expects array<int, mixed>|(callable(craft\elements\db\ElementQuery): array<int, mixed>), Closure(craft\elements\db\EntryQuery): array{} given.'
 			identifier: argument.type
 			count: 1
 			path: tests/Feature/Controllers/EntriesControllerTest.php

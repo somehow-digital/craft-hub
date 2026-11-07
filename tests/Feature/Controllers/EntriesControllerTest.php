@@ -69,7 +69,7 @@ it('lists the entries', function (): void {
 });
 
 it('shows the users picked in its filters', function (): void {
-	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray ? [] : []);
+	ElementQueries::respond(Entry::class, []);
 	ElementQueries::respond(User::class, [new User(['id' => 4, 'siteId' => 1, 'username' => 'jane'])]);
 
 	$variables = $this->runAction(EntriesController::class, 'index', query: ['author' => 'me,4', 'editor' => 'me'])->variables;

@@ -27,11 +27,14 @@ use yii\web\Response;
  */
 class TypesController extends BaseController
 {
+	/** The path of the list. */
+	private const PATH = 'hub/structure/entry-types';
+
 	protected ?Page $page = Page::EntryTypes;
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/structure/entry-types')) instanceof Response) {
+		if (($redirect = $this->keepFilters(self::PATH)) instanceof Response) {
 			return $redirect;
 		}
 
@@ -41,7 +44,7 @@ class TypesController extends BaseController
 		$all = $hub->structure->getEntryTypes();
 
 		// While reviewing the selection, the filters don't apply.
-		$selection = ListSelection::fromRequest(ColumnService::LIST_ENTRY_TYPES, 'hub/structure/entry-types');
+		$selection = ListSelection::fromRequest(ColumnService::LIST_ENTRY_TYPES, self::PATH);
 		/** @var EntryTypeFilter $filter */
 		$filter = $selection->review ? new EntryTypeFilter() : $this->listFilterFromRequest(CheckKind::EntryTypes);
 		$sort = ListSort::fromRequest($lists->getEntryTypeSortColumns(), ListService::SORT_NAME);
@@ -58,10 +61,10 @@ class TypesController extends BaseController
 				'activities' => in_array('updated', $shown, true) ? array_map(fn(EntryTypeInfo $info): string => $info->stats->getActivity($months), $entryTypes) : [],
 				'filter' => $filter,
 				'columns' => $columns,
-				...$this->savedFilterVariables(CheckKind::EntryTypes, 'hub/structure/entry-types', $filter->savedFilter),
+				...$this->savedFilterVariables(CheckKind::EntryTypes, self::PATH, $filter->savedFilter),
 				...$this->labelVariables(ColumnService::LIST_ENTRY_TYPES, array_keys($entryTypes)),
 				...$selection->variables($filter),
-				...$sort->variables('hub/structure/entry-types'),
+				...$sort->variables(self::PATH),
 			],
 		]);
 	}

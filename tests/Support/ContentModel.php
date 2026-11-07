@@ -60,11 +60,12 @@ trait ContentModel
 		// Layouts of element types that no longer exist are left out.
 		$this->layouts[] = $this->layout('Missing\\Element', 'missing', [$summary]);
 
+		$ago = fn(string $modifier): string => (new DateTime($modifier))->format('Y-m-d H:i:s');
 		$this->db()->respondToEntryRows([
-			['sectionId' => 1, 'typeId' => 10, 'fieldId' => null, 'total' => 5, 'enabled' => 4, 'pending' => 1, 'expired' => 1, 'drafts' => 1, 'lastUpdated' => (new DateTime('-1 month'))->format('Y-m-d H:i:s')],
-			['sectionId' => 2, 'typeId' => 11, 'fieldId' => null, 'total' => 2, 'enabled' => 2, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => (new DateTime('-2 months'))->format('Y-m-d H:i:s')],
-			['sectionId' => 3, 'typeId' => 11, 'fieldId' => null, 'total' => 1, 'enabled' => 1, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => (new DateTime('-2 years'))->format('Y-m-d H:i:s')],
-			['sectionId' => null, 'typeId' => 12, 'fieldId' => 2, 'total' => 7, 'enabled' => 7, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => (new DateTime('-1 month'))->format('Y-m-d H:i:s')],
+			['sectionId' => 1, 'typeId' => 10, 'fieldId' => null, 'total' => 5, 'enabled' => 4, 'pending' => 1, 'expired' => 1, 'drafts' => 1, 'lastUpdated' => $ago('-1 month')],
+			['sectionId' => 2, 'typeId' => 11, 'fieldId' => null, 'total' => 2, 'enabled' => 2, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => $ago('-2 months')],
+			['sectionId' => 3, 'typeId' => 11, 'fieldId' => null, 'total' => 1, 'enabled' => 1, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => $ago('-2 years')],
+			['sectionId' => null, 'typeId' => 12, 'fieldId' => 2, 'total' => 7, 'enabled' => 7, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => $ago('-1 month')],
 		]);
 
 		// Only the relations by field and target, not the relations of single elements.

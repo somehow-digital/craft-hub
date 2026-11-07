@@ -50,7 +50,7 @@ afterEach(function (): void {
  */
 function maintained(array $rows): void
 {
-	test()->db()->respond('FROM {{%hub_maintainers}}', array_map(fn(array $row): array => [
+	test()->db()->respond('FROM ' . MaintainerService::TABLE, array_map(fn(array $row): array => [
 		'list' => $row[0],
 		'itemId' => $row[1],
 		'userId' => $row[2],
@@ -79,7 +79,7 @@ it('has no maintainers for items without any, and reads them once', function ():
 
 	expect($this->maintainers->getMaintainers(ColumnService::LIST_FIELDS, 1))->toBe(['users' => [], 'groups' => []])
 		->and($this->maintainers->getMaintainers(ColumnService::LIST_SECTIONS, 2))->toBe(['users' => [], 'groups' => []])
-		->and($this->db()->queriesMatching('FROM {{%hub_maintainers}}'))->toHaveCount(1);
+		->and($this->db()->queriesMatching('FROM ' . MaintainerService::TABLE))->toHaveCount(1);
 });
 
 it('finds what an entry in a section is stored in', function (): void {
@@ -154,7 +154,7 @@ it('finds no maintainers of other elements, nor of anything while disabled', fun
 
 	expect($this->maintainers->getSources($entry))->toBe([])
 		->and($this->maintainers->getMaintainersOf($entry))->toBe(['users' => [], 'groups' => []])
-		->and($this->db()->queriesMatching('{{%hub_maintainers}}'))->toBe([]);
+		->and($this->db()->queriesMatching(MaintainerService::TABLE))->toBe([]);
 
 	$this->hub()->getSettings()->enableMaintainers = true;
 
@@ -167,10 +167,10 @@ it('replaces the maintainers of an item, leaving out unknown ones, and records t
 	$entries->shouldReceive('getSectionById')->with(1)->andReturn($section);
 
 	$rows = [[ColumnService::LIST_SECTIONS, 1, 3, null]];
-	$this->db()->respond('FROM {{%hub_maintainers}}', function () use (&$rows): array {
+	$this->db()->respond('FROM ' . MaintainerService::TABLE, function () use (&$rows): array {
 		return array_map(fn(array $row): array => ['list' => $row[0], 'itemId' => $row[1], 'userId' => $row[2], 'groupId' => $row[3]], $rows);
 	});
-	$this->db()->respond('DELETE FROM {{%hub_maintainers}}', function () use (&$rows): int {
+	$this->db()->respond('DELETE FROM ' . MaintainerService::TABLE, function () use (&$rows): int {
 		$rows = [
 			[ColumnService::LIST_SECTIONS, 1, 4, null],
 			[ColumnService::LIST_SECTIONS, 1, null, 7],
@@ -187,7 +187,7 @@ it('replaces the maintainers of an item, leaving out unknown ones, and records t
 
 	$this->maintainers->setMaintainers(ColumnService::LIST_SECTIONS, 1, [4, 9, 4], [7, 8]);
 
-	$insert = $this->db()->queriesMatching('INSERT INTO {{%hub_maintainers}}')[0];
+	$insert = $this->db()->queriesMatching('INSERT INTO ' . MaintainerService::TABLE)[0];
 
 	expect($insert)->toContain("('sections', 1, 4, NULL)")
 		->and($insert)->toContain("('sections', 1, NULL, 7)")
@@ -201,8 +201,8 @@ it('removes all maintainers of an item, recording nothing if it had none', funct
 
 	$this->maintainers->setMaintainers(ColumnService::LIST_SECTIONS, 1, [], []);
 
-	expect($this->db()->queriesMatching('DELETE FROM {{%hub_maintainers}}'))->toHaveCount(1)
-		->and($this->db()->queriesMatching('INSERT INTO {{%hub_maintainers}}'))->toBe([]);
+	expect($this->db()->queriesMatching('DELETE FROM ' . MaintainerService::TABLE))->toHaveCount(1)
+		->and($this->db()->queriesMatching('INSERT INTO ' . MaintainerService::TABLE))->toBe([]);
 });
 
 it('finds the items of the lists', function (): void {
@@ -245,7 +245,7 @@ it('lets users manage the maintainers of the lists whose pages they may view, wh
 it('removes the maintainers of items no longer there, per list', function (): void {
 	$this->maintainers->deleteOrphans();
 
-	$deleted = $this->db()->queriesMatching('DELETE FROM {{%hub_maintainers}}');
+	$deleted = $this->db()->queriesMatching('DELETE FROM ' . MaintainerService::TABLE);
 
 	expect($deleted)->toHaveCount(4)
 		->and($deleted[0])->toContain("'sections'")
@@ -256,7 +256,7 @@ it('tells what a user maintains, themselves or through their groups', function (
 	$group = new UserGroup(['id' => 7, 'name' => 'Editors']);
 	$section = new Section(['id' => 1, 'name' => 'News']);
 	$field = new PlainText(['id' => 2, 'name' => 'Body']);
-	$this->db()->respond('FROM {{%hub_maintainers}}', [
+	$this->db()->respond('FROM ' . MaintainerService::TABLE, [
 		['list' => ColumnService::LIST_SECTIONS, 'itemId' => 1, 'userId' => 3, 'groupId' => null],
 		['list' => ColumnService::LIST_FIELDS, 'itemId' => 2, 'userId' => null, 'groupId' => 7],
 		['list' => ColumnService::LIST_FIELDS, 'itemId' => 9, 'userId' => 3, 'groupId' => null],
@@ -285,7 +285,7 @@ it('tells what a user maintains, themselves or through their groups', function (
 it('tells what a user group maintains', function (): void {
 	$group = new UserGroup(['id' => 7, 'name' => 'Editors']);
 	$field = new PlainText(['id' => 2, 'name' => 'Body']);
-	$this->db()->respond('FROM {{%hub_maintainers}}', [
+	$this->db()->respond('FROM ' . MaintainerService::TABLE, [
 		['list' => ColumnService::LIST_SECTIONS, 'itemId' => 1, 'userId' => 3, 'groupId' => null],
 		['list' => ColumnService::LIST_FIELDS, 'itemId' => 2, 'userId' => null, 'groupId' => 7],
 		['list' => ColumnService::LIST_FIELDS, 'itemId' => 9, 'userId' => null, 'groupId' => 7],

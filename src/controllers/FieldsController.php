@@ -27,11 +27,14 @@ use yii\web\Response;
  */
 class FieldsController extends BaseController
 {
+	/** The path of the list. */
+	private const PATH = 'hub/structure/fields';
+
 	protected ?Page $page = Page::Fields;
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/structure/fields')) instanceof Response) {
+		if (($redirect = $this->keepFilters(self::PATH)) instanceof Response) {
 			return $redirect;
 		}
 
@@ -53,7 +56,7 @@ class FieldsController extends BaseController
 		uasort($types, fn(array $a, array $b): int => strnatcasecmp($a['label'], $b['label']));
 
 		// While reviewing the selection, the filters don't apply.
-		$selection = ListSelection::fromRequest(ColumnService::LIST_FIELDS, 'hub/structure/fields');
+		$selection = ListSelection::fromRequest(ColumnService::LIST_FIELDS, self::PATH);
 		/** @var FieldFilter $filter */
 		$filter = $selection->review ? new FieldFilter() : $this->listFilterFromRequest(CheckKind::Fields);
 		$sort = ListSort::fromRequest($lists->getFieldSortColumns(), ListService::SORT_NAME);
@@ -71,10 +74,10 @@ class FieldsController extends BaseController
 				'data' => in_array('data', $shown, true) ? array_map($lists->getFieldData(...), $fields) : [],
 				'filter' => $filter,
 				'columns' => $columns,
-				...$this->savedFilterVariables(CheckKind::Fields, 'hub/structure/fields', $filter->savedFilter),
+				...$this->savedFilterVariables(CheckKind::Fields, self::PATH, $filter->savedFilter),
 				...$this->labelVariables(ColumnService::LIST_FIELDS, array_keys($fields)),
 				...$selection->variables($filter),
-				...$sort->variables('hub/structure/fields'),
+				...$sort->variables(self::PATH),
 			],
 		]);
 	}

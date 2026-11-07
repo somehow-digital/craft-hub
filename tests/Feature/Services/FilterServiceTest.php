@@ -20,7 +20,7 @@ beforeEach(function (): void {
 	$this->createContentModel();
 
 	// Filters offered to everyone have no user; the others are those of user 1.
-	$this->db()->respond('FROM {{%hub_filters}}', fn(string $sql): array => str_contains($sql, '`userId` IS NULL') ? [
+	$this->db()->respond('FROM ' . FilterService::TABLE, fn(string $sql): array => str_contains($sql, GLOBAL_FILTERS) ? [
 		['id' => 1, 'kind' => 'sections', 'handle' => 'withoutUrls', 'userId' => null, 'name' => 'Hidden', 'description' => null, 'icon' => null, 'params' => null, 'matchCondition' => null, 'enabled' => 1, 'sortOrder' => 1, 'uid' => 'without-urls'],
 		[
 			'id' => 2, 'kind' => 'sections', 'handle' => null, 'userId' => null, 'name' => 'Public', 'description' => 'With URLs.', 'icon' => 'globe', 'params' => null,
@@ -57,7 +57,7 @@ it('lists the predefined filters of each kind in their own order, configured one
 });
 
 it('offers the predefined filters with their configured thresholds, or their defaults', function (): void {
-	$this->db()->respond('FROM {{%hub_filters}}', [thresholdRow('assets', 'large', 12)]);
+	$this->db()->respond('FROM ' . FilterService::TABLE, [thresholdRow('assets', 'large', 12)]);
 	$large = $this->filters->getFilter(CheckKind::Assets, 'large');
 
 	expect($large->params)->toBe(['sizeMin' => '12'])
@@ -134,7 +134,7 @@ it('saves a new custom filter last in the order of its kind, with its condition'
 
 	expect($this->filters->saveFilter($filter))->toBeTrue()
 		->and($filter->uid)->not->toBeNull()
-		->and($this->db()->queriesMatching('INSERT INTO {{%hub_filters}}')[0])->toContain("'Public'")->toContain('HasUrlsConditionRule')->toContain('`userId`');
+		->and($this->db()->queriesMatching('INSERT INTO ' . FilterService::TABLE)[0])->toContain("'Public'")->toContain('HasUrlsConditionRule')->toContain('`userId`');
 });
 
 it('saves the own filter of a user with its filters', function (): void {
@@ -142,7 +142,7 @@ it('saves the own filter of a user with its filters', function (): void {
 
 	expect($this->filters->saveFilter($filter))->toBeTrue()
 		->and($filter->sortOrder)->toBe(0)
-		->and($this->db()->queriesMatching('INSERT INTO {{%hub_filters}}')[0])->toContain('{\"type\":\"channel\"}')->toContain('`matchCondition`');
+		->and($this->db()->queriesMatching('INSERT INTO ' . FilterService::TABLE)[0])->toContain('{\"type\":\"channel\"}')->toContain('`matchCondition`');
 });
 
 it('saves only the name and whether a predefined filter is enabled', function (): void {
@@ -153,7 +153,7 @@ it('saves only the name and whether a predefined filter is enabled', function ()
 
 	expect($this->filters->saveFilter($filter))->toBeTrue();
 
-	$update = $this->db()->queriesMatching('UPDATE {{%hub_filters}}')[0];
+	$update = $this->db()->queriesMatching('UPDATE ' . FilterService::TABLE)[0];
 
 	expect($update)->toContain('`name`=NULL')->toContain('`enabled`=FALSE')->not->toContain('bogus');
 });
@@ -169,16 +169,16 @@ it('fails to save custom filters without a rule and own filters without filters'
 		->and($own->getErrors())->toHaveKey('params')
 		->and($this->filters->saveFilter($unnamed))->toBeFalse()
 		->and($unnamed->getErrors())->toHaveKey('name')
-		->and($this->db()->queriesMatching('INSERT INTO {{%hub_filters}}'))->toBe([]);
+		->and($this->db()->queriesMatching('INSERT INTO ' . FilterService::TABLE))->toBe([]);
 });
 
 it('deletes custom filters, or the own ones of a user', function (): void {
 	$this->filters->deleteFilterById(2);
 	$this->filters->deleteFilterById(5, 1);
 
-	$deletes = $this->db()->queriesMatching('DELETE FROM {{%hub_filters}}');
+	$deletes = $this->db()->queriesMatching('DELETE FROM ' . FilterService::TABLE);
 
-	expect($deletes[0])->toContain('`id`=2')->toContain('`handle` IS NULL')->toContain('`userId` IS NULL')
+	expect($deletes[0])->toContain('`id`=2')->toContain('`handle` IS NULL')->toContain(GLOBAL_FILTERS)
 		->and($deletes[1])->toContain('`id`=5')->toContain('`userId`=1');
 });
 
@@ -186,12 +186,12 @@ it('reorders the filters offered to everyone and gives the predefined ones a row
 	$this->filters->reorderFilters([2, 1]);
 	$this->filters->saveDefaults();
 
-	expect($this->db()->queriesMatching('UPDATE {{%hub_filters}}')[0])->toContain('`sortOrder`=1')->toContain('`id`=2')->toContain('`userId` IS NULL')
-		->and($this->db()->queriesMatching('INSERT INTO {{%hub_filters}}'))->toHaveCount(33);
+	expect($this->db()->queriesMatching('UPDATE ' . FilterService::TABLE)[0])->toContain('`sortOrder`=1')->toContain('`id`=2')->toContain(GLOBAL_FILTERS)
+		->and($this->db()->queriesMatching('INSERT INTO ' . FilterService::TABLE))->toHaveCount(33);
 });
 
 it('narrows the elements to those a custom filter matches, on the selected sites', function (): void {
-	$this->db()->respond('FROM {{%hub_filters}}', [[
+	$this->db()->respond('FROM ' . FilterService::TABLE, [[
 		'id' => 3, 'kind' => 'entries', 'handle' => null, 'userId' => null, 'name' => 'Temporary', 'description' => null, 'icon' => null, 'params' => null,
 		'matchCondition' => Json::encode(['conditionRules' => [['class' => SlugConditionRule::class, 'operator' => 'bw', 'value' => '__temp']]]),
 		'enabled' => 1, 'sortOrder' => 1, 'uid' => 'temporary',

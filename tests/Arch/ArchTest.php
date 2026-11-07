@@ -15,6 +15,12 @@ use yii\base\Component;
 const PLUGIN_NAMESPACE = 'SomehowDigital\Craft\Hub';
 const TESTS_NAMESPACE = PLUGIN_NAMESPACE . '\Tests';
 
+/** The namespaces of the components of the plugin, which other namespaces may not depend on. */
+const CONTROLLERS_NAMESPACE = PLUGIN_NAMESPACE . '\controllers';
+const ASSETS_NAMESPACE = PLUGIN_NAMESPACE . '\assets';
+const WIDGETS_NAMESPACE = PLUGIN_NAMESPACE . '\widgets';
+const CONSOLE_NAMESPACE = PLUGIN_NAMESPACE . '\console';
+
 arch('it does not debug or print', function (): void {
 	(new Preset())->php()->ignoring(TESTS_NAMESPACE);
 });
@@ -38,8 +44,8 @@ arch('it declares strict types', function (): void {
 arch('it compares strictly', function (): void {
 	// The trash lists compare their filter with the default one by value, which holds the dates of the filter as objects.
 	expect(PLUGIN_NAMESPACE)->toUseStrictEquality()->ignoring([
-		PLUGIN_NAMESPACE . '\controllers\EntriesController',
-		PLUGIN_NAMESPACE . '\controllers\FilesController',
+		CONTROLLERS_NAMESPACE . '\EntriesController',
+		CONTROLLERS_NAMESPACE . '\FilesController',
 	]);
 });
 
@@ -53,22 +59,22 @@ arch('the plugin extends the Craft base', function (): void {
 
 arch('web controllers are Craft controllers', function (): void {
 	// The variables of the lists are shared by the controllers of the lists as a trait.
-	expect(PLUGIN_NAMESPACE . '\controllers')
+	expect(CONTROLLERS_NAMESPACE)
 		->toExtend(WebController::class)
-		->ignoring(PLUGIN_NAMESPACE . '\controllers\ListVariables');
-	expect(PLUGIN_NAMESPACE . '\controllers')
+		->ignoring(CONTROLLERS_NAMESPACE . '\ListVariables');
+	expect(CONTROLLERS_NAMESPACE)
 		->toHaveSuffix('Controller')
-		->ignoring(PLUGIN_NAMESPACE . '\controllers\ListVariables');
+		->ignoring(CONTROLLERS_NAMESPACE . '\ListVariables');
 });
 
 arch('console controllers are Craft console controllers', function (): void {
-	expect(PLUGIN_NAMESPACE . '\console\controllers')
+	expect(CONSOLE_NAMESPACE . '\controllers')
 		->toExtend(ConsoleController::class)
 		->toHaveSuffix('Controller');
 });
 
 arch('asset bundles are Craft asset bundles', function (): void {
-	expect(PLUGIN_NAMESPACE . '\assets')
+	expect(ASSETS_NAMESPACE)
 		->toExtend(AssetBundle::class)
 		->toHaveSuffix('Asset');
 });
@@ -84,7 +90,7 @@ arch('jobs are Craft queue jobs', function (): void {
 });
 
 arch('widgets are Craft widgets', function (): void {
-	expect(PLUGIN_NAMESPACE . '\widgets')->toExtend(Widget::class);
+	expect(WIDGETS_NAMESPACE)->toExtend(Widget::class);
 });
 
 arch('helpers are final classes', function (): void {
@@ -103,20 +109,20 @@ arch('enums are backed by strings', function (): void {
 
 arch('services do not depend on the controllers or the control panel', function (): void {
 	expect(PLUGIN_NAMESPACE . '\services')->not->toUse([
-		PLUGIN_NAMESPACE . '\controllers',
-		PLUGIN_NAMESPACE . '\console',
-		PLUGIN_NAMESPACE . '\assets',
-		PLUGIN_NAMESPACE . '\widgets',
+		CONTROLLERS_NAMESPACE,
+		CONSOLE_NAMESPACE,
+		ASSETS_NAMESPACE,
+		WIDGETS_NAMESPACE,
 	]);
 });
 
 arch('helpers, models and enums do not depend on the components of the plugin', function (): void {
 	expect([PLUGIN_NAMESPACE . '\helpers', PLUGIN_NAMESPACE . '\models', PLUGIN_NAMESPACE . '\enums'])->not->toUse([
-		PLUGIN_NAMESPACE . '\controllers',
-		PLUGIN_NAMESPACE . '\console',
+		CONTROLLERS_NAMESPACE,
+		CONSOLE_NAMESPACE,
 		PLUGIN_NAMESPACE . '\handlers',
 		PLUGIN_NAMESPACE . '\jobs',
-		PLUGIN_NAMESPACE . '\assets',
-		PLUGIN_NAMESPACE . '\widgets',
+		ASSETS_NAMESPACE,
+		WIDGETS_NAMESPACE,
 	]);
 });

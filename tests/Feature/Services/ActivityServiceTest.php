@@ -11,7 +11,7 @@ use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\ActivityFilter;
 use SomehowDigital\Craft\Hub\services\ActivityService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
-use yii\db\Exception;
+use yii\db\Exception as DbException;
 
 beforeEach(function (): void {
 	$this->createContentModel();
@@ -48,8 +48,8 @@ it('records activities of the current user, with their IP address and what else 
 		unset($_SERVER['REMOTE_ADDR']);
 	}
 
-	expect($this->db()->queriesMatching('INSERT INTO {{%hub_activity}}'))->toHaveCount(1)
-		->and($this->db()->queriesMatching('INSERT INTO {{%hub_activity}}')[0])
+	expect($this->db()->queriesMatching('INSERT INTO ' . ActivityService::TABLE))->toHaveCount(1)
+		->and($this->db()->queriesMatching('INSERT INTO ' . ActivityService::TABLE)[0])
 		->toContain("'updated'")
 		->toContain("'entry'")
 		->toContain("'Hello'")
@@ -65,7 +65,7 @@ it('records activities of the given user, or of none', function (): void {
 	$this->activity->record(ActivityAction::SignedIn, ActivitySubject::User, 7, 'Max', user: new User(['id' => 7, 'username' => 'max']));
 	$this->activity->record(ActivityAction::SignInFailed, ActivitySubject::User, null, 'mallory', anonymous: true);
 
-	[$signedIn, $failed] = $this->db()->queriesMatching('INSERT INTO {{%hub_activity}}');
+	[$signedIn, $failed] = $this->db()->queriesMatching('INSERT INTO ' . ActivityService::TABLE);
 
 	expect($signedIn)->toContain("'max'")->not->toContain("'jane'")
 		->and($failed)->not->toContain("'jane'");
@@ -76,11 +76,11 @@ it('records nothing while the table is missing, as before its migration ran', fu
 
 	$this->activity->record(ActivityAction::Created, ActivitySubject::Entry, 5, 'Hello');
 
-	expect($this->db()->queriesMatching('{{%hub_activity}}'))->toBe([]);
+	expect($this->db()->queriesMatching(ActivityService::TABLE))->toBe([]);
 });
 
 it('never fails what was done for an activity that couldn’t be recorded', function (): void {
-	$this->db()->respond('INSERT INTO {{%hub_activity}}', fn(): never => throw new Exception('Table is gone'));
+	$this->db()->respond('INSERT INTO ' . ActivityService::TABLE, fn(): never => throw new DbException('Table is gone'));
 
 	$this->activity->record(ActivityAction::Created, ActivitySubject::Entry, 5, 'Hello');
 })->throwsNoExceptions();
@@ -139,7 +139,7 @@ it('populates the activities with their users and links to the subjects that sti
 it('populates batches with their activities matching the filters, or all of them when the batch matches itself', function (): void {
 	$this->request();
 	// The second batch matches the search by its own name, the first only by its activities.
-	$this->db()->respond('FROM {{%hub_activity}}', function (string $sql): array {
+	$this->db()->respond('FROM ' . ActivityService::TABLE, function (string $sql): array {
 		$filtered = str_contains($sql, 'hello');
 
 		return match (true) {
@@ -166,7 +166,7 @@ it('populates batches with their activities matching the filters, or all of them
 
 it('previews many batches with a single query', function (): void {
 	$this->request();
-	$this->db()->respond('FROM {{%hub_activity}}', fn(string $sql): array => match (true) {
+	$this->db()->respond('FROM ' . ActivityService::TABLE, fn(string $sql): array => match (true) {
 		str_contains($sql, 'GROUP BY') => [['batchId' => 1, 'count' => 2], ['batchId' => 2, 'count' => 1]],
 		default => [($this->row)(['id' => 10, 'batchId' => 1]), ($this->row)(['id' => 11, 'batchId' => 2]), ($this->row)(['id' => 12, 'batchId' => 1])],
 	});
@@ -241,7 +241,7 @@ it('deletes the expired activities, unless they are kept forever', function (int
 
 	$this->activity->deleteExpired();
 
-	expect($this->db()->queriesMatching('DELETE FROM {{%hub_activity}}'))->toHaveCount($deletes);
+	expect($this->db()->queriesMatching('DELETE FROM ' . ActivityService::TABLE))->toHaveCount($deletes);
 })->with([[90, 1], [0, 0]]);
 
 it('reads the permissions granted to a user directly', function (): void {
@@ -262,10 +262,10 @@ it('shows the activity log to users who may view it while it is enabled', functi
 ]);
 
 it('lists the latest activities of an item, those of batches included', function (): void {
-	$this->db()->respond('FROM {{%hub_activity}}', [($this->row)(['id' => 2, 'subject' => 'entry', 'subjectId' => 5, 'batchId' => 1])]);
+	$this->db()->respond('FROM ' . ActivityService::TABLE, [($this->row)(['id' => 2, 'subject' => 'entry', 'subjectId' => 5, 'batchId' => 1])]);
 
 	$activities = $this->activity->getItemActivities(ActivitySubject::Entry, 5, 3);
-	$sql = $this->db()->queriesMatching('FROM {{%hub_activity}}')[0];
+	$sql = $this->db()->queriesMatching('FROM ' . ActivityService::TABLE)[0];
 
 	expect($activities)->toHaveCount(1)
 		->and($activities[0]->subjectId)->toBe(5)

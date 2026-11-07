@@ -160,9 +160,17 @@ trait ListVariables
 		/** @var EntryFilter $filter */
 		$filter = $selection->review ? new EntryFilter() : $this->listFilterFromRequest(CheckKind::Entries);
 		// Sections and fields widen each other, so on the page of one the other isn't taken from the request.
-		$filter->sections = $section instanceof Section ? [$section->handle] : ($field instanceof FieldInterface ? [] : $filter->sections);
+		$filter->sections = match (true) {
+			$section instanceof Section => [$section->handle],
+			$field instanceof FieldInterface => [],
+			default => $filter->sections,
+		};
 		$filter->types = $entryType instanceof EntryType ? [$entryType->handle] : $filter->types;
-		$filter->fields = $field instanceof FieldInterface ? [$field->handle] : ($section instanceof Section ? [] : $filter->fields);
+		$filter->fields = match (true) {
+			$field instanceof FieldInterface => [$field->handle],
+			$section instanceof Section => [],
+			default => $filter->fields,
+		};
 		$filter->authors = $author instanceof User ? [$author->id] : $filter->authors;
 
 		// Only sections, nested entry fields and entry types used together, with the ones the list is limited to.

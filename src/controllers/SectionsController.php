@@ -26,11 +26,14 @@ use yii\web\Response;
  */
 class SectionsController extends BaseController
 {
+	/** The path of the list. */
+	private const PATH = 'hub/structure/sections';
+
 	protected ?Page $page = Page::Sections;
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/structure/sections')) instanceof Response) {
+		if (($redirect = $this->keepFilters(self::PATH)) instanceof Response) {
 			return $redirect;
 		}
 
@@ -40,7 +43,7 @@ class SectionsController extends BaseController
 		$all = $hub->structure->getSections();
 
 		// While reviewing the selection, the filters don't apply.
-		$selection = ListSelection::fromRequest(ColumnService::LIST_SECTIONS, 'hub/structure/sections');
+		$selection = ListSelection::fromRequest(ColumnService::LIST_SECTIONS, self::PATH);
 		/** @var SectionFilter $filter */
 		$filter = $selection->review ? new SectionFilter() : $this->listFilterFromRequest(CheckKind::Sections);
 		$sort = ListSort::fromRequest($lists->getSectionSortColumns(), ListService::SORT_NAME);
@@ -56,10 +59,10 @@ class SectionsController extends BaseController
 				'activities' => in_array('updated', $shown, true) ? array_map(fn(SectionInfo $info): string => $info->stats->getActivity($months), $sections) : [],
 				'filter' => $filter,
 				'columns' => $columns,
-				...$this->savedFilterVariables(CheckKind::Sections, 'hub/structure/sections', $filter->savedFilter),
+				...$this->savedFilterVariables(CheckKind::Sections, self::PATH, $filter->savedFilter),
 				...$this->labelVariables(ColumnService::LIST_SECTIONS, array_keys($sections)),
 				...$selection->variables($filter),
-				...$sort->variables('hub/structure/sections'),
+				...$sort->variables(self::PATH),
 			],
 		]);
 	}
