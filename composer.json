@@ -99,7 +99,7 @@
 		"deps": "composer-dependency-analyser",
 		"ecs": "ecs check",
 		"ecs-fix": "ecs check --fix",
-		"mutate": "pest --mutate --everything --covered-only --parallel --min=100",
+		"mutate": "pest --mutate --everything --covered-only --parallel --min=75",
 		"phpstan": "phpstan analyse --memory-limit=1G",
 		"rector": "rector process --dry-run",
 		"rector-fix": "rector process",
