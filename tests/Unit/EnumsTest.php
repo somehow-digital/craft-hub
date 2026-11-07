@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Address;
 use craft\elements\Asset;
 use craft\elements\Category;
@@ -30,20 +32,20 @@ use SomehowDigital\Craft\Hub\services\ColumnService;
 
 const ACTIVITY_COLORS = ['green', 'blue', 'red', 'orange', 'violet', 'gray', 'amber', 'teal', 'sky', 'indigo', 'pink', 'cyan'];
 
-it('groups every activity action once, by what was done', function () {
-	$grouped = array_merge(...array_map(fn (ActivityGroup $group) => $group->actions(), ActivityGroup::cases()));
+it('groups every activity action once, by what was done', function (): void {
+	$grouped = array_merge(...array_map(fn(ActivityGroup $group): array => $group->actions(), ActivityGroup::cases()));
 
 	expect($grouped)->toHaveCount(count(ActivityAction::cases()))
 		->and(ActivityGroup::Deleted->actions())->toBe([ActivityAction::Deleted, ActivityAction::Uninstalled, ActivityAction::TransformsDeleted, ActivityAction::DraftDeleted])
-		->and(array_map(fn (ActivityGroup $group) => $group->actions(), ActivityGroup::cases()))->each->not->toBeEmpty();
+		->and(array_map(fn(ActivityGroup $group): array => $group->actions(), ActivityGroup::cases()))->each->not->toBeEmpty();
 });
 
-it('sorts severities by urgency', function () {
+it('sorts severities by urgency', function (): void {
 	expect(Severity::sorted())->toBe([Severity::Error, Severity::Warning, Severity::Notice])
-		->and(array_map(fn (Severity $severity) => $severity->rank(), Severity::sorted()))->toBe([0, 1, 2]);
+		->and(array_map(fn(Severity $severity): int => $severity->rank(), Severity::sorted()))->toBe([0, 1, 2]);
 });
 
-it('describes severities', function (Severity $severity, string $label, string $color) {
+it('describes severities', function (Severity $severity, string $label, string $color): void {
 	expect($severity->label())->toBe($label)
 		->and($severity->color())->toBe($color);
 })->with([
@@ -52,7 +54,7 @@ it('describes severities', function (Severity $severity, string $label, string $
 	[Severity::Notice, 'Worth a look', 'blue'],
 ]);
 
-it('lists all usage kinds but URLs', function () {
+it('lists all usage kinds but URLs', function (): void {
 	expect(UsageKind::listed())->toBe([
 		UsageKind::Section,
 		UsageKind::Reference,
@@ -63,7 +65,7 @@ it('lists all usage kinds but URLs', function () {
 	]);
 });
 
-it('describes usage kinds', function (UsageKind $kind, string $label, string $color, string $icon) {
+it('describes usage kinds', function (UsageKind $kind, string $label, string $color, string $icon): void {
 	expect($kind->label())->toBe($label)
 		->and($kind->description())->toEndWith('.')
 		->and($kind->color())->toBe($color)
@@ -78,13 +80,13 @@ it('describes usage kinds', function (UsageKind $kind, string $label, string $co
 	[UsageKind::Empty, 'Empty', 'orange', 'box-open'],
 ]);
 
-it('describes usage kinds differently', function () {
-	$descriptions = array_map(fn (UsageKind $kind) => $kind->description(), UsageKind::cases());
+it('describes usage kinds differently', function (): void {
+	$descriptions = array_map(fn(UsageKind $kind): string => $kind->description(), UsageKind::cases());
 
 	expect(array_unique($descriptions))->toHaveCount(count(UsageKind::cases()));
 });
 
-it('describes data kinds like the usage kinds they hold', function (DataKind $kind, string $label, string $color, string $icon) {
+it('describes data kinds like the usage kinds they hold', function (DataKind $kind, string $label, string $color, string $icon): void {
 	expect($kind->label())->toBe($label)
 		->and($kind->color())->toBe($color)
 		->and($kind->icon())->toBe($icon);
@@ -94,7 +96,7 @@ it('describes data kinds like the usage kinds they hold', function (DataKind $ki
 	[DataKind::Plain, 'Plain values', 'gray', 'font'],
 ]);
 
-it('describes section types', function (SectionType $type, string $value, string $label, string $color, string $icon) {
+it('describes section types', function (SectionType $type, string $value, string $label, string $color, string $icon): void {
 	expect($type->value)->toBe($value)
 		->and($type->label())->toBe($label)
 		->and($type->color())->toBe($color)
@@ -105,15 +107,15 @@ it('describes section types', function (SectionType $type, string $value, string
 	[SectionType::Structure, Section::TYPE_STRUCTURE, 'Structure', 'teal', 'sitemap'],
 ]);
 
-it('describes every activity group, action and subject', function (string $enum) {
+it('describes every activity group, action and subject', function (string $enum): void {
 	$cases = $enum::cases();
 
-	expect(array_unique(array_map(fn ($case) => $case->label(), $cases)))->toHaveCount(count($cases))
-		->and(array_map(fn ($case) => $case->color(), $cases))->each->toBeIn(ACTIVITY_COLORS)
-		->and(array_map(fn ($case) => $case->icon(), $cases))->each->toMatch('/^[a-z-]+$/');
+	expect(array_unique(array_map(fn($case) => $case->label(), $cases)))->toHaveCount(count($cases))
+		->and(array_map(fn($case) => $case->color(), $cases))->each->toBeIn(ACTIVITY_COLORS)
+		->and(array_map(fn($case) => $case->icon(), $cases))->each->toMatch('/^[a-z-]+$/');
 })->with([ActivityGroup::class, ActivityAction::class, ActivitySubject::class]);
 
-it('describes activity groups and actions', function (ActivityGroup|ActivityAction $case, string $label, string $color, string $icon) {
+it('describes activity groups and actions', function (ActivityGroup|ActivityAction $case, string $label, string $color, string $icon): void {
 	expect($case->label())->toBe($label)
 		->and($case->color())->toBe($color)
 		->and($case->icon())->toBe($icon);
@@ -125,7 +127,7 @@ it('describes activity groups and actions', function (ActivityGroup|ActivityActi
 	[ActivityAction::AuthAdded, 'Sign-in method added', 'green', 'shield-halved'],
 ]);
 
-it('groups activity actions by what was done', function (ActivityAction $action, ActivityGroup $group) {
+it('groups activity actions by what was done', function (ActivityAction $action, ActivityGroup $group): void {
 	expect($action->group())->toBe($group);
 })->with([
 	[ActivityAction::DraftCreated, ActivityGroup::Created],
@@ -138,7 +140,7 @@ it('groups activity actions by what was done', function (ActivityAction $action,
 	[ActivityAction::BackedUp, ActivityGroup::Ran],
 ]);
 
-it('tells the subject of an element', function (string $type, ActivitySubject $subject) {
+it('tells the subject of an element', function (string $type, ActivitySubject $subject): void {
 	expect(ActivitySubject::fromElementType($type))->toBe($subject)
 		->and(ActivitySubject::fromElement(new $type()))->toBe($subject)
 		->and($subject->isElement())->toBeTrue();
@@ -152,7 +154,7 @@ it('tells the subject of an element', function (string $type, ActivitySubject $s
 	[Address::class, ActivitySubject::Element],
 ]);
 
-it('tells the subject of the items of a list', function () {
+it('tells the subject of the items of a list', function (): void {
 	expect(ActivitySubject::fromList(ColumnService::LIST_ENTRIES))->toBe(ActivitySubject::Entry)
 		->and(ActivitySubject::fromList(ColumnService::LIST_FILES))->toBe(ActivitySubject::Asset)
 		->and(ActivitySubject::fromList(ColumnService::LIST_USERS))->toBe(ActivitySubject::User)
@@ -165,13 +167,13 @@ it('tells the subject of the items of a list', function () {
 		->and(ActivitySubject::Section->isElement())->toBeFalse();
 });
 
-it('describes the kinds of checks by the page listing them', function () {
-	expect(array_map(fn (CheckKind $kind) => $kind->label(), CheckKind::cases()))->toBe(['Entries', 'Assets', 'Users', 'Entry Types', 'Sections', 'Fields', 'Volumes'])
-		->and(array_map(fn (CheckKind $kind) => $kind->icon(), CheckKind::cases()))->toBe(['newspaper', 'image', 'user-group', 'shapes', 'layer-group', 'pen-ruler', 'hard-drive'])
-		->and(array_map(fn (CheckKind $kind) => $kind->page(), CheckKind::cases()))->toBe([Page::Entries, Page::Assets, Page::Users, Page::EntryTypes, Page::Sections, Page::Fields, Page::Volumes]);
+it('describes the kinds of checks by the page listing them', function (): void {
+	expect(array_map(fn(CheckKind $kind): string => $kind->label(), CheckKind::cases()))->toBe(['Entries', 'Assets', 'Users', 'Entry Types', 'Sections', 'Fields', 'Volumes'])
+		->and(array_map(fn(CheckKind $kind): string => $kind->icon(), CheckKind::cases()))->toBe(['newspaper', 'image', 'user-group', 'shapes', 'layer-group', 'pen-ruler', 'hard-drive'])
+		->and(array_map(fn(CheckKind $kind): Page => $kind->page(), CheckKind::cases()))->toBe([Page::Entries, Page::Assets, Page::Users, Page::EntryTypes, Page::Sections, Page::Fields, Page::Volumes]);
 });
 
-it('creates the condition of a kind of check with the rules of its config', function (CheckKind $kind, string $class) {
+it('creates the condition of a kind of check with the rules of its config', function (CheckKind $kind, string $class): void {
 	$condition = $kind->createCondition(['conditionRules' => [['class' => HandleConditionRule::class, 'operator' => '=', 'value' => 'news'], 'invalid']]);
 
 	expect($condition)->toBeInstanceOf($class)
@@ -184,16 +186,16 @@ it('creates the condition of a kind of check with the rules of its config', func
 	[CheckKind::Volumes, VolumeCondition::class],
 ]);
 
-it('tells the page listing an item', function (Closure $item, ?Page $page) {
+it('tells the page listing an item', function (Closure $item, ?Page $page): void {
 	expect(Page::fromItem($item()))->toBe($page);
 })->with([
-	[fn () => new Entry(), Page::Entries],
-	[fn () => new Asset(), Page::Assets],
-	[fn () => new User(), Page::Users],
-	[fn () => new UserGroup(), Page::Users],
-	[fn () => new EntryType(), Page::EntryTypes],
-	[fn () => new Section(), Page::Sections],
-	[fn () => new PlainText(), Page::Fields],
-	[fn () => new Volume(), Page::Volumes],
-	[fn () => new Tag(), null],
+	[fn(): Entry => new Entry(), Page::Entries],
+	[fn(): Asset => new Asset(), Page::Assets],
+	[fn(): User => new User(), Page::Users],
+	[fn(): UserGroup => new UserGroup(), Page::Users],
+	[fn(): EntryType => new EntryType(), Page::EntryTypes],
+	[fn(): Section => new Section(), Page::Sections],
+	[fn(): PlainText => new PlainText(), Page::Fields],
+	[fn(): Volume => new Volume(), Page::Volumes],
+	[fn(): Tag => new Tag(), null],
 ]);

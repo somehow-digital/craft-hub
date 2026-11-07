@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
@@ -22,7 +24,7 @@ class ColumnsController extends BaseController
 
 		$request = Craft::$app->getRequest();
 		$columns = Hub::getInstance()->columns;
-		$list = (string)$request->getRequiredBodyParam('list');
+		$list = (string) $request->getRequiredBodyParam('list');
 
 		if ($columns->getDefinitions($list) === []) {
 			throw new BadRequestHttpException('Unknown list.');
@@ -39,7 +41,7 @@ class ColumnsController extends BaseController
 		}
 
 		return $this->asSuccess(data: [
-			'columns' => array_map(fn (array $column) => ['key' => $column['key'], 'visible' => $column['visible']], $columns->getColumns($list)),
+			'columns' => array_map(fn(array $column): array => ['key' => $column['key'], 'visible' => $column['visible']], $columns->getColumns($list)),
 		]);
 	}
 
@@ -48,6 +50,6 @@ class ColumnsController extends BaseController
 	 */
 	private function strings(mixed $values): array
 	{
-		return is_array($values) ? array_values(array_filter($values, 'is_string')) : [];
+		return is_array($values) ? array_values(array_filter($values, is_string(...))) : [];
 	}
 }

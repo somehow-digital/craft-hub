@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Closure;
@@ -29,7 +31,7 @@ class TypesController extends BaseController
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/structure/entry-types')) !== null) {
+		if (($redirect = $this->keepFilters('hub/structure/entry-types')) instanceof Response) {
 			return $redirect;
 		}
 
@@ -53,7 +55,7 @@ class TypesController extends BaseController
 				'pageInfo' => $pageInfo,
 				'total' => count($all),
 				'kinds' => UsageKind::listed(),
-				'activities' => in_array('updated', $shown, true) ? array_map(fn (EntryTypeInfo $info) => $info->stats->getActivity($months), $entryTypes) : [],
+				'activities' => in_array('updated', $shown, true) ? array_map(fn(EntryTypeInfo $info): string => $info->stats->getActivity($months), $entryTypes) : [],
 				'filter' => $filter,
 				'columns' => $columns,
 				...$this->savedFilterVariables(CheckKind::EntryTypes, 'hub/structure/entry-types', $filter->savedFilter),
@@ -80,7 +82,7 @@ class TypesController extends BaseController
 		// Entry types used by no section or field have no entries to list.
 		$tab = $this->detailTab($tab, [...($info->sections !== [] || $info->nestedFields !== [] ? [self::TAB_ENTRIES] : []), self::TAB_STATISTICS]);
 
-		if ($tab === self::TAB_ENTRIES && ($redirect = $this->keepFilters("hub/structure/entry-types/$id/entries")) !== null) {
+		if ($tab === self::TAB_ENTRIES && ($redirect = $this->keepFilters("hub/structure/entry-types/{$id}/entries")) instanceof Response) {
 			return $redirect;
 		}
 
@@ -89,9 +91,9 @@ class TypesController extends BaseController
 
 		// A card or panel requested on its own is rendered without the page around it.
 		$part = ($tab === self::TAB_STATISTICS ? $this->renderCard($summary) : null)
-			?? $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn () => Hub::getInstance()->checks->forEntryType($info)) : $this->overviewPanels($info));
+			?? $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn() => Hub::getInstance()->checks->forEntryType($info)) : $this->overviewPanels($info));
 
-		if ($part !== null) {
+		if ($part instanceof Response) {
 			return $part;
 		}
 
@@ -101,7 +103,7 @@ class TypesController extends BaseController
 			'selectedTab' => $tab,
 			'checks' => Hub::getInstance()->checks->forEntryType($info),
 			...match ($tab) {
-				self::TAB_ENTRIES => $this->entryListVariables("hub/structure/entry-types/$id/entries", entryType: $info->entryType),
+				self::TAB_ENTRIES => $this->entryListVariables("hub/structure/entry-types/{$id}/entries", entryType: $info->entryType),
 				self::TAB_STATISTICS => ['summary' => $summary],
 				self::TAB_DIAGNOSTICS => [],
 				default => [],
@@ -120,10 +122,10 @@ class TypesController extends BaseController
 		$entryType = $info->entryType;
 
 		return [
-			'maintainers' => fn () => ['hub/_panels/maintainers', ['list' => ColumnService::LIST_ENTRY_TYPES, 'item' => $entryType]],
-			'relations' => fn () => ['hub/_panels/types/relations', ['info' => $info, 'entryType' => $entryType, 'statistics' => $hub->statistics]],
-			'fieldLayout' => fn () => ['hub/_panels/field-layout', ['layout' => $entryType->getFieldLayout(), 'fields' => $hub->structure->getFields()]],
-			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::EntryType->value, 'id' => $entryType->id]],
+			'maintainers' => fn(): array => ['hub/_panels/maintainers', ['list' => ColumnService::LIST_ENTRY_TYPES, 'item' => $entryType]],
+			'relations' => fn(): array => ['hub/_panels/types/relations', ['info' => $info, 'entryType' => $entryType, 'statistics' => $hub->statistics]],
+			'fieldLayout' => fn(): array => ['hub/_panels/field-layout', ['layout' => $entryType->getFieldLayout(), 'fields' => $hub->structure->getFields()]],
+			'activity' => fn(): array => ['hub/_panels/activity', ['subject' => ActivitySubject::EntryType->value, 'id' => $entryType->id]],
 		];
 	}
 }

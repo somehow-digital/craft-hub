@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -38,16 +40,14 @@ class RestoreWithRelations extends Restore
 		$relations = $this->relations($elements);
 		$restored = [];
 
-		return $this->succeeded($elements, function (ElementInterface $element) use ($service, $relations, &$restored) {
+		return $this->succeeded($elements, function (ElementInterface $element) use ($service, $relations, &$restored): bool {
 			if (!$service->canSave($element) || !$service->restoreElement($element)) {
 				return false;
 			}
 
 			// An element related to several items is restored once.
 			foreach ($relations[$element->id] ?? [] as $id => $related) {
-				if (!isset($restored[$id])) {
-					$restored[$id] = $service->restoreElement($related);
-				}
+				$restored[$id] ??= $service->restoreElement($related);
 			}
 
 			return true;
@@ -59,17 +59,17 @@ class RestoreWithRelations extends Restore
 		$service = Craft::$app->getElements();
 		$elements = array_values(array_filter(
 			$this->hub()->bulk->getElements($this->list, $ids),
-			fn (ElementInterface $element) => (!$element instanceof Asset || $element->keptFile) && $service->canSave($element),
+			fn(ElementInterface $element): bool => (!$element instanceof Asset || $element->keptFile) && $service->canSave($element),
 		));
 		$relations = $this->relations($elements);
 		$related = array_replace([], ...array_values($relations));
 		[$pageInfo, $shown] = (new Paginator($page))->items($elements);
 
 		return new BulkPreview('relations-preview', count($elements), [
-			'items' => array_map(fn (ElementInterface $element) => ['element' => $element, 'children' => array_values($relations[$element->id] ?? [])], $shown),
+			'items' => array_map(fn(ElementInterface $element): array => ['element' => $element, 'children' => array_values($relations[$element->id] ?? [])], $shown),
 			'pageInfo' => $pageInfo,
-			'entries' => count(array_filter($related, fn (ElementInterface $element) => $element instanceof Entry)),
-			'files' => count(array_filter($related, fn (ElementInterface $element) => $element instanceof Asset)),
+			'entries' => count(array_filter($related, fn(ElementInterface $element): bool => $element instanceof Entry)),
+			'files' => count(array_filter($related, fn(ElementInterface $element): bool => $element instanceof Asset)),
 		]);
 	}
 
@@ -87,8 +87,8 @@ class RestoreWithRelations extends Restore
 		$canFiles = $hub->access->canAct(Page::Assets, Hub::PERMISSION_RESTORE_ASSETS);
 
 		return array_filter(array_map(
-			fn (array $related) => array_filter($related, fn (ElementInterface $element) => ($element instanceof Asset ? $canFiles : $canEntries) && $service->canSave($element)),
-			$hub->trash->getRelatedTrashed(array_map(fn (ElementInterface $element) => (int)$element->id, $elements)),
+			fn(array $related): array => array_filter($related, fn(ElementInterface $element): bool => ($element instanceof Asset ? $canFiles : $canEntries) && $service->canSave($element)),
+			$hub->trash->getRelatedTrashed(array_map(fn(ElementInterface $element): int => (int) $element->id, $elements)),
 		));
 	}
 }

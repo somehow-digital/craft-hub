@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\ElementInterface;
@@ -25,12 +27,11 @@ class DeletionItem
 
 	public function __construct(
 		public ElementInterface|Section|EntryType|FieldInterface|Volume|UserGroup $model,
-	) {
-	}
+	) {}
 
 	public function getId(): int
 	{
-		return (int)$this->model->id;
+		return (int) $this->model->id;
 	}
 
 	/**
@@ -40,7 +41,7 @@ class DeletionItem
 	 */
 	public function getAffected(): array
 	{
-		return array_values(array_filter($this->groups, fn (array $group) => $group['count'] > 0));
+		return array_values(array_filter($this->groups, fn(array $group): bool => $group['count'] > 0));
 	}
 
 	/**

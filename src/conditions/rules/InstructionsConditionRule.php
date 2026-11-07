@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
@@ -21,6 +23,6 @@ class InstructionsConditionRule extends BaseLightswitchConditionRule implements 
 
 	public function matchInfo(SectionInfo|EntryTypeInfo|FieldInfo|VolumeInfo $info): bool
 	{
-		return $this->matchValue($info instanceof FieldInfo && trim((string)$info->field->instructions) !== '');
+		return $this->matchValue($info instanceof FieldInfo && trim((string) $info->field->instructions) !== '');
 	}
 }

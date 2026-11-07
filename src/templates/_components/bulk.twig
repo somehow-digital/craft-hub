@@ -49,7 +49,7 @@
 		{{ csrfInput() }}
 		{{ actionInput(bulkAction ?? 'hub/bulk/apply') }}
 		{{ redirectInput(craft.app.request.url) }}
-		{% for name, value in bulkParams ?? { list: bulkList, path: selection.path ?? null } %}
+		{% for name, value in bulkParams ?? {list: bulkList, path: selection.path ?? null} %}
 			{{ hiddenInput(name, value) }}
 		{% endfor %}
 {% endif %}
@@ -165,13 +165,13 @@
 							<div class="hub-menu__group" role="group" aria-labelledby="{{ menuId }}-matching">
 								<h6 class="hub-menu__heading" id="{{ menuId }}-matching">{{ 'All pages'|t('hub') }}</h6>
 								<button type="button" class="hub-bulk__action" role="menuitem" data-hub-bulk-select="matching"
-									{%- if matching > selection.limit %} disabled data-hub-bulk-over title="{{ 'Up to {limit, number} items can be selected at once.'|t('hub', { limit: selection.limit }) }}"{% endif %}>
+									{%- if matching > selection.limit %} disabled data-hub-bulk-over title="{{ 'Up to {limit, number} items can be selected at once.'|t('hub', {limit: selection.limit}) }}"{% endif %}>
 									<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('filter') }}</span>
-									<span>{{ 'Select all {count, number} matching'|t('hub', { count: matching }) }}</span>
+									<span>{{ 'Select all {count, number} matching'|t('hub', {count: matching}) }}</span>
 								</button>
 								<button type="button" class="hub-bulk__action" role="menuitem" data-hub-bulk-select="unmatching">
 									<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('filter-circle-xmark') }}</span>
-									<span>{{ 'Unselect all {count, number} matching'|t('hub', { count: matching }) }}</span>
+									<span>{{ 'Unselect all {count, number} matching'|t('hub', {count: matching}) }}</span>
 								</button>
 							</div>
 						{% endif %}

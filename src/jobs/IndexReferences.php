@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\jobs;
 
 use Craft;
@@ -33,7 +35,7 @@ class IndexReferences extends BaseBatchedJob
 
 	protected function processItem(mixed $item): void
 	{
-		$this->elementIds[] = (int)$item['id'];
+		$this->elementIds[] = (int) $item['id'];
 	}
 
 	protected function afterBatch(): void

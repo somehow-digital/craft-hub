@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -133,8 +135,8 @@ class ActivityService extends Component
 			}
 
 			$this->insert($columns);
-		} catch (Throwable $e) {
-			Craft::warning("Couldn’t record the {$action->value} activity of a {$subject->value}: {$e->getMessage()}", __METHOD__);
+		} catch (Throwable $throwable) {
+			Craft::warning("Couldn’t record the {$action->value} activity of a {$subject->value}: {$throwable->getMessage()}", __METHOD__);
 		}
 	}
 
@@ -245,7 +247,7 @@ class ActivityService extends Component
 		$activities = $this->build($rows);
 		$all = $activities;
 
-		if ($filter !== null && $filter->batch === null && $activities !== []) {
+		if ($filter instanceof ActivityFilter && $filter->batch === null && $activities !== []) {
 			$conditions = $this->conditions($filter);
 			$byId = [];
 			foreach ($activities as $activity) {
@@ -253,7 +255,7 @@ class ActivityService extends Component
 			}
 
 			// Batches matching the filters by their own activity, like by their name or action, get all of theirs.
-			$whole = $conditions !== ['and'] ? array_map('intval', (new Query())
+			$whole = $conditions !== ['and'] ? array_map(intval(...), (new Query())
 				->select(['id'])
 				->from(self::TABLE)
 				->where(['id' => array_keys($byId)])
@@ -273,7 +275,7 @@ class ActivityService extends Component
 			}
 		}
 
-		$users = Hub::getInstance()->users->getUsers(array_filter(array_map(fn (Activity $activity) => $activity->userId, $all)));
+		$users = Hub::getInstance()->users->getUsers(array_filter(array_map(fn(Activity $activity): ?int => $activity->userId, $all)));
 		$urls = $this->subjectUrls($all);
 
 		foreach ($all as $activity) {
@@ -295,7 +297,7 @@ class ActivityService extends Component
 	 */
 	private function batchCounts(array $ids, array $whole, array $conditions): array
 	{
-		$count = fn (array $ids, array $conditions) => $ids !== [] ? (new Query())
+		$count = fn(array $ids, array $conditions) => $ids !== [] ? (new Query())
 			->select(['batchId', 'count' => 'COUNT(*)'])
 			->from(self::TABLE)
 			->where(['batchId' => $ids])
@@ -305,7 +307,7 @@ class ActivityService extends Component
 
 		$counts = [];
 		foreach ($count(array_values(array_diff($ids, $whole)), $conditions) + $count($whole, ['and']) as $batchId => $number) {
-			$counts[(int)$batchId] = (int)$number;
+			$counts[(int) $batchId] = (int) $number;
 		}
 
 		return $counts;
@@ -337,7 +339,7 @@ class ActivityService extends Component
 			->where(['<=', 'hubRank', self::BATCH_PREVIEW])
 			->orderBy(['id' => SORT_ASC])
 			->all()) as $activity) {
-			$previews[(int)$activity->batchId][] = $activity;
+			$previews[(int) $activity->batchId][] = $activity;
 		}
 
 		return $previews;
@@ -351,8 +353,8 @@ class ActivityService extends Component
 	{
 		$activities = [];
 		foreach ($rows as $row) {
-			$action = ActivityAction::tryFrom((string)$row['action']);
-			$subject = ActivitySubject::tryFrom((string)$row['subject']);
+			$action = ActivityAction::tryFrom((string) $row['action']);
+			$subject = ActivitySubject::tryFrom((string) $row['subject']);
 
 			// Activities of actions or subjects no longer known, like those of a later version, are left out.
 			if ($action === null || $subject === null) {
@@ -360,17 +362,17 @@ class ActivityService extends Component
 			}
 
 			$activity = new Activity();
-			$activity->id = (int)$row['id'];
-			$activity->batchId = isset($row['batchId']) ? (int)$row['batchId'] : null;
+			$activity->id = (int) $row['id'];
+			$activity->batchId = isset($row['batchId']) ? (int) $row['batchId'] : null;
 			$activity->action = $action;
 			$activity->subject = $subject;
-			$activity->subjectId = $row['subjectId'] !== null ? (int)$row['subjectId'] : null;
+			$activity->subjectId = $row['subjectId'] !== null ? (int) $row['subjectId'] : null;
 			$activity->subjectTitle = $row['subjectTitle'] ?? null;
-			$activity->siteId = $row['siteId'] !== null ? (int)$row['siteId'] : null;
-			$activity->userId = $row['userId'] !== null ? (int)$row['userId'] : null;
+			$activity->siteId = $row['siteId'] !== null ? (int) $row['siteId'] : null;
+			$activity->userId = $row['userId'] !== null ? (int) $row['userId'] : null;
 			$activity->userName = $row['userName'] ?? null;
 			$activity->ipAddress = $row['ipAddress'] ?? null;
-			$activity->data = is_string($row['data'] ?? null) ? (array)Json::decodeIfJson($row['data']) : [];
+			$activity->data = is_string($row['data'] ?? null) ? (array) Json::decodeIfJson($row['data']) : [];
 			$activity->dateCreated = DateTimeHelper::toDateTime($row['dateCreated']) ?: new DateTime();
 			$activities[] = $activity;
 		}
@@ -395,15 +397,15 @@ class ActivityService extends Component
 			->where(['id' => (new Query())->select('MAX([[id]])')->from(self::TABLE)->where(['not', ['userId' => null]])->andFilterWhere(['userId' => $ids])->groupBy('userId')])
 			->all();
 
-		$users = Hub::getInstance()->users->getUsers(array_map(fn (array $row) => (int)$row['userId'], $rows));
+		$users = Hub::getInstance()->users->getUsers(array_map(fn(array $row): int => (int) $row['userId'], $rows));
 
 		$options = [];
 		foreach ($rows as $row) {
-			$user = $users[(int)$row['userId']] ?? null;
-			$options[(int)$row['userId']] = ['label' => $user?->getName() ?? (string)$row['userName'], 'user' => $user];
+			$user = $users[(int) $row['userId']] ?? null;
+			$options[(int) $row['userId']] = ['label' => $user?->getName() ?? (string) $row['userName'], 'user' => $user];
 		}
 
-		uasort($options, fn (array $a, array $b) => strnatcasecmp($a['label'], $b['label']));
+		uasort($options, fn(array $a, array $b): int => strnatcasecmp($a['label'], $b['label']));
 
 		return $options;
 	}
@@ -420,7 +422,7 @@ class ActivityService extends Component
 		}
 
 		Craft::$app->getDb()->createCommand()
-			->delete(self::TABLE, ['<', 'dateCreated', Db::prepareDateForDb(new DateTime("-$days days"))])
+			->delete(self::TABLE, ['<', 'dateCreated', Db::prepareDateForDb(new DateTime("-{$days} days"))])
 			->execute();
 	}
 
@@ -455,7 +457,7 @@ class ActivityService extends Component
 		$request = Craft::$app->getRequest();
 		$web = !$request->getIsConsoleRequest();
 
-		if ($web && ($impersonator = $this->impersonator()) !== null && $impersonator->id !== $user?->id) {
+		if ($web && ($impersonator = $this->impersonator()) instanceof User && $impersonator->id !== $user?->id) {
 			$data['impersonator'] = $impersonator->getName();
 		}
 
@@ -482,7 +484,7 @@ class ActivityService extends Component
 		$db = Craft::$app->getDb();
 		$db->createCommand()->insert(self::TABLE, $columns)->execute();
 
-		return (int)$db->getLastInsertID(self::TABLE);
+		return (int) $db->getLastInsertID(self::TABLE);
 	}
 
 	/**
@@ -506,8 +508,8 @@ class ActivityService extends Component
 		}
 
 		if ($filter->actions !== []) {
-			$actions = array_merge(...array_map(fn (string $group) => ActivityGroup::from($group)->actions(), $filter->actions));
-			$conditions[] = ['action' => array_map(fn (ActivityAction $action) => $action->value, $actions)];
+			$actions = array_merge(...array_map(fn(string $group) => ActivityGroup::from($group)->actions(), $filter->actions));
+			$conditions[] = ['action' => array_map(fn(ActivityAction $action) => $action->value, $actions)];
 		}
 
 		if ($filter->subjects !== []) {
@@ -519,7 +521,7 @@ class ActivityService extends Component
 		}
 
 		if ($filter->users !== []) {
-			$ids = array_map('intval', array_diff($filter->users, [ActivityFilter::USER_NONE]));
+			$ids = array_map(intval(...), array_diff($filter->users, [ActivityFilter::USER_NONE]));
 			$conditions[] = [
 				'or',
 				$ids !== [] ? ['userId' => $ids] : [],
@@ -569,7 +571,7 @@ class ActivityService extends Component
 		}
 
 		// Elements deleted since, even if only soft-deleted, have no page to link to.
-		$existing = $elementIds !== [] ? array_flip(array_map('intval', (new Query())
+		$existing = $elementIds !== [] ? array_flip(array_map(intval(...), (new Query())
 			->select(['id'])
 			->from(Table::ELEMENTS)
 			->where(['id' => array_values($elementIds), 'dateDeleted' => null])
@@ -588,13 +590,13 @@ class ActivityService extends Component
 				}
 
 				if (isset(self::PATHS[$kind]) && $this->canOpenPage($kind)) {
-					$urls[$kind][$id] = Hub::getInstance()->siteScope->pageUrl(self::PATHS[$kind] . "/$id");
+					$urls[$kind][$id] = Hub::getInstance()->siteScope->pageUrl(self::PATHS[$kind] . "/{$id}");
 				} elseif ($subject->isElement()) {
-					$urls[$kind][$id] = UrlHelper::cpUrl("edit/$id");
+					$urls[$kind][$id] = UrlHelper::cpUrl("edit/{$id}");
 				} elseif (isset(self::SETTINGS_PATHS[$kind]) && $isAdmin) {
-					$urls[$kind][$id] = UrlHelper::cpUrl(self::SETTINGS_PATHS[$kind] . "/$id");
+					$urls[$kind][$id] = UrlHelper::cpUrl(self::SETTINGS_PATHS[$kind] . "/{$id}");
 				} elseif (isset(self::HUB_PATHS[$kind]) && $webUser->checkPermission(self::HUB_PATHS[$kind][1])) {
-					$urls[$kind][$id] = UrlHelper::cpUrl(self::HUB_PATHS[$kind][0] . "/$id");
+					$urls[$kind][$id] = UrlHelper::cpUrl(self::HUB_PATHS[$kind][0] . "/{$id}");
 				}
 			}
 		}
@@ -661,7 +663,7 @@ class ActivityService extends Component
 			return null;
 		}
 
-		return Craft::$app->getUsers()->getUserById((int)$id);
+		return Craft::$app->getUsers()->getUserById((int) $id);
 	}
 
 	private function truncate(?string $value, int $length): ?string

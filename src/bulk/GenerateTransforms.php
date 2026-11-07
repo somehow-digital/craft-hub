@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -32,12 +34,12 @@ class GenerateTransforms extends BulkAction
 	public function apply(array $ids, array $params): array
 	{
 		$files = $this->hub()->files;
-		$handles = is_array($params['transforms'] ?? null) ? array_map('strval', $params['transforms']) : [];
+		$handles = is_array($params['transforms'] ?? null) ? array_map(strval(...), $params['transforms']) : [];
 		$transforms = array_values(array_intersect_key($files->getNamedTransforms(), array_flip($handles)));
 		$assets = $this->hub()->bulk->getElementsOf($this->list, $ids, Asset::class);
-		$transformable = $files->getTransformableFiles(array_map(fn (Asset $asset) => (int)$asset->id, $assets));
+		$transformable = $files->getTransformableFiles(array_map(fn(Asset $asset): int => (int) $asset->id, $assets));
 
-		return $transforms === [] ? [] : $this->succeeded($transformable, fn (Asset $asset) => $files->generateTransforms($asset, $transforms) > 0);
+		return $transforms === [] ? [] : $this->succeeded($transformable, fn(Asset $asset): bool => $files->generateTransforms($asset, $transforms) > 0);
 	}
 
 	public function preview(array $ids, int $page): ?BulkPreview

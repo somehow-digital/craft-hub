@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\User;
 use SomehowDigital\Craft\Hub\controllers\ActivityController;
 use SomehowDigital\Craft\Hub\enums\ActivityGroup;
@@ -10,7 +12,7 @@ use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 
 	$this->db()->respond('FROM {{%hub_activity}}', [
@@ -24,10 +26,10 @@ beforeEach(function () {
 	ElementQueries::respond(User::class, [new User(['id' => 4, 'siteId' => 1, 'username' => 'jane', 'fullName' => 'Jane Doe'])]);
 });
 
-it('lists the activities, newest first, leaving the options of the users filter to be loaded', function () {
+it('lists the activities, newest first, leaving the options of the users filter to be loaded', function (): void {
 	$variables = $this->runAction(ActivityController::class, 'index')->variables;
 
-	expect(array_map(fn ($activity) => $activity->id, $variables['list']['activities']))->toBe([2, 1])
+	expect(array_map(fn($activity) => $activity->id, $variables['list']['activities']))->toBe([2, 1])
 		->and($variables['list']['activities'][0]->user?->username)->toBe('jane')
 		->and($variables['list']['pageInfo']->total)->toBe(2)
 		->and($variables['list']['listPath'])->toBe('hub/manage/activity')
@@ -40,7 +42,7 @@ it('lists the activities, newest first, leaving the options of the users filter 
 		->and(array_column($variables['list']['columns'], 'key'))->toBe(['action', 'user', 'details', 'site', 'ip', 'date', 'batch']);
 });
 
-it('filters the activities by the query params, ignoring unknown values', function () {
+it('filters the activities by the query params, ignoring unknown values', function (): void {
 	$variables = $this->runAction(ActivityController::class, 'index', query: [
 		'event' => 'deleted,bogus',
 		'type' => 'entry,user',
@@ -64,7 +66,7 @@ it('filters the activities by the query params, ignoring unknown values', functi
 		->and($this->db()->queriesMatching("`action` IN ('deleted', 'uninstalled', 'transformsDeleted', 'draftDeleted')"))->not->toBe([]);
 });
 
-it('leaves out the site column on single-site installs', function () {
+it('leaves out the site column on single-site installs', function (): void {
 	unset($this->sites[2]);
 	Craft::$app->getIsMultiSite(refresh: true);
 
@@ -73,19 +75,19 @@ it('leaves out the site column on single-site installs', function () {
 	expect(array_column($variables['list']['columns'], 'key'))->not->toContain('site');
 });
 
-it('shows no activity log while it is disabled', function () {
+it('shows no activity log while it is disabled', function (): void {
 	$this->hub()->getSettings()->enableActivity = false;
 
 	$this->runAction(ActivityController::class, 'index');
 })->throws(NotFoundHttpException::class);
 
-it('shows the activity log only to users who may view it', function () {
+it('shows the activity log only to users who may view it', function (): void {
 	$this->actingAs(permissions: [Hub::PERMISSION_ACCESS_DATA, Hub::PERMISSION_MANAGE_LABELS]);
 
 	$this->runAction(ActivityController::class, 'index');
 })->throws(ForbiddenHttpException::class);
 
-it('redirects the activity log to its kept filters', function () {
+it('redirects the activity log to its kept filters', function (): void {
 	$this->session['hub:filters:hub/manage/activity'] = ['action' => 'created'];
 	$this->request();
 	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 1, 'username' => 'admin', 'admin' => true]));
@@ -95,7 +97,7 @@ it('redirects the activity log to its kept filters', function () {
 	expect(Craft::$app->getResponse()->getHeaders()->get('Location'))->toContain('hub/manage/activity&action=created');
 });
 
-it('lists no batch that does not exist', function () {
+it('lists no batch that does not exist', function (): void {
 	$this->db()->respond('FROM {{%hub_activity}}', []);
 
 	$this->runAction(ActivityController::class, 'index', query: ['batch' => '99']);

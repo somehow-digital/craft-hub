@@ -1,7 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\base\Element;
 use craft\elements\Entry;
+use craft\events\RegisterComponentTypesEvent;
+use craft\events\RegisterUserPermissionsEvent;
+use craft\services\Dashboard;
 use craft\services\Elements;
 use craft\services\Gc;
 use craft\services\UserPermissions;
@@ -19,20 +24,22 @@ use SomehowDigital\Craft\Hub\services\LabelService;
 use SomehowDigital\Craft\Hub\services\SnapshotService;
 use SomehowDigital\Craft\Hub\services\StructureService;
 use SomehowDigital\Craft\Hub\services\TrashService;
+use SomehowDigital\Craft\Hub\services\WorkService;
+use SomehowDigital\Craft\Hub\widgets\MyWork;
 use yii\base\Event;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->site(2, 'de');
 	$this->site(3, 'fr');
 });
 
-it('registers its services', function () {
+it('registers its services', function (): void {
 	expect(Hub::config()['components'])->toHaveKeys(['checks', 'entries', 'files', 'lists', 'references', 'review', 'statistics', 'structure', 'labels', 'users', 'volumes'])
 		->and($this->hub()->structure)->toBeInstanceOf(StructureService::class)
 		->and($this->hub()->checks)->toBeInstanceOf(CheckService::class);
 });
 
-it('scopes to all editable sites without a selection', function () {
+it('scopes to all editable sites without a selection', function (): void {
 	$this->editableSiteIds = [3, 1];
 	$this->request();
 
@@ -41,28 +48,28 @@ it('scopes to all editable sites without a selection', function () {
 		->and($this->hub()->siteScope->getSiteIds())->toBe([1, 3]);
 });
 
-it('scopes to the selected sites in the order of the sites', function () {
+it('scopes to the selected sites in the order of the sites', function (): void {
 	$this->request([Hub::SITE_PARAM => ' fr, en ,fr,,unknown']);
 
-	expect(array_map(fn ($site) => $site->handle, $this->hub()->siteScope->getSites()))->toBe(['en', 'fr'])
+	expect(array_map(fn($site) => $site->handle, $this->hub()->siteScope->getSites()))->toBe(['en', 'fr'])
 		->and($this->hub()->siteScope->getSiteParam())->toBe('en,fr')
 		->and($this->hub()->siteScope->getSiteIds())->toBe([1, 3]);
 });
 
-it('leaves out selected sites the user cannot edit', function () {
+it('leaves out selected sites the user cannot edit', function (): void {
 	$this->editableSiteIds = [1, 2];
 	$this->request([Hub::SITE_PARAM => 'de,fr']);
 
 	expect($this->hub()->siteScope->getSiteIds())->toBe([2]);
 });
 
-it('ignores a site selection that is not a string', function () {
+it('ignores a site selection that is not a string', function (): void {
 	$this->request([Hub::SITE_PARAM => ['en']]);
 
 	expect($this->hub()->siteScope->getSites())->toBe([]);
 });
 
-it('ignores the site selection of console requests', function () {
+it('ignores the site selection of console requests', function (): void {
 	$request = Mockery::mock(Request::class)->makePartial();
 	$request->shouldReceive('getIsConsoleRequest')->andReturnTrue();
 	$request->shouldNotReceive('getQueryParam');
@@ -71,7 +78,7 @@ it('ignores the site selection of console requests', function () {
 	expect($this->hub()->siteScope->getSites())->toBe([]);
 });
 
-it('remembers the site scope', function () {
+it('remembers the site scope', function (): void {
 	$this->request([Hub::SITE_PARAM => 'de']);
 	expect($this->hub()->siteScope->getSiteIds())->toBe([2]);
 
@@ -80,8 +87,8 @@ it('remembers the site scope', function () {
 		->and($this->hub()->siteScope->getSiteParam())->toBe('de');
 });
 
-it('registers user permissions', function () {
-	$event = new craft\events\RegisterUserPermissionsEvent();
+it('registers user permissions', function (): void {
+	$event = new RegisterUserPermissionsEvent();
 	Event::trigger(UserPermissions::class, UserPermissions::EVENT_REGISTER_PERMISSIONS, $event);
 
 	expect($event->permissions)->toHaveCount(1)
@@ -134,7 +141,7 @@ it('registers user permissions', function () {
 		->and(array_keys($event->permissions[0]['permissions'][Hub::PERMISSION_ACCESS_STRUCTURE]['nested']['hub-viewFields']['nested']))->toBe(['hub-labelFields', 'hub-bulkEditFields']);
 });
 
-it('removes the labels of deleted items, the expired activities and snapshots and the purged kept files along with the garbage', function () {
+it('removes the labels of deleted items, the expired activities and snapshots and the purged kept files along with the garbage', function (): void {
 	$this->mockComponent('hub.labels', LabelService::class)->shouldReceive('deleteOrphans')->once();
 	$this->mockComponent('hub.activity', ActivityService::class)->shouldReceive('deleteExpired')->once();
 	$this->mockComponent('hub.snapshots', SnapshotService::class)->shouldReceive('deleteExpired')->once();
@@ -143,7 +150,7 @@ it('removes the labels of deleted items, the expired activities and snapshots an
 	Event::trigger(Gc::class, Gc::EVENT_RUN);
 });
 
-it('keeps the files of trashed assets while it is enabled', function (bool $enabled) {
+it('keeps the files of trashed assets while it is enabled', function (bool $enabled): void {
 	Event::offAll();
 	$hub = $this->createPlugin();
 	$hub->getSettings()->keepTrashedFiles = $enabled;
@@ -155,7 +162,7 @@ it('keeps the files of trashed assets while it is enabled', function (bool $enab
 		->and(Event::hasHandlers(Elements::class, Elements::EVENT_AFTER_RESTORE_ELEMENT))->toBe($enabled);
 })->with([true, false]);
 
-it('tracks the activity of users while the activity log is enabled', function (bool $enabled) {
+it('tracks the activity of users while the activity log is enabled', function (bool $enabled): void {
 	Event::offAll();
 	$hub = $this->createPlugin();
 	$hub->getSettings()->enableActivity = $enabled;
@@ -166,7 +173,7 @@ it('tracks the activity of users while the activity log is enabled', function (b
 		->and(Event::hasHandlers(WebUser::class, WebUser::EVENT_AFTER_LOGIN))->toBe($enabled);
 })->with([true, false]);
 
-it('registers routes, the navigation and the entry sidebar on control panel requests', function () {
+it('registers routes, the navigation and the entry sidebar on control panel requests', function (): void {
 	$this->request(cp: true);
 	$this->createPlugin();
 
@@ -176,7 +183,7 @@ it('registers routes, the navigation and the entry sidebar on control panel requ
 		->and(Event::hasHandlers(WebApplication::class, WebApplication::EVENT_AFTER_REQUEST))->toBeTrue();
 });
 
-it('pushes a snapshot once one is due after control panel requests', function () {
+it('pushes a snapshot once one is due after control panel requests', function (): void {
 	$this->request(cp: true);
 	$this->createPlugin();
 	$this->mockComponent('hub.snapshots', SnapshotService::class)->shouldReceive('pushIfDue')->once();
@@ -184,7 +191,7 @@ it('pushes a snapshot once one is due after control panel requests', function ()
 	Event::trigger(WebApplication::class, WebApplication::EVENT_AFTER_REQUEST);
 });
 
-it('registers neither routes, the navigation nor the entry sidebar on site requests', function () {
+it('registers neither routes, the navigation nor the entry sidebar on site requests', function (): void {
 	Event::offAll();
 	$this->request(cp: false);
 	$this->createPlugin();
@@ -196,13 +203,13 @@ it('registers neither routes, the navigation nor the entry sidebar on site reque
 		->and(Event::hasHandlers(UserPermissions::class, UserPermissions::EVENT_REGISTER_PERMISSIONS))->toBeTrue();
 });
 
-it('hides the navigation item from users without access', function () {
+it('hides the navigation item from users without access', function (): void {
 	$this->actingAs(permissions: []);
 
 	expect($this->hub()->getCpNavItem())->toBeNull();
 });
 
-it('has the first navigation item the user may open as the plugin\'s own', function (array $permissions, ?string $url) {
+it("has the first navigation item the user may open as the plugin's own", function (array $permissions, ?string $url): void {
 	$this->request();
 	$this->actingAs(permissions: $permissions);
 
@@ -214,7 +221,7 @@ it('has the first navigation item the user may open as the plugin\'s own', funct
 	'a page without its area' => [[Page::Entries->viewPermission()], null],
 ]);
 
-it('links the navigation items to the Hub pages', function () {
+it('links the navigation items to the Hub pages', function (): void {
 	$this->request([Hub::SITE_PARAM => 'de'], path: 'entries');
 
 	$data = $this->hub()->navigation->getDataNavItem();
@@ -231,7 +238,7 @@ it('links the navigation items to the Hub pages', function () {
 		->and($structure['subnav']['volumes']['url'])->toBe('hub/structure/volumes');
 });
 
-it('leaves out the pages the user may not view', function () {
+it('leaves out the pages the user may not view', function (): void {
 	$this->request();
 	$this->actingAs(permissions: [Hub::PERMISSION_ACCESS_DATA, Page::Entries->viewPermission(), Page::Assets->viewPermission(), Page::Volumes->viewPermission()]);
 
@@ -244,7 +251,7 @@ it('leaves out the pages the user may not view', function () {
 		->and(array_keys($this->hub()->navigation->getStructureNavItem()['subnav']))->toBe(['entry-types', 'volumes']);
 });
 
-it('lets users label, bulk-edit and act on the items of a page only while they may view it', function () {
+it('lets users label, bulk-edit and act on the items of a page only while they may view it', function (): void {
 	$this->actingAs(permissions: [Page::Entries->labelPermission(), Page::Entries->bulkEditPermission(), Hub::PERMISSION_DELETE_ENTRIES]);
 
 	expect($this->hub()->access->canLabel(Page::Entries))->toBeFalse()
@@ -261,14 +268,14 @@ it('lets users label, bulk-edit and act on the items of a page only while they m
 		->and($this->hub()->access->canView('history'))->toBeFalse();
 });
 
-it('keeps the selected sites in the navigation on Hub pages', function () {
+it('keeps the selected sites in the navigation on Hub pages', function (): void {
 	$this->request([Hub::SITE_PARAM => 'de'], path: 'hub/data/entries');
 
 	expect($this->hub()->navigation->getDataNavItem()['subnav']['assets']['linkAttributes']['href'])->toContain(Hub::SITE_PARAM . '=de')
 		->and($this->hub()->navigation->getStructureNavItem()['subnav']['fields']['linkAttributes']['href'])->toContain(Hub::SITE_PARAM . '=de');
 });
 
-it('has settings with defaults', function () {
+it('has settings with defaults', function (): void {
 	$settings = $this->hub()->getSettings();
 
 	expect($settings)->toBeInstanceOf(Settings::class)
@@ -276,13 +283,13 @@ it('has settings with defaults', function () {
 		->and($settings->activityRetentionDays)->toBe(90);
 });
 
-it('leads Craft\'s settings page of the plugin to its own settings page', function () {
+it("leads Craft's settings page of the plugin to its own settings page", function (): void {
 	$this->request();
 
 	expect($this->hub()->getSettingsResponse()->getHeaders()->get('Location'))->toContain('hub/manage/settings');
 });
 
-it('has the work of the user, the activity log and a settings page in the Hub navigation item', function () {
+it('has the work of the user, the activity log and a settings page in the Hub navigation item', function (): void {
 	$this->request();
 
 	expect(array_keys($this->hub()->navigation->getManageNavItem()['subnav']))->toBe(['work', 'activity', 'settings'])
@@ -291,7 +298,7 @@ it('has the work of the user, the activity log and a settings page in the Hub na
 		->and($this->hub()->navigation->getManageNavItem()['subnav']['settings']['url'])->toBe('hub/manage/settings');
 });
 
-it('has only the pages of the Hub navigation item the user may open', function (array $permissions, bool $activity, ?array $pages) {
+it('has only the pages of the Hub navigation item the user may open', function (array $permissions, bool $activity, ?array $pages): void {
 	$this->request();
 	$this->actingAs(permissions: [Hub::PERMISSION_ACCESS_DATA, ...$permissions]);
 	$this->hub()->getSettings()->enableActivity = $activity;
@@ -306,9 +313,9 @@ it('has only the pages of the Hub navigation item the user may open', function (
 	'work and activity' => [['accessPlugin-hub', Hub::PERMISSION_VIEW_WORK, Hub::PERMISSION_VIEW_ACTIVITY], true, ['work', 'activity']],
 ]);
 
-it('badges the Hub navigation item with the number of issues, for users who may view their work', function (bool $canView, int $badge) {
+it('badges the Hub navigation item with the number of issues, for users who may view their work', function (bool $canView, int $badge): void {
 	$this->request();
-	$work = $this->mockComponent('hub.work', SomehowDigital\Craft\Hub\services\WorkService::class);
+	$work = $this->mockComponent('hub.work', WorkService::class);
 	$work->shouldReceive('canView')->andReturn($canView);
 	$work->shouldReceive('getCounts')->andReturn(['drafts' => 1, 'diagnostics' => 4, 'comingUp' => 0]);
 
@@ -318,21 +325,21 @@ it('badges the Hub navigation item with the number of issues, for users who may 
 	'may not view' => [false, 0],
 ]);
 
-it('offers the dashboard widget', function () {
+it('offers the dashboard widget', function (): void {
 	$this->request();
-	$event = new craft\events\RegisterComponentTypesEvent();
-	(fn () => $this->registerWidgets())->call($this->hub());
+	$event = new RegisterComponentTypesEvent();
+	(fn() => $this->registerWidgets())->call($this->hub());
 
-	Event::trigger(craft\services\Dashboard::class, craft\services\Dashboard::EVENT_REGISTER_WIDGET_TYPES, $event);
+	Event::trigger(Dashboard::class, Dashboard::EVENT_REGISTER_WIDGET_TYPES, $event);
 
-	expect($event->types)->toContain(SomehowDigital\Craft\Hub\widgets\MyWork::class);
+	expect($event->types)->toContain(MyWork::class);
 });
 
-it('gives the predefined filters and default checks their rows once installed', function () {
+it('gives the predefined filters and default checks their rows once installed', function (): void {
 	$filters = count($this->hub()->filters->getFilters());
 	$checks = count($this->hub()->diagnostics->getDefinitions());
 
-	(fn () => $this->afterInstall())->call($this->hub());
+	(fn() => $this->afterInstall())->call($this->hub());
 
 	expect($this->db()->queriesMatching('INSERT INTO {{%hub_filters}}'))->toHaveCount($filters)
 		->and($this->db()->queriesMatching('INSERT INTO {{%hub_checks}}'))->toHaveCount($checks);

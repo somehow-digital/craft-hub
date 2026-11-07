@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use Craft;
@@ -108,7 +110,7 @@ class SavedFilter extends Model
 	 */
 	public function getListParams(): array
 	{
-		return $this->isCustom() ? [...$this->params, 'filter' => (string)$this->uid] : $this->params;
+		return $this->isCustom() ? [...$this->params, 'filter' => (string) $this->uid] : $this->params;
 	}
 
 	public function getCondition(): ConditionInterface
@@ -132,7 +134,7 @@ class SavedFilter extends Model
 	{
 		return [
 			[['name', 'description'], 'trim'],
-			[['name'], 'required', 'when' => fn () => !$this->isPredefined()],
+			[['name'], 'required', 'when' => fn(): bool => !$this->isPredefined()],
 			[['name', 'icon'], 'string', 'max' => 255],
 			[['icon'], 'match', 'pattern' => Label::ICON_PATTERN],
 			[['threshold'], 'integer', 'min' => 1],

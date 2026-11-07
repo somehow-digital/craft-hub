@@ -1,12 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\helpers\DateTimeHelper;
 use craft\queue\Queue;
 use SomehowDigital\Craft\Hub\jobs\TakeSnapshot;
 use SomehowDigital\Craft\Hub\models\Snapshot;
 use SomehowDigital\Craft\Hub\services\SnapshotService;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 
 	// The tables of the snapshots exist, which the fake connection can't tell.
@@ -20,22 +22,22 @@ beforeEach(function () {
 	DateTimeHelper::pause(new DateTime('2026-10-27 12:00:00', new DateTimeZone(Craft::$app->getTimeZone())));
 
 	// Snapshots with as many sections as their ID, and the earliest of them, unless another one is given.
-	$this->respondSnapshots = function (array $snapshots, ?string $earliest = null) {
-		$this->db()->respond('FROM {{%hub_snapshots}}', array_map(fn (array $snapshot) => ['id' => $snapshot[0], 'date' => $snapshot[1]], $snapshots));
-		$this->db()->respond('SELECT `id`, `metrics`', array_map(fn (array $snapshot) => [
+	$this->respondSnapshots = function (array $snapshots, ?string $earliest = null): void {
+		$this->db()->respond('FROM {{%hub_snapshots}}', array_map(fn(array $snapshot): array => ['id' => $snapshot[0], 'date' => $snapshot[1]], $snapshots));
+		$this->db()->respond('SELECT `id`, `metrics`', array_map(fn(array $snapshot): array => [
 			'id' => $snapshot[0],
 			'metrics' => json_encode(['sections' => array_fill(1, $snapshot[0], ['type' => 'channel']), 'users' => ['total' => $snapshot[0] * 2]]),
 		], $snapshots));
 		$this->db()->respond('MIN(`date`)', $earliest ?? ($snapshots[0][1] ?? null));
 	};
-	$this->sectionCount = fn (Snapshot $snapshot) => count($snapshot->getSections());
+	$this->sectionCount = fn(Snapshot $snapshot): int => count($snapshot->getSections());
 });
 
-afterEach(function () {
+afterEach(function (): void {
 	DateTimeHelper::resume();
 });
 
-it('takes the snapshot of today with the counts of all sites', function () {
+it('takes the snapshot of today with the counts of all sites', function (): void {
 	$this->db()->respond('GROUP BY `sectionId`, `typeId`, `fieldId`, `sites`, `enabledSites`', [
 		['sectionId' => '1', 'typeId' => '10', 'fieldId' => null, 'sites' => '2,1', 'enabledSites' => '1', 'total' => '3', 'enabled' => '2', 'pending' => '0', 'expired' => '0', 'drafts' => '1', 'lastUpdated' => '2026-10-01 10:00:00'],
 	]);
@@ -54,7 +56,7 @@ it('takes the snapshot of today with the counts of all sites', function () {
 		->and($this->db()->queriesMatching('DELETE FROM {{%hub_snapshots}}'))->toBe([]);
 });
 
-it('keeps the snapshot of today, unless it is replaced', function (bool $replace) {
+it('keeps the snapshot of today, unless it is replaced', function (bool $replace): void {
 	$this->db()->respond("{{%hub_snapshots}}\nWHERE `date`='2026-10-27'", 7);
 
 	expect($this->snapshots->take($replace))->toBe($replace)
@@ -62,7 +64,7 @@ it('keeps the snapshot of today, unless it is replaced', function (bool $replace
 		->and($this->db()->queriesMatching('INSERT INTO {{%hub_snapshots}}'))->toHaveCount($replace ? 1 : 0);
 })->with([true, false]);
 
-it('counts what is not scoped to sites along with the snapshot', function () {
+it('counts what is not scoped to sites along with the snapshot', function (): void {
 	$metrics = $this->snapshots->collectMetrics();
 
 	expect($metrics)->toHaveKeys(['sections', 'entryTypes', 'fields', 'volumes', 'users', 'userGroups'])
@@ -73,7 +75,7 @@ it('counts what is not scoped to sites along with the snapshot', function () {
 		->and($metrics['userGroups'])->toBeArray();
 });
 
-it('is due without a snapshot, or once the last one is as old as the interval', function (?string $latest, int $interval, bool $due) {
+it('is due without a snapshot, or once the last one is as old as the interval', function (?string $latest, int $interval, bool $due): void {
 	$this->hub()->getSettings()->snapshotInterval = $interval;
 	$this->db()->respond('MAX(`date`)', $latest);
 
@@ -86,7 +88,7 @@ it('is due without a snapshot, or once the last one is as old as the interval', 
 	['2026-10-20', 7, true],
 ]);
 
-it('pushes a snapshot once one is due, checking at most once an hour', function () {
+it('pushes a snapshot once one is due, checking at most once an hour', function (): void {
 	$this->db()->respond('MAX(`date`)', '2026-10-20');
 	$this->mockComponent('queue', Queue::class)->makePartial()->shouldReceive('push')->once()->with(Mockery::type(TakeSnapshot::class));
 
@@ -96,7 +98,7 @@ it('pushes a snapshot once one is due, checking at most once an hour', function 
 	expect($this->db()->queriesMatching('SELECT MAX(`date`)'))->toHaveCount(1);
 });
 
-it('pushes no snapshot while none is due, snapshots are disabled or their tables are missing', function (bool $enabled, bool $tables, ?string $latest) {
+it('pushes no snapshot while none is due, snapshots are disabled or their tables are missing', function (bool $enabled, bool $tables, ?string $latest): void {
 	$this->hub()->getSettings()->enableSnapshots = $enabled;
 	$this->snapshots->shouldReceive('tableExists')->andReturn($tables);
 	$this->db()->respond('MAX(`date`)', $latest);
@@ -109,7 +111,7 @@ it('pushes no snapshot while none is due, snapshots are disabled or their tables
 	[true, false, null],
 ]);
 
-it('reads the snapshots since a day, each with the statistics of its rows', function () {
+it('reads the snapshots since a day, each with the statistics of its rows', function (): void {
 	($this->respondSnapshots)([[1, '2026-10-20'], [2, '2026-10-26']]);
 	$this->db()->respond('FROM {{%hub_snapshot_entries}}', [
 		['snapshotId' => '1', 'sectionId' => '1', 'typeId' => '10', 'fieldId' => null, 'sites' => '1', 'enabledSites' => '1', 'total' => '2', 'enabled' => '2', 'pending' => '0', 'expired' => '0', 'drafts' => '0', 'lastUpdated' => null],
@@ -131,7 +133,7 @@ it('reads the snapshots since a day, each with the statistics of its rows', func
 		->and($this->db()->queriesMatching('FROM {{%hub_snapshot_entries}}'))->toHaveCount(1);
 });
 
-it('reads only the parts of the snapshots asked for, for all of them at once', function () {
+it('reads only the parts of the snapshots asked for, for all of them at once', function (): void {
 	($this->respondSnapshots)([[1, '2026-10-20'], [2, '2026-10-26']]);
 
 	$snapshots = $this->snapshots->getSnapshots(null);
@@ -148,15 +150,15 @@ it('reads only the parts of the snapshots asked for, for all of them at once', f
 		->and($this->db()->queriesMatching('FROM {{%hub_snapshot_references}}'))->toBe([]);
 });
 
-it('reads no rows without snapshots', function () {
+it('reads no rows without snapshots', function (): void {
 	expect($this->snapshots->getSnapshots(new DateTime('2026-10-01')))->toBe([])
 		->and($this->db()->queriesMatching('FROM {{%hub_snapshot_entries}}'))->toBe([]);
 });
 
-it('charts a card over the snapshots of a range, ending with its current values', function () {
+it('charts a card over the snapshots of a range, ending with its current values', function (): void {
 	($this->respondSnapshots)([[3, '2026-10-20'], [5, '2026-10-26'], [9, '2026-10-27']]);
 
-	$chart = $this->snapshots->chart(fn (Snapshot $snapshot) => [
+	$chart = $this->snapshots->chart(fn(Snapshot $snapshot): array => [
 		'total' => ($this->sectionCount)($snapshot),
 		'segments' => [['label' => 'Empty', 'value' => ($this->sectionCount)($snapshot) - 1]],
 	], [
@@ -181,10 +183,10 @@ it('charts a card over the snapshots of a range, ending with its current values'
 		->and($this->db()->queriesMatching(">= '2026-09-27'"))->toHaveCount(1);
 });
 
-it('charts the values of segments missing from some snapshots as gaps, and those kept out of the bar dashed', function () {
+it('charts the values of segments missing from some snapshots as gaps, and those kept out of the bar dashed', function (): void {
 	($this->respondSnapshots)([[3, '2026-10-20'], [5, '2026-10-26']]);
 
-	$chart = $this->snapshots->chart(fn (Snapshot $snapshot) => [
+	$chart = $this->snapshots->chart(fn(Snapshot $snapshot): array => [
 		'total' => ($this->sectionCount)($snapshot),
 		'segments' => $snapshot->id === 5 ? [['label' => 'Drafts', 'value' => 1]] : [],
 	], ['label' => 'Entries', 'total' => 6, 'segments' => [['label' => 'Drafts', 'value' => 2, 'color' => 'amber', 'bar' => false]]]);
@@ -192,19 +194,19 @@ it('charts the values of segments missing from some snapshots as gaps, and those
 	expect($chart['series'][1])->toMatchArray(['key' => 'drafts', 'dashed' => true, 'values' => [null, 1, 2]]);
 });
 
-it('charts all snapshots, or the default range for unknown ones', function (int $range, int $expected, int $sinceQueries) {
+it('charts all snapshots, or the default range for unknown ones', function (int $range, int $expected, int $sinceQueries): void {
 	($this->respondSnapshots)([[3, '2026-10-20']]);
 
-	$chart = $this->snapshots->chart(fn (Snapshot $snapshot) => ['total' => 1], ['label' => 'Sections', 'total' => 1], $range);
+	$chart = $this->snapshots->chart(fn(Snapshot $snapshot): array => ['total' => 1], ['label' => 'Sections', 'total' => 1], $range);
 
 	expect($chart['range'])->toBe($expected)
 		->and($this->db()->queriesMatching("`date` >= '"))->toHaveCount($sinceQueries);
 })->with([[0, 0, 0], [7, 30, 1]]);
 
-it('charts the current values alone for a range without snapshots, if there are earlier ones', function () {
+it('charts the current values alone for a range without snapshots, if there are earlier ones', function (): void {
 	($this->respondSnapshots)([], '2025-06-01');
 
-	$chart = $this->snapshots->chart(fn (Snapshot $snapshot) => ['total' => 1], ['label' => 'Sections', 'total' => 4]);
+	$chart = $this->snapshots->chart(fn(Snapshot $snapshot): array => ['total' => 1], ['label' => 'Sections', 'total' => 4]);
 
 	expect($chart['dates'])->toBe(['2026-10-27'])
 		->and($chart['ranges'])->toBe([30, 90, 365, 0])
@@ -213,35 +215,35 @@ it('charts the current values alone for a range without snapshots, if there are 
 		->and($chart['since'])->toBeNull();
 });
 
-it('has no chart without snapshots before today, or while snapshots are disabled', function (bool $enabled, array $snapshots) {
+it('has no chart without snapshots before today, or while snapshots are disabled', function (bool $enabled, array $snapshots): void {
 	$this->hub()->getSettings()->enableSnapshots = $enabled;
 	($this->respondSnapshots)($snapshots);
 
-	expect($this->snapshots->chart(fn (Snapshot $snapshot) => ['total' => 1], ['label' => 'Sections', 'total' => 1]))->toBeNull();
+	expect($this->snapshots->chart(fn(Snapshot $snapshot): array => ['total' => 1], ['label' => 'Sections', 'total' => 1]))->toBeNull();
 })->with([
 	[true, []],
 	[true, [[1, '2026-10-27']]],
 	[false, [[1, '2026-10-20']]],
 ]);
 
-it('offers the ranges up to the first one spanning all snapshots', function (string $earliest, array $ranges) {
+it('offers the ranges up to the first one spanning all snapshots', function (string $earliest, array $ranges): void {
 	($this->respondSnapshots)([[3, '2026-10-26']], $earliest);
 
-	expect($this->snapshots->chart(fn (Snapshot $snapshot) => ['total' => 1], ['label' => 'Sections', 'total' => 1])['ranges'])->toBe($ranges);
+	expect($this->snapshots->chart(fn(Snapshot $snapshot): array => ['total' => 1], ['label' => 'Sections', 'total' => 1])['ranges'])->toBe($ranges);
 })->with([
 	['2026-10-26', [30]],
 	['2026-07-01', [30, 90, 365]],
 	['2025-01-01', [30, 90, 365, 0]],
 ]);
 
-it('loads at most as many snapshots as asked for, spread evenly from the first to the last', function () {
-	($this->respondSnapshots)(array_map(fn (int $id) => [$id, "2026-10-0$id"], range(1, 5)));
+it('loads at most as many snapshots as asked for, spread evenly from the first to the last', function (): void {
+	($this->respondSnapshots)(array_map(fn(int $id): array => [$id, "2026-10-0{$id}"], range(1, 5)));
 
-	expect(array_map(fn (Snapshot $snapshot) => $snapshot->id, $this->snapshots->getSnapshots(null, 3)))->toBe([1, 3, 5])
-		->and(array_map(fn (Snapshot $snapshot) => $snapshot->id, $this->snapshots->getSnapshots(null)))->toBe([1, 2, 3, 4, 5]);
+	expect(array_map(fn(Snapshot $snapshot): int => $snapshot->id, $this->snapshots->getSnapshots(null, 3)))->toBe([1, 3, 5])
+		->and(array_map(fn(Snapshot $snapshot): int => $snapshot->id, $this->snapshots->getSnapshots(null)))->toBe([1, 2, 3, 4, 5]);
 });
 
-it('deletes the snapshots older than the retention, unless they are kept forever', function (int $days, int $deletes) {
+it('deletes the snapshots older than the retention, unless they are kept forever', function (int $days, int $deletes): void {
 	$this->hub()->getSettings()->snapshotRetentionDays = $days;
 
 	$this->snapshots->deleteExpired();
@@ -255,10 +257,10 @@ it('deletes the snapshots older than the retention, unless they are kept forever
 	}
 })->with([[10, 1], [0, 0]]);
 
-it('checks whether the tables of the snapshots exist once', function () {
+it('checks whether the tables of the snapshots exist once', function (): void {
 	$snapshots = new SnapshotService();
 
-	(function () {
+	(function (): void {
 		expect($this->tableExists())->toBeFalse()
 			->and($this->tableExists())->toBeFalse();
 	})->call($snapshots);

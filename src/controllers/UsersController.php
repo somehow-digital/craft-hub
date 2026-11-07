@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Closure;
@@ -29,7 +31,7 @@ class UsersController extends BaseController
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/data/users')) !== null) {
+		if (($redirect = $this->keepFilters('hub/data/users')) instanceof Response) {
 			return $redirect;
 		}
 
@@ -52,7 +54,7 @@ class UsersController extends BaseController
 			throw new NotFoundHttpException('No user groups.');
 		}
 
-		if (($redirect = $this->keepFilters($path)) !== null) {
+		if (($redirect = $this->keepFilters($path)) instanceof Response) {
 			return $redirect;
 		}
 
@@ -89,12 +91,12 @@ class UsersController extends BaseController
 
 		$group = $info['group'];
 		$panel = $this->renderPanel([
-			'permissions' => fn () => ['hub/_panels/groups/permissions', ['permissions' => $hub->users->getGroupPermissions($group)]],
-			'maintains' => fn () => ['hub/_panels/groups/maintains', ['maintained' => $hub->maintainers->getMaintainedByGroup($group)]],
-			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::UserGroup->value, 'id' => $group->id]],
+			'permissions' => fn(): array => ['hub/_panels/groups/permissions', ['permissions' => $hub->users->getGroupPermissions($group)]],
+			'maintains' => fn(): array => ['hub/_panels/groups/maintains', ['maintained' => $hub->maintainers->getMaintainedByGroup($group)]],
+			'activity' => fn(): array => ['hub/_panels/activity', ['subject' => ActivitySubject::UserGroup->value, 'id' => $group->id]],
 		]);
 
-		if ($panel !== null) {
+		if ($panel instanceof Response) {
 			return $panel;
 		}
 
@@ -103,7 +105,7 @@ class UsersController extends BaseController
 			'info' => $info,
 			'selectedTab' => $tab,
 			...match ($tab) {
-				self::TAB_USERS => $this->userListVariables("hub/data/users/groups/$id/users", $info['group']),
+				self::TAB_USERS => $this->userListVariables("hub/data/users/groups/{$id}/users", $info['group']),
 				default => ['maintainedCount' => $hub->maintainers->countMaintainedByGroup($group)],
 			},
 		]);
@@ -127,13 +129,13 @@ class UsersController extends BaseController
 
 		$user = $users->getUser($id) ?? throw new NotFoundHttpException('User not found.');
 
-		if (in_array($tab, [self::TAB_ENTRIES, self::TAB_ASSETS], true) && ($redirect = $this->keepFilters("hub/data/users/$id/$tab")) !== null) {
+		if (in_array($tab, [self::TAB_ENTRIES, self::TAB_ASSETS], true) && ($redirect = $this->keepFilters("hub/data/users/{$id}/{$tab}")) instanceof Response) {
 			return $redirect;
 		}
 
-		$panel = $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn () => $hub->checks->forUser($user)) : $this->overviewPanels($user));
+		$panel = $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn() => $hub->checks->forUser($user)) : $this->overviewPanels($user));
 
-		if ($panel !== null) {
+		if ($panel instanceof Response) {
 			return $panel;
 		}
 
@@ -149,8 +151,8 @@ class UsersController extends BaseController
 			'idleMonths' => $hub->filters->getThreshold(CheckKind::Users, 'idle'),
 			'checks' => $hub->checks->forUser($user),
 			...match ($tab) {
-				self::TAB_ENTRIES => $this->entryListVariables("hub/data/users/$id/entries", author: $user),
-				self::TAB_ASSETS => $this->fileListVariables("hub/data/users/$id/assets", uploader: $user),
+				self::TAB_ENTRIES => $this->entryListVariables("hub/data/users/{$id}/entries", author: $user),
+				self::TAB_ASSETS => $this->fileListVariables("hub/data/users/{$id}/assets", uploader: $user),
 				self::TAB_DIAGNOSTICS => [],
 				default => $this->overviewVariables($user),
 			},
@@ -184,11 +186,11 @@ class UsersController extends BaseController
 		$hub = Hub::getInstance();
 
 		return [
-			'permissions' => fn () => ['hub/_panels/users/permissions', ['user' => $user, 'permissions' => $user->admin ? [] : $hub->users->getPermissions($user)]],
-			'references' => fn () => ['hub/_panels/users/references', ['references' => $hub->references->getReferences($user)]],
-			'referenced' => fn () => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($user)]],
-			'maintains' => fn () => ['hub/_panels/users/maintains', ['maintained' => $hub->maintainers->getMaintainedBy($user)]],
-			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::User->value, 'id' => $user->id]],
+			'permissions' => fn(): array => ['hub/_panels/users/permissions', ['user' => $user, 'permissions' => $user->admin ? [] : $hub->users->getPermissions($user)]],
+			'references' => fn(): array => ['hub/_panels/users/references', ['references' => $hub->references->getReferences($user)]],
+			'referenced' => fn(): array => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($user)]],
+			'maintains' => fn(): array => ['hub/_panels/users/maintains', ['maintained' => $hub->maintainers->getMaintainedBy($user)]],
+			'activity' => fn(): array => ['hub/_panels/activity', ['subject' => ActivitySubject::User->value, 'id' => $user->id]],
 		];
 	}
 

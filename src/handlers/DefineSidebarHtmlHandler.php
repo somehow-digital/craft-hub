@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers;
 
 use Craft;
@@ -87,7 +89,7 @@ class DefineSidebarHtmlHandler
 		$hub = Hub::getInstance();
 
 		return [
-			...$hub->labels->getItemVariables($list, (int)$canonical->id, !$element->getIsRevision()),
+			...$hub->labels->getItemVariables($list, (int) $canonical->id, !$element->getIsRevision()),
 			'checks' => $hub->settings->enableDiagnostics ? match (true) {
 				$canonical instanceof Entry => $hub->checks->forEntry($canonical),
 				$canonical instanceof Asset => $hub->checks->forFile($canonical),
@@ -98,7 +100,7 @@ class DefineSidebarHtmlHandler
 			'references' => $hub->references->getReferences($element),
 			'referenced' => $hub->references->getReferenced($element),
 			'maintained' => $canonical instanceof User ? $hub->maintainers->getMaintainedBy($canonical) : [],
-			'activities' => $hub->activity->canView() ? $hub->activity->getItemActivities(ActivitySubject::fromElement($canonical), (int)$canonical->id, self::ACTIVITY_LIMIT) : null,
+			'activities' => $hub->activity->canView() ? $hub->activity->getItemActivities(ActivitySubject::fromElement($canonical), (int) $canonical->id, self::ACTIVITY_LIMIT) : null,
 		];
 	}
 }

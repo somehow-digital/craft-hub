@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use Closure;
@@ -72,7 +74,7 @@ class Snapshot
 	 */
 	public function getUserGroups(): array
 	{
-		return array_map('intval', $this->metric('userGroups'));
+		return array_map(intval(...), $this->metric('userGroups'));
 	}
 
 	public function getUsers(): UserStatistics
@@ -81,7 +83,7 @@ class Snapshot
 
 		foreach ($this->metric('users') as $property => $value) {
 			if (property_exists($stats, $property)) {
-				$stats->$property = (int)$value;
+				$stats->{$property} = (int) $value;
 			}
 		}
 
@@ -95,6 +97,6 @@ class Snapshot
 	{
 		$this->metrics ??= ($this->parts)('metrics');
 
-		return (array)($this->metrics[$name] ?? []);
+		return (array) ($this->metrics[$name] ?? []);
 	}
 }

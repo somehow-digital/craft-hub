@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\elements\User;
@@ -10,7 +12,7 @@ use SomehowDigital\Craft\Hub\models\EntryReference;
 use SomehowDigital\Craft\Hub\services\ReferenceService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->related = $this->field(EntriesField::class, 3, 'related', ['name' => 'Related']);
 	$block = $this->entryType(12, 'block', [$this->related]);
 	$blocks = $this->field(Matrix::class, 2, 'blocks', ['name' => 'Blocks', 'entryTypes' => [$block]]);
@@ -20,12 +22,15 @@ beforeEach(function () {
 	$this->service = new ReferenceService();
 });
 
+/**
+ * @param mixed[][] $sources
+ */
 function referenceRows(array $sources): array
 {
-	return array_map(fn (array $source) => ['id' => $source[0], 'type' => $source[1], 'fieldId' => $source[2]], $sources);
+	return array_map(fn(array $source): array => ['id' => $source[0], 'type' => $source[1], 'fieldId' => $source[2]], $sources);
 }
 
-it('finds the live elements referencing an element', function () {
+it('finds the live elements referencing an element', function (): void {
 	$this->db()->respond('FROM {{%relations}} {{relations}}', referenceRows([[2, Entry::class, 3]]));
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 2, 'siteId' => 1, 'title' => 'Source', 'typeId' => 10])]);
 
@@ -40,7 +45,7 @@ it('finds the live elements referencing an element', function () {
 		->and($sql)->toContain('`sources`.`revisionId` IS NULL');
 });
 
-it('leaves out the elements the user may not view', function () {
+it('leaves out the elements the user may not view', function (): void {
 	$this->db()->respond('FROM {{%relations}} {{relations}}', referenceRows([[2, Entry::class, 3]]));
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 2, 'siteId' => 1, 'title' => 'Source', 'typeId' => 10])]);
 	$this->canView = false;
@@ -48,7 +53,7 @@ it('leaves out the elements the user may not view', function () {
 	expect($this->service->getReferences($this->target))->toBe([]);
 });
 
-it('looks up the referencing elements on any site, preferring the site of the element', function () {
+it('looks up the referencing elements on any site, preferring the site of the element', function (): void {
 	$this->site(2, 'de');
 	$this->db()->respond('FROM {{%relations}} {{relations}}', referenceRows([[2, Entry::class, 3], [2, Entry::class, 3]]));
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 2, 'siteId' => 1, 'title' => 'Source', 'typeId' => 10])]);
@@ -63,30 +68,30 @@ it('looks up the referencing elements on any site, preferring the site of the el
 		->and($query->status)->toBeNull();
 });
 
-it('finds the elements referencing any of several elements, leaving out the excluded ones', function () {
+it('finds the elements referencing any of several elements, leaving out the excluded ones', function (): void {
 	$this->db()->respond('FROM {{%relations}} {{relations}}', referenceRows([[2, Entry::class, 3], [4, Entry::class, 3]]));
 	ElementQueries::respond(Entry::class, [
 		new Entry(['id' => 2, 'siteId' => 1, 'title' => 'Deleted too', 'typeId' => 10]),
 		new Entry(['id' => 4, 'siteId' => 1, 'title' => 'Source', 'typeId' => 10]),
 	]);
 
-	$result = $this->service->getReferencesTo([1, 2], fn ($root) => $root->id === 2);
+	$result = $this->service->getReferencesTo([1, 2], fn($root): bool => $root->id === 2);
 	$sql = $this->db()->queriesMatching('FROM {{%relations}} {{relations}}')[0];
 
-	expect(array_map(fn (EntryReference $reference) => $reference->element->id, $result['references']))->toBe([4])
+	expect(array_map(fn(EntryReference $reference): ?int => $reference->element->id, $result['references']))->toBe([4])
 		->and($result['capped'])->toBeFalse()
 		->and($sql)->toContain('`relations`.`targetId` IN (1, 2)')
 		->and($sql)->toContain('LIMIT ' . (ReferenceService::SOURCE_LIMIT + 1))
-		->and($this->service->getReferencesTo([], fn () => false))->toBe(['references' => [], 'capped' => false]);
+		->and($this->service->getReferencesTo([], fn(): false => false))->toBe(['references' => [], 'capped' => false]);
 });
 
-it('tells whether more elements reference the elements than were read', function () {
-	$this->db()->respond('FROM {{%relations}} {{relations}}', referenceRows(array_map(fn (int $id) => [$id, Entry::class, 3], range(2, ReferenceService::SOURCE_LIMIT + 2))));
+it('tells whether more elements reference the elements than were read', function (): void {
+	$this->db()->respond('FROM {{%relations}} {{relations}}', referenceRows(array_map(fn(int $id): array => [$id, Entry::class, 3], range(2, ReferenceService::SOURCE_LIMIT + 2))));
 
-	expect($this->service->getReferencesTo([1], fn () => false)['capped'])->toBeTrue();
+	expect($this->service->getReferencesTo([1], fn(): false => false)['capped'])->toBeTrue();
 });
 
-it('attributes references from nested entries to their root owner', function () {
+it('attributes references from nested entries to their root owner', function (): void {
 	$owner = new Entry(['id' => 9, 'siteId' => 1, 'title' => 'Owner', 'typeId' => 10]);
 	$nested = new Entry(['id' => 8, 'siteId' => 1, 'title' => 'Block', 'typeId' => 12, 'fieldId' => 2, 'primaryOwnerId' => 9, 'ownerId' => 9]);
 	$nested->setOwner($owner);
@@ -101,7 +106,7 @@ it('attributes references from nested entries to their root owner', function () 
 		->and(array_keys($references[0]->paths))->toBe(['Blocks → Related', 'Related']);
 });
 
-it('leaves out references from copies owned by drafts, from the element itself and from missing elements', function () {
+it('leaves out references from copies owned by drafts, from the element itself and from missing elements', function (): void {
 	$draft = new Entry(['id' => 9, 'siteId' => 1, 'typeId' => 10, 'draftId' => 4]);
 	$copy = new Entry(['id' => 8, 'siteId' => 1, 'typeId' => 12, 'fieldId' => 2, 'primaryOwnerId' => 9, 'ownerId' => 9]);
 	$copy->setOwner($draft);
@@ -120,7 +125,7 @@ it('leaves out references from copies owned by drafts, from the element itself a
 	expect($this->service->getReferences($this->target))->toBe([]);
 });
 
-it('names fields that no longer exist', function () {
+it('names fields that no longer exist', function (): void {
 	$owner = new Entry(['id' => 9, 'siteId' => 1, 'title' => 'Owner', 'typeId' => 10]);
 	$nested = Mockery::mock(Entry::class)->makePartial();
 	$nested->id = 8;
@@ -139,7 +144,7 @@ it('names fields that no longer exist', function () {
 		->and($references[0]->paths['Unknown field → Unknown field']['field'])->toBeNull();
 });
 
-it('leaves out nested entries whose owner no longer exists', function () {
+it('leaves out nested entries whose owner no longer exists', function (): void {
 	$nested = Mockery::mock(Entry::class)->makePartial();
 	$nested->id = 8;
 	$nested->siteId = 1;
@@ -152,7 +157,7 @@ it('leaves out nested entries whose owner no longer exists', function () {
 	expect($this->service->getReferences($this->target))->toBe([]);
 });
 
-it('sorts the references by their elements', function () {
+it('sorts the references by their elements', function (): void {
 	$this->db()->respond('FROM {{%relations}} {{relations}}', referenceRows([[2, Entry::class, 3], [3, User::class, 3], [4, Entry::class, 3]]));
 	ElementQueries::respond(Entry::class, [
 		new Entry(['id' => 2, 'siteId' => 1, 'title' => 'Entry 10', 'typeId' => 10]),
@@ -162,10 +167,10 @@ it('sorts the references by their elements', function () {
 
 	$references = $this->service->getReferences($this->target);
 
-	expect(array_map(fn (EntryReference $reference) => (string)$reference->element, $references))->toBe(['Author', 'entry 9', 'Entry 10']);
+	expect(array_map(fn(EntryReference $reference): string => (string) $reference->element, $references))->toBe(['Author', 'entry 9', 'Entry 10']);
 });
 
-it('counts the live references of elements', function () {
+it('counts the live references of elements', function (): void {
 	$this->db()->respond('FROM {{%relations}} {{relations}}', [
 		['elementId' => '1', 'references' => '3'],
 		['elementId' => '4', 'references' => '1'],
@@ -175,12 +180,12 @@ it('counts the live references of elements', function () {
 		->and($this->db()->queriesMatching('FROM {{%relations}} {{relations}}')[0])->toContain('`relations`.`targetId` IN (1, 4, 5)');
 });
 
-it('counts the references of no elements without a query', function () {
+it('counts the references of no elements without a query', function (): void {
 	expect($this->service->getReferenceCounts([]))->toBe([])
 		->and($this->db()->queries)->toBe([]);
 });
 
-it('finds the elements referencing an element through reference tags, by the field holding them', function () {
+it('finds the elements referencing an element through reference tags, by the field holding them', function (): void {
 	$text = $this->field(PlainText::class, 4, 'body', ['name' => 'Body']);
 	$this->db()->respond('FROM {{%hub_references}} {{hubReferences}}', referenceRows([[2, Entry::class, 4]]));
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 2, 'siteId' => 1, 'title' => 'Source', 'typeId' => 10])]);
@@ -194,7 +199,7 @@ it('finds the elements referencing an element through reference tags, by the fie
 		->and($sql)->toContain('`sources`.`dateDeleted` IS NULL');
 });
 
-it('counts the reference tags of elements along with their relations', function () {
+it('counts the reference tags of elements along with their relations', function (): void {
 	$this->db()->respond('FROM {{%relations}} {{relations}}', [['elementId' => '1', 'references' => '3']]);
 	$this->db()->respond('FROM {{%hub_references}} {{hubReferences}}', [
 		['elementId' => '1', 'references' => '2'],
@@ -204,8 +209,8 @@ it('counts the reference tags of elements along with their relations', function 
 	expect($this->service->getReferenceCounts([1, 4, 5]))->toBe([1 => 5, 5 => 1]);
 });
 
-describe('reference tags', function () {
-	beforeEach(function () {
+describe('reference tags', function (): void {
+	beforeEach(function (): void {
 		$this->text = $this->field(PlainText::class, 4, 'body', ['name' => 'Body']);
 		$this->layout = $this->layout(Entry::class, 'tags', [$this->text, $this->related]);
 		[$this->textUid, $this->relatedUid] = ['uid-body', 'uid-related'];
@@ -215,7 +220,7 @@ describe('reference tags', function () {
 		Craft::$app->getFields()->shouldReceive('getLayoutById')->with(7)->andReturn($this->layout);
 	});
 
-	it('finds reference tags by ID in the content of fields', function () {
+	it('finds reference tags by ID in the content of fields', function (): void {
 		$content = json_encode([
 			$this->textUid => '<a href="{entry:12@1:url||https://example.com}">a</a> <img src="{asset:34:url}"> {entry:56@1:url||} {entry:78}',
 			$this->relatedUid => [99],
@@ -224,11 +229,11 @@ describe('reference tags', function () {
 		expect($this->service->findTags($content, 7))->toBe([[4, 12], [4, 34], [4, 56], [4, 78]]);
 	});
 
-	it('finds reference tags in values other than text, like those of tables', function () {
+	it('finds reference tags in values other than text, like those of tables', function (): void {
 		expect($this->service->findTags([$this->textUid => [['cell' => '{entry:12:url}']]], 7))->toBe([[4, 12]]);
 	});
 
-	it('leaves out relation fields, tags by anything but an ID, unknown element types and layout elements', function () {
+	it('leaves out relation fields, tags by anything but an ID, unknown element types and layout elements', function (): void {
 		$content = [
 			$this->relatedUid => '{entry:12}',
 			$this->textUid => '{entry:about/us:url} {nothing:12} {entry:} entry:34',
@@ -240,7 +245,7 @@ describe('reference tags', function () {
 			->and($this->service->findTags([$this->textUid => '{entry:12}'], null))->toBe([]);
 	});
 
-	it('indexes the reference tags of elements, replacing what was indexed for them', function () {
+	it('indexes the reference tags of elements, replacing what was indexed for them', function (): void {
 		$this->db()->respond('FROM {{%elements_sites}} {{elements_sites}}', [
 			['elementId' => 5, 'siteId' => 1, 'content' => json_encode([$this->textUid => '{entry:12} {entry:12} {asset:34} {entry:5} {entry:404}']), 'fieldLayoutId' => 7],
 			['elementId' => 5, 'siteId' => 2, 'content' => json_encode([$this->textUid => '{entry:12}']), 'fieldLayoutId' => 7],
@@ -264,20 +269,20 @@ describe('reference tags', function () {
 			->and($inserted[0])->not->toContain('404');
 	});
 
-	it('clears the index of elements without reference tags', function () {
+	it('clears the index of elements without reference tags', function (): void {
 		$this->service->index([5]);
 
 		expect($this->db()->queriesMatching('DELETE FROM {{%hub_references}}'))->toHaveCount(1)
 			->and($this->db()->queriesMatching('INSERT INTO {{%hub_references}}'))->toBe([]);
 	});
 
-	it('indexes nothing without elements', function () {
+	it('indexes nothing without elements', function (): void {
 		$this->service->index([]);
 
 		expect($this->db()->queries)->toBe([]);
 	});
 
-	it('indexes the elements that aren\'t drafts or revisions', function () {
+	it("indexes the elements that aren't drafts or revisions", function (): void {
 		$sql = rawSql($this->service->indexableQuery());
 
 		expect($sql)->toContain('`draftId` IS NULL')
@@ -286,9 +291,9 @@ describe('reference tags', function () {
 	});
 });
 
-it('lists the users whose photo an asset is among its references', function () {
+it('lists the users whose photo an asset is among its references', function (): void {
 	$this->db()->respond('FROM {{%users}} {{hubUsers}}', [['id' => 7]]);
-	ElementQueries::respond(User::class, fn () => [7 => new User(['id' => 7, 'username' => 'jane'])]);
+	ElementQueries::respond(User::class, fn(): array => [7 => new User(['id' => 7, 'username' => 'jane'])]);
 
 	$references = $this->service->getReferences(new Asset(['id' => 1, 'siteId' => 1]));
 
@@ -297,28 +302,28 @@ it('lists the users whose photo an asset is among its references', function () {
 		->and($references[0]->paths)->toBe(['User photo' => ['label' => 'User photo', 'field' => null]]);
 });
 
-it('only looks for photos of assets', function () {
+it('only looks for photos of assets', function (): void {
 	$this->db()->respond('FROM {{%users}} {{hubUsers}}', [['id' => 7]]);
-	ElementQueries::respond(User::class, fn () => [7 => new User(['id' => 7, 'username' => 'jane'])]);
+	ElementQueries::respond(User::class, fn(): array => [7 => new User(['id' => 7, 'username' => 'jane'])]);
 
 	expect($this->service->getReferences($this->target))->toBe([]);
 });
 
-it('counts the users whose photo an asset is as references', function () {
+it('counts the users whose photo an asset is as references', function (): void {
 	$this->db()->respond('FROM {{%users}} {{hubPhotos}}', [['elementId' => 1, 'references' => 2]]);
 
 	expect($this->service->getReferenceCounts([1]))->toBe([1 => 2]);
 });
 
-it('finds the elements an element references, by the fields of its nested entries too', function () {
-	$this->db()->respond('FROM {{%elements_owners}} {{owners}}', fn (string $sql) => str_contains($sql, '`ownerId`=1') ? [['id' => 8, 'ownerId' => 1, 'fieldId' => 2]] : []);
+it('finds the elements an element references, by the fields of its nested entries too', function (): void {
+	$this->db()->respond('FROM {{%elements_owners}} {{owners}}', fn(string $sql): array => str_contains($sql, '`ownerId`=1') ? [['id' => 8, 'ownerId' => 1, 'fieldId' => 2]] : []);
 	$this->db()->respond('FROM {{%relations}} {{relations}}', [
 		['id' => 20, 'type' => Entry::class, 'fieldId' => 3, 'sourceId' => 1],
 		['id' => 20, 'type' => Entry::class, 'fieldId' => 3, 'sourceId' => 8],
 		['id' => 8, 'type' => Entry::class, 'fieldId' => 3, 'sourceId' => 1],
 	]);
 	$referenced = new Entry(['id' => 20, 'title' => 'Referenced']);
-	ElementQueries::respond(Entry::class, fn () => [20 => $referenced, 8 => new Entry(['id' => 8])]);
+	ElementQueries::respond(Entry::class, fn(): array => [20 => $referenced, 8 => new Entry(['id' => 8])]);
 
 	$references = $this->service->getReferenced($this->target);
 
@@ -327,16 +332,16 @@ it('finds the elements an element references, by the fields of its nested entrie
 		->and(array_keys($references[0]->paths))->toBe(['Related', 'Blocks → Related']);
 });
 
-it('leaves out the elements referenced that the user may not view', function () {
+it('leaves out the elements referenced that the user may not view', function (): void {
 	$this->db()->respond('FROM {{%relations}} {{relations}}', [['id' => 20, 'type' => Entry::class, 'fieldId' => 3, 'sourceId' => 1]]);
-	ElementQueries::respond(Entry::class, fn () => [20 => new Entry(['id' => 20])]);
+	ElementQueries::respond(Entry::class, fn(): array => [20 => new Entry(['id' => 20])]);
 	$this->canView = false;
 
 	expect($this->service->getReferenced($this->target))->toBe([]);
 });
 
-it('counts the photo of a user among what they reference', function () {
-	ElementQueries::respond(Asset::class, fn () => [9 => new Asset(['id' => 9])]);
+it('counts the photo of a user among what they reference', function (): void {
+	ElementQueries::respond(Asset::class, fn(): array => [9 => new Asset(['id' => 9])]);
 
 	$references = $this->service->getReferenced(new User(['id' => 1, 'siteId' => 1, 'photoId' => 9]));
 
@@ -344,7 +349,7 @@ it('counts the photo of a user among what they reference', function () {
 		->and(array_keys($references[0]->paths))->toBe(['User photo']);
 });
 
-it('reads the references of many elements at once, leaving out the elements themselves and what is excluded', function () {
+it('reads the references of many elements at once, leaving out the elements themselves and what is excluded', function (): void {
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1, 'siteId' => 1]), new Entry(['id' => 5, 'siteId' => 1]), new Entry(['id' => 6, 'siteId' => 1])]);
 	Craft::$app->getElements()->allows('canView')->andReturn(true);
 	$this->db()->respond('FROM {{%relations}} {{relations}}', [
@@ -354,10 +359,10 @@ it('reads the references of many elements at once, leaving out the elements them
 		['id' => 6, 'type' => Entry::class, 'fieldId' => null, 'targetId' => 2],
 	]);
 
-	$references = $this->hub()->references->getReferencesOfEach([1, 2], fn ($root) => $root->id === 6);
+	$references = $this->hub()->references->getReferencesOfEach([1, 2], fn($root): bool => $root->id === 6);
 
-	expect(array_map(fn ($reference) => $reference->element->id, $references[1]))->toBe([5])
-		->and(array_map(fn ($reference) => $reference->element->id, $references[2]))->toBe([5])
+	expect(array_map(fn($reference) => $reference->element->id, $references[1]))->toBe([5])
+		->and(array_map(fn($reference) => $reference->element->id, $references[2]))->toBe([5])
 		->and(ElementQueries::executed(Entry::class))->toHaveCount(1)
-		->and($this->hub()->references->getReferencesOfEach([], fn () => false))->toBe([]);
+		->and($this->hub()->references->getReferencesOfEach([], fn(): false => false))->toBe([]);
 });

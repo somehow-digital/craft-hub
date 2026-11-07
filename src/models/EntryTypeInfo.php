@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\FieldInterface;
@@ -33,8 +35,9 @@ class EntryTypeInfo
 
 	public EntryStatistics $stats;
 
-	public function __construct(public EntryType $entryType)
-	{
+	public function __construct(
+		public EntryType $entryType
+	) {
 		$this->stats = new EntryStatistics();
 	}
 
@@ -48,6 +51,6 @@ class EntryTypeInfo
 	 */
 	public function getKindValues(): array
 	{
-		return array_map(fn (UsageKind $kind) => $kind->value, $this->kinds);
+		return array_map(fn(UsageKind $kind) => $kind->value, $this->kinds);
 	}
 }

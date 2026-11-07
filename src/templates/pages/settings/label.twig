@@ -30,16 +30,16 @@
 			label: 'Remove from all items'|t('hub'),
 			action: 'hub/labels/clear',
 			redirect: ('hub/manage/settings/labels/' ~ label.id)|hash,
-			params: { id: label.id },
-			confirm: 'Are you sure you want to remove “{name}” from all items labeled with it? The label is kept.'|t('hub', { name: label.name }),
+			params: {id: label.id},
+			confirm: 'Are you sure you want to remove “{name}” from all items labeled with it? The label is kept.'|t('hub', {name: label.name}),
 			destructive: true,
 		},
 		{
 			label: 'Delete label'|t('hub'),
 			action: 'hub/labels/delete',
 			redirect: 'hub/manage/settings/labels'|hash,
-			params: { id: label.id },
-			confirm: 'Are you sure you want to delete “{name}”? All items labeled with it are unlabeled.'|t('hub', { name: label.name }),
+			params: {id: label.id},
+			confirm: 'Are you sure you want to delete “{name}”? All items labeled with it are unlabeled.'|t('hub', {name: label.name}),
 			destructive: true,
 		},
 	]|filter %}
@@ -49,7 +49,7 @@
 	{{ actionInput('hub/labels/save') }}
 	{% if label.id %}{{ hiddenInput('labelId', label.id) }}{% endif %}
 
-	{% embed 'hub/_components/panel' with { heading: 'Label'|t('hub'), icon: 'tag', color: 'gray', count: null, collapsible: false, label: label } only %}
+	{% embed 'hub/_components/panel' with {heading: 'Label'|t('hub'), icon: 'tag', color: 'gray', count: null, collapsible: false, label: label} only %}
 		{% block body %}
 			{% import '_includes/forms' as forms %}
 			<div class="hub-panel__fields">

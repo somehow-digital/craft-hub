@@ -1,7 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
+use craft\behaviors\DraftBehavior;
 use craft\elements\Asset;
+use craft\elements\db\AssetQuery;
 use craft\elements\db\ElementQuery;
+use craft\elements\db\EntryQuery;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\models\UserGroup;
@@ -18,7 +23,7 @@ use SomehowDigital\Craft\Hub\services\MaintainerService;
 use SomehowDigital\Craft\Hub\services\WorkService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->request();
 	Craft::$app->getCache()->flush();
 	Craft::$app->getUser()->shouldReceive('getId')->andReturn(7)->byDefault();
@@ -26,7 +31,7 @@ beforeEach(function () {
 	$this->work = new WorkService();
 
 	// The conditions of the queries of a kind of element, as SQL.
-	$this->sql = fn (ElementQuery $query) => conditionSql($query->where);
+	$this->sql = fn(ElementQuery $query): string => conditionSql($query->where);
 });
 
 function workDefinition(CheckKind $kind, string $handle, Severity $severity = Severity::Notice): CheckDefinition
@@ -37,7 +42,7 @@ function workDefinition(CheckKind $kind, string $handle, Severity $severity = Se
 	return $definition;
 }
 
-it('needs both accessing the plugin and its permission to view the work of a user', function (bool $plugin, array $permissions, bool $allowed) {
+it('needs both accessing the plugin and its permission to view the work of a user', function (bool $plugin, array $permissions, bool $allowed): void {
 	$this->hasPluginAccess = $plugin;
 	$this->actingAs(permissions: $permissions);
 
@@ -48,46 +53,46 @@ it('needs both accessing the plugin and its permission to view the work of a use
 	'permission only' => [false, [Hub::PERMISSION_VIEW_WORK], false],
 ]);
 
-it('counts nothing for users who may not view their work or without a user', function () {
+it('counts nothing for users who may not view their work or without a user', function (): void {
 	$this->actingAs(permissions: ['accessPlugin-hub']);
 
 	expect($this->work->getCounts())->toBe(['drafts' => 0, 'diagnostics' => 0, 'comingUp' => 0, 'checks' => []])
 		->and(ElementQueries::$executed)->toBe([]);
 });
 
-it('lists the checks flagging the user\'s entries and assets, the most urgent first, without those flagging nothing', function () {
+it("lists the checks flagging the user's entries and assets, the most urgent first, without those flagging nothing", function (): void {
 	$notice = workDefinition(CheckKind::Entries, 'stale');
 	$error = workDefinition(CheckKind::Assets, 'large', Severity::Error);
 	$clean = workDefinition(CheckKind::Entries, 'disabled');
 
 	$diagnostics = Mockery::mock(DiagnosticsService::class)->makePartial();
-	$diagnostics->shouldReceive('getEnabledChecks')->andReturnUsing(fn (CheckKind $kind) => $kind === CheckKind::Entries ? [$notice, $clean] : [$error]);
-	$diagnostics->shouldReceive('getFailingQuery')->andReturnUsing(fn (CheckDefinition $definition) => match ($definition) {
+	$diagnostics->shouldReceive('getEnabledChecks')->andReturnUsing(fn(CheckKind $kind): array => $kind === CheckKind::Entries ? [$notice, $clean] : [$error]);
+	$diagnostics->shouldReceive('getFailingQuery')->andReturnUsing(fn(CheckDefinition $definition): EntryQuery|AssetQuery => match ($definition) {
 		$clean => Entry::find()->id(-1),
 		$notice => Entry::find(),
 		$error => Asset::find(),
 	});
 	$this->hub()->set('diagnostics', $diagnostics);
 
-	ElementQueries::respond(Entry::class, fn (ElementQuery $query) => $query->id === -1 ? [] : [new Entry(['id' => 1]), new Entry(['id' => 2])]);
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => $query->id === -1 ? [] : [new Entry(['id' => 1]), new Entry(['id' => 2])]);
 	ElementQueries::respond(Asset::class, [new Asset(['id' => 3])]);
 
 	$checks = $this->work->getDiagnostics(10);
 
-	expect(array_map(fn ($check) => $check->key, $checks))->toBe(['assets.large', 'entries.stale'])
-		->and(array_map(fn ($check) => $check->count, $checks))->toBe([1, 2])
-		->and(array_map(fn ($item) => $item->id, $checks[1]->items))->toBe([1, 2])
+	expect(array_map(fn($check) => $check->key, $checks))->toBe(['assets.large', 'entries.stale'])
+		->and(array_map(fn($check) => $check->count, $checks))->toBe([1, 2])
+		->and(array_map(fn($item) => $item->id, $checks[1]->items))->toBe([1, 2])
 		->and($checks[0]->url)->toContain('hub/manage/work/assets')
 		->and($checks[1]->url)->toContain('hub/manage/work/entries');
 });
 
-it('narrows the checks to what the user authored or uploaded and hasn\'t snoozed, whatever the filters of the checks ask for', function () {
+it("narrows the checks to what the user authored or uploaded and hasn't snoozed, whatever the filters of the checks ask for", function (): void {
 	$entries = workDefinition(CheckKind::Entries, 'stale');
 	$assets = workDefinition(CheckKind::Assets, 'large');
 
 	$diagnostics = Mockery::mock(DiagnosticsService::class)->makePartial();
-	$diagnostics->shouldReceive('getEnabledChecks')->andReturnUsing(fn (CheckKind $kind) => $kind === CheckKind::Entries ? [$entries] : [$assets]);
-	$diagnostics->shouldReceive('getFailingQuery')->andReturnUsing(fn (CheckDefinition $definition) => $definition === $entries ? Entry::find()->authorId(99) : Asset::find());
+	$diagnostics->shouldReceive('getEnabledChecks')->andReturnUsing(fn(CheckKind $kind): array => $kind === CheckKind::Entries ? [$entries] : [$assets]);
+	$diagnostics->shouldReceive('getFailingQuery')->andReturnUsing(fn(CheckDefinition $definition): EntryQuery|AssetQuery => $definition === $entries ? Entry::find()->authorId(99) : Asset::find());
 	$this->hub()->set('diagnostics', $diagnostics);
 
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1])]);
@@ -95,7 +100,7 @@ it('narrows the checks to what the user authored or uploaded and hasn\'t snoozed
 
 	$this->work->getDiagnostics(1);
 
-	$executed = fn (string $type) => array_values(array_filter(ElementQueries::$executed, fn (ElementQuery $query) => $query->elementType === $type))[0];
+	$executed = fn(string $type): ElementQuery => array_values(array_filter(ElementQueries::$executed, fn(ElementQuery $query): bool => $query->elementType === $type))[0];
 	$entrySql = ($this->sql)($executed(Entry::class));
 	$assetSql = ($this->sql)($executed(Asset::class));
 
@@ -108,7 +113,7 @@ it('narrows the checks to what the user authored or uploaded and hasn\'t snoozed
 		->and($assetSql)->toContain("`hubSnoozes`.`checkKey`='assets.large'");
 });
 
-it('leaves out the checks of pages the user may not view and everything while diagnostics are disabled', function (array $permissions, bool $diagnostics) {
+it('leaves out the checks of pages the user may not view and everything while diagnostics are disabled', function (array $permissions, bool $diagnostics): void {
 	$this->actingAs(permissions: $permissions);
 	$this->hub()->getSettings()->enableDiagnostics = $diagnostics;
 
@@ -123,12 +128,12 @@ it('leaves out the checks of pages the user may not view and everything while di
 	'diagnostics disabled' => [['accessPlugin-hub', Hub::PERMISSION_ACCESS_DATA, 'hub-viewEntries'], false],
 ]);
 
-it('lists the drafts themselves, saved or not, of new and existing entries, saying what each is', function () {
+it('lists the drafts themselves, saved or not, of new and existing entries, saying what each is', function (): void {
 	$new = Mockery::mock(Entry::class)->makePartial();
 	$new->shouldReceive('getIsUnpublishedDraft')->andReturn(true);
 	$named = Mockery::mock(Entry::class)->makePartial();
 	$named->shouldReceive('getIsUnpublishedDraft')->andReturn(false);
-	$named->attachBehavior('draft', new craft\behaviors\DraftBehavior(['draftName' => 'Spring update']));
+	$named->attachBehavior('draft', new DraftBehavior(['draftName' => 'Spring update']));
 	$unnamed = Mockery::mock(Entry::class)->makePartial();
 	$unnamed->shouldReceive('getIsUnpublishedDraft')->andReturn(false);
 	$unsaved = Mockery::mock(Entry::class)->makePartial();
@@ -148,7 +153,7 @@ it('lists the drafts themselves, saved or not, of new and existing entries, sayi
 		->and($query->savedDraftsOnly)->toBeTrue();
 });
 
-it('names the sections alike everywhere, leading to their tab or panel, and those of the user\'s work with a number', function () {
+it("names the sections alike everywhere, leading to their tab or panel, and those of the user's work with a number", function (): void {
 	$sections = $this->work->getSections();
 
 	expect(array_keys($sections))->toBe(['diagnostics', 'drafts', 'coming-up', 'maintained'])
@@ -160,7 +165,7 @@ it('names the sections alike everywhere, leading to their tab or panel, and thos
 		->and($sections['maintained']['count'])->toBeNull();
 });
 
-it('leaves out the sections of what the user may not view or is disabled', function () {
+it('leaves out the sections of what the user may not view or is disabled', function (): void {
 	$this->actingAs(permissions: ['accessPlugin-hub', Hub::PERMISSION_VIEW_WORK]);
 	$this->hub()->getSettings()->enableDiagnostics = false;
 
@@ -171,14 +176,14 @@ it('leaves out the sections of what the user may not view or is disabled', funct
 	}
 });
 
-it('has no entries for users who may not view them', function () {
+it('has no entries for users who may not view them', function (): void {
 	$this->actingAs(permissions: ['accessPlugin-hub']);
 
 	expect($this->work->getDrafts())->toBe(['items' => [], 'total' => 0])
 		->and($this->work->getComingUp())->toBe(['items' => [], 'total' => 0]);
 });
 
-it('lists the enabled entries of the user being published or expiring soon, soonest first', function () {
+it('lists the enabled entries of the user being published or expiring soon, soonest first', function (): void {
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1])]);
 
 	$coming = $this->work->getComingUp();
@@ -193,7 +198,7 @@ it('lists the enabled entries of the user being published or expiring soon, soon
 		->and(array_keys($query->orderBy)[0])->toStartWith('CASE WHEN [[entries.postDate]]');
 });
 
-it('lists what the user maintains on pages they may view, with the checks failing there', function () {
+it('lists what the user maintains on pages they may view, with the checks failing there', function (): void {
 	$this->section(1, 'news');
 	$this->section(2, 'blog');
 	$this->volume(3, 'images');
@@ -219,9 +224,9 @@ it('lists what the user maintains on pages they may view, with the checks failin
 		->and($maintained[0]['severity'])->toBeNull();
 });
 
-it('lists what the user snoozed, what returns first ahead of what they dismissed, leaving out checks and items gone', function () {
+it('lists what the user snoozed, what returns first ahead of what they dismissed, leaving out checks and items gone', function (): void {
 	$diagnostics = Mockery::mock(DiagnosticsService::class)->makePartial();
-	$diagnostics->shouldReceive('getDefinition')->andReturnUsing(fn (string $key) => $key === 'gone.check' ? null : workDefinition(CheckKind::Entries, explode('.', $key)[1]));
+	$diagnostics->shouldReceive('getDefinition')->andReturnUsing(fn(string $key): ?CheckDefinition => $key === 'gone.check' ? null : workDefinition(CheckKind::Entries, explode('.', $key)[1]));
 	$this->hub()->set('diagnostics', $diagnostics);
 
 	$this->db()->respond('FROM {{%hub_snoozes}}', [
@@ -234,12 +239,12 @@ it('lists what the user snoozed, what returns first ahead of what they dismissed
 
 	$snoozed = $this->work->getSnoozed();
 
-	expect(array_map(fn (array $row) => $row['element']->id, $snoozed))->toBe([2, 1])
+	expect(array_map(fn(array $row) => $row['element']->id, $snoozed))->toBe([2, 1])
 		->and($snoozed[0]['until']->format('Y'))->toBe('2030')
 		->and($snoozed[1]['until'])->toBeNull();
 });
 
-it('snoozes for the days given, or for good, and counts again', function () {
+it('snoozes for the days given, or for good, and counts again', function (): void {
 	$check = workDefinition(CheckKind::Entries, 'stale');
 
 	$this->work->snooze($check, 5, 7);
@@ -253,7 +258,7 @@ it('snoozes for the days given, or for good, and counts again', function () {
 		->and($queries[1])->toContain('NULL');
 });
 
-it('counts again once the user snoozes something, keeping the counts until then', function () {
+it('counts again once the user snoozes something, keeping the counts until then', function (): void {
 	$this->hub()->getSettings()->enableDiagnostics = false;
 	$check = workDefinition(CheckKind::Entries, 'stale');
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1])]);
@@ -274,7 +279,7 @@ it('counts again once the user snoozes something, keeping the counts until then'
 	}
 });
 
-it('wakes what a user snoozed, for them alone', function () {
+it('wakes what a user snoozed, for them alone', function (): void {
 	$this->work->wake('entries.stale', 5);
 
 	expect($this->db()->queriesMatching('DELETE FROM {{%hub_snoozes}}')[0])
@@ -283,7 +288,7 @@ it('wakes what a user snoozed, for them alone', function () {
 		->toContain("`checkKey`='entries.stale'");
 });
 
-it('removes the snoozes that ran out and those of checks that no longer exist', function () {
+it('removes the snoozes that ran out and those of checks that no longer exist', function (): void {
 	$this->work->deleteExpired();
 
 	expect($this->db()->queriesMatching('DELETE FROM {{%hub_snoozes}}')[0])
@@ -292,13 +297,13 @@ it('removes the snoozes that ran out and those of checks that no longer exist', 
 		->toContain('entries.stale');
 });
 
-it('narrows the checks to the user\'s items first, so databases find those before evaluating the checks', function () {
+it("narrows the checks to the user's items first, so databases find those before evaluating the checks", function (): void {
 	$entries = workDefinition(CheckKind::Entries, 'disabled');
 	$assets = workDefinition(CheckKind::Assets, 'large');
 
 	$diagnostics = Mockery::mock(DiagnosticsService::class)->makePartial();
-	$diagnostics->shouldReceive('getEnabledChecks')->andReturnUsing(fn (CheckKind $kind) => $kind === CheckKind::Entries ? [$entries] : [$assets]);
-	$diagnostics->shouldReceive('getFailingQuery')->andReturnUsing(fn (CheckDefinition $definition) => $definition === $entries
+	$diagnostics->shouldReceive('getEnabledChecks')->andReturnUsing(fn(CheckKind $kind): array => $kind === CheckKind::Entries ? [$entries] : [$assets]);
+	$diagnostics->shouldReceive('getFailingQuery')->andReturnUsing(fn(CheckDefinition $definition): EntryQuery|AssetQuery => $definition === $entries
 		? Entry::find()->andWhere(['elements.enabled' => false])
 		: Asset::find()->andWhere(['>', 'assets.size', 1]));
 	$this->hub()->set('diagnostics', $diagnostics);
@@ -313,13 +318,13 @@ it('narrows the checks to the user\'s items first, so databases find those befor
 		->and(strpos($entrySql, '`elements`.`enabled`'))->toBeLessThan(strpos($entrySql, '`hubSnoozes`'));
 });
 
-it('counts the checks once for the navigation and the page, keeping the counts of each', function () {
+it('counts the checks once for the navigation and the page, keeping the counts of each', function (): void {
 	$notice = workDefinition(CheckKind::Entries, 'stale');
 	$error = workDefinition(CheckKind::Assets, 'large', Severity::Error);
 
 	$diagnostics = Mockery::mock(DiagnosticsService::class)->makePartial();
-	$diagnostics->shouldReceive('getEnabledChecks')->andReturnUsing(fn (CheckKind $kind) => $kind === CheckKind::Entries ? [$notice] : [$error]);
-	$diagnostics->shouldReceive('getFailingQuery')->andReturnUsing(fn (CheckDefinition $definition) => $definition === $notice ? Entry::find() : Asset::find());
+	$diagnostics->shouldReceive('getEnabledChecks')->andReturnUsing(fn(CheckKind $kind): array => $kind === CheckKind::Entries ? [$notice] : [$error]);
+	$diagnostics->shouldReceive('getFailingQuery')->andReturnUsing(fn(CheckDefinition $definition): EntryQuery|AssetQuery => $definition === $notice ? Entry::find() : Asset::find());
 	$this->hub()->set('diagnostics', $diagnostics);
 
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1]), new Entry(['id' => 2])]);
@@ -331,11 +336,11 @@ it('counts the checks once for the navigation and the page, keeping the counts o
 
 	expect($counts['checks'])->toBe(['entries.stale' => 2, 'assets.large' => 1])
 		->and($counts['diagnostics'])->toBe(3)
-		->and(array_map(fn ($check) => $check->count, $checks))->toBe([1, 2])
+		->and(array_map(fn(Check $check): ?int => $check->count, $checks))->toBe([1, 2])
 		->and(count(ElementQueries::$executed))->toBe($executed);
 });
 
-it('counts again once the user changed their entries or assets', function () {
+it('counts again once the user changed their entries or assets', function (): void {
 	$this->hub()->getSettings()->enableDiagnostics = false;
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1])]);
 
@@ -357,7 +362,7 @@ it('counts again once the user changed their entries or assets', function () {
 	}
 });
 
-it('only tells whether what the user maintains fails the checks of what it holds, without counting those', function () {
+it('only tells whether what the user maintains fails the checks of what it holds, without counting those', function (): void {
 	$this->section(1, 'news');
 	$this->volume(3, 'images');
 	$sources = [

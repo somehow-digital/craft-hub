@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Closure;
@@ -28,7 +30,7 @@ class SectionsController extends BaseController
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/structure/sections')) !== null) {
+		if (($redirect = $this->keepFilters('hub/structure/sections')) instanceof Response) {
 			return $redirect;
 		}
 
@@ -51,7 +53,7 @@ class SectionsController extends BaseController
 				'sections' => $sections,
 				'pageInfo' => $pageInfo,
 				'total' => count($all),
-				'activities' => in_array('updated', $shown, true) ? array_map(fn (SectionInfo $info) => $info->stats->getActivity($months), $sections) : [],
+				'activities' => in_array('updated', $shown, true) ? array_map(fn(SectionInfo $info): string => $info->stats->getActivity($months), $sections) : [],
 				'filter' => $filter,
 				'columns' => $columns,
 				...$this->savedFilterVariables(CheckKind::Sections, 'hub/structure/sections', $filter->savedFilter),
@@ -77,7 +79,7 @@ class SectionsController extends BaseController
 		$tab = $this->detailTab($tab, [self::TAB_ENTRIES, self::TAB_STATISTICS]);
 		$info = Hub::getInstance()->structure->getSection($id) ?? throw new NotFoundHttpException('Section not found.');
 
-		if ($tab === self::TAB_ENTRIES && ($redirect = $this->keepFilters("hub/structure/sections/$id/entries")) !== null) {
+		if ($tab === self::TAB_ENTRIES && ($redirect = $this->keepFilters("hub/structure/sections/{$id}/entries")) instanceof Response) {
 			return $redirect;
 		}
 
@@ -86,9 +88,9 @@ class SectionsController extends BaseController
 
 		// A card or panel requested on its own is rendered without the page around it.
 		$part = ($tab === self::TAB_STATISTICS ? $this->renderCard($summary) : null)
-			?? $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn () => Hub::getInstance()->checks->forSection($info)) : $this->overviewPanels($info));
+			?? $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn() => Hub::getInstance()->checks->forSection($info)) : $this->overviewPanels($info));
 
-		if ($part !== null) {
+		if ($part instanceof Response) {
 			return $part;
 		}
 
@@ -98,7 +100,7 @@ class SectionsController extends BaseController
 			'selectedTab' => $tab,
 			'checks' => Hub::getInstance()->checks->forSection($info),
 			...match ($tab) {
-				self::TAB_ENTRIES => $this->entryListVariables("hub/structure/sections/$id/entries", section: $info->section),
+				self::TAB_ENTRIES => $this->entryListVariables("hub/structure/sections/{$id}/entries", section: $info->section),
 				self::TAB_STATISTICS => ['summary' => $summary],
 				self::TAB_DIAGNOSTICS => [],
 				default => [],
@@ -117,12 +119,12 @@ class SectionsController extends BaseController
 		$section = $info->section;
 
 		return [
-			'maintainers' => fn () => ['hub/_panels/maintainers', ['list' => ColumnService::LIST_SECTIONS, 'item' => $section]],
-			'sites' => fn () => ['hub/_panels/sections/sites', ['section' => $section]],
-			'previewTargets' => fn () => ['hub/_panels/sections/preview-targets', ['section' => $section]],
-			'entryTypes' => fn () => ['hub/_panels/sections/entry-types', ['info' => $info, 'section' => $section, 'entryTypes' => $hub->structure->getEntryTypes(), 'statistics' => $hub->statistics]],
-			'relations' => fn () => ['hub/_panels/sections/relations', ['info' => $info, 'section' => $section, 'statistics' => $hub->statistics]],
-			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::Section->value, 'id' => $section->id]],
+			'maintainers' => fn(): array => ['hub/_panels/maintainers', ['list' => ColumnService::LIST_SECTIONS, 'item' => $section]],
+			'sites' => fn(): array => ['hub/_panels/sections/sites', ['section' => $section]],
+			'previewTargets' => fn(): array => ['hub/_panels/sections/preview-targets', ['section' => $section]],
+			'entryTypes' => fn(): array => ['hub/_panels/sections/entry-types', ['info' => $info, 'section' => $section, 'entryTypes' => $hub->structure->getEntryTypes(), 'statistics' => $hub->statistics]],
+			'relations' => fn(): array => ['hub/_panels/sections/relations', ['info' => $info, 'section' => $section, 'statistics' => $hub->statistics]],
+			'activity' => fn(): array => ['hub/_panels/activity', ['subject' => ActivitySubject::Section->value, 'id' => $section->id]],
 		];
 	}
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\enums;
 
 use Craft;
@@ -12,7 +14,6 @@ use craft\models\Section;
 use craft\models\UserGroup;
 use craft\models\Volume;
 use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\services\ColumnService;
 
 /**
  * The pages of Hub's lists, below the "Data" and the "Structure" navigation items, each viewed, labeled and bulk-edited

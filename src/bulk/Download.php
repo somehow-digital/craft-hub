@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -41,8 +43,8 @@ class Download extends BulkAction implements SendsFile
 		return new BulkPreview('download-preview', count($assets), [
 			'assets' => $shown,
 			'pageInfo' => $pageInfo,
-			'size' => array_sum(array_map(fn (Asset $asset) => (int)$asset->size, $assets)),
-			'volumes' => count(array_unique(array_map(fn (Asset $asset) => (int)$asset->volumeId, $assets))),
+			'size' => array_sum(array_map(fn(Asset $asset): int => (int) $asset->size, $assets)),
+			'volumes' => count(array_unique(array_map(fn(Asset $asset): int => (int) $asset->volumeId, $assets))),
 		]);
 	}
 
@@ -86,7 +88,7 @@ class Download extends BulkAction implements SendsFile
 		}
 
 		$zip->close();
-		$response->on(YiiResponse::EVENT_AFTER_SEND, fn () => FileHelper::unlink($path));
+		$response->on(YiiResponse::EVENT_AFTER_SEND, fn(): bool => FileHelper::unlink($path));
 
 		return $response->sendFile($path, 'files.zip');
 	}

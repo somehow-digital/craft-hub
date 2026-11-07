@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\FieldInterface;
@@ -17,6 +19,5 @@ class LayoutUsage
 		public int $instances = 1,
 		public EntryType|FieldInterface|null $model = null,
 		public ?string $color = null,
-	) {
-	}
+	) {}
 }

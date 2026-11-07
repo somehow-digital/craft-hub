@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\db\Query;
 use craft\elements\db\ElementQuery;
 use craft\elements\Entry;
@@ -17,12 +19,12 @@ const QUERY_RANK = 'ROW_NUMBER()';
 /** what tells whether a query matches anything */
 const QUERY_FIRST_ROW = 'LIMIT 1';
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->site(2, 'de');
 	$this->queries = new FakeQueryService();
 });
 
-it('counts elements on several sites once, if they match on any of their sites', function () {
+it('counts elements on several sites once, if they match on any of their sites', function (): void {
 	$this->queries->count(Entry::find()->siteId([1, 2]), ['typeId' => 'entries.typeId'], ['live' => ['elements.enabled' => true]], [
 		'diagnosis' => ['warning' => ['elements.archived' => true], 'passed' => null],
 	]);
@@ -34,7 +36,7 @@ it('counts elements on several sites once, if they match on any of their sites',
 		->and($sql)->toContain('BIT_OR(`diagnosis`)');
 });
 
-it('counts the rows of elements on a single site as they are', function () {
+it('counts the rows of elements on a single site as they are', function (): void {
 	$this->queries->count(Entry::find()->siteId([2]), ['typeId' => 'entries.typeId'], ['live' => ['elements.enabled' => true]], [
 		'diagnosis' => ['warning' => ['elements.archived' => true], 'passed' => null],
 	]);
@@ -47,8 +49,8 @@ it('counts the rows of elements on a single site as they are', function () {
 		->and($sql)->toContain('SUM(`live`)');
 });
 
-it('groups the rows of elements by element before joining the tables of site-independent conditions, unless on a single site', function () {
-	$count = fn (array|int $siteIds) => $this->queries->count(Entry::find()->siteId($siteIds), ['kind' => 'assets.kind'], ['used' => ['assets.size' => 1]], [], ['assets' => '{{%assets}}']);
+it('groups the rows of elements by element before joining the tables of site-independent conditions, unless on a single site', function (): void {
+	$count = fn(array|int $siteIds) => $this->queries->count(Entry::find()->siteId($siteIds), ['kind' => 'assets.kind'], ['used' => ['assets.size' => 1]], [], ['assets' => '{{%assets}}']);
 
 	$count([1, 2]);
 	$count(2);
@@ -57,7 +59,7 @@ it('groups the rows of elements by element before joining the tables of site-ind
 		->and($this->db()->counts()[1])->not->toContain('GROUP BY `elements`.`id`');
 });
 
-it('left joins subqueries for site-independent conditions, as elements may have no row in them', function () {
+it('left joins subqueries for site-independent conditions, as elements may have no row in them', function (): void {
 	$this->queries->count(Entry::find()->siteId(2), ['kind' => 'assets.kind'], ['alt' => '[[hubAlt.withAlt]] > 0'], [], [
 		'assets' => '{{%assets}}',
 		'hubAlt' => (new Query())->select(['id' => 'assetId'])->from('{{%assets_sites}}'),
@@ -68,7 +70,7 @@ it('left joins subqueries for site-independent conditions, as elements may have 
 		->and($this->db()->counts()[0])->toContain('`hubAlt` ON `hubAlt`.`id` = `elements`.`id`');
 });
 
-it('keeps the rows of elements on a single site apart from the counts on PostgreSQL, so conditions are evaluated once', function (string $driver, bool $fenced) {
+it('keeps the rows of elements on a single site apart from the counts on PostgreSQL, so conditions are evaluated once', function (string $driver, bool $fenced): void {
 	$this->createApp($driver);
 	$this->site(2, 'de');
 	$queries = new FakeQueryService();
@@ -84,7 +86,7 @@ it('keeps the rows of elements on a single site apart from the counts on Postgre
 	'PostgreSQL' => ['pgsql', true],
 ]);
 
-it('ranks the sites of elements on several sites to page them', function () {
+it('ranks the sites of elements on several sites to page them', function (): void {
 	$this->queries->pageIds(Entry::find()->siteId([1, 2])->orderBy(['elements.dateUpdated' => SORT_DESC]), 50, 25);
 
 	$sql = $this->db()->queriesMatching('hubRank')[0];
@@ -94,22 +96,22 @@ it('ranks the sites of elements on several sites to page them', function () {
 		->and($sql)->toContain('LIMIT 25 OFFSET 50');
 });
 
-it('skips pages past the elements a query matches', function () {
+it('skips pages past the elements a query matches', function (): void {
 	expect($this->queries->pageIds(Entry::find()->siteId([2]), 50, 25, 50))->toBe([])
 		->and($this->queries->pageIds(Entry::find()->siteId([1, 2]), 75, 25, 60))->toBe([])
 		->and($this->db()->queriesMatching('hubId'))->toBe([]);
 });
 
-it('sorts the pages of elements on a single site holding the last of them once all are found', function (string $driver, int $total, ?string $fence) {
+it('sorts the pages of elements on a single site holding the last of them once all are found', function (string $driver, int $total, ?string $fence): void {
 	$this->createApp($driver);
 	$this->site(2, 'de');
 	(new FakeQueryService())->pageIds(Entry::find()->siteId([2])->orderBy(['elements.dateCreated' => SORT_DESC, 'elements.id' => SORT_DESC]), 0, 25, $total);
 
 	$sql = $this->db()->queriesMatching('hubId')[0];
-	$quote = fn (string $sql) => $driver === 'pgsql' ? str_replace('`', '"', $sql) : $sql;
+	$quote = fn(string $sql): string|array => $driver === 'pgsql' ? str_replace('`', '"', $sql) : $sql;
 
 	expect($sql)->toContain($quote($fence !== null ? 'ORDER BY `hubSort0` DESC, `hubSort1` DESC' : 'ORDER BY `elements`.`dateCreated` DESC, `elements`.`id` DESC'))
-		->and($fence !== null ? str_contains($sql, $quote("$fence) `hubRows`")) : !str_contains($sql, 'hubRows'))->toBeTrue()
+		->and($fence !== null ? str_contains($sql, $quote("{$fence}) `hubRows`")) : !str_contains($sql, 'hubRows'))->toBeTrue()
 		->and($sql)->toEndWith('LIMIT 25');
 })->with([
 	'the last of them on MySQL' => ['mysql', 25, 'LIMIT ' . PHP_INT_MAX],
@@ -117,7 +119,7 @@ it('sorts the pages of elements on a single site holding the last of them once a
 	'more than the page' => ['mysql', 26, null],
 ]);
 
-it('pages elements on a single site without ranking their sites', function () {
+it('pages elements on a single site without ranking their sites', function (): void {
 	$this->queries->pageIds(Entry::find()->siteId([2])->orderBy(['elements.dateUpdated' => SORT_DESC, 'elements.id' => SORT_DESC]), 50, 25);
 
 	$sql = $this->db()->queriesMatching('hubId')[0];
@@ -127,10 +129,10 @@ it('pages elements on a single site without ranking their sites', function () {
 		->and($sql)->toContain('LIMIT 25 OFFSET 50');
 });
 
-describe('elements without criteria depending on their site', function () {
-	beforeEach(function () {
+describe('elements without criteria depending on their site', function (): void {
+	beforeEach(function (): void {
 		// Rows built like Craft's subquery: a row for each site of an element, joined and matched by site.
-		$this->queries = new class() extends FakeQueryService {
+		$this->queries = new class () extends FakeQueryService {
 			protected function rows(ElementQuery $query): Query
 			{
 				return (new Query())
@@ -146,7 +148,7 @@ describe('elements without criteria depending on their site', function () {
 		$this->site(3, 'fr');
 	});
 
-	it('leaves out matching their sites on all sites, as every element is on one of them', function () {
+	it('leaves out matching their sites on all sites, as every element is on one of them', function (): void {
 		$this->queries->pageIds(Entry::find()->siteId([1, 2, 3])->orderBy(['elements.dateUpdated' => SORT_DESC]), 0, 25);
 		$this->queries->count(Entry::find()->siteId([3, 2, 1]), ['kind' => 'assets.kind']);
 
@@ -157,14 +159,15 @@ describe('elements without criteria depending on their site', function () {
 		}
 	});
 
-	it('tells whether any of them matches by the first row found', function () {
-		$this->db()->respond(QUERY_FIRST_ROW, fn (string $sql) => str_contains($sql, 'IN (1, 2)') ? [['hubId' => '5']] : []);
+	it('tells whether any of them matches by the first row found', function (): void {
+		$this->db()->respond(QUERY_FIRST_ROW, fn(string $sql): array => str_contains($sql, 'IN (1, 2)') ? [['hubId' => '5']] : []);
 		$rows = (new ReflectionMethod($this->queries, 'rows'))->getClosure($this->queries);
 
 		// Rows like those of the other tests, of the service itself rather than the fake answering whether queries match.
-		$queries = new class($rows) extends QueryService {
-			public function __construct(private Closure $elementRows)
-			{
+		$queries = new class ($rows) extends QueryService {
+			public function __construct(
+				private readonly Closure $elementRows
+			) {
 				parent::__construct();
 			}
 
@@ -180,7 +183,7 @@ describe('elements without criteria depending on their site', function () {
 			->and($this->db()->queriesMatching(QUERY_FIRST_ROW)[0])->not->toContain('COUNT(');
 	});
 
-	it('pages them by a row of each, matching their sites with a subquery', function () {
+	it('pages them by a row of each, matching their sites with a subquery', function (): void {
 		$this->queries->pageIds(Entry::find()->siteId([1, 2])->orderBy(['elements.dateUpdated' => SORT_DESC]), 50, 25);
 
 		$sql = $this->db()->queriesMatching('hubId')[0];
@@ -193,7 +196,7 @@ describe('elements without criteria depending on their site', function () {
 			->and($sql)->toContain('LIMIT 25 OFFSET 50');
 	});
 
-	it('counts them by a row of each', function () {
+	it('counts them by a row of each', function (): void {
 		$this->queries->count(Entry::find()->siteId([1, 2]), ['kind' => 'assets.kind'], ['used' => ['assets.size' => 1]], [], ['assets' => '{{%assets}}']);
 
 		$sql = $this->db()->counts()[0];
@@ -203,29 +206,29 @@ describe('elements without criteria depending on their site', function () {
 			->and($sql)->toContain('`hubSites`.`siteId` IN (1, 2)');
 	});
 
-	it('ranks their sites if they are sorted by a column of their site', function () {
+	it('ranks their sites if they are sorted by a column of their site', function (): void {
 		$this->queries->pageIds(Entry::find()->siteId([1, 2])->orderBy(['elements_sites.title' => SORT_ASC]), 0, 25);
 
 		expect($this->db()->queriesMatching('hubRank'))->toHaveCount(1);
 	});
 
-	it('ranks their sites if the criteria refer to their site', function () {
+	it('ranks their sites if the criteria refer to their site', function (): void {
 		$this->queries->pageIds(Entry::find()->siteId([1, 2])->where(['like', 'elements_sites.title', 'a'])->orderBy(['elements.id' => SORT_ASC]), 0, 25);
 
 		expect($this->db()->queriesMatching('hubRank'))->toHaveCount(1);
 	});
 
-	it('groups their rows if a condition counted refers to their site', function () {
+	it('groups their rows if a condition counted refers to their site', function (): void {
 		$this->queries->count(Entry::find()->siteId([1, 2]), [], ['enabled' => ['elements_sites.enabled' => true]]);
 
 		expect($this->db()->counts()[0])->toContain('MAX(');
 	});
 });
 
-describe('pages of elements', function () {
-	beforeEach(function () {
+describe('pages of elements', function (): void {
+	beforeEach(function (): void {
 		// Pages loaded like the service does, apart from the rows of the query, which aren't prepared.
-		$this->queries = new class() extends QueryService {
+		$this->queries = new class () extends QueryService {
 			protected function rows(ElementQuery $query): Query
 			{
 				return (new Query())->from(['hubQuery' => $query]);
@@ -233,39 +236,39 @@ describe('pages of elements', function () {
 		};
 	});
 
-	it('loads the elements of a page on the site each was found on, without the criteria of the query', function () {
+	it('loads the elements of a page on the site each was found on, without the criteria of the query', function (): void {
 		$this->db()->respond('hubRank', [['hubId' => '5', 'hubSiteId' => '2'], ['hubId' => '3', 'hubSiteId' => '1'], ['hubId' => '4', 'hubSiteId' => '2']]);
-		ElementQueries::respond(Entry::class, fn (ElementQuery $query) => array_map(fn (int $id) => new Entry(['id' => $id, 'siteId' => $query->siteId]), $query->id));
+		ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => array_map(fn(int $id): Entry => new Entry(['id' => $id, 'siteId' => $query->siteId]), $query->id));
 
 		$page = $this->queries->page(Entry::find()->siteId([1, 2])->status('live')->orderBy(['elements.dateUpdated' => SORT_DESC]), 0, 25);
 		$queries = ElementQueries::executed(Entry::class);
 
-		expect(array_map(fn (Entry $entry) => "$entry->id@$entry->siteId", $page))->toBe(['5@2', '3@1', '4@2'])
-			->and(array_map(fn (ElementQuery $query) => [$query->siteId, $query->id], $queries))->toBe([[2, [5, 4]], [1, [3]]])
+		expect(array_map(fn(Entry $entry): string => "{$entry->id}@{$entry->siteId}", $page))->toBe(['5@2', '3@1', '4@2'])
+			->and(array_map(fn(ElementQuery $query): array => [$query->siteId, $query->id], $queries))->toBe([[2, [5, 4]], [1, [3]]])
 			->and($queries[0]->status)->toBeNull();
 	});
 
-	it('loads the elements of a page on a single site on that site', function () {
+	it('loads the elements of a page on a single site on that site', function (): void {
 		$this->db()->respond('hubId', [['hubId' => '7']]);
-		ElementQueries::respond(Entry::class, fn (ElementQuery $query) => [new Entry(['id' => 7, 'siteId' => 2])]);
+		ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => [new Entry(['id' => 7, 'siteId' => 2])]);
 
 		expect($this->queries->page(Entry::find()->siteId([2]), 0, 25))->toHaveCount(1)
 			->and(ElementQueries::executed(Entry::class)[0]->siteId)->toBe(2)
 			->and(ElementQueries::executed(Entry::class)[0]->unique)->toBeFalse();
 	});
 
-	it('loads the elements of a page of trashed ones as trashed', function () {
+	it('loads the elements of a page of trashed ones as trashed', function (): void {
 		$this->db()->respond('hubId', [['hubId' => '7']]);
-		ElementQueries::respond(Entry::class, fn (ElementQuery $query) => [new Entry(['id' => 7, 'siteId' => 2])]);
+		ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => [new Entry(['id' => 7, 'siteId' => 2])]);
 
 		$this->queries->page(Entry::find()->siteId([2])->trashed(), 0, 25);
 
 		expect(ElementQueries::executed(Entry::class)[0]->trashed)->toBeTrue();
 	});
 
-	it('loads the elements of a page of drafts as drafts, as they aren\'t found otherwise', function () {
+	it("loads the elements of a page of drafts as drafts, as they aren't found otherwise", function (): void {
 		$this->db()->respond('hubId', [['hubId' => '7']]);
-		ElementQueries::respond(Entry::class, fn (ElementQuery $query) => [new Entry(['id' => 7, 'siteId' => 2])]);
+		ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => [new Entry(['id' => 7, 'siteId' => 2])]);
 
 		$this->queries->page(Entry::find()->siteId([2])->drafts()->provisionalDrafts(null), 0, 25);
 
@@ -273,10 +276,10 @@ describe('pages of elements', function () {
 			->and(ElementQueries::executed(Entry::class)[0]->provisionalDrafts)->toBeNull();
 	});
 
-	it('loads the elements of a page along with what the query loads with them', function () {
+	it('loads the elements of a page along with what the query loads with them', function (): void {
 		$this->db()->respond('hubId', [['hubId' => '7', 'hubSiteId' => '2']]);
-		ElementQueries::respond(Entry::class, fn (ElementQuery $query) => [new Entry(['id' => 7, 'siteId' => 2])]);
-		ElementQueries::respond(User::class, fn (ElementQuery $query) => [new User(['id' => 7])]);
+		ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => [new Entry(['id' => 7, 'siteId' => 2])]);
+		ElementQueries::respond(User::class, fn(ElementQuery $query): array => [new User(['id' => 7])]);
 
 		$this->queries->page(Entry::find()->siteId([2])->with(['owner']), 0, 25);
 		$this->queries->page(User::find()->with(['photo'])->withGroups(), 0, 25);
@@ -286,7 +289,7 @@ describe('pages of elements', function () {
 			->and(ElementQueries::executed(User::class)[0]->withGroups)->toBeTrue();
 	});
 
-	it('loads no elements for an empty page', function () {
+	it('loads no elements for an empty page', function (): void {
 		expect($this->queries->page(Entry::find()->siteId([1, 2]), 100, 25))->toBe([])
 			->and(ElementQueries::executed(Entry::class))->toBe([]);
 	});

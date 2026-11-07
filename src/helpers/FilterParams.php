@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\helpers;
 
 use Craft;
@@ -12,7 +14,7 @@ use SomehowDigital\Craft\Hub\Hub;
  * The query params of a list, as they appear in its URL or are kept by a saved filter, read as the values of its
  * filters; missing and invalid values don't filter.
  */
-final class FilterParams
+final readonly class FilterParams
 {
 	/** value of filters by users standing for the user viewing the list, so saved filters list each user's own items */
 	public const ME = 'me';
@@ -20,9 +22,9 @@ final class FilterParams
 	/**
 	 * @param array<string,mixed> $params
 	 */
-	public function __construct(private readonly array $params)
-	{
-	}
+	public function __construct(
+		private array $params
+	) {}
 
 	/**
 	 * Query params of a list that are its filters and sorting, leaving out the site scope, the page and the panel loaded.
@@ -84,7 +86,7 @@ final class FilterParams
 	 */
 	public function list(string $name, ?array $allowed = null): array
 	{
-		$values = array_values(array_unique(array_filter(array_map('trim', explode(',', $this->string($name) ?? '')), fn (string $item) => $item !== '')));
+		$values = array_values(array_unique(array_filter(array_map(trim(...), explode(',', $this->string($name) ?? '')), fn(string $item): bool => $item !== '')));
 
 		return $allowed !== null ? array_values(array_intersect($values, $allowed)) : $values;
 	}
@@ -120,7 +122,7 @@ final class FilterParams
 	 */
 	public static function userIds(array $values): array
 	{
-		return array_map(fn (int|string $value) => $value === self::ME ? (int)Craft::$app->getUser()->getId() : (int)$value, $values);
+		return array_map(fn(int|string $value): int => $value === self::ME ? (int) Craft::$app->getUser()->getId() : (int) $value, $values);
 	}
 
 	/**
@@ -130,7 +132,7 @@ final class FilterParams
 	{
 		$value = $this->string($name);
 
-		return $value !== null && is_numeric($value) && (float)$value >= 0 ? (float)$value : null;
+		return $value !== null && is_numeric($value) && (float) $value >= 0 ? (float) $value : null;
 	}
 
 	/**
@@ -140,7 +142,7 @@ final class FilterParams
 	{
 		$value = $this->number($name);
 
-		return $value !== null ? (int)floor($value) : null;
+		return $value !== null ? (int) floor($value) : null;
 	}
 
 	/**

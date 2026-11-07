@@ -10,18 +10,18 @@
 {% set selectedTab = 'activity' %}
 
 {% block content %}
-	{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/activity', readOnly: readOnly, overrides: overrides, settings: settings } only %}
+	{% embed 'hub/_components/settings-form' with {path: 'hub/manage/settings/activity', readOnly: readOnly, overrides: overrides, settings: settings} only %}
 		{% block fields %}
-			{% include 'hub/_components/setting' with { name: 'enableActivity', field: {
+			{{ include('hub/_components/setting', {name: 'enableActivity', field: {
 				first: true,
 				label: 'Activity'|t('hub'),
 				instructions: 'Whether what users do is recorded in the activity log, which users who may view it find below the “Hub” navigation item.'|t('hub'),
 			},
 			overrides: overrides,
 			readOnly: readOnly,
-			settings: settings, } only %}
+			settings: settings}, false) }}
 
-			{% include 'hub/_components/setting' with { name: 'activityRetentionDays', field: {
+			{{ include('hub/_components/setting', {name: 'activityRetentionDays', field: {
 				label: 'Activity Retention'|t('hub'),
 				instructions: 'Activities are kept for this many days, then deleted along with Craft’s garbage. Set it to 0 to keep them forever.'|t('hub'),
 				min: 0,
@@ -29,15 +29,15 @@
 			},
 			overrides: overrides,
 			readOnly: readOnly,
-			settings: settings, } only %}
+			settings: settings}, false) }}
 
-			{% include 'hub/_components/setting' with { name: 'activityDrafts', field: {
+			{{ include('hub/_components/setting', {name: 'activityDrafts', field: {
 				label: 'Activity of Drafts'|t('hub'),
 				instructions: 'Whether drafts created and deleted are recorded in the activity log too, rather than only once they’re applied.'|t('hub'),
 			},
 			overrides: overrides,
 			readOnly: readOnly,
-			settings: settings, } only %}
+			settings: settings}, false) }}
 		{% endblock %}
 	{% endembed %}
 {% endblock %}

@@ -18,10 +18,16 @@
 		<testsuite name="Feature">
 			<directory>tests/Feature</directory>
 		</testsuite>
+		<testsuite name="Arch">
+			<directory>tests/Arch</directory>
+		</testsuite>
 	</testsuites>
 	<source ignoreIndirectDeprecations="true" restrictNotices="true" restrictWarnings="true">
 		<include>
 			<directory>src</directory>
 		</include>
+		<deprecationTrigger>
+			<function>trigger_deprecation</function>
+		</deprecationTrigger>
 	</source>
 </phpunit>

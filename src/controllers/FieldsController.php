@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Closure;
@@ -29,7 +31,7 @@ class FieldsController extends BaseController
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/structure/fields')) !== null) {
+		if (($redirect = $this->keepFilters('hub/structure/fields')) instanceof Response) {
 			return $redirect;
 		}
 
@@ -47,7 +49,8 @@ class FieldsController extends BaseController
 				$owners[mb_strtolower($owner)] = $owner;
 			}
 		}
-		uasort($types, fn (array $a, array $b) => strnatcasecmp($a['label'], $b['label']));
+
+		uasort($types, fn(array $a, array $b): int => strnatcasecmp($a['label'], $b['label']));
 
 		// While reviewing the selection, the filters don't apply.
 		$selection = ListSelection::fromRequest(ColumnService::LIST_FIELDS, 'hub/structure/fields');
@@ -65,7 +68,7 @@ class FieldsController extends BaseController
 				'total' => count($all),
 				'types' => $types,
 				'owners' => $owners,
-				'data' => in_array('data', $shown, true) ? array_map(fn (FieldInfo $info) => $lists->getFieldData($info), $fields) : [],
+				'data' => in_array('data', $shown, true) ? array_map($lists->getFieldData(...), $fields) : [],
 				'filter' => $filter,
 				'columns' => $columns,
 				...$this->savedFilterVariables(CheckKind::Fields, 'hub/structure/fields', $filter->savedFilter),
@@ -92,7 +95,7 @@ class FieldsController extends BaseController
 		// Only nested entry fields have entries to list.
 		$tab = $this->detailTab($tab, [...($info->isNested ? [self::TAB_ENTRIES] : []), self::TAB_STATISTICS]);
 
-		if ($tab === self::TAB_ENTRIES && ($redirect = $this->keepFilters("hub/structure/fields/$id/entries")) !== null) {
+		if ($tab === self::TAB_ENTRIES && ($redirect = $this->keepFilters("hub/structure/fields/{$id}/entries")) instanceof Response) {
 			return $redirect;
 		}
 
@@ -101,9 +104,9 @@ class FieldsController extends BaseController
 
 		// A card or panel requested on its own is rendered without the page around it.
 		$part = ($tab === self::TAB_STATISTICS ? $this->renderCard($summary) : null)
-			?? $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn () => Hub::getInstance()->checks->forField($info)) : $this->overviewPanels($info));
+			?? $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn() => Hub::getInstance()->checks->forField($info)) : $this->overviewPanels($info));
 
-		if ($part !== null) {
+		if ($part instanceof Response) {
 			return $part;
 		}
 
@@ -113,7 +116,7 @@ class FieldsController extends BaseController
 			'selectedTab' => $tab,
 			'checks' => Hub::getInstance()->checks->forField($info),
 			...match ($tab) {
-				self::TAB_ENTRIES => $this->entryListVariables("hub/structure/fields/$id/entries", field: $info->field),
+				self::TAB_ENTRIES => $this->entryListVariables("hub/structure/fields/{$id}/entries", field: $info->field),
 				self::TAB_STATISTICS => ['summary' => $summary],
 				self::TAB_DIAGNOSTICS => [],
 				default => ['volumes' => Hub::getInstance()->volumes->getVolumesOf($info->field)],
@@ -132,13 +135,13 @@ class FieldsController extends BaseController
 		$field = $info->field;
 
 		return [
-			'maintainers' => fn () => ['hub/_panels/maintainers', ['list' => ColumnService::LIST_FIELDS, 'item' => $field]],
-			'entryTypes' => fn () => ['hub/_panels/fields/entry-types', ['info' => $info, 'field' => $field, 'entryTypes' => $hub->structure->getEntryTypes(), 'statistics' => $hub->statistics]],
-			'sections' => fn () => ['hub/_panels/fields/sections', ['info' => $info, 'field' => $field, 'statistics' => $hub->statistics]],
-			'volumes' => fn () => ['hub/_panels/fields/volumes', ['field' => $field, 'volumes' => $hub->volumes->getVolumesOf($field), 'statistics' => $hub->statistics]],
-			'relations' => fn () => ['hub/_panels/fields/relations', ['info' => $info]],
-			...($field instanceof ContentBlock ? ['fieldLayout' => fn () => ['hub/_panels/field-layout', ['layout' => $field->getFieldLayout(), 'fields' => $hub->structure->getFields()]]] : []),
-			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::Field->value, 'id' => $field->id]],
+			'maintainers' => fn(): array => ['hub/_panels/maintainers', ['list' => ColumnService::LIST_FIELDS, 'item' => $field]],
+			'entryTypes' => fn(): array => ['hub/_panels/fields/entry-types', ['info' => $info, 'field' => $field, 'entryTypes' => $hub->structure->getEntryTypes(), 'statistics' => $hub->statistics]],
+			'sections' => fn(): array => ['hub/_panels/fields/sections', ['info' => $info, 'field' => $field, 'statistics' => $hub->statistics]],
+			'volumes' => fn(): array => ['hub/_panels/fields/volumes', ['field' => $field, 'volumes' => $hub->volumes->getVolumesOf($field), 'statistics' => $hub->statistics]],
+			'relations' => fn(): array => ['hub/_panels/fields/relations', ['info' => $info]],
+			...($field instanceof ContentBlock ? ['fieldLayout' => fn(): array => ['hub/_panels/field-layout', ['layout' => $field->getFieldLayout(), 'fields' => $hub->structure->getFields()]]] : []),
+			'activity' => fn(): array => ['hub/_panels/activity', ['subject' => ActivitySubject::Field->value, 'id' => $field->id]],
 		];
 	}
 }

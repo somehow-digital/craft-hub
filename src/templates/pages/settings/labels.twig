@@ -17,7 +17,7 @@
 {# Number of items labeled with each label, by its ID, and the most of any, which the usage bars are scaled to. #}
 {% set counts = {} %}
 {% for label in labels %}
-	{% set counts = counts|merge({ ('_' ~ label.id): (lists[label.id] ?? [])|reduce((sum, list) => sum + list.count, 0) }) %}
+	{% set counts = counts|merge({('_' ~ label.id): (lists[label.id] ?? [])|reduce((sum, list) => sum + list.count, 0)}) %}
 {% endfor %}
 {% set maxCount = max([1]|merge(counts|values)) %}
 {% set unused = counts|filter(count => not count)|length %}
@@ -29,16 +29,16 @@
 
 {% block content %}
 	{% if settings is defined %}
-		{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/labels', readOnly: readOnly, overrides: overrides, settings: settings } only %}
+		{% embed 'hub/_components/settings-form' with {path: 'hub/manage/settings/labels', readOnly: readOnly, overrides: overrides, settings: settings} only %}
 			{% block fields %}
-				{% include 'hub/_components/setting' with { name: 'enableLabels', field: {
+				{{ include('hub/_components/setting', {name: 'enableLabels', field: {
 					first: true,
 					label: 'Labels'|t('hub'),
 					instructions: 'Whether items can be labeled and lists filtered by their labels. The labels can be managed either way.'|t('hub'),
 				},
 				overrides: overrides,
 				readOnly: readOnly,
-				settings: settings, } only %}
+				settings: settings}, false) }}
 			{% endblock %}
 		{% endembed %}
 		<hr>
@@ -62,7 +62,7 @@
 	} only %}
 		{% block actions %}
 			<span class="hub-labels-settings__unused hub-muted{% if not unused %} hidden{% endif %}" data-hub-labels-unused>
-				{{- '{count} unused'|t('hub', { count: unused|number }) -}}
+				{{- '{count} unused'|t('hub', {count: unused|number}) -}}
 			</span>
 			<span class="hub-pill" data-hub-labels-count>{{ labels|length|number }}</span>
 		{% endblock %}
@@ -70,8 +70,8 @@
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			{{ hub.emptyState('tags', 'No labels exist yet.'|t('hub'), 'Labels mark items of any list with a colored icon, so they can be found and filtered by it.'|t('hub'),
-				tag('a', { href: url('hub/manage/settings/labels/new'), class: 'btn add icon', text: 'New label'|t('hub') }),
-				{ id: 'hub-labels-empty', hidden: labels|length > 0 }) }}
+				tag('a', {href: url('hub/manage/settings/labels/new'), class: 'btn add icon', text: 'New label'|t('hub')}),
+				{id: 'hub-labels-empty', hidden: labels|length > 0}) }}
 			<div class="hub-table">
 				<table class="data fullwidth hub-labels-table{% if not labels|length %} hidden{% endif %}" id="hub-labels-table">
 					<thead>

@@ -5,8 +5,8 @@
 	Variables: info (SectionInfo), section, and once loaded statistics (StatisticsService)
 #}
 {% set usageKind = enum('SomehowDigital\\Craft\\Hub\\enums\\UsageKind') %}
-{% set relationFields = info.referenceFields|map(field => { field, kind: usageKind.from('reference') })
-	|merge(info.linkFields|map(field => { field, kind: usageKind.from('link') })) %}
+{% set relationFields = info.referenceFields|map(field => {field: field, kind: usageKind.from('reference')})
+	|merge(info.linkFields|map(field => {field: field, kind: usageKind.from('link')})) %}
 
 {% embed 'hub/_components/panel' with {
 	heading: 'Relations'|t('hub'),

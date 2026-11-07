@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 /**
@@ -23,9 +25,11 @@ class SectionFilter
 	public ?string $urls = null;
 
 	public ?int $entriesMin = null;
+
 	public ?int $entriesMax = null;
 
 	public ?int $referencesMin = null;
+
 	public ?int $referencesMax = null;
 
 	/** @var string[] how recently the entries were updated, see the `ACTIVITY_*` constants of {@see EntryStatistics} */

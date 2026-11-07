@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use Craft;
@@ -120,13 +122,13 @@ class Activity
 	{
 		$names = [];
 
-		foreach ((array)($this->data['attributes'] ?? []) as $attribute) {
-			$names[] = Craft::t('app', self::ATTRIBUTE_LABELS[$attribute] ?? Inflector::camel2words((string)$attribute));
+		foreach ((array) ($this->data['attributes'] ?? []) as $attribute) {
+			$names[] = Craft::t('app', self::ATTRIBUTE_LABELS[$attribute] ?? Inflector::camel2words((string) $attribute));
 		}
 
 		$fields = Craft::$app->getFields();
-		foreach ((array)($this->data['fields'] ?? []) as $handle) {
-			$names[] = $fields->getFieldByHandle((string)$handle)->name ?? (string)$handle;
+		foreach ((array) ($this->data['fields'] ?? []) as $handle) {
+			$names[] = $fields->getFieldByHandle((string) $handle)->name ?? (string) $handle;
 		}
 
 		return array_values(array_unique($names));

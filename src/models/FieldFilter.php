@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use SomehowDigital\Craft\Hub\enums\DataKind;
@@ -29,6 +31,7 @@ class FieldFilter
 
 	/** number of layouts the fields are placed in */
 	public ?int $layoutsMin = null;
+
 	public ?int $layoutsMax = null;
 
 	/** only fields not placed in any layout */

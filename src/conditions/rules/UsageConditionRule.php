@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
@@ -22,7 +24,7 @@ class UsageConditionRule extends BaseMultiSelectConditionRule implements InfoCon
 
 	protected function options(): array
 	{
-		return array_map(fn (UsageKind $kind) => ['value' => $kind->value, 'label' => $kind->label()], UsageKind::listed());
+		return array_map(fn(UsageKind $kind): array => ['value' => $kind->value, 'label' => $kind->label()], UsageKind::listed());
 	}
 
 	public function matchInfo(SectionInfo|EntryTypeInfo|FieldInfo|VolumeInfo $info): bool

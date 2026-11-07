@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -64,7 +66,7 @@ class EditService extends Component
 	 */
 	public function getLastEdited(array $entries): array
 	{
-		$dates = $this->getRecorded(array_map(fn (Entry $entry) => $entry->id, $entries));
+		$dates = $this->getRecorded(array_map(fn(Entry $entry): ?int => $entry->id, $entries));
 		$lastEdited = [];
 
 		foreach ($entries as $entry) {
@@ -149,12 +151,12 @@ class EditService extends Component
 			return [];
 		}
 
-		$users = Hub::getInstance()->users->getUsers(array_map('intval', array_keys($counts)));
+		$users = Hub::getInstance()->users->getUsers(array_map(intval(...), array_keys($counts)));
 		$editors = [];
 
 		foreach ($counts as $id => $count) {
 			if (isset($users[$id])) {
-				$editors[(int)$id] = ['user' => $users[$id], 'count' => (int)$count];
+				$editors[(int) $id] = ['user' => $users[$id], 'count' => (int) $count];
 			}
 		}
 
@@ -170,12 +172,12 @@ class EditService extends Component
 	public function backfill(): void
 	{
 		$edits = [];
-		$add = function (array $rows) use (&$edits) {
+		$add = function (array $rows) use (&$edits): void {
 			foreach ($rows as $row) {
-				$id = (int)$row['elementId'];
+				$id = (int) $row['elementId'];
 
 				if (!isset($edits[$id]) || $row['date'] > $edits[$id]['dateEdited']) {
-					$edits[$id] = ['elementId' => $id, 'userId' => $row['userId'] !== null ? (int)$row['userId'] : null, 'dateEdited' => $row['date']];
+					$edits[$id] = ['elementId' => $id, 'userId' => $row['userId'] !== null ? (int) $row['userId'] : null, 'dateEdited' => $row['date']];
 				}
 			}
 		};
@@ -212,8 +214,8 @@ class EditService extends Component
 			->orderBy(['elements.id' => SORT_ASC])
 			->all();
 
-		$rows = array_map(fn (array $row) => array_values($edits[(int)$row['elementId']] ?? [
-			'elementId' => (int)$row['elementId'],
+		$rows = array_map(fn(array $row): array => array_values($edits[(int) $row['elementId']] ?? [
+			'elementId' => (int) $row['elementId'],
 			'userId' => null,
 			'dateEdited' => $row['date'],
 		]), $entries);
@@ -245,7 +247,7 @@ class EditService extends Component
 			$date = DateTimeHelper::toDateTime($row['dateEdited']);
 
 			if ($date !== false) {
-				$recorded[(int)$row['elementId']] = ['date' => $date, 'userId' => $row['userId'] !== null ? (int)$row['userId'] : null];
+				$recorded[(int) $row['elementId']] = ['date' => $date, 'userId' => $row['userId'] !== null ? (int) $row['userId'] : null];
 			}
 		}
 

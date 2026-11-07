@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Closure;
@@ -85,13 +87,13 @@ class SnapshotService extends Component
 		$metrics = $this->collectMetrics();
 
 		$db = Craft::$app->getDb();
-		$db->transaction(function () use ($db, $date, $existing, $metrics, $entries, $assets, $references) {
+		$db->transaction(function () use ($db, $date, $existing, $metrics, $entries, $assets, $references): void {
 			if ($existing !== false && $existing !== null) {
-				$db->createCommand()->delete(self::TABLE, ['id' => (int)$existing])->execute();
+				$db->createCommand()->delete(self::TABLE, ['id' => (int) $existing])->execute();
 			}
 
 			$db->createCommand()->insert(self::TABLE, ['date' => $date, 'metrics' => Json::encode($metrics)])->execute();
-			$id = (int)$db->getLastInsertID(self::TABLE);
+			$id = (int) $db->getLastInsertID(self::TABLE);
 
 			$this->insertRows(self::TABLE_ENTRIES, $id, $entries);
 			$this->insertRows(self::TABLE_ASSETS, $id, $assets);
@@ -110,13 +112,13 @@ class SnapshotService extends Component
 	{
 		$latest = $this->getLatestDate();
 
-		if ($latest === null) {
+		if (!$latest instanceof DateTime) {
 			return true;
 		}
 
 		$interval = max(1, Hub::getInstance()->settings->snapshotInterval);
 
-		return $latest->format('Y-m-d') <= $this->now()->modify("-$interval days")->format('Y-m-d');
+		return $latest->format('Y-m-d') <= $this->now()->modify("-{$interval} days")->format('Y-m-d');
 	}
 
 	/**
@@ -165,7 +167,7 @@ class SnapshotService extends Component
 	{
 		$day = $since?->format('Y-m-d') ?? '';
 
-		return $this->snapshots["$day:$limit"] ??= $this->loadSnapshots($day, $limit);
+		return $this->snapshots["{$day}:{$limit}"] ??= $this->loadSnapshots($day, $limit);
 	}
 
 	/**
@@ -191,12 +193,12 @@ class SnapshotService extends Component
 		$today = $this->today();
 		$earliest = $this->getEarliestDate();
 
-		if ($earliest === null || $earliest->format('Y-m-d') >= $today) {
+		if (!$earliest instanceof DateTime || $earliest->format('Y-m-d') >= $today) {
 			return null;
 		}
 
 		$range = in_array($range, self::RANGES, true) ? $range : self::RANGES[0];
-		$since = $range > 0 ? $this->now()->modify("-$range days") : null;
+		$since = $range > 0 ? $this->now()->modify("-{$range} days") : null;
 		$dates = [];
 		$cards = [];
 
@@ -215,7 +217,7 @@ class SnapshotService extends Component
 			'label' => Craft::t('hub', 'Total'),
 			'color' => null,
 			'dashed' => false,
-			'values' => [...array_map(fn (array $card) => $card['total'], $cards), $current['total']],
+			'values' => [...array_map(fn(array $card): int|float => $card['total'], $cards), $current['total']],
 		]];
 
 		foreach ($current['segments'] ?? [] as $segment) {
@@ -229,13 +231,13 @@ class SnapshotService extends Component
 				return null;
 			}, $cards);
 
-			if (array_filter($values, fn ($value) => $value !== null) === []) {
+			if (array_filter($values, fn($value): bool => $value !== null) === []) {
 				continue;
 			}
 
 			$series[] = [
-				'key' => StringHelper::toKebabCase((string)$segment['label']),
-				'label' => (string)$segment['label'],
+				'key' => StringHelper::toKebabCase((string) $segment['label']),
+				'label' => (string) $segment['label'],
 				'color' => $segment['color'] ?? null,
 				// Segments kept out of the bar aren't part of the total, like drafts.
 				'dashed' => !($segment['bar'] ?? true),
@@ -245,7 +247,7 @@ class SnapshotService extends Component
 
 		return [
 			'range' => $range,
-			'ranges' => $this->ranges((int)$earliest->diff($this->now())->days),
+			'ranges' => $this->ranges((int) $earliest->diff($this->now())->days),
 			'since' => $dates !== [] ? $this->toDate($dates[0]) : null,
 			'change' => $cards !== [] ? $current['total'] - $cards[0]['total'] : null,
 			'dates' => [...$dates, $today],
@@ -266,7 +268,7 @@ class SnapshotService extends Component
 			return 0;
 		}
 
-		$before = $this->now()->modify("-$days days")->format('Y-m-d');
+		$before = $this->now()->modify("-{$days} days")->format('Y-m-d');
 
 		return Craft::$app->getDb()->createCommand()->delete(self::TABLE, ['<', 'date', $before])->execute();
 	}
@@ -286,36 +288,36 @@ class SnapshotService extends Component
 	{
 		$hub = Hub::getInstance();
 		$fields = $hub->structure->getFields();
-		$ids = fn (array $models) => array_values(array_map(fn ($model) => (int)$model->id, $models));
+		$ids = fn(array $models): array => array_values(array_map(fn($model): int => (int) $model->id, $models));
 
 		return [
-			'sections' => array_map(fn (SectionInfo $info) => [
+			'sections' => array_map(fn(SectionInfo $info): array => [
 				'type' => $info->section->type,
 				'entryTypes' => $ids($info->entryTypes),
 				'fields' => $ids([...$info->referenceFields, ...$info->linkFields]),
 			], $hub->structure->getSections()),
-			'entryTypes' => array_map(fn (EntryTypeInfo $info) => [
+			'entryTypes' => array_map(fn(EntryTypeInfo $info): array => [
 				'sections' => count($info->sections),
 				'nestedFields' => count($info->nestedFields),
 				'referenceFields' => count($info->referenceFields),
 				'linkFields' => count($info->linkFields),
 				'fields' => array_count_values(array_map(
-					fn (FieldInterface $field) => ($fields[$field->id] ?? null)?->getDataKind()->value ?? DataKind::Plain->value,
+					fn(FieldInterface $field) => ($fields[$field->id] ?? null)?->getDataKind()->value ?? DataKind::Plain->value,
 					$info->entryType->getFieldLayout()->getCustomFields(),
 				)),
 			], $hub->structure->getEntryTypes()),
-			'fields' => array_map(fn (FieldInfo $info) => [
-				'type' => get_class($info->field),
+			'fields' => array_map(fn(FieldInfo $info): array => [
+				'type' => $info->field::class,
 				'kind' => $info->getDataKind()->value,
 				'entryTypes' => $ids($info->entryTypes),
-				'owners' => array_count_values(array_map(fn (LayoutUsage $usage) => $usage->ownerType, $info->layouts)),
+				'owners' => array_count_values(array_map(fn(LayoutUsage $usage): string => $usage->ownerType, $info->layouts)),
 			], $fields),
-			'volumes' => array_map(fn (VolumeInfo $info) => [
+			'volumes' => array_map(fn(VolumeInfo $info): array => [
 				'hasUrls' => $info->hasUrls,
 				'fields' => $ids([...$info->assetFields, ...$info->linkFields]),
 			], $hub->volumes->getVolumes()),
 			'users' => get_object_vars($hub->users->getStatistics()),
-			'userGroups' => array_map(fn (array $info) => $info['users'], $hub->users->getGroups()),
+			'userGroups' => array_map(fn(array $info): int => $info['users'], $hub->users->getGroups()),
 		];
 	}
 
@@ -363,10 +365,10 @@ class SnapshotService extends Component
 
 		// Spread evenly, keeping the first and the last one.
 		if ($limit > 1 && $count > $limit) {
-			$results = array_map(fn (int $i) => $results[(int)round($i * ($count - 1) / ($limit - 1))], range(0, $limit - 1));
+			$results = array_map(fn(int $i): mixed => $results[(int) round($i * ($count - 1) / ($limit - 1))], range(0, $limit - 1));
 		}
 
-		$ids = array_map(fn (array $result) => (int)$result['id'], $results);
+		$ids = array_map(fn(array $result): int => (int) $result['id'], $results);
 		$parts = [];
 
 		// Parts of all the snapshots, loaded once the first one asks for them.
@@ -376,10 +378,10 @@ class SnapshotService extends Component
 			return $parts[$name][$id] ?? [];
 		};
 
-		return array_map(fn (array $result) => new Snapshot(
-			(int)$result['id'],
-			$this->toDate((string)$result['date']),
-			fn (string $name) => $part($name, (int)$result['id']),
+		return array_map(fn(array $result): Snapshot => new Snapshot(
+			(int) $result['id'],
+			$this->toDate((string) $result['date']),
+			fn(string $name): array => $part($name, (int) $result['id']),
 		), $results);
 	}
 
@@ -393,7 +395,7 @@ class SnapshotService extends Component
 	{
 		$metrics = (new Query())->select(['id', 'metrics'])->from(self::TABLE)->where(['id' => $ids])->pairs();
 
-		return array_map(fn ($json) => is_string($json) && is_array($decoded = Json::decodeIfJson($json)) ? $decoded : [], $metrics);
+		return array_map(fn($json): array => is_string($json) && is_array($decoded = Json::decodeIfJson($json)) ? $decoded : [], $metrics);
 	}
 
 	/**
@@ -407,7 +409,7 @@ class SnapshotService extends Component
 		$rows = [];
 
 		foreach ((new Query())->from($table)->where(['snapshotId' => $ids])->all() as $row) {
-			$rows[(int)$row['snapshotId']][] = $row;
+			$rows[(int) $row['snapshotId']][] = $row;
 		}
 
 		return $rows;
@@ -426,7 +428,7 @@ class SnapshotService extends Component
 
 		foreach (array_chunk($rows, self::BATCH_SIZE) as $batch) {
 			Craft::$app->getDb()->createCommand()
-				->batchInsert($table, $columns, array_map(fn (array $row) => [$snapshotId, ...array_values($row)], $batch))
+				->batchInsert($table, $columns, array_map(fn(array $row): array => [$snapshotId, ...array_values($row)], $batch))
 				->execute();
 		}
 	}

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -36,10 +38,10 @@ class DeleteDrafts extends BulkAction
 	public function apply(array $ids, array $params): array
 	{
 		$entries = $this->hub()->bulk->getElementsOf($this->list, $ids, Entry::class);
-		[$withDrafts, $drafts] = $this->hub()->entries->getDeletableDrafts(array_map(fn (Entry $entry) => (int)$entry->id, $entries));
+		[$withDrafts, $drafts] = $this->hub()->entries->getDeletableDrafts(array_map(fn(Entry $entry): int => (int) $entry->id, $entries));
 		$service = Craft::$app->getElements();
 
-		return $this->succeeded($withDrafts, fn (Entry $entry) => array_filter(array_map(fn (Entry $draft) => $service->deleteElement($draft, true), $drafts[$entry->id])) !== []);
+		return $this->succeeded($withDrafts, fn(Entry $entry): bool => array_filter(array_map(fn(Entry $draft) => $service->deleteElement($draft, true), $drafts[$entry->id])) !== []);
 	}
 
 	public function preview(array $ids, int $page): ?BulkPreview
@@ -48,9 +50,9 @@ class DeleteDrafts extends BulkAction
 		[$pageInfo, $shown] = (new Paginator($page))->items($entries);
 
 		return new BulkPreview('drafts-preview', count($entries), [
-			'items' => array_map(fn (Entry $entry) => ['element' => $entry, 'count' => count($drafts[$entry->id]), 'children' => $drafts[$entry->id]], $shown),
+			'items' => array_map(fn(Entry $entry): array => ['element' => $entry, 'count' => count($drafts[$entry->id]), 'children' => $drafts[$entry->id]], $shown),
 			'pageInfo' => $pageInfo,
-			'drafts' => array_sum(array_map('count', $drafts)),
+			'drafts' => array_sum(array_map(count(...), $drafts)),
 		]);
 	}
 }

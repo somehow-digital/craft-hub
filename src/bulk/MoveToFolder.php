@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -37,7 +39,7 @@ class MoveToFolder extends BulkAction
 
 		return $folder === null ? [] : $this->succeeded(
 			$this->hub()->bulk->getElementsOf($this->list, $ids, Asset::class),
-			fn (Asset $asset) => $files->canMoveTo($asset, $folder) && $service->moveAsset($asset, $folder),
+			fn(Asset $asset): bool => $files->canMoveTo($asset, $folder) && $service->moveAsset($asset, $folder),
 		);
 	}
 
@@ -45,7 +47,7 @@ class MoveToFolder extends BulkAction
 	{
 		$service = Craft::$app->getElements();
 		$folders = $this->hub()->files->getFolderTargets();
-		$movable = array_filter($this->hub()->bulk->getElementsOf($this->list, $ids, Asset::class), fn (Asset $asset) => $service->canSave($asset) && $service->canDelete($asset));
+		$movable = array_filter($this->hub()->bulk->getElementsOf($this->list, $ids, Asset::class), fn(Asset $asset): bool => $service->canSave($asset) && $service->canDelete($asset));
 
 		return new BulkPreview('folder-preview', $folders !== [] ? count($movable) : 0, ['folders' => $folders]);
 	}

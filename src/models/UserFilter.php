@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use DateTime;
@@ -42,10 +44,12 @@ class UserFilter
 
 	/** dates of the last sign-in, both days included */
 	public ?DateTime $loginFrom = null;
+
 	public ?DateTime $loginTo = null;
 
 	/** creation dates, both days included */
 	public ?DateTime $createdFrom = null;
+
 	public ?DateTime $createdTo = null;
 
 	/** whether the users have set up an authenticator app or a passkey (`with` or `without`) */
@@ -56,10 +60,12 @@ class UserFilter
 
 	/** number of entries the users are authors of */
 	public ?int $entriesMin = null;
+
 	public ?int $entriesMax = null;
 
 	/** number of assets the users uploaded */
 	public ?int $assetsMin = null;
+
 	public ?int $assetsMax = null;
 
 	/**

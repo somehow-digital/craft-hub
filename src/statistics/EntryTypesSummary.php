@@ -1,9 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\statistics;
 
 use Craft;
-use craft\elements\Entry;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\DataKind;
 use SomehowDigital\Craft\Hub\enums\UsageKind;
@@ -28,29 +29,29 @@ final class EntryTypesSummary extends Summary
 		$path = 'hub/structure/entry-types';
 		$siteIds = Hub::getInstance()->siteScope->getSiteIds();
 		$months = Hub::getInstance()->filters->getThreshold(CheckKind::EntryTypes, 'stale');
-		$entryTypes = fn () => Hub::getInstance()->structure->getEntryTypes();
-		$kinds = fn () => array_map(fn (EntryTypeInfo $info) => $info->kinds, $entryTypes());
+		$entryTypes = fn() => Hub::getInstance()->structure->getEntryTypes();
+		$kinds = fn(): array => array_map(fn(EntryTypeInfo $info): array => $info->kinds, $entryTypes());
 
 		return [
-			$this->lazyCard(Craft::t('hub', 'Entry Types'), 'shapes', function () use ($entryTypes, $kinds, $path) {
+			$this->lazyCard(Craft::t('hub', 'Entry Types'), 'shapes', function () use ($entryTypes, $kinds, $path): array {
 				$card = $this->entryTypesCard($kinds());
 				$card['table'] = $this->table(Craft::t('app', 'Entry Type'), Craft::t('app', 'Entries'), [
 					['label' => Craft::t('app', 'Sections'), 'type' => 'number'],
 					['label' => Craft::t('hub', 'Nested entry fields'), 'type' => 'number'],
 					['label' => Craft::t('hub', 'Reference fields'), 'type' => 'number'],
 					['label' => Craft::t('hub', 'Last edited'), 'type' => 'date'],
-				], array_map(fn (EntryTypeInfo $info) => [
+				], array_map(fn(EntryTypeInfo $info): array => [
 					'label' => Craft::t('site', $info->entryType->name),
-					'url' => $this->hubUrl("$path/{$info->entryType->id}"),
+					'url' => $this->hubUrl("{$path}/{$info->entryType->id}"),
 					'color' => $info->entryType->color->value ?? 'gray',
 					'value' => $info->stats->total,
 					'cells' => [count($info->sections), count($info->nestedFields), count($info->referenceFields) + count($info->linkFields), $info->stats->lastUpdated],
 				], $entryTypes()));
 
 				return $card;
-			}, fn (Snapshot $snapshot) => $this->entryTypesCard($this->snapshotEntryTypeKinds($snapshot, $siteIds))),
-			$this->lazyCard(Craft::t('hub', 'Usage'), 'diagram-nested', fn () => $this->usageCard($kinds(), $path), fn (Snapshot $snapshot) => $this->usageCard($this->snapshotEntryTypeKinds($snapshot, $siteIds), $path)),
-			$this->lazyCard(Craft::t('app', 'Entries'), 'file-lines', function () use ($entryTypes) {
+			}, fn(Snapshot $snapshot): array => $this->entryTypesCard($this->snapshotEntryTypeKinds($snapshot, $siteIds))),
+			$this->lazyCard(Craft::t('hub', 'Usage'), 'diagram-nested', fn(): array => $this->usageCard($kinds(), $path), fn(Snapshot $snapshot): array => $this->usageCard($this->snapshotEntryTypeKinds($snapshot, $siteIds), $path)),
+			$this->lazyCard(Craft::t('app', 'Entries'), 'file-lines', function () use ($entryTypes): array {
 				$entries = new EntryStatistics();
 				foreach ($entryTypes() as $info) {
 					$entries->add($info->stats);
@@ -58,15 +59,15 @@ final class EntryTypesSummary extends Summary
 
 				return $this->entriesCard($entries);
 			}, $this->entriesHistory()),
-			$this->lazyCard(Craft::t('hub', 'Activity'), 'clock', fn () => [
-				...$this->activityCard(array_map(fn (EntryTypeInfo $info) => $info->stats, $entryTypes()), $path, $months),
-				'table' => $this->leastEditedTable(Craft::t('app', 'Entry Type'), array_map(fn (EntryTypeInfo $info) => [
+			$this->lazyCard(Craft::t('hub', 'Activity'), 'clock', fn(): array => [
+				...$this->activityCard(array_map(fn(EntryTypeInfo $info): EntryStatistics => $info->stats, $entryTypes()), $path, $months),
+				'table' => $this->leastEditedTable(Craft::t('app', 'Entry Type'), array_map(fn(EntryTypeInfo $info): array => [
 					'label' => Craft::t('site', $info->entryType->name),
-					'url' => $this->hubUrl("$path/{$info->entryType->id}"),
+					'url' => $this->hubUrl("{$path}/{$info->entryType->id}"),
 					'stats' => $info->stats,
 				], $entryTypes()), $months),
-			], fn (Snapshot $snapshot) => $this->activityCard(
-				$this->byId(array_keys($snapshot->getEntryTypes()), fn (int $id) => $snapshot->statistics->sumEntries($siteIds, typeId: $id)),
+			], fn(Snapshot $snapshot): array => $this->activityCard(
+				$this->byId(array_keys($snapshot->getEntryTypes()), fn(int $id): EntryStatistics => $snapshot->statistics->sumEntries($siteIds, typeId: $id)),
 				$path,
 				$months,
 				$snapshot->date,
@@ -80,23 +81,23 @@ final class EntryTypesSummary extends Summary
 	public function detail(EntryTypeInfo $info): array
 	{
 		$id = $info->entryType->id;
-		$path = "hub/structure/entry-types/$id/entries";
-		$usage = fn (Snapshot $snapshot) => $snapshot->getEntryTypes()[$id] ?? ['sections' => 0, 'nestedFields' => 0, 'referenceFields' => 0, 'linkFields' => 0, 'fields' => []];
+		$path = "hub/structure/entry-types/{$id}/entries";
+		$usage = fn(Snapshot $snapshot) => $snapshot->getEntryTypes()[$id] ?? ['sections' => 0, 'nestedFields' => 0, 'referenceFields' => 0, 'linkFields' => 0, 'fields' => []];
 
 		return [
-			$this->lazyCard(Craft::t('app', 'Entries'), 'file-lines', fn () => $this->entriesCard($info->stats, path: $path), $this->entriesHistory(typeId: $info->entryType->id)),
-			$this->lazyCard(Craft::t('hub', 'Relations'), 'link', fn () => $this->relationsCard(
+			$this->lazyCard(Craft::t('app', 'Entries'), 'file-lines', fn(): array => $this->entriesCard($info->stats, path: $path), $this->entriesHistory(typeId: $info->entryType->id)),
+			$this->lazyCard(Craft::t('hub', 'Relations'), 'link', fn(): array => $this->relationsCard(
 				count($info->sections),
 				count($info->nestedFields),
 				count($info->referenceFields),
 				count($info->linkFields),
-			), fn (Snapshot $snapshot) => $this->relationsCard(
-				(int)$usage($snapshot)['sections'],
-				(int)$usage($snapshot)['nestedFields'],
-				(int)$usage($snapshot)['referenceFields'],
-				(int)$usage($snapshot)['linkFields'],
+			), fn(Snapshot $snapshot): array => $this->relationsCard(
+				(int) $usage($snapshot)['sections'],
+				(int) $usage($snapshot)['nestedFields'],
+				(int) $usage($snapshot)['referenceFields'],
+				(int) $usage($snapshot)['linkFields'],
 			)),
-			$this->lazyCard(Craft::t('app', 'Fields'), 'pen-ruler', function () use ($info) {
+			$this->lazyCard(Craft::t('app', 'Fields'), 'pen-ruler', function () use ($info): array {
 				$fields = Hub::getInstance()->structure->getFields();
 				$kinds = [];
 				foreach ($info->entryType->getFieldLayout()->getCustomFields() as $field) {
@@ -105,8 +106,8 @@ final class EntryTypesSummary extends Summary
 				}
 
 				return $this->layoutFieldsCard($kinds);
-			}, fn (Snapshot $snapshot) => $this->layoutFieldsCard(array_map('intval', (array)$usage($snapshot)['fields']))),
-			$this->lazyCard(Craft::t('app', 'Authors'), 'user', fn () => $this->peopleCard(Craft::t('app', 'Authors'), 'user', Hub::getInstance()->entries->getAuthors(typeId: $id), 'author', $path, Craft::t('app', 'Entries'))),
+			}, fn(Snapshot $snapshot): array => $this->layoutFieldsCard(array_map(intval(...), (array) $usage($snapshot)['fields']))),
+			$this->lazyCard(Craft::t('app', 'Authors'), 'user', fn(): array => $this->peopleCard(Craft::t('app', 'Authors'), 'user', Hub::getInstance()->entries->getAuthors(typeId: $id), 'author', $path, Craft::t('app', 'Entries'))),
 		];
 	}
 
@@ -144,7 +145,7 @@ final class EntryTypesSummary extends Summary
 			'icon' => 'pen-ruler',
 			'url' => null,
 			'total' => array_sum($kinds),
-			'segments' => array_map(fn (DataKind $kind) => [
+			'segments' => array_map(fn(DataKind $kind): array => [
 				'label' => $kind->label(),
 				'value' => $kinds[$kind->value] ?? 0,
 				'color' => $kind->color(),
@@ -152,6 +153,7 @@ final class EntryTypesSummary extends Summary
 			], DataKind::cases()),
 		];
 	}
+
 	/**
 	 * Summary card for entry types, split by whether they are used and hold entries.
 	 *
@@ -160,8 +162,8 @@ final class EntryTypesSummary extends Summary
 	 */
 	private function entryTypesCard(array $kinds): array
 	{
-		$unused = count(array_filter($kinds, fn (array $usage) => in_array(UsageKind::Unused, $usage, true)));
-		$empty = count(array_filter($kinds, fn (array $usage) => in_array(UsageKind::Empty, $usage, true)));
+		$unused = count(array_filter($kinds, fn(array $usage): bool => in_array(UsageKind::Unused, $usage, true)));
+		$empty = count(array_filter($kinds, fn(array $usage): bool => in_array(UsageKind::Empty, $usage, true)));
 
 		return [
 			'label' => Craft::t('hub', 'Entry Types'),
@@ -184,14 +186,14 @@ final class EntryTypesSummary extends Summary
 	 */
 	private function usageCard(array $kinds, string $path): array
 	{
-		$counts = array_count_values(array_map(fn (UsageKind $kind) => $kind->value, array_merge(...array_values($kinds))));
+		$counts = array_count_values(array_map(fn(UsageKind $kind) => $kind->value, array_merge(...array_values($kinds))));
 
 		return [
 			'label' => Craft::t('hub', 'Usage'),
 			'icon' => 'diagram-nested',
 			'url' => null,
 			'total' => count($kinds),
-			'segments' => array_map(fn (UsageKind $kind) => [
+			'segments' => array_map(fn(UsageKind $kind): array => [
 				'label' => $kind->label(),
 				'value' => $counts[$kind->value] ?? 0,
 				'color' => $kind->color(),
@@ -214,10 +216,10 @@ final class EntryTypesSummary extends Summary
 
 		foreach ($snapshot->getEntryTypes() as $id => $usage) {
 			$kinds[$id] = Classifier::entryTypeKinds(
-				(int)$usage['sections'],
-				(int)$usage['nestedFields'],
-				(int)$usage['referenceFields'],
-				(int)$usage['linkFields'],
+				(int) $usage['sections'],
+				(int) $usage['nestedFields'],
+				(int) $usage['referenceFields'],
+				(int) $usage['linkFields'],
 				false,
 				$snapshot->statistics->sumEntries($siteIds, typeId: $id)->total,
 			);

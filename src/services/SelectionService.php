@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -23,7 +25,7 @@ class SelectionService extends Component
 	{
 		$ids = Craft::$app->getSession()->get($this->sessionKey('selection', $list, $path));
 
-		return is_array($ids) ? array_values(array_filter($ids, 'is_int')) : [];
+		return is_array($ids) ? array_values(array_filter($ids, is_int(...))) : [];
 	}
 
 	/**
@@ -36,7 +38,7 @@ class SelectionService extends Component
 	{
 		$session = Craft::$app->getSession();
 		$key = $this->sessionKey('selection', $list, $path);
-		$ids = array_values(array_unique(array_filter($ids, fn (int $id) => $id > 0)));
+		$ids = array_values(array_unique(array_filter($ids, fn(int $id): bool => $id > 0)));
 
 		$ids !== [] ? $session->set($key, $ids) : $session->remove($key);
 
@@ -63,6 +65,6 @@ class SelectionService extends Component
 
 	private function sessionKey(string $kind, string $list, string $path): string
 	{
-		return "hub:bulk:$kind:$list:$path";
+		return "hub:bulk:{$kind}:{$list}:{$path}";
 	}
 }

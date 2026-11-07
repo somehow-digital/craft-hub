@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use SomehowDigital\Craft\Hub\enums\UsageKind;
 use SomehowDigital\Craft\Hub\helpers\Classifier;
 
@@ -10,47 +12,47 @@ $sections = [
 	'd' => 'single',
 ];
 
-it('resolves all sections for a wildcard', function () use ($sections) {
+it('resolves all sections for a wildcard', function () use ($sections): void {
 	expect(Classifier::resolveSectionUids('*', $sections))->toBe(['a', 'b', 'c', 'd']);
 	expect(Classifier::resolveSectionUids(['*'], $sections))->toBe(['a', 'b', 'c', 'd']);
 });
 
-it('resolves explicit section sources and skips unknown ones', function () use ($sections) {
+it('resolves explicit section sources and skips unknown ones', function () use ($sections): void {
 	expect(Classifier::resolveSectionUids(['section:b', 'section:x', 'section:c'], $sections))->toBe(['b', 'c']);
 });
 
-it('resolves singles to all single sections', function () use ($sections) {
+it('resolves singles to all single sections', function () use ($sections): void {
 	expect(Classifier::resolveSectionUids(['singles', 'section:a'], $sections))->toBe(['a', 'd']);
 });
 
-it('resolves nothing for empty sources', function () use ($sections) {
+it('resolves nothing for empty sources', function () use ($sections): void {
 	expect(Classifier::resolveSectionUids(null, $sections))->toBe([]);
 	expect(Classifier::resolveSectionUids([], $sections))->toBe([]);
 });
 
-it('resolves all volumes for a wildcard', function () {
+it('resolves all volumes for a wildcard', function (): void {
 	expect(Classifier::resolveVolumeUids('*', ['a', 'b']))->toBe(['a', 'b']);
 	expect(Classifier::resolveVolumeUids(['*'], ['a', 'b']))->toBe(['a', 'b']);
 });
 
-it('resolves explicit volume sources and skips unknown or other ones', function () {
+it('resolves explicit volume sources and skips unknown or other ones', function (): void {
 	expect(Classifier::resolveVolumeUids(['volume:b', 'volume:x', 'folder:a', 'temp'], ['a', 'b']))->toBe(['b']);
 });
 
-it('resolves no volumes for empty sources', function () {
+it('resolves no volumes for empty sources', function (): void {
 	expect(Classifier::resolveVolumeUids(null, ['a']))->toBe([]);
 	expect(Classifier::resolveVolumeUids([], ['a']))->toBe([]);
 });
 
-it('marks entry types without usages as unused', function () {
+it('marks entry types without usages as unused', function (): void {
 	expect(Classifier::entryTypeKinds(0, 0, 0, 0, false, 0))->toBe([UsageKind::Unused]);
 });
 
-it('marks used entry types without entries as empty', function () {
+it('marks used entry types without entries as empty', function (): void {
 	expect(Classifier::entryTypeKinds(0, 2, 0, 0, false, 0))->toBe([UsageKind::Nested, UsageKind::Empty]);
 });
 
-it('combines multiple usage kinds', function () {
+it('combines multiple usage kinds', function (): void {
 	expect(Classifier::entryTypeKinds(1, 1, 3, 2, true, 10))->toBe([
 		UsageKind::Section,
 		UsageKind::Reference,
@@ -60,25 +62,25 @@ it('combines multiple usage kinds', function () {
 	]);
 });
 
-it('does not count link fields as an assignment', function () {
+it('does not count link fields as an assignment', function (): void {
 	expect(Classifier::entryTypeKinds(0, 0, 0, 1, false, 0))->toBe([UsageKind::Link, UsageKind::Unused]);
 });
 
-it('finds similar field handles', function () {
+it('finds similar field handles', function (): void {
 	expect(Classifier::similarHandles('teaserImage', 'teaser_image'))->toBeTrue();
 	expect(Classifier::similarHandles('teaserImage', 'teaserImg'))->toBeTrue();
 	expect(Classifier::similarHandles('link', 'links'))->toBeTrue();
 	expect(Classifier::similarHandles('heroImage', 'heroImages'))->toBeTrue();
 });
 
-it('keeps different field handles apart', function () {
+it('keeps different field handles apart', function (): void {
 	expect(Classifier::similarHandles('text', 'test'))->toBeFalse();
 	expect(Classifier::similarHandles('url', 'uri'))->toBeFalse();
 	expect(Classifier::similarHandles('heroImage', 'teaserImage'))->toBeFalse();
 	expect(Classifier::similarHandles('body', 'bodyText'))->toBeFalse();
 });
 
-it('detects generic filenames', function (string $filename) {
+it('detects generic filenames', function (string $filename): void {
 	expect(Classifier::isGenericFilename($filename))->toBeTrue();
 })->with([
 	'IMG_1234.jpg',
@@ -94,7 +96,7 @@ it('detects generic filenames', function (string $filename) {
 	'3f2504e0-4f89-41d3-9a0c-0305e82c3301.webp',
 ]);
 
-it('accepts descriptive filenames', function (string $filename) {
+it('accepts descriptive filenames', function (string $filename): void {
 	expect(Classifier::isGenericFilename($filename))->toBeFalse();
 })->with([
 	'team-photo-2024.jpg',
@@ -104,7 +106,7 @@ it('accepts descriptive filenames', function (string $filename) {
 	'logo.svg',
 ]);
 
-it('recognizes videos browsers play natively', function (string $mimeType) {
+it('recognizes videos browsers play natively', function (string $mimeType): void {
 	expect(Classifier::isPlayableVideo($mimeType))->toBeTrue();
 })->with([
 	'video/mp4',
@@ -113,7 +115,7 @@ it('recognizes videos browsers play natively', function (string $mimeType) {
 	'VIDEO/MP4',
 ]);
 
-it('rejects videos browsers cannot play natively', function (?string $mimeType) {
+it('rejects videos browsers cannot play natively', function (?string $mimeType): void {
 	expect(Classifier::isPlayableVideo($mimeType))->toBeFalse();
 })->with([
 	'video/x-msvideo',

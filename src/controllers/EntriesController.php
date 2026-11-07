@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Closure;
@@ -35,7 +37,7 @@ class EntriesController extends BaseController
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/data/entries')) !== null) {
+		if (($redirect = $this->keepFilters('hub/data/entries')) instanceof Response) {
 			return $redirect;
 		}
 
@@ -55,7 +57,7 @@ class EntriesController extends BaseController
 		$path = 'hub/data/entries/trash';
 		$entries = Craft::$app->getEntries();
 
-		if (($redirect = $this->keepFilters($path)) !== null) {
+		if (($redirect = $this->keepFilters($path)) instanceof Response) {
 			return $redirect;
 		}
 
@@ -74,10 +76,10 @@ class EntriesController extends BaseController
 				'entries' => $results,
 				'pageInfo' => $pageInfo,
 				'deleters' => in_array('deleter', $hub->columns->getShownKeys($columns), true)
-					? $trash->getDeleters(ActivitySubject::Entry, array_map(fn (Entry $entry) => (int)$entry->id, $results))
+					? $trash->getDeleters(ActivitySubject::Entry, array_map(fn(Entry $entry): int => (int) $entry->id, $results))
 					: [],
 				'sections' => $entries->getAllSections(),
-				'nestedFields' => array_filter($hub->structure->getFields(), fn (FieldInfo $info) => $info->isNested),
+				'nestedFields' => array_filter($hub->structure->getFields(), fn(FieldInfo $info): bool => $info->isNested),
 				'entryTypes' => $entries->getAllEntryTypes(),
 				'filter' => $filter,
 				'filtered' => $filter != new TrashedEntryFilter(),
@@ -115,12 +117,12 @@ class EntriesController extends BaseController
 		$tab = $this->detailTab($tab, $hasHistory ? [self::TAB_HISTORY] : []);
 
 		$panel = $this->renderPanel(match ($tab) {
-			self::TAB_DIAGNOSTICS => $this->checksPanel(fn () => $hub->checks->forEntry($entry)),
+			self::TAB_DIAGNOSTICS => $this->checksPanel(fn() => $hub->checks->forEntry($entry)),
 			self::TAB_HISTORY => $this->historyPanels($entry),
 			default => $this->overviewPanels($entry),
 		});
 
-		if ($panel !== null) {
+		if ($panel instanceof Response) {
 			return $panel;
 		}
 
@@ -193,9 +195,9 @@ class EntriesController extends BaseController
 
 		$filter = new TrashedEntryFilter();
 		$filter->search = $params->search();
-		$filter->sections = $params->list('section', array_map(fn (Section $section) => $section->handle, $entries->getAllSections()));
-		$filter->fields = $params->list('field', array_map(fn (FieldInfo $info) => (string)$info->field->handle, array_filter(Hub::getInstance()->structure->getFields(), fn (FieldInfo $info) => $info->isNested)));
-		$filter->types = $params->list('type', array_map(fn (EntryType $type) => $type->handle, $entries->getAllEntryTypes()));
+		$filter->sections = $params->list('section', array_map(fn(Section $section): ?string => $section->handle, $entries->getAllSections()));
+		$filter->fields = $params->list('field', array_map(fn(FieldInfo $info): string => (string) $info->field->handle, array_filter(Hub::getInstance()->structure->getFields(), fn(FieldInfo $info): bool => $info->isNested)));
+		$filter->types = $params->list('type', array_map(fn(EntryType $type): ?string => $type->handle, $entries->getAllEntryTypes()));
 		$filter->deletedFrom = $params->date('deletedFrom');
 		$filter->deletedTo = $params->date('deletedTo');
 
@@ -212,11 +214,11 @@ class EntriesController extends BaseController
 		$hub = Hub::getInstance();
 
 		return [
-			'maintainers' => fn () => ['hub/_panels/element-maintainers', ['element' => $entry]],
-			'sites' => fn () => ['hub/_panels/entries/sites', ['sites' => $hub->entries->getSiteVariantsQuery($entry)->all()]],
-			'references' => fn () => ['hub/_panels/entries/references', ['references' => $hub->references->getReferences($entry)]],
-			'referenced' => fn () => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($entry)]],
-			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::Entry->value, 'id' => $entry->id]],
+			'maintainers' => fn(): array => ['hub/_panels/element-maintainers', ['element' => $entry]],
+			'sites' => fn(): array => ['hub/_panels/entries/sites', ['sites' => $hub->entries->getSiteVariantsQuery($entry)->all()]],
+			'references' => fn(): array => ['hub/_panels/entries/references', ['references' => $hub->references->getReferences($entry)]],
+			'referenced' => fn(): array => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($entry)]],
+			'activity' => fn(): array => ['hub/_panels/activity', ['subject' => ActivitySubject::Entry->value, 'id' => $entry->id]],
 		];
 	}
 
@@ -231,8 +233,8 @@ class EntriesController extends BaseController
 		$entries = Hub::getInstance()->entries;
 
 		return [
-			'drafts' => fn () => ['hub/_panels/entries/drafts', ['entry' => $entry, 'drafts' => $entries->getDraftsQuery($entry)->all()]],
-			...($entry->hasRevisions() ? ['revisions' => function () use ($entry, $entries) {
+			'drafts' => fn(): array => ['hub/_panels/entries/drafts', ['entry' => $entry, 'drafts' => $entries->getDraftsQuery($entry)->all()]],
+			...($entry->hasRevisions() ? ['revisions' => function () use ($entry, $entries): array {
 				[$pageInfo, $revisions] = Paginator::fromRequest()->query($entries->getRevisionsQuery($entry));
 
 				return ['hub/_panels/entries/revisions', [

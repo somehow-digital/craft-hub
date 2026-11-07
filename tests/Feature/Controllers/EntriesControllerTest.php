@@ -1,22 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
+use craft\elements\db\ElementQuery;
 use craft\elements\db\EntryQuery;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\services\Tokens;
 use SomehowDigital\Craft\Hub\controllers\EntriesController;
+use SomehowDigital\Craft\Hub\controllers\SectionsController;
 use SomehowDigital\Craft\Hub\enums\Page;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
 use SomehowDigital\Craft\Hub\services\ColumnService;
+use SomehowDigital\Craft\Hub\services\EntryService;
 use SomehowDigital\Craft\Hub\services\ReferenceService;
 use SomehowDigital\Craft\Hub\services\ReviewService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 });
 
@@ -27,7 +32,7 @@ beforeEach(function () {
  */
 function listedEntries(int ...$ids): array
 {
-	return array_map(fn (int $id) => new Entry([
+	return array_map(fn(int $id): Entry => new Entry([
 		'id' => $id,
 		'siteId' => 1,
 		'sectionId' => 1,
@@ -36,9 +41,9 @@ function listedEntries(int ...$ids): array
 	]), $ids);
 }
 
-it('lists the entries', function () {
+it('lists the entries', function (): void {
 	$entries = listedEntries(1, 2);
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray ? [] : $entries);
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray ? [] : $entries);
 	ElementQueries::respond(User::class, []);
 
 	$response = $this->runAction(EntriesController::class, 'index');
@@ -49,8 +54,8 @@ it('lists the entries', function () {
 		->and($variables['list']['pageInfo']->total)->toBe(2)
 		->and(array_keys($variables['list']['statuses']))->toBe(['live', 'pending', 'expired', 'disabled'])
 		->and($variables['list']['staleMonths'])->toBe(12)
-		->and(array_map(fn (SectionInfo $info) => $info->section->handle, array_values($variables['list']['sections'])))->toBe(['archive', 'news', 'pages', 'settings'])
-		->and(array_map(fn (EntryTypeInfo $info) => $info->entryType->handle, array_values($variables['list']['entryTypes'])))->toBe(['article', 'block', 'empty', 'page'])
+		->and(array_map(fn(SectionInfo $info): ?string => $info->section->handle, array_values($variables['list']['sections'])))->toBe(['archive', 'news', 'pages', 'settings'])
+		->and(array_map(fn(EntryTypeInfo $info): ?string => $info->entryType->handle, array_values($variables['list']['entryTypes'])))->toBe(['article', 'block', 'empty', 'page'])
 		->and(array_keys($variables['list']['nestedFields']))->toBe([2])
 		->and(array_column($variables['list']['columns'], 'key'))->toContain('origin', 'owner')
 		->and($variables['list']['listFixed'])->toBeNull()
@@ -63,8 +68,8 @@ it('lists the entries', function () {
 		->and($this->db()->queriesMatching('entries_authors'))->toBe([]);
 });
 
-it('shows the users picked in its filters', function () {
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray ? [] : []);
+it('shows the users picked in its filters', function (): void {
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray ? [] : []);
 	ElementQueries::respond(User::class, [new User(['id' => 4, 'siteId' => 1, 'username' => 'jane'])]);
 
 	$variables = $this->runAction(EntriesController::class, 'index', query: ['author' => 'me,4', 'editor' => 'me'])->variables;
@@ -73,7 +78,7 @@ it('shows the users picked in its filters', function () {
 		->and(array_keys($variables['list']['editorOptions']))->toBe(['me']);
 });
 
-it('reads the filters of the entries list', function () {
+it('reads the filters of the entries list', function (): void {
 	$variables = $this->runAction(EntriesController::class, 'index', query: [
 		'q' => 'term',
 		'section' => 'news,bogus',
@@ -117,18 +122,18 @@ it('reads the filters of the entries list', function () {
 		->and($variables['list']['sortHeaders']['title']['url'])->toContain('dir=desc');
 });
 
-it('ignores unknown usage values and origins', function () {
+it('ignores unknown usage values and origins', function (): void {
 	$filter = $this->runAction(EntriesController::class, 'index', query: ['usage' => 'any', 'origin' => 'any'])->variables['list']['filter'];
 
 	expect($filter->usage)->toBeNull()
 		->and($filter->origin)->toBeNull();
 });
 
-it('summarizes the entries', function () {
+it('summarizes the entries', function (): void {
 	$review = Mockery::mock(ReviewService::class)->makePartial();
 	$review->shouldReceive('countStale')->with(12)->andReturn(3);
 	$this->hub()->set('review', $review);
-	$entryService = Mockery::mock(SomehowDigital\Craft\Hub\services\EntryService::class)->makePartial();
+	$entryService = Mockery::mock(EntryService::class)->makePartial();
 	$entryService->shouldReceive('getAuthors')->andReturn([
 		3 => ['user' => new User(['id' => 3, 'username' => 'ann', 'fullName' => 'Ann']), 'count' => 4],
 		4 => ['user' => new User(['id' => 4, 'username' => 'ann2', 'fullName' => 'Ann']), 'count' => 1],
@@ -156,23 +161,23 @@ it('summarizes the entries', function () {
 		->and($activity['segments'][1]['url'])->toContain('stale=1');
 });
 
-it('paginates lists on detail pages by the page of the URL', function () {
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray ? [] : listedEntries(...range(1, 60)));
+it('paginates lists on detail pages by the page of the URL', function (): void {
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray ? [] : listedEntries(...range(1, 60)));
 	$this->request();
-	(fn () => $this->_pageNum = 2)->call(Craft::$app->getRequest());
+	(fn(): int => $this->_pageNum = 2)->call(Craft::$app->getRequest());
 
-	$controller = Craft::createObject(SomehowDigital\Craft\Hub\controllers\SectionsController::class, ['test', $this->hub()]);
-	$variables = (fn () => $this->entryListVariables('hub/structure/sections/1/entries'))->call($controller);
+	$controller = Craft::createObject(SectionsController::class, ['test', $this->hub()]);
+	$variables = (fn() => $this->entryListVariables('hub/structure/sections/1/entries'))->call($controller);
 
 	expect($variables['list']['pageInfo']->currentPage)->toBe(2)
 		->and($variables['list']['pageInfo']->totalPages)->toBe(2)
 		->and($variables['list']['pageInfo']->total)->toBe(60);
 });
 
-it('shows an entry', function () {
+it('shows an entry', function (): void {
 	$entry = listedEntries(1)[0];
 	$variant = new Entry(['id' => 1, 'siteId' => 2]);
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => match (true) {
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => match (true) {
 		$query->asArray => [],
 		$query->unique => [$entry],
 		default => [$entry, $variant],
@@ -191,10 +196,10 @@ it('shows an entry', function () {
 		->and($variables['checks'])->not->toBeEmpty();
 });
 
-it('loads a panel of an entry alone, with what it lists', function () {
+it('loads a panel of an entry alone, with what it lists', function (): void {
 	$entry = listedEntries(1)[0];
 	$variant = new Entry(['id' => 1, 'siteId' => 2]);
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => match (true) {
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => match (true) {
 		$query->asArray => [],
 		$query->unique => [$entry],
 		default => [$entry, $variant],
@@ -208,8 +213,8 @@ it('loads a panel of an entry alone, with what it lists', function () {
 		->and($response->variables)->not->toHaveKeys(['checks', 'lastEdit']);
 });
 
-it('loads the checks of an entry on its diagnostics tab', function () {
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray ? [] : listedEntries(1));
+it('loads the checks of an entry on its diagnostics tab', function (): void {
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray ? [] : listedEntries(1));
 
 	$response = $this->runAction(EntriesController::class, 'view', ['id' => 1, 'tab' => 'diagnostics'], ['panel' => 'checks']);
 
@@ -217,17 +222,17 @@ it('loads the checks of an entry on its diagnostics tab', function () {
 		->and($response->variables['checks'])->not->toBeEmpty();
 });
 
-it('has no panels it does not know', function () {
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray ? [] : listedEntries(1));
+it('has no panels it does not know', function (): void {
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray ? [] : listedEntries(1));
 
 	$this->runAction(EntriesController::class, 'view', ['id' => 1], ['panel' => 'unknown']);
 })->throws(NotFoundHttpException::class);
 
-it('shows the history of an entry', function () {
+it('shows the history of an entry', function (): void {
 	$entry = listedEntries(1)[0];
 	$revisions = [new Entry(['id' => 3, 'siteId' => 1]), new Entry(['id' => 2, 'siteId' => 1])];
 	$draft = new Entry(['id' => 4, 'siteId' => 1]);
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => match (true) {
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => match (true) {
 		$query->asArray => [],
 		$query->revisions => $revisions,
 		$query->drafts === true => [$draft],
@@ -252,25 +257,25 @@ it('shows the history of an entry', function () {
 		->and($draftsPanel->variables['drafts'])->toBe([$draft]);
 });
 
-it('loads the history only on its tab', function () {
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray || $query->revisions ? [] : listedEntries(1));
+it('loads the history only on its tab', function (): void {
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray || $query->revisions ? [] : listedEntries(1));
 
 	$variables = $this->runAction(EntriesController::class, 'view', ['id' => 1])->variables;
 
 	expect($variables)->not->toHaveKeys(['revisions', 'drafts'])
-		->and(array_filter(ElementQueries::executed(Entry::class), fn (EntryQuery $query) => $query->revisions))->toBeEmpty();
+		->and(array_filter(ElementQueries::executed(Entry::class), fn(EntryQuery $query): ?bool => $query->revisions))->toBeEmpty();
 });
 
-it('has no history tab for entries without revisions or drafts', function () {
+it('has no history tab for entries without revisions or drafts', function (): void {
 	// Nested entries of fields without versioning have no revisions.
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray || $query->drafts === true ? [] : [new Entry(['id' => 1, 'siteId' => 1, 'fieldId' => 2, 'typeId' => 12])]);
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray || $query->drafts === true ? [] : [new Entry(['id' => 1, 'siteId' => 1, 'fieldId' => 2, 'typeId' => 12])]);
 
 	$this->runAction(EntriesController::class, 'view', ['id' => 1, 'tab' => 'history']);
 })->throws(NotFoundHttpException::class);
 
-it('shows the drafts of entries without versioning on the history tab', function () {
+it('shows the drafts of entries without versioning on the history tab', function (): void {
 	$draft = new Entry(['id' => 4, 'siteId' => 1]);
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => match (true) {
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => match (true) {
 		$query->asArray => [],
 		$query->drafts === true => [$draft],
 		default => [new Entry(['id' => 1, 'siteId' => 1, 'fieldId' => 2, 'typeId' => 12])],
@@ -282,7 +287,7 @@ it('shows the drafts of entries without versioning on the history tab', function
 		->and($variables['hasRevisions'])->toBeFalse()
 		->and($variables['draftCount'])->toBe(1)
 		->and($variables['revisionCount'])->toBe(0)
-		->and(array_filter(ElementQueries::executed(Entry::class), fn (EntryQuery $query) => $query->revisions))->toBeEmpty();
+		->and(array_filter(ElementQueries::executed(Entry::class), fn(EntryQuery $query): ?bool => $query->revisions))->toBeEmpty();
 });
 
 /**
@@ -292,10 +297,10 @@ it('shows the drafts of entries without versioning on the history tab', function
  */
 function openRevision(object $test, array $previewTargets): ?string
 {
-	(fn () => $this->sections[1]->previewTargets = $previewTargets)->call($test);
+	(fn(): array => $this->sections[1]->previewTargets = $previewTargets)->call($test);
 	$entry = new Entry(['id' => 1, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'uri' => 'news/article']);
 	$revision = new Entry(['id' => 3, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'uri' => 'news/article', 'canonicalId' => 1, 'revisionId' => 7]);
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->revisions ? [$revision] : [$entry]);
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->revisions ? [$revision] : [$entry]);
 	$tokens = Mockery::mock(Tokens::class);
 	$tokens->shouldReceive('createPreviewToken')->once()->with(['preview/preview', [
 		'elementType' => Entry::class,
@@ -306,33 +311,33 @@ function openRevision(object $test, array $previewTargets): ?string
 	]])->andReturn('abc');
 	Craft::$app->set('tokens', $tokens);
 
-	(fn () => $this->request())->call($test);
+	(fn() => $this->request())->call($test);
 	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 1, 'username' => 'admin', 'admin' => true]));
 	Craft::createObject(EntriesController::class, ['test', Craft::$app->getModule('hub')])->runAction('view-revision', ['id' => 1, 'revisionId' => 3]);
 
 	return Craft::$app->getResponse()->getHeaders()->get('Location');
 }
 
-it('opens a revision on its first preview target with a preview token', function () {
+it('opens a revision on its first preview target with a preview token', function (): void {
 	$location = openRevision($this, [['label' => 'Preview', 'url' => 'preview/article'], ['label' => 'Other', 'url' => 'other']]);
-	$revisionQuery = array_values(array_filter(ElementQueries::executed(Entry::class), fn (EntryQuery $query) => $query->revisions))[0];
+	$revisionQuery = array_values(array_filter(ElementQueries::executed(Entry::class), fn(EntryQuery $query): ?bool => $query->revisions))[0];
 
 	expect($location)->toContain('preview/article')
 		->and($location)->toContain('token=abc')
 		->and($revisionQuery->id)->toBe(3);
 });
 
-it('opens a revision on its URL without preview targets', function () {
+it('opens a revision on its URL without preview targets', function (): void {
 	expect(openRevision($this, []))->toContain('news/article')->toContain('token=abc');
 });
 
-it('fails for revisions not of the entry', function () {
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->revisions ? [] : listedEntries(1));
+it('fails for revisions not of the entry', function (): void {
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->revisions ? [] : listedEntries(1));
 
 	$this->runAction(EntriesController::class, 'view-revision', ['id' => 1, 'revisionId' => 99]);
 })->throws(NotFoundHttpException::class);
 
-it('fails for entries that do not exist', function () {
+it('fails for entries that do not exist', function (): void {
 	$this->runAction(EntriesController::class, 'view', ['id' => 99]);
 })->throws(NotFoundHttpException::class);
 
@@ -341,23 +346,23 @@ it('fails for entries that do not exist', function () {
  */
 function listingQuery(): EntryQuery
 {
-	return array_values(array_filter(ElementQueries::$executed, fn ($query) => $query instanceof EntryQuery && !$query->asArray))[0];
+	return array_values(array_filter(ElementQueries::$executed, fn(ElementQuery $query): bool => $query instanceof EntryQuery && !$query->asArray))[0];
 }
 
-it('loads the owners and authors of the entries with their columns', function () {
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray ? [] : listedEntries(1, 2));
+it('loads the owners and authors of the entries with their columns', function (): void {
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray ? [] : listedEntries(1, 2));
 
 	$this->runAction(EntriesController::class, 'index');
 
 	expect(listingQuery()->with)->toBe(['owner', 'authors', $this->hub()->users->photoPlan('authors.photo')]);
 });
 
-it('leaves out the data of hidden columns', function () {
+it('leaves out the data of hidden columns', function (): void {
 	$this->preferences[1] = [ColumnService::PREFERENCE => [ColumnService::LIST_ENTRIES => ['order' => [], 'hidden' => ['origin', 'owner', 'creator', 'references', 'maintainers']]]];
 	$references = Mockery::mock(ReferenceService::class)->makePartial();
 	$references->shouldNotReceive('getReferenceCounts');
 	$this->hub()->set('references', $references);
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray ? [] : listedEntries(1, 2));
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray ? [] : listedEntries(1, 2));
 
 	$variables = $this->runAction(EntriesController::class, 'index')->variables;
 
@@ -366,14 +371,14 @@ it('leaves out the data of hidden columns', function () {
 		->and($variables['list']['entries'])->toHaveCount(2);
 });
 
-it('lists only the selected entries while reviewing them, whatever the filters', function () {
+it('lists only the selected entries while reviewing them, whatever the filters', function (): void {
 	$this->session['hub:bulk:selection:entries:hub/data/entries'] = [5, 6];
 	$entry = new Entry(['id' => 5, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 1]);
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray ? [] : [$entry]);
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray ? [] : [$entry]);
 	ElementQueries::respond(User::class, []);
 
 	$variables = $this->runAction(EntriesController::class, 'index', query: ['selection' => '1', 'status' => 'live'])->variables;
-	$ids = array_map(fn (EntryQuery $query) => $query->id, ElementQueries::executed(Entry::class));
+	$ids = array_map(fn(EntryQuery $query): mixed => $query->id, ElementQueries::executed(Entry::class));
 
 	expect($variables['list']['filter']->statuses)->toBe([])
 		->and($ids)->toContain([5, 6])
@@ -381,23 +386,23 @@ it('lists only the selected entries while reviewing them, whatever the filters',
 		->and($this->session['hub:bulk:selection:entries:hub/data/entries'])->toBe([5]);
 });
 
-it('lists no entries while reviewing an empty selection', function () {
+it('lists no entries while reviewing an empty selection', function (): void {
 	ElementQueries::respond(Entry::class, []);
 	ElementQueries::respond(User::class, []);
 
 	$this->runAction(EntriesController::class, 'index', query: ['selection' => '1']);
 
-	expect(array_map(fn (EntryQuery $query) => $query->id, ElementQueries::executed(Entry::class)))->toContain([0]);
+	expect(array_map(fn(EntryQuery $query): mixed => $query->id, ElementQueries::executed(Entry::class)))->toContain([0]);
 });
 
-it('offers the trash as a tab of the entries page', function (string $action) {
+it('offers the trash as a tab of the entries page', function (string $action): void {
 	ElementQueries::respond(Entry::class, []);
 	ElementQueries::respond(User::class, []);
 
 	expect($this->runAction(EntriesController::class, $action)->variables['extraTabs'])->toBe(['trash' => 'Trash']);
 })->with(['index', 'statistics', 'diagnostics', 'trash']);
 
-it('leaves out the trash tab while the trash is disabled', function (string $action) {
+it('leaves out the trash tab while the trash is disabled', function (string $action): void {
 	ElementQueries::respond(Entry::class, []);
 	ElementQueries::respond(User::class, []);
 	$this->hub()->getSettings()->enableTrash = false;
@@ -405,24 +410,24 @@ it('leaves out the trash tab while the trash is disabled', function (string $act
 	expect($this->runAction(EntriesController::class, $action)->variables['extraTabs'])->toBe([]);
 })->with(['index', 'statistics', 'diagnostics']);
 
-it('has no trash tab while the trash is disabled', function () {
+it('has no trash tab while the trash is disabled', function (): void {
 	$this->hub()->getSettings()->enableTrash = false;
 
 	$this->runAction(EntriesController::class, 'trash');
 })->throws(NotFoundHttpException::class);
 
-it('only shows the trash to users who may view it', function () {
+it('only shows the trash to users who may view it', function (): void {
 	ElementQueries::respond(Entry::class, []);
 	ElementQueries::respond(User::class, []);
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Entries->viewPermission(), Hub::PERMISSION_DELETE_ENTRIES]);
 
 	expect($this->runAction(EntriesController::class, 'index')->variables['extraTabs'])->toBe([])
-		->and(fn () => $this->runAction(EntriesController::class, 'trash'))->toThrow(ForbiddenHttpException::class);
+		->and(fn() => $this->runAction(EntriesController::class, 'trash'))->toThrow(ForbiddenHttpException::class);
 });
 
-it('lists the trashed entries with who deleted them', function () {
+it('lists the trashed entries with who deleted them', function (): void {
 	$entries = listedEntries(1, 2);
-	ElementQueries::respond(Entry::class, fn (EntryQuery $query) => $query->asArray ? [] : $entries);
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray ? [] : $entries);
 	ElementQueries::respond(User::class, []);
 	$this->db()->respond('FROM {{%hub_activity}}', [['subjectId' => '2', 'userId' => null, 'userName' => 'Editor']]);
 
@@ -442,7 +447,7 @@ it('lists the trashed entries with who deleted them', function () {
 		->and($query->trashed)->toBeTrue();
 });
 
-it('reads the filters of the trashed entries list', function () {
+it('reads the filters of the trashed entries list', function (): void {
 	ElementQueries::respond(Entry::class, []);
 
 	$variables = $this->runAction(EntriesController::class, 'trash', query: [

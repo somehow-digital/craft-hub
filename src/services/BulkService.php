@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -97,7 +99,7 @@ class BulkService extends Component
 	 */
 	public function getActions(string $list): array
 	{
-		return array_map(fn (BulkAction $action) => $action->definition(), $this->available($list));
+		return array_map(fn(BulkAction $action): array => $action->definition(), $this->available($list));
 	}
 
 	/**
@@ -107,11 +109,11 @@ class BulkService extends Component
 	 */
 	private function available(string $list): array
 	{
-		if (Craft::$app->getUser()->getIdentity() === null || Page::fromList($list) === null || !Hub::getInstance()->access->canViewList($list)) {
+		if (Craft::$app->getUser()->getIdentity() === null || !Page::fromList($list) instanceof Page || !Hub::getInstance()->access->canViewList($list)) {
 			return [];
 		}
 
-		return array_filter($this->actionsOf($list), fn (BulkAction $action) => $action->isAvailable());
+		return array_filter($this->actionsOf($list), fn(BulkAction $action): bool => $action->isAvailable());
 	}
 
 	/**
@@ -166,7 +168,7 @@ class BulkService extends Component
 	{
 		$page = Page::fromList($list);
 
-		return $page !== null && Hub::getInstance()->access->canBulkEdit($page) && $this->getActions($list) !== [];
+		return $page instanceof Page && Hub::getInstance()->access->canBulkEdit($page) && $this->getActions($list) !== [];
 	}
 
 	/**
@@ -231,7 +233,7 @@ class BulkService extends Component
 	 */
 	public function getElementsOf(string $list, array $ids, string $class): array
 	{
-		return array_values(array_filter($this->getElements($list, $ids), fn (ElementInterface $element) => $element instanceof $class));
+		return array_values(array_filter($this->getElements($list, $ids), fn(ElementInterface $element): bool => $element instanceof $class));
 	}
 
 	/**
@@ -247,7 +249,7 @@ class BulkService extends Component
 			return [];
 		}
 
-		$scoped = fn (ElementQuery $query) => Hub::getInstance()->siteScope->inSiteScope($query)->id($ids);
+		$scoped = fn(ElementQuery $query) => Hub::getInstance()->siteScope->inSiteScope($query)->id($ids);
 
 		return match ($list) {
 			ColumnService::LIST_ENTRIES => $scoped(Entry::find())->status(null)->all(),
@@ -290,7 +292,7 @@ class BulkService extends Component
 				$query->id($ids);
 			}
 
-			return array_map('intval', $query->ids());
+			return array_map(intval(...), $query->ids());
 		}
 
 		$items = match (true) {
@@ -325,7 +327,7 @@ class BulkService extends Component
 
 		return array_values(array_filter(
 			Hub::getInstance()->siteScope->inSiteScope(Asset::find())->id($ids)->all(),
-			fn (Asset $asset) => $service->canView($asset),
+			fn(Asset $asset) => $service->canView($asset),
 		));
 	}
 
@@ -387,7 +389,7 @@ class BulkService extends Component
 	{
 		$query = $ids !== [] ? $this->exportQuery($list) : null;
 
-		if ($query === null) {
+		if (!$query instanceof ElementQuery) {
 			return [];
 		}
 
@@ -395,7 +397,7 @@ class BulkService extends Component
 
 		return array_values(array_filter(
 			$query->id($ids)->fixedOrder()->all(),
-			fn (ElementInterface $element) => $service->canView($element),
+			fn(ElementInterface $element) => $service->canView($element),
 		));
 	}
 
@@ -406,7 +408,7 @@ class BulkService extends Component
 	 */
 	public function getExportQuery(string $list, array $elements): ?ElementQuery
 	{
-		return $this->exportQuery($list)?->id(array_map(fn (ElementInterface $element) => (int)$element->id, $elements))->fixedOrder();
+		return $this->exportQuery($list)?->id(array_map(fn(ElementInterface $element): int => (int) $element->id, $elements))->fixedOrder();
 	}
 
 	/**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\console\controllers;
 
 use craft\console\Controller;
@@ -39,13 +41,13 @@ class ReferencesController extends Controller
 
 		$references = Hub::getInstance()->references;
 		$query = $references->indexableQuery();
-		$total = (int)$query->count();
+		$total = (int) $query->count();
 		$done = 0;
 
 		Console::startProgress(0, $total);
 
 		foreach (Db::batch($query, 500) as $rows) {
-			$references->index(array_map(fn (array $row) => (int)$row['id'], $rows));
+			$references->index(array_map(fn(array $row): int => (int) $row['id'], $rows));
 			$done += count($rows);
 			Console::updateProgress($done, $total);
 		}

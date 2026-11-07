@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\FieldInterface;
@@ -29,8 +31,9 @@ class SectionInfo
 	/** references from Entries and Link fields into this section */
 	public ReferenceStatistics $references;
 
-	public function __construct(public Section $section)
-	{
+	public function __construct(
+		public Section $section
+	) {
 		$this->stats = new EntryStatistics();
 		$this->references = new ReferenceStatistics();
 	}

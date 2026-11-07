@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use SomehowDigital\Craft\Hub\enums\UsageKind;
@@ -23,9 +25,11 @@ class EntryTypeFilter
 	public array $kinds = [];
 
 	public ?int $entriesMin = null;
+
 	public ?int $entriesMax = null;
 
 	public ?int $relationsMin = null;
+
 	public ?int $relationsMax = null;
 
 	/** @var string[] how recently the entries were updated, see the `ACTIVITY_*` constants of {@see EntryStatistics} */

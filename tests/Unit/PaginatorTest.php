@@ -1,8 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 use SomehowDigital\Craft\Hub\helpers\Paginator;
 
-it('paginates lists filtered in memory, keeping their keys', function (int $page, int $currentPage, array $keys) {
+it('paginates lists filtered in memory, keeping their keys', function (int $page, int $currentPage, array $keys): void {
 	$items = array_combine(range(101, 220), range(1, 120));
 	[$pageInfo, $results] = (new Paginator($page))->items($items);
 
@@ -19,7 +21,7 @@ it('paginates lists filtered in memory, keeping their keys', function (int $page
 	'before the first page' => [0, 1, range(101, 150)],
 ]);
 
-it('paginates empty lists into a single page', function () {
+it('paginates empty lists into a single page', function (): void {
 	[$pageInfo, $results] = (new Paginator(4))->items([]);
 
 	expect($results)->toBe([])
@@ -28,7 +30,7 @@ it('paginates empty lists into a single page', function () {
 		->and($pageInfo->total)->toBe(0);
 });
 
-it('paginates by the page size given', function () {
+it('paginates by the page size given', function (): void {
 	[$pageInfo, $results] = (new Paginator(2, 3))->items(['a', 'b', 'c', 'd', 'e']);
 
 	expect($results)->toBe([3 => 'd', 4 => 'e'])

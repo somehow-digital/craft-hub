@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 /**
@@ -17,9 +19,11 @@ class UserGroupFilter
 	public array $labels = [];
 
 	public ?int $usersMin = null;
+
 	public ?int $usersMax = null;
 
 	public ?int $permissionsMin = null;
+
 	public ?int $permissionsMax = null;
 
 	/** whether the groups require two-step verification (`required` or `optional`) */

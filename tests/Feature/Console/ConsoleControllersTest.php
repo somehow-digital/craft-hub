@@ -1,6 +1,9 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\queue\Queue;
+use Mockery\MockInterface;
 use SomehowDigital\Craft\Hub\console\controllers\ReferencesController;
 use SomehowDigital\Craft\Hub\console\controllers\SnapshotsController;
 use SomehowDigital\Craft\Hub\jobs\IndexReferences;
@@ -19,7 +22,7 @@ function quietly(string $class): object
 	return $controller;
 }
 
-function fakeQueue(): Mockery\MockInterface
+function fakeQueue(): MockInterface
 {
 	$queue = Mockery::mock(Queue::class);
 	$queue->shouldReceive('attachBehavior', 'priority', 'delay', 'ttr')->andReturnSelf();
@@ -28,7 +31,7 @@ function fakeQueue(): Mockery\MockInterface
 	return $queue;
 }
 
-it('queues indexing the references', function () {
+it('queues indexing the references', function (): void {
 	fakeQueue()->shouldReceive('push')->once()->with(Mockery::type(IndexReferences::class));
 
 	$controller = quietly(ReferencesController::class);
@@ -37,7 +40,7 @@ it('queues indexing the references', function () {
 	expect($controller->actionIndex())->toBe(ExitCode::OK);
 });
 
-it('queues taking the snapshot', function () {
+it('queues taking the snapshot', function (): void {
 	fakeQueue()->shouldReceive('push')->once()->with(Mockery::type(TakeSnapshot::class));
 
 	$controller = quietly(SnapshotsController::class);
@@ -46,7 +49,7 @@ it('queues taking the snapshot', function () {
 	expect($controller->actionIndex())->toBe(ExitCode::OK);
 });
 
-it('takes the snapshot of today, forced or not', function (bool $force, bool $taken) {
+it('takes the snapshot of today, forced or not', function (bool $force, bool $taken): void {
 	$snapshots = Mockery::mock(SnapshotService::class);
 	$snapshots->shouldReceive('take')->once()->with($force)->andReturn($taken);
 	$this->hub()->set('snapshots', $snapshots);
@@ -57,7 +60,7 @@ it('takes the snapshot of today, forced or not', function (bool $force, bool $ta
 	expect($controller->actionIndex())->toBe(ExitCode::OK);
 })->with([[false, true], [false, false], [true, true]]);
 
-it('offers its options', function () {
+it('offers its options', function (): void {
 	expect(quietly(ReferencesController::class)->options('index'))->toContain('queue')
 		->and(quietly(SnapshotsController::class)->options('index'))->toContain('force', 'queue');
 });

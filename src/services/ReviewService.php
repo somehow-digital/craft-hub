@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use craft\db\Query;
@@ -24,23 +26,13 @@ class ReviewService extends Component
 	/** @var array<string,array<string,int>> grouped counts of the review queries, keyed by query and site scope */
 	private array $counts = [];
 
-
 	/**
 	 * Number of stale entries, counted for all sections and entry types at once.
 	 */
 	public function countStale(int $months, ?int $sectionId = null, ?int $typeId = null): int
 	{
-		return $this->countBy("stale:$months", fn () => $this->getStaleQuery($months), self::ENTRY_GROUPS, [$sectionId, $typeId]);
+		return $this->countBy("stale:{$months}", fn(): EntryQuery => $this->getStaleQuery($months), self::ENTRY_GROUPS, [$sectionId, $typeId]);
 	}
-
-
-
-
-
-
-
-
-
 
 	/**
 	 * Entries with drafts that aren't provisional, as `canonicalId`, found in the drafts alone.
@@ -100,7 +92,6 @@ class ReviewService extends Component
 
 		return ['in', 'elements.id', $drafts];
 	}
-
 
 	/**
 	 * Condition matching images of the queried assets without alternative text on any of the counted sites.
@@ -222,9 +213,6 @@ class ReviewService extends Component
 		);
 	}
 
-
-
-
 	/**
 	 * Counts the elements of a review query by the given columns in a single query, and sums the counts matching the criteria.
 	 *
@@ -238,12 +226,11 @@ class ReviewService extends Component
 
 		if (!isset($this->counts[$key])) {
 			$queries = Hub::getInstance()->queries;
-			$this->counts[$key] = Aggregator::index($queries->count($query(), $columns), array_keys($columns), fn (?int $sum, array $row) => ($sum ?? 0) + (int)$row['total']);
+			$this->counts[$key] = Aggregator::index($queries->count($query(), $columns), array_keys($columns), fn(?int $sum, array $row): int => ($sum ?? 0) + (int) $row['total']);
 		}
 
 		return $this->counts[$key][Aggregator::key($criteria)] ?? 0;
 	}
-
 
 	/**
 	 * Entries that no person has edited within the given number of months, nested ones included, least recently edited first.

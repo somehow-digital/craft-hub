@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\base\Field;
 use craft\fields\Entries as EntriesField;
 use craft\fields\Matrix;
@@ -71,10 +73,10 @@ function ruleVolume(int $size = 0, int $missingAlt = 0, ?string $lastUploaded = 
  */
 function ruleOptions(object $rule): array
 {
-	return array_column((fn () => $this->options())->call($rule), 'label', 'value');
+	return array_column((fn() => $this->options())->call($rule), 'label', 'value');
 }
 
-it('matches the number of references', function () {
+it('matches the number of references', function (): void {
 	$rule = new ReferenceCountConditionRule(['operator' => '>=', 'value' => 2]);
 
 	expect($rule->matchInfo(ruleSection(references: 2)))->toBeTrue()
@@ -82,17 +84,18 @@ it('matches the number of references', function () {
 		->and($rule->matchInfo(new EntryTypeInfo(new EntryType(['id' => 1]))))->toBeFalse();
 });
 
-it('matches the number of relations of an entry type', function () {
+it('matches the number of relations of an entry type', function (): void {
 	$info = new EntryTypeInfo(new EntryType(['id' => 1]));
 	$info->sections = [new Section(['id' => 1])];
 	$info->referenceFields = [new EntriesField(['id' => 1])];
+
 	$rule = new RelationCountConditionRule(['operator' => '=', 'value' => 2]);
 
 	expect($rule->matchInfo($info))->toBeTrue()
 		->and($rule->matchInfo(ruleSection()))->toBeFalse();
 });
 
-it('matches how recently the entries were edited', function () {
+it('matches how recently the entries were edited', function (): void {
 	$rule = new ActivityConditionRule(['operator' => 'in', 'values' => ['stale', 'none']]);
 
 	expect($rule->matchInfo(ruleSection(lastUpdated: '-10 years', entries: 1)))->toBeTrue()
@@ -102,7 +105,7 @@ it('matches how recently the entries were edited', function () {
 		->and(array_keys(ruleOptions($rule)))->toBe(['recent', 'stale', 'none']);
 });
 
-it('matches the size of a volume in megabytes', function () {
+it('matches the size of a volume in megabytes', function (): void {
 	$rule = new SizeConditionRule(['operator' => '>', 'value' => '1.5']);
 
 	expect($rule->matchInfo(ruleVolume(size: 2 * 1024 * 1024)))->toBeTrue()
@@ -110,7 +113,7 @@ it('matches the size of a volume in megabytes', function () {
 		->and($rule->matchInfo(ruleSection()))->toBeFalse();
 });
 
-it('matches the number of images without alternative text', function () {
+it('matches the number of images without alternative text', function (): void {
 	$rule = new MissingAltConditionRule(['operator' => '>=', 'value' => 1]);
 
 	expect($rule->matchInfo(ruleVolume(missingAlt: 3)))->toBeTrue()
@@ -118,7 +121,7 @@ it('matches the number of images without alternative text', function () {
 		->and($rule->matchInfo(ruleSection()))->toBeFalse();
 });
 
-it('matches the date of the last upload', function () {
+it('matches the date of the last upload', function (): void {
 	$rule = new LastUploadConditionRule(['rangeType' => 'range', 'startDate' => '2024-01-01', 'endDate' => '2024-01-31']);
 
 	expect($rule->matchInfo(ruleVolume(lastUploaded: '2024-01-31 18:00:00')))->toBeTrue()
@@ -127,9 +130,10 @@ it('matches the date of the last upload', function () {
 		->and($rule->matchInfo(ruleSection()))->toBeFalse();
 });
 
-it('matches the types of the layouts a field is placed in', function () {
+it('matches the types of the layouts a field is placed in', function (): void {
 	$info = new FieldInfo(new PlainText(['id' => 1]));
 	$info->layouts = [new LayoutUsage('Entry Types', 'Article'), new LayoutUsage('Users', 'Users')];
+
 	$other = new FieldInfo(new PlainText(['id' => 2]));
 	$other->layouts = [new LayoutUsage('Addresses', 'Addresses')];
 
@@ -142,7 +146,7 @@ it('matches the types of the layouts a field is placed in', function () {
 		->and(ruleOptions($rule))->toBe(['Addresses' => 'Addresses', 'Entry Types' => 'Entry Types', 'Users' => 'Users']);
 });
 
-it('matches the kinds of files a volume holds', function () {
+it('matches the kinds of files a volume holds', function (): void {
 	$this->mockComponent('hub.volumes', VolumeService::class)->allows('getKinds')->andReturn(['image' => new FileKindInfo('image'), 'pdf' => new FileKindInfo('pdf')]);
 	$rule = new FileKindConditionRule(['operator' => 'in', 'values' => ['pdf']]);
 
@@ -152,7 +156,7 @@ it('matches the kinds of files a volume holds', function () {
 		->and(array_keys(ruleOptions($rule)))->toBe(['image', 'pdf']);
 });
 
-it('matches the name and handle of any item', function () {
+it('matches the name and handle of any item', function (): void {
 	$section = new SectionInfo($this->section(1, 'news', name: 'News'));
 	$entryType = new EntryTypeInfo($this->entryType(1, 'article', name: 'Article'));
 	$field = new FieldInfo($this->field(PlainText::class, 1, 'summary', ['name' => 'Summary']));
@@ -160,11 +164,11 @@ it('matches the name and handle of any item', function () {
 	$name = new NameConditionRule(['operator' => 'ew', 'value' => 's']);
 	$handle = new HandleConditionRule(['operator' => '=', 'value' => 'article']);
 
-	expect(array_map(fn ($info) => $name->matchInfo($info), [$section, $entryType, $field, $volume]))->toBe([true, false, false, true])
-		->and(array_map(fn ($info) => $handle->matchInfo($info), [$section, $entryType, $field, $volume]))->toBe([false, true, false, false]);
+	expect(array_map($name->matchInfo(...), [$section, $entryType, $field, $volume]))->toBe([true, false, false, true])
+		->and(array_map($handle->matchInfo(...), [$section, $entryType, $field, $volume]))->toBe([false, true, false, false]);
 });
 
-it('matches whether an item has URLs', function () {
+it('matches whether an item has URLs', function (): void {
 	$rule = new HasUrlsConditionRule(['value' => true]);
 	$info = ruleVolume();
 	$info->hasUrls = true;
@@ -173,7 +177,7 @@ it('matches whether an item has URLs', function () {
 		->and($rule->matchInfo(ruleVolume()))->toBeFalse();
 });
 
-it('matches the number of entries and assets', function () {
+it('matches the number of entries and assets', function (): void {
 	$entries = new EntryCountConditionRule(['operator' => '>=', 'value' => 1]);
 	$assets = new AssetCountConditionRule(['operator' => '>=', 'value' => 1]);
 	$volume = ruleVolume();
@@ -187,10 +191,11 @@ it('matches the number of entries and assets', function () {
 		->and($assets->matchInfo(ruleSection(entries: 1)))->toBeFalse();
 });
 
-it('matches the number of entry types of a section or nested entry field', function () {
+it('matches the number of entry types of a section or nested entry field', function (): void {
 	$rule = new EntryTypeCountConditionRule(['operator' => '=', 'value' => 2]);
 	$section = ruleSection();
 	$section->entryTypes = [new EntryType(['id' => 1]), new EntryType(['id' => 2])];
+
 	$field = new FieldInfo(new Matrix(['id' => 1]));
 	$field->entryTypes = $section->entryTypes;
 
@@ -200,7 +205,7 @@ it('matches the number of entry types of a section or nested entry field', funct
 		->and($rule->matchInfo(new EntryTypeInfo(new EntryType(['id' => 1]))))->toBeFalse();
 });
 
-it('matches the type of a section', function () {
+it('matches the type of a section', function (): void {
 	$rule = new SectionTypeConditionRule(['operator' => 'in', 'values' => [Section::TYPE_SINGLE]]);
 
 	expect($rule->matchInfo(new SectionInfo($this->section(1, 'home', Section::TYPE_SINGLE))))->toBeTrue()
@@ -209,20 +214,21 @@ it('matches the type of a section', function () {
 		->and(array_keys(ruleOptions($rule)))->toBe([Section::TYPE_SINGLE, Section::TYPE_CHANNEL, Section::TYPE_STRUCTURE]);
 });
 
-it('matches how an entry type is used', function () {
+it('matches how an entry type is used', function (): void {
 	$rule = new UsageConditionRule(['operator' => 'in', 'values' => [UsageKind::Unused->value]]);
 	$unused = new EntryTypeInfo(new EntryType(['id' => 1]));
 	$unused->kinds = [UsageKind::Unused];
+
 	$used = new EntryTypeInfo(new EntryType(['id' => 2]));
 	$used->kinds = [UsageKind::Section, UsageKind::HasUrls];
 
 	expect($rule->matchInfo($unused))->toBeTrue()
 		->and($rule->matchInfo($used))->toBeFalse()
 		->and($rule->matchInfo(ruleSection()))->toBeFalse()
-		->and(array_keys(ruleOptions($rule)))->toBe(array_map(fn (UsageKind $kind) => $kind->value, UsageKind::listed()));
+		->and(array_keys(ruleOptions($rule)))->toBe(array_map(fn(UsageKind $kind) => $kind->value, UsageKind::listed()));
 });
 
-it('matches whether entries of an entry type have a title field', function () {
+it('matches whether entries of an entry type have a title field', function (): void {
 	$rule = new TitleFieldConditionRule(['value' => false]);
 
 	expect($rule->matchInfo(new EntryTypeInfo(new EntryType(['id' => 1, 'hasTitleField' => false]))))->toBeTrue()
@@ -230,7 +236,7 @@ it('matches whether entries of an entry type have a title field', function () {
 		->and($rule->matchInfo(ruleSection()))->toBeTrue();
 });
 
-it('matches the fields in the layout of an entry type or volume', function () {
+it('matches the fields in the layout of an entry type or volume', function (): void {
 	$summary = $this->field(PlainText::class, 1, 'summary', ['name' => 'Summary']);
 	$body = $this->field(PlainText::class, 2, 'body', ['name' => 'Body']);
 	$article = new EntryTypeInfo($this->entryType(1, 'article', [$summary, $body]));
@@ -250,10 +256,11 @@ it('matches the fields in the layout of an entry type or volume', function () {
 		->and($count->matchInfo(ruleSection()))->toBeFalse();
 });
 
-it('matches the type and data of a field', function () {
+it('matches the type and data of a field', function (): void {
 	$plain = new FieldInfo(new PlainText(['id' => 1]));
 	$nested = new FieldInfo(new Matrix(['id' => 2]));
 	$nested->isNested = true;
+
 	$relational = new FieldInfo(new EntriesField(['id' => 3]));
 	$relational->isRelational = true;
 	$this->mockComponent('hub.structure', StructureService::class)->allows('getFields')->andReturn([$plain, $nested, $relational, new FieldInfo(new PlainText(['id' => 4]))]);
@@ -265,12 +272,12 @@ it('matches the type and data of a field', function () {
 		->and($type->matchInfo($plain))->toBeFalse()
 		->and($type->matchInfo(ruleSection()))->toBeFalse()
 		->and(ruleOptions($type))->toBe([EntriesField::class => 'Entries', Matrix::class => 'Matrix', PlainText::class => 'Plain Text'])
-		->and(array_map(fn ($info) => $data->matchInfo($info), [$plain, $nested, $relational]))->toBe([true, false, true])
+		->and(array_map($data->matchInfo(...), [$plain, $nested, $relational]))->toBe([true, false, true])
 		->and($data->matchInfo(ruleSection()))->toBeFalse()
 		->and(array_keys(ruleOptions($data)))->toBe(['nested', 'relational', 'plain']);
 });
 
-it('matches the settings of a field', function () {
+it('matches the settings of a field', function (): void {
 	$described = new FieldInfo(new PlainText(['id' => 1, 'instructions' => 'A summary.', 'searchable' => true, 'translationMethod' => Field::TRANSLATION_METHOD_SITE]));
 	$bare = new FieldInfo(new PlainText(['id' => 2, 'instructions' => ' ', 'searchable' => false, 'translationMethod' => Field::TRANSLATION_METHOD_NONE]));
 	$instructions = new InstructionsConditionRule(['value' => true]);
@@ -289,9 +296,10 @@ it('matches the settings of a field', function () {
 		]);
 });
 
-it('matches the number of layouts a field is placed in', function () {
+it('matches the number of layouts a field is placed in', function (): void {
 	$info = new FieldInfo(new PlainText(['id' => 1]));
 	$info->layouts = [new LayoutUsage('Entry Types', 'Article'), new LayoutUsage('Entry Types', 'Page')];
+
 	$rule = new LayoutCountConditionRule(['operator' => '>', 'value' => 1]);
 
 	expect($rule->matchInfo($info))->toBeTrue()

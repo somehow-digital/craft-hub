@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -177,10 +179,10 @@ class TrashService extends Component
 
 		foreach ($rows as $row) {
 			foreach ([['sourceId', 'targetId'], ['targetId', 'sourceId']] as [$own, $other]) {
-				$id = (int)$row[$own];
+				$id = (int) $row[$own];
 
 				if (array_key_exists($id, $members)) {
-					$related[(int)$row[$other]][$members[$id] ?? $id] = true;
+					$related[(int) $row[$other]][$members[$id] ?? $id] = true;
 				}
 			}
 		}
@@ -216,7 +218,7 @@ class TrashService extends Component
 		$byItem = [];
 		foreach ($elements as $element) {
 			foreach (array_keys($related[$element->id]) as $itemId) {
-				$byItem[$itemId][(int)$element->id] = $element;
+				$byItem[$itemId][(int) $element->id] = $element;
 			}
 		}
 
@@ -240,7 +242,7 @@ class TrashService extends Component
 		$rows = (new Query())->select(['elementId', 'ownerId'])->from([Table::ELEMENTS_OWNERS])->where([$column => $ids])->all();
 
 		foreach ($rows as $row) {
-			$owners[(int)$row['elementId']][] = (int)$row['ownerId'];
+			$owners[(int) $row['elementId']][] = (int) $row['ownerId'];
 		}
 
 		return $owners;
@@ -298,15 +300,15 @@ class TrashService extends Component
 				->where(['action' => ActivityAction::Deleted->value, 'subject' => $subject->value, 'subjectId' => $ids])
 				->groupBy(['subjectId'])])
 			->all() as $row) {
-			$latest[(int)$row['subjectId']] = $row;
+			$latest[(int) $row['subjectId']] = $row;
 		}
 
-		$userIds = array_values(array_unique(array_filter(array_map(fn (array $row) => $row['userId'] !== null ? (int)$row['userId'] : null, $latest))));
+		$userIds = array_values(array_unique(array_filter(array_map(fn(array $row): ?int => $row['userId'] !== null ? (int) $row['userId'] : null, $latest))));
 		$users = Hub::getInstance()->users->getUsers($userIds);
 
-		return array_map(fn (array $row) => [
-			'user' => $row['userId'] !== null ? $users[(int)$row['userId']] ?? null : null,
-			'name' => $row['userName'] !== null ? (string)$row['userName'] : null,
+		return array_map(fn(array $row): array => [
+			'user' => $row['userId'] !== null ? $users[(int) $row['userId']] ?? null : null,
+			'name' => $row['userName'] !== null ? (string) $row['userName'] : null,
 		], $latest);
 	}
 
@@ -361,15 +363,15 @@ class TrashService extends Component
 		$deleted = 0;
 
 		foreach ($rows as $row) {
-			$volume = $volumes->getVolumeById((int)$row['volumeId']);
-			$path = (string)$row['path'];
+			$volume = $volumes->getVolumeById((int) $row['volumeId']);
+			$path = (string) $row['path'];
 
-			if ($volume !== null && !$this->isFileInUse((int)$volume->id, $path)) {
+			if ($volume !== null && !$this->isFileInUse((int) $volume->id, $path)) {
 				try {
 					$volume->deleteFile($path);
 					$deleted++;
 				} catch (Throwable $exception) {
-					Craft::warning("Couldn't delete the kept file $path: {$exception->getMessage()}", __METHOD__);
+					Craft::warning("Couldn't delete the kept file {$path}: {$exception->getMessage()}", __METHOD__);
 				}
 			}
 
@@ -392,7 +394,7 @@ class TrashService extends Component
 			->column();
 
 		foreach ($folders as $folder) {
-			if (((string)$folder) . basename($path) === $path) {
+			if (($folder) . basename($path) === $path) {
 				return true;
 			}
 		}

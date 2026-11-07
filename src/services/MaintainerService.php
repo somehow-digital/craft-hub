@@ -1,8 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
+use craft\base\ElementContainerFieldInterface;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
 use craft\db\Query;
@@ -61,7 +64,7 @@ class MaintainerService extends Component
 	{
 		return $this->isEnabled()
 			&& isset(self::LISTS[$list])
-			&& ($page = Page::fromList($list)) !== null
+			&& ($page = Page::fromList($list)) instanceof Page
 			&& Hub::getInstance()->access->canView($page)
 			&& Craft::$app->getUser()->checkPermission(Hub::PERMISSION_MANAGE_MAINTAINERS);
 	}
@@ -92,8 +95,8 @@ class MaintainerService extends Component
 		$groups = Craft::$app->getUserGroups();
 
 		return [
-			'users' => array_values(array_filter(array_map(fn (int $id) => $users[$id] ?? null, $maintainers['userIds']))),
-			'groups' => array_values(array_filter(array_map(fn (int $id) => $groups->getGroupById($id), $maintainers['groupIds']))),
+			'users' => array_values(array_filter(array_map(fn(int $id) => $users[$id] ?? null, $maintainers['userIds']))),
+			'groups' => array_values(array_filter(array_map(fn(int $id) => $groups->getGroupById($id), $maintainers['groupIds']))),
 		];
 	}
 
@@ -126,7 +129,7 @@ class MaintainerService extends Component
 
 		$counts = [];
 		foreach ($items as [$list, $item]) {
-			$counts["$list:$item->id"] ??= $this->countMaintainers($list, (int)$item->id);
+			$counts["{$list}:{$item->id}"] ??= $this->countMaintainers($list, (int) $item->id);
 		}
 
 		return array_sum($counts);
@@ -141,9 +144,9 @@ class MaintainerService extends Component
 			return 0;
 		}
 
-		$groupIds = array_map(fn (UserGroup $group) => (int)$group->id, $user->getGroups());
+		$groupIds = array_map(fn(UserGroup $group): int => (int) $group->id, $user->getGroups());
 
-		return $this->countItems(fn (array $maintainers) => in_array((int)$user->id, $maintainers['userIds'], true) || array_intersect($maintainers['groupIds'], $groupIds) !== []);
+		return $this->countItems(fn(array $maintainers): bool => in_array((int) $user->id, $maintainers['userIds'], true) || array_intersect($maintainers['groupIds'], $groupIds) !== []);
 	}
 
 	/**
@@ -151,7 +154,7 @@ class MaintainerService extends Component
 	 */
 	public function countMaintainedByGroup(UserGroup $group): int
 	{
-		return $this->isEnabled() ? $this->countItems(fn (array $maintainers) => in_array((int)$group->id, $maintainers['groupIds'], true)) : 0;
+		return $this->isEnabled() ? $this->countItems(fn(array $maintainers): bool => in_array((int) $group->id, $maintainers['groupIds'], true)) : 0;
 	}
 
 	/**
@@ -179,10 +182,10 @@ class MaintainerService extends Component
 
 		$sources = [];
 		foreach ($items as [$list, $item]) {
-			$maintainers = $this->getMaintainers($list, (int)$item->id);
+			$maintainers = $this->getMaintainers($list, (int) $item->id);
 
 			if ($maintainers['users'] !== [] || $maintainers['groups'] !== []) {
-				$sources["$list:$item->id"] ??= new MaintainerSource($list, $item, $maintainers['users'], $maintainers['groups']);
+				$sources["{$list}:{$item->id}"] ??= new MaintainerSource($list, $item, $maintainers['users'], $maintainers['groups']);
 			}
 		}
 
@@ -224,17 +227,17 @@ class MaintainerService extends Component
 			return [];
 		}
 
-		$groupIds = array_map(fn (UserGroup $group) => (int)$group->id, $user->getGroups());
+		$groupIds = array_map(fn(UserGroup $group): int => (int) $group->id, $user->getGroups());
 		$maintained = [];
 
 		foreach (array_keys(self::LISTS) as $list) {
 			foreach ($this->all()[$list] ?? [] as $id => $maintainers) {
-				$direct = in_array((int)$user->id, $maintainers['userIds'], true);
+				$direct = in_array((int) $user->id, $maintainers['userIds'], true);
 				$through = array_intersect($maintainers['groupIds'], $groupIds);
 				$item = $direct || $through !== [] ? $this->getItem($list, $id) : null;
 
 				if ($item !== null) {
-					$groups = array_filter(array_map(fn (int $id) => Craft::$app->getUserGroups()->getGroupById($id), $through));
+					$groups = array_filter(array_map(fn(int $id) => Craft::$app->getUserGroups()->getGroupById($id), $through));
 					$maintained[] = new MaintainerSource($list, $item, $direct ? [$user] : [], array_values($groups));
 				}
 			}
@@ -258,7 +261,7 @@ class MaintainerService extends Component
 
 		foreach (array_keys(self::LISTS) as $list) {
 			foreach ($this->all()[$list] ?? [] as $id => $maintainers) {
-				$item = in_array((int)$group->id, $maintainers['groupIds'], true) ? $this->getItem($list, $id) : null;
+				$item = in_array((int) $group->id, $maintainers['groupIds'], true) ? $this->getItem($list, $id) : null;
 
 				if ($item !== null) {
 					$maintained[] = new MaintainerSource($list, $item, [], [$group]);
@@ -280,16 +283,16 @@ class MaintainerService extends Component
 	{
 		$before = $this->getMaintainers($list, $itemId);
 		$userIds = $this->knownUserIds($userIds);
-		$groupIds = array_values(array_unique(array_filter($groupIds, fn (int $id) => Craft::$app->getUserGroups()->getGroupById($id) !== null)));
+		$groupIds = array_values(array_unique(array_filter($groupIds, fn(int $id): bool => Craft::$app->getUserGroups()->getGroupById($id) !== null)));
 
 		$rows = [
-			...array_map(fn (int $userId) => [$list, $itemId, $userId, null], $userIds),
-			...array_map(fn (int $groupId) => [$list, $itemId, null, $groupId], $groupIds),
+			...array_map(fn(int $userId): array => [$list, $itemId, $userId, null], $userIds),
+			...array_map(fn(int $groupId): array => [$list, $itemId, null, $groupId], $groupIds),
 		];
 
 		$db = Craft::$app->getDb();
 
-		$db->transaction(function () use ($db, $list, $itemId, $rows) {
+		$db->transaction(function () use ($db, $list, $itemId, $rows): void {
 			$db->createCommand()->delete(self::TABLE, ['list' => $list, 'itemId' => $itemId])->execute();
 
 			if ($rows !== []) {
@@ -303,7 +306,7 @@ class MaintainerService extends Component
 		$after = $this->getMaintainers($list, $itemId);
 		$changes = $this->changes($before, $after);
 
-		if ($changes !== [] && ($subject = ActivitySubject::fromList($list)) !== null) {
+		if ($changes !== [] && ($subject = ActivitySubject::fromList($list)) instanceof ActivitySubject) {
 			Hub::getInstance()->activity->record(ActivityAction::MaintainersChanged, $subject, $itemId, $this->getItem($list, $itemId)?->name, $changes);
 		}
 	}
@@ -340,14 +343,14 @@ class MaintainerService extends Component
 		}
 
 		$section = $element->getSection();
-		$field = $section === null ? $element->getField() : null;
-		$owner = $section === null ? $element->getOwner() : null;
+		$field = $section instanceof Section ? null : $element->getField();
+		$owner = $section instanceof Section ? null : $element->getOwner();
 
 		return [
-			...($section !== null ? [[ColumnService::LIST_SECTIONS, $section]] : []),
-			...($field !== null ? [[ColumnService::LIST_FIELDS, $field]] : []),
+			...($section instanceof Section ? [[ColumnService::LIST_SECTIONS, $section]] : []),
+			...($field instanceof ElementContainerFieldInterface ? [[ColumnService::LIST_FIELDS, $field]] : []),
 			[ColumnService::LIST_ENTRY_TYPES, $element->getType()],
-			...($owner !== null ? $this->storedIn($owner) : []),
+			...($owner instanceof ElementInterface ? $this->storedIn($owner) : []),
 		];
 	}
 
@@ -387,11 +390,11 @@ class MaintainerService extends Component
 		$maintainers = [];
 		foreach ($rows as $row) {
 			$key = $row['userId'] !== null ? 'userIds' : 'groupIds';
-			$maintainers[(string)$row['list']][(int)$row['itemId']][$key][] = (int)($row['userId'] ?? $row['groupId']);
+			$maintainers[(string) $row['list']][(int) $row['itemId']][$key][] = (int) ($row['userId'] ?? $row['groupId']);
 		}
 
 		return $this->maintainers = array_map(
-			fn (array $items) => array_map(fn (array $item) => [...['userIds' => [], 'groupIds' => []], ...$item], $items),
+			fn(array $items): array => array_map(fn(array $item): array => [...['userIds' => [], 'groupIds' => []], ...$item], $items),
 			$maintainers,
 		);
 	}
@@ -427,7 +430,7 @@ class MaintainerService extends Component
 	{
 		$ids = array_values(array_unique($ids));
 
-		return $ids !== [] ? array_map('intval', User::find()->id($ids)->status(null)->fixedOrder()->ids()) : [];
+		return $ids !== [] ? array_map(intval(...), User::find()->id($ids)->status(null)->fixedOrder()->ids()) : [];
 	}
 
 	/**
@@ -439,9 +442,9 @@ class MaintainerService extends Component
 	 */
 	private function changes(array $before, array $after): array
 	{
-		$names = fn (array $maintainers) => [
-			...array_combine(array_map(fn (User $user) => "user:$user->id", $maintainers['users']), array_map(fn (User $user) => $user->getName(), $maintainers['users'])),
-			...array_combine(array_map(fn (UserGroup $group) => "group:$group->id", $maintainers['groups']), array_map(fn (UserGroup $group) => (string)$group->name, $maintainers['groups'])),
+		$names = fn(array $maintainers): array => [
+			...array_combine(array_map(fn(User $user): string => "user:{$user->id}", $maintainers['users']), array_map(fn(User $user): string => $user->getName(), $maintainers['users'])),
+			...array_combine(array_map(fn(UserGroup $group): string => "group:{$group->id}", $maintainers['groups']), array_map(fn(UserGroup $group): string => (string) $group->name, $maintainers['groups'])),
 		];
 		$old = $names($before);
 		$new = $names($after);

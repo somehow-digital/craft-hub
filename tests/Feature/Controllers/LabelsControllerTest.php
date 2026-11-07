@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\User;
 use craft\web\Session;
 use SomehowDigital\Craft\Hub\controllers\LabelsController;
@@ -14,7 +16,7 @@ use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 
 	$this->db()->respond('FROM {{%hub_labels}}', [
@@ -41,7 +43,7 @@ beforeEach(function () {
 	};
 });
 
-it('switches labels on and off along with the labels, for admins only', function () {
+it('switches labels on and off along with the labels, for admins only', function (): void {
 	$admin = $this->runAction(LabelsController::class, 'index')->variables;
 
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Hub::PERMISSION_MANAGE_LABELS]);
@@ -52,7 +54,7 @@ it('switches labels on and off along with the labels, for admins only', function
 		->and($other)->not->toHaveKey('settings');
 });
 
-it('lists the labels with the lists they are used in, linking to them filtered by them', function () {
+it('lists the labels with the lists they are used in, linking to them filtered by them', function (): void {
 	$this->db()->respond('GROUP BY [[labelId]]', [
 		['labelId' => 1, 'list' => ColumnService::LIST_SECTIONS, 'count' => '1'],
 		['labelId' => 1, 'list' => ColumnService::LIST_ENTRIES, 'count' => '4'],
@@ -69,7 +71,7 @@ it('lists the labels with the lists they are used in, linking to them filtered b
 		->and($variables['lists'][2])->toBe([]);
 });
 
-it('edits a new label, or an existing one with the lists it is used in', function () {
+it('edits a new label, or an existing one with the lists it is used in', function (): void {
 	$this->db()->respond('GROUP BY [[labelId]]', [['labelId' => 2, 'list' => ColumnService::LIST_USER_GROUPS, 'count' => '2']]);
 
 	$new = $this->runAction(LabelsController::class, 'edit')->variables;
@@ -82,22 +84,22 @@ it('edits a new label, or an existing one with the lists it is used in', functio
 		->and($existing['lists'][ColumnService::LIST_USER_GROUPS]['url'])->toContain('hub/data/users/groups');
 });
 
-it('edits a label that failed to save as it was sent', function () {
+it('edits a label that failed to save as it was sent', function (): void {
 	$label = new Label(['name' => '']);
 
 	expect($this->runAction(LabelsController::class, 'edit', ['labelId' => 2, 'label' => $label])->variables['label'])->toBe($label);
 });
 
-it('edits no unknown label', function () {
+it('edits no unknown label', function (): void {
 	$this->runAction(LabelsController::class, 'edit', ['labelId' => 9]);
 })->throws(NotFoundHttpException::class);
 
-it('only lets users with the permission manage the labels', function (string $action) {
+it('only lets users with the permission manage the labels', function (string $action): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA]);
 	$this->runAction(LabelsController::class, $action);
 })->with(['index', 'edit'])->throws(ForbiddenHttpException::class);
 
-it('saves a new label, taking the blank color for none', function () {
+it('saves a new label, taking the blank color for none', function (): void {
 	$response = ($this->post)('save', ['name' => 'Later', 'description' => 'For another day', 'icon' => 'clock', 'color' => '__blank__']);
 
 	expect($response->data['label']['name'])->toBe('Later')
@@ -105,14 +107,14 @@ it('saves a new label, taking the blank color for none', function () {
 		->and($this->db()->queriesMatching('INSERT INTO {{%hub_labels}}')[0])->toContain("'Later', 'For another day', 'clock', NULL");
 });
 
-it('saves the changes to a label', function () {
+it('saves the changes to a label', function (): void {
 	($this->post)('save', ['labelId' => 2, 'name' => 'Check', 'color' => 'red']);
 
 	expect($this->db()->queriesMatching('UPDATE {{%hub_labels}}')[0])->toContain("`name`='Check'")
 		->and($this->db()->queriesMatching('UPDATE {{%hub_labels}}')[0])->toContain("`color`='red'");
 });
 
-it('fails to save an invalid label', function () {
+it('fails to save an invalid label', function (): void {
 	$response = ($this->post)('save', ['name' => ' ']);
 
 	expect($response->getStatusCode())->toBe(400)
@@ -120,11 +122,11 @@ it('fails to save an invalid label', function () {
 		->and($this->db()->queriesMatching('INSERT INTO'))->toBe([]);
 });
 
-it('saves no unknown label', function () {
+it('saves no unknown label', function (): void {
 	($this->post)('save', ['labelId' => 9, 'label' => 'Check']);
 })->throws(NotFoundHttpException::class);
 
-it('deletes and reorders the labels', function () {
+it('deletes and reorders the labels', function (): void {
 	($this->post)('delete', ['id' => 2]);
 	($this->post)('reorder', ['ids' => '["2","1"]']);
 
@@ -133,7 +135,7 @@ it('deletes and reorders the labels', function () {
 		->and($this->db()->queriesMatching('UPDATE {{%hub_labels}}')[0])->toContain('`id`=2');
 });
 
-it('removes a label from all items labeled with it, keeping it', function () {
+it('removes a label from all items labeled with it, keeping it', function (): void {
 	$this->db()->respond('DELETE FROM {{%hub_labeled}}', 3);
 
 	$response = ($this->post)('clear', ['id' => 2]);
@@ -144,11 +146,11 @@ it('removes a label from all items labeled with it, keeping it', function () {
 		->and($this->db()->queriesMatching('DELETE FROM {{%hub_labels}}'))->toBe([]);
 });
 
-it('clears no unknown label', function () {
+it('clears no unknown label', function (): void {
 	($this->post)('clear', ['id' => 9]);
 })->throws(NotFoundHttpException::class);
 
-it('deletes a label from its form, going back to the labels', function () {
+it('deletes a label from its form, going back to the labels', function (): void {
 	$this->request();
 	$request = Craft::$app->getRequest();
 	$request->enableCsrfValidation = false;
@@ -156,7 +158,7 @@ it('deletes a label from its form, going back to the labels', function () {
 	$_SERVER['REQUEST_METHOD'] = 'POST';
 	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 1, 'username' => 'admin', 'admin' => true]));
 	// Craft's session behavior would start a session to keep the notice in.
-	$session = new class() extends Session {
+	$session = new class () extends Session {
 		public ?string $notice = null;
 
 		public function setSuccess(string $message, array $settings = []): void
@@ -177,18 +179,18 @@ it('deletes a label from its form, going back to the labels', function () {
 		->and($this->db()->queriesMatching('DELETE FROM {{%hub_labels}}')[0])->toContain('`id`=2');
 });
 
-it('reorders nothing without IDs', function () {
+it('reorders nothing without IDs', function (): void {
 	($this->post)('reorder', ['ids' => 'null']);
 
 	expect($this->db()->queriesMatching('UPDATE'))->toBe([]);
 });
 
-it('only lets users with the permission change the labels', function (string $action) {
+it('only lets users with the permission change the labels', function (string $action): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA]);
 	($this->post)($action, ['id' => 1, 'ids' => '[]', 'name' => 'Keep']);
 })->with(['save', 'delete', 'clear', 'reorder'])->throws(ForbiddenHttpException::class);
 
-it('labels an item for users who may label items, responding with its labels', function () {
+it('labels an item for users who may label items, responding with its labels', function (): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_STRUCTURE, Page::Sections->viewPermission(), Page::Sections->labelPermission()]);
 
 	$response = ($this->post)('apply', ['list' => ColumnService::LIST_SECTIONS, 'id' => 1, 'labels' => ['2', '9']]);
@@ -197,7 +199,7 @@ it('labels an item for users who may label items, responding with its labels', f
 		->and($this->db()->queriesMatching('INSERT INTO {{%hub_labeled}}')[0])->toContain("(2, 'sections', 1");
 });
 
-it('labels no items for users who may not label them or view their list', function (array $permissions, string $action) {
+it('labels no items for users who may not label them or view their list', function (array $permissions, string $action): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_STRUCTURE, ...$permissions]);
 	$this->session['hub:bulk:selection:sections:hub/test'] = [1];
 
@@ -208,36 +210,36 @@ it('labels no items for users who may not label them or view their list', functi
 	'labeling another list' => [[Page::Sections->viewPermission(), Page::Sections->bulkEditPermission(), Page::Fields->labelPermission()]],
 ])->with(['apply', 'counts'])->throws(ForbiddenHttpException::class);
 
-it('unlabels an item without labels', function () {
+it('unlabels an item without labels', function (): void {
 	$this->db()->respond('FROM {{%hub_labeled}}', [['itemId' => 1, 'labelId' => 1]]);
 
 	expect(($this->post)('apply', ['list' => ColumnService::LIST_SECTIONS, 'id' => 1])->data)->toBe(['labels' => []])
 		->and($this->db()->queriesMatching('DELETE FROM {{%hub_labeled}}'))->toHaveCount(1);
 });
 
-it('labels no items of unknown lists', function () {
+it('labels no items of unknown lists', function (): void {
 	($this->post)('apply', ['list' => 'bogus', 'id' => 1]);
 })->throws(BadRequestHttpException::class);
 
-it('labels no unknown items', function () {
+it('labels no unknown items', function (): void {
 	($this->post)('apply', ['list' => ColumnService::LIST_SECTIONS, 'id' => 99]);
 })->throws(NotFoundHttpException::class);
 
-it('counts the selected items labeled with each label', function () {
+it('counts the selected items labeled with each label', function (): void {
 	$this->session['hub:bulk:selection:sections:hub/test'] = [1, 2, 3];
 	$this->db()->respond('COUNT(*)', [['labelId' => 1, 'count' => '3'], ['labelId' => 2, 'count' => '1']]);
 
 	$data = ($this->post)('counts', ['list' => ColumnService::LIST_SECTIONS, 'path' => 'hub/test'])->data;
 
 	expect($data['total'])->toBe(3)
-		->and((array)$data['counts'])->toBe([1 => 3, 2 => 1]);
+		->and((array) $data['counts'])->toBe([1 => 3, 2 => 1]);
 });
 
-it('counts no labels of unknown lists', function () {
+it('counts no labels of unknown lists', function (): void {
 	($this->post)('counts', ['list' => 'bogus', 'path' => 'hub/test']);
 })->throws(BadRequestHttpException::class);
 
-it('shows the labels of the items of a list and filters it by them', function () {
+it('shows the labels of the items of a list and filters it by them', function (): void {
 	$this->db()->respond('FROM {{%hub_labeled}}', [['itemId' => 2, 'labelId' => 2]]);
 
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['label' => '2,bogus'])->variables;
@@ -251,7 +253,7 @@ it('shows the labels of the items of a list and filters it by them', function ()
 		->and($variables['list']['canManageLabels'])->toBeTrue();
 });
 
-it('offers no labels to filter by while there are none', function () {
+it('offers no labels to filter by while there are none', function (): void {
 	$this->db()->respond('FROM {{%hub_labels}}', []);
 
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['label' => 'none'])->variables;
@@ -261,7 +263,7 @@ it('offers no labels to filter by while there are none', function () {
 		->and($variables['list']['itemLabels'])->toBe([]);
 });
 
-it('shows no labels and filters by none while labels are disabled', function () {
+it('shows no labels and filters by none while labels are disabled', function (): void {
 	$this->hub()->getSettings()->enableLabels = false;
 	$this->db()->respond('FROM {{%hub_labeled}}', [['itemId' => 2, 'labelId' => 2]]);
 
@@ -278,7 +280,7 @@ it('shows no labels and filters by none while labels are disabled', function () 
 		->and($variables['list']['canManageLabels'])->toBeFalse();
 });
 
-it('labels no items and counts no labels while labels are disabled', function (string $action) {
+it('labels no items and counts no labels while labels are disabled', function (string $action): void {
 	$this->hub()->getSettings()->enableLabels = false;
 
 	try {
@@ -288,7 +290,7 @@ it('labels no items and counts no labels while labels are disabled', function (s
 	}
 })->with(['apply', 'counts'])->throws(ForbiddenHttpException::class);
 
-it('still manages the labels while labels are disabled', function () {
+it('still manages the labels while labels are disabled', function (): void {
 	$this->hub()->getSettings()->enableLabels = false;
 
 	try {

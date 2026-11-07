@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -38,7 +40,7 @@ class Delete extends BulkAction
 
 		return $this->succeeded(
 			$this->hub()->bulk->getElements($this->list, $ids),
-			fn (ElementInterface $element) => $service->canDelete($element) && $service->deleteElement($element),
+			fn(ElementInterface $element): bool => $service->canDelete($element) && $service->deleteElement($element),
 		);
 	}
 

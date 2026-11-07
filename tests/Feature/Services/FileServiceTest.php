@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\base\FsInterface;
 use craft\elements\Asset;
 use craft\elements\db\ElementQuery;
@@ -17,7 +19,7 @@ use SomehowDigital\Craft\Hub\services\ActivityService;
 use SomehowDigital\Craft\Hub\services\FileService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->site(2, 'de');
 	$this->volume(1, 'images');
 	$this->volume(2, 'documents');
@@ -29,13 +31,13 @@ function fileFilter(array $values): FileFilter
 	$filter = new FileFilter();
 
 	foreach ($values as $name => $value) {
-		$filter->$name = $value;
+		$filter->{$name} = $value;
 	}
 
 	return $filter;
 }
 
-it('queries the files on the counted sites, most recently uploaded first', function () {
+it('queries the files on the counted sites, most recently uploaded first', function (): void {
 	$query = $this->files->getQuery(new FileFilter());
 
 	expect($query->siteId)->toBe([1, 2])
@@ -46,7 +48,7 @@ it('queries the files on the counted sites, most recently uploaded first', funct
 		->and($query->dateCreated)->toBeNull();
 });
 
-it('narrows the files by the filters', function () {
+it('narrows the files by the filters', function (): void {
 	$query = $this->files->getQuery(fileFilter([
 		'search' => 'logo',
 		'volumes' => ['images'],
@@ -64,13 +66,13 @@ it('narrows the files by the filters', function () {
 		]);
 });
 
-it('narrows the files to the ones the user viewing them uploaded', function () {
+it('narrows the files to the ones the user viewing them uploaded', function (): void {
 	Craft::$app->getUser()->shouldReceive('getId')->andReturn(7);
 
 	expect(conditions($this->files->getQuery(fileFilter(['uploaders' => ['me']]))))->toBe([['assets.uploaderId' => [7]]]);
 });
 
-it('narrows the files by their extensions, ignoring the case on PostgreSQL', function (string $driver, string $operator) {
+it('narrows the files by their extensions, ignoring the case on PostgreSQL', function (string $driver, string $operator): void {
 	$this->createApp($driver);
 	$this->volume(1, 'images');
 
@@ -84,7 +86,7 @@ it('narrows the files by their extensions, ignoring the case on PostgreSQL', fun
 	'PostgreSQL' => ['pgsql', 'ilike'],
 ]);
 
-it('narrows the files by the orientation of images', function () {
+it('narrows the files by the orientation of images', function (): void {
 	expect($this->files->getQuery(fileFilter(['orientations' => FileFilter::getOrientations()]))->where)->toBe([
 		'or',
 		'[[assets.width]] > [[assets.height]]',
@@ -93,7 +95,7 @@ it('narrows the files by the orientation of images', function () {
 	]);
 });
 
-it('narrows the files by usage, through relations or reference tags', function (string $usage, bool $negated) {
+it('narrows the files by usage, through relations or reference tags', function (string $usage, bool $negated): void {
 	$where = $this->files->getQuery(fileFilter(['usage' => $usage]))->where;
 	$sql = conditionSql($where);
 
@@ -105,7 +107,7 @@ it('narrows the files by usage, through relations or reference tags', function (
 	'unused' => [FileService::USAGE_UNUSED, true],
 ]);
 
-it('narrows the files by ranges of references, size and dimensions', function () {
+it('narrows the files by ranges of references, size and dimensions', function (): void {
 	$conditions = conditions($this->files->getQuery(fileFilter([
 		'referencesMax' => 3,
 		'sizeMin' => 1.5,
@@ -124,7 +126,7 @@ it('narrows the files by ranges of references, size and dimensions', function ()
 		->and($conditions[4])->toBe(['and', [], ['<=', 'assets.height', 300]]);
 });
 
-it('narrows the files to images without alternative text and large images', function () {
+it('narrows the files to images without alternative text and large images', function (): void {
 	$query = $this->files->getQuery(fileFilter(['missingAlt' => true, 'oversized' => true]));
 	$review = $this->hub()->review;
 
@@ -134,7 +136,7 @@ it('narrows the files to images without alternative text and large images', func
 	]);
 });
 
-it('sorts the files', function (string $sort, array $columns) {
+it('sorts the files', function (string $sort, array $columns): void {
 	$order = $this->files->getQuery(new FileFilter(), $sort, SORT_ASC)->orderBy;
 	$keys = array_keys($order);
 
@@ -155,7 +157,7 @@ it('sorts the files', function (string $sort, array $columns) {
 	'uploaded' => [FileService::SORT_UPLOADED, ['elements.dateCreated']],
 ]);
 
-it('lists the sort columns with their default direction', function () {
+it('lists the sort columns with their default direction', function (): void {
 	expect($this->files->getSortColumns())->toBe([
 		'file' => SORT_ASC,
 		'volume' => SORT_ASC,
@@ -167,7 +169,7 @@ it('lists the sort columns with their default direction', function () {
 	]);
 });
 
-it('counts the filename extensions of the files', function (string $driver, string $expression, string $volume) {
+it('counts the filename extensions of the files', function (string $driver, string $expression, string $volume): void {
 	$this->createApp($driver);
 	$this->db()->respond('FROM {{%assets}} {{assets}}', [['extension' => 'jpg', 'count' => '3'], ['extension' => 'pdf', 'count' => '1']]);
 
@@ -182,21 +184,21 @@ it('counts the filename extensions of the files', function (string $driver, stri
 	'PostgreSQL' => ['pgsql', "LOWER(SUBSTRING(\"assets\".\"filename\" FROM '\\.([^.]+)$'))", '"assets"."volumeId"=1'],
 ]);
 
-it('lists the uploaders of files, most uploads first', function () {
+it('lists the uploaders of files, most uploads first', function (): void {
 	$this->db()->respond('FROM {{%assets}} {{assets}}', [['uploaderId' => '4', 'count' => '7'], ['uploaderId' => '5', 'count' => '1']]);
 	$uploader = new User(['id' => 4, 'username' => 'uploader']);
-	ElementQueries::respond(User::class, fn (ElementQuery $query) => [4 => $uploader]);
+	ElementQueries::respond(User::class, fn(ElementQuery $query): array => [4 => $uploader]);
 
 	expect($this->files->getUploaders(2))->toBe([4 => ['user' => $uploader, 'count' => 7]])
 		->and($this->db()->queriesMatching('FROM {{%assets}} {{assets}}')[0])->toContain('`assets`.`volumeId`=2');
 });
 
-it('lists no uploaders when no files have any', function () {
+it('lists no uploaders when no files have any', function (): void {
 	expect($this->files->getUploaders())->toBe([])
 		->and(ElementQueries::executed(User::class))->toBe([]);
 });
 
-it('finds a file on the selected sites, preferring the current site', function () {
+it('finds a file on the selected sites, preferring the current site', function (): void {
 	$asset = new Asset(['id' => 1, 'siteId' => 2]);
 	ElementQueries::respond(Asset::class, [$asset]);
 	$this->request([Hub::SITE_PARAM => 'de']);
@@ -206,7 +208,7 @@ it('finds a file on the selected sites, preferring the current site', function (
 		->and(ElementQueries::executed(Asset::class)[0]->preferSites)->toBe([2, 1]);
 });
 
-it('finds the files on each counted site at once', function () {
+it('finds the files on each counted site at once', function (): void {
 	$variants = [new Asset(['id' => 1, 'siteId' => 1]), new Asset(['id' => 2, 'siteId' => 1]), new Asset(['id' => 1, 'siteId' => 2])];
 	ElementQueries::respond(Asset::class, $variants);
 
@@ -219,7 +221,7 @@ it('finds the files on each counted site at once', function () {
 		->and($this->files->getSiteVariantsOf([]))->toBe([]);
 });
 
-it('lists the image transforms of files, newest first', function () {
+it('lists the image transforms of files, newest first', function (): void {
 	$this->db()->respond('FROM {{%imagetransformindex}}', [
 		['id' => '11', 'assetId' => '1', 'transformString' => '_100x100', 'transformer' => 'craft', 'filename' => 'a.jpg', 'format' => null, 'fileExists' => '1', 'inProgress' => '0', 'error' => '0', 'dateIndexed' => '2024-01-02 00:00:00'],
 		['id' => '12', 'assetId' => '1', 'transformString' => '_200x200', 'transformer' => 'craft', 'filename' => 'a.webp', 'format' => 'webp', 'fileExists' => '0', 'inProgress' => '0', 'error' => '1', 'dateIndexed' => null],
@@ -228,7 +230,7 @@ it('lists the image transforms of files, newest first', function () {
 
 	$transforms = $this->files->getTransformsOf([new Asset(['id' => 1]), new Asset(['id' => 2])]);
 
-	expect(array_map('count', $transforms))->toBe([1 => 2, 2 => 1])
+	expect(array_map(count(...), $transforms))->toBe([1 => 2, 2 => 1])
 		->and($transforms[1][0]['id'])->toBe(11)
 		->and($transforms[1][0]['fileExists'])->toBeTrue()
 		->and($transforms[1][0]['dateIndexed'])->toBeInstanceOf(DateTime::class)
@@ -243,7 +245,7 @@ it('lists the image transforms of files, newest first', function () {
 		->and($this->files->getTransformsOf([]))->toBe([]);
 });
 
-it('deletes transforms of a file along with the files Craft generated', function () {
+it('deletes transforms of a file along with the files Craft generated', function (): void {
 	$this->db()->respond('SELECT `id`, `assetId`, `transformer`', [
 		['id' => '11', 'assetId' => '1', 'transformer' => ImageTransformer::class, 'filename' => 'a.jpg', 'format' => null, 'transformString' => '_100x100', 'fileExists' => '1', 'inProgress' => '0', 'error' => '0'],
 		['id' => '12', 'assetId' => '1', 'transformer' => ImageTransformer::class, 'filename' => 'a.webp', 'format' => 'webp', 'transformString' => '_200x200', 'fileExists' => '0', 'inProgress' => '0', 'error' => '1'],
@@ -253,7 +255,7 @@ it('deletes transforms of a file along with the files Craft generated', function
 	$asset = new Asset(['id' => 1]);
 	$transformer = Mockery::mock(ImageTransformer::class);
 	$transformer->shouldReceive('deleteImageTransformFile')->once()
-		->with($asset, Mockery::on(fn (ImageTransformIndex $index) => $index->id === 11 && $index->transformString === '_100x100'));
+		->with($asset, Mockery::on(fn(ImageTransformIndex $index): bool => $index->id === 11 && $index->transformString === '_100x100'));
 	$transforms = Mockery::mock(ImageTransforms::class)->makePartial();
 	$transforms->shouldReceive('getImageTransformer')->with(ImageTransformer::class)->andReturn($transformer);
 	Craft::$app->set('imageTransforms', $transforms);
@@ -267,17 +269,17 @@ it('deletes transforms of a file along with the files Craft generated', function
 		->and($this->db()->queriesMatching('DELETE FROM {{%imagetransformindex}}'))->toBe(['DELETE FROM `imagetransformindex` WHERE `id` IN (11, 12, 13)']);
 });
 
-it('deletes no transforms without IDs or matching ones', function () {
+it('deletes no transforms without IDs or matching ones', function (): void {
 	expect($this->files->deleteTransforms(new Asset(['id' => 1]), []))->toBe(0)
 		->and($this->files->deleteTransforms(new Asset(['id' => 1]), [5]))->toBe(0)
 		->and($this->db()->queriesMatching('DELETE FROM'))->toBe([]);
 });
 
-it('links generated transforms to their file in the requested format', function () {
-	$asset = new class(['id' => 1]) extends Asset {
+it('links generated transforms to their file in the requested format', function (): void {
+	$asset = new class (['id' => 1]) extends Asset {
 		public mixed $requested = null;
 
-		public function getUrl(mixed $transform = null, ?bool $immediately = null): ?string
+		public function getUrl(mixed $transform = null, ?bool $immediately = null): string
 		{
 			$this->requested = $transform;
 
@@ -295,7 +297,7 @@ it('links generated transforms to their file in the requested format', function 
 		->and($this->files->getTransformUrl($asset, [...$transform, 'error' => true]))->toBeNull();
 });
 
-it('works out the dimensions a transform resizes the file to', function () {
+it('works out the dimensions a transform resizes the file to', function (): void {
 	$asset = new Asset(['id' => 1, 'kind' => Asset::KIND_IMAGE, 'filename' => 'a.jpg', 'width' => 400, 'height' => 200]);
 
 	expect($this->files->getTransformDimensions($asset, ['transformString' => '_100x100_fit_center-center_none']))->toBe(['width' => 100, 'height' => 50])
@@ -303,7 +305,7 @@ it('works out the dimensions a transform resizes the file to', function () {
 		->and($this->files->getTransformDimensions($asset, ['transformString' => '_unknown']))->toBe(['width' => null, 'height' => null]);
 });
 
-it('measures transformed images Craft generated in the transform filesystem', function () {
+it('measures transformed images Craft generated in the transform filesystem', function (): void {
 	$fs = Mockery::mock(FsInterface::class);
 	$fs->shouldReceive('getFileSize')->with('_transforms/photos/_100x100/1/a.webp')->andReturn(1234);
 	$fs->shouldReceive('getFileSize')->with('_transforms/photos/_200x200/a.jpg')->andThrow(new FsException('Missing'));

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use DateTime;
@@ -24,5 +26,6 @@ class TrashedEntryFilter
 
 	/** dates the entries were deleted, both days included */
 	public ?DateTime $deletedFrom = null;
+
 	public ?DateTime $deletedTo = null;
 }

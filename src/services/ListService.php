@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Closure;
@@ -56,17 +58,17 @@ class ListService extends Component
 		$labeled = $this->labeledIds(ColumnService::LIST_SECTIONS, $filter);
 		$condition = Hub::getInstance()->filters->infoCondition(CheckKind::Sections, $filter->savedFilter);
 
-		$sections = array_filter(Hub::getInstance()->structure->getSections(), fn (SectionInfo $info) => $this->matchesSearch($filter->search, $info->section->name, $info->section->handle)
+		$sections = array_filter(Hub::getInstance()->structure->getSections(), fn(SectionInfo $info): bool => $this->matchesSearch($filter->search, $info->section->name, $info->section->handle)
 			&& $this->matchesLabels($filter->labels, $labeled, $info->section->id)
 			&& $this->matchesCondition($condition, $info)
 			&& $this->matchesAny($filter->types, [$info->section->type])
 			&& $this->matchesUrls($filter->urls, $info->hasUrls)
-			&& $this->inRange(fn () => $info->stats->total, $filter->entriesMin, $filter->entriesMax)
-			&& $this->inRange(fn () => $info->references->references, $filter->referencesMin, $filter->referencesMax)
-			&& $this->matchesAny($filter->activities, fn () => [$info->stats->getActivity($months)])
+			&& $this->inRange(fn(): int => $info->stats->total, $filter->entriesMin, $filter->entriesMax)
+			&& $this->inRange(fn(): int => $info->references->references, $filter->referencesMin, $filter->referencesMax)
+			&& $this->matchesAny($filter->activities, fn(): array => [$info->stats->getActivity($months)])
 			&& (!$filter->empty || $info->isEmpty()));
 
-		return $this->sort($sections, $direction, fn (SectionInfo $info) => match ($sort) {
+		return $this->sort($sections, $direction, fn(SectionInfo $info): int|string|null => match ($sort) {
 			self::SORT_TYPE => $info->section->type,
 			self::SORT_ENTRIES => $info->stats->total,
 			self::SORT_REFERENCES => $info->references->references,
@@ -103,15 +105,15 @@ class ListService extends Component
 		$labeled = $this->labeledIds(ColumnService::LIST_ENTRY_TYPES, $filter);
 		$condition = Hub::getInstance()->filters->infoCondition(CheckKind::EntryTypes, $filter->savedFilter);
 
-		$entryTypes = array_filter(Hub::getInstance()->structure->getEntryTypes(), fn (EntryTypeInfo $info) => $this->matchesSearch($filter->search, $info->entryType->name, $info->entryType->handle)
+		$entryTypes = array_filter(Hub::getInstance()->structure->getEntryTypes(), fn(EntryTypeInfo $info): bool => $this->matchesSearch($filter->search, $info->entryType->name, $info->entryType->handle)
 			&& $this->matchesLabels($filter->labels, $labeled, $info->entryType->id)
 			&& $this->matchesCondition($condition, $info)
 			&& $this->matchesAny($filter->kinds, $info->getKindValues())
-			&& $this->inRange(fn () => $info->stats->total, $filter->entriesMin, $filter->entriesMax)
-			&& $this->inRange(fn () => count($info->sections) + $info->getRelationCount(), $filter->relationsMin, $filter->relationsMax)
-			&& $this->matchesAny($filter->activities, fn () => [$info->stats->getActivity($months)]));
+			&& $this->inRange(fn(): int => $info->stats->total, $filter->entriesMin, $filter->entriesMax)
+			&& $this->inRange(fn(): int => count($info->sections) + $info->getRelationCount(), $filter->relationsMin, $filter->relationsMax)
+			&& $this->matchesAny($filter->activities, fn(): array => [$info->stats->getActivity($months)]));
 
-		return $this->sort($entryTypes, $direction, fn (EntryTypeInfo $info) => match ($sort) {
+		return $this->sort($entryTypes, $direction, fn(EntryTypeInfo $info): int|string|null => match ($sort) {
 			self::SORT_ENTRIES => $info->stats->total,
 			self::SORT_RELATIONS => count($info->sections) + $info->getRelationCount(),
 			self::SORT_UPDATED => $info->stats->lastUpdated?->getTimestamp() ?? 0,
@@ -145,21 +147,21 @@ class ListService extends Component
 		$labeled = $this->labeledIds(ColumnService::LIST_FIELDS, $filter);
 		$condition = Hub::getInstance()->filters->infoCondition(CheckKind::Fields, $filter->savedFilter);
 
-		$fields = array_filter(Hub::getInstance()->structure->getFields(), fn (FieldInfo $info) => $this->matchesSearch($filter->search, (string)$info->field->name, (string)$info->field->handle)
-			&& $this->matchesLabels($filter->labels, $labeled, (int)$info->field->id)
+		$fields = array_filter(Hub::getInstance()->structure->getFields(), fn(FieldInfo $info): bool => $this->matchesSearch($filter->search, (string) $info->field->name, (string) $info->field->handle)
+			&& $this->matchesLabels($filter->labels, $labeled, (int) $info->field->id)
 			&& $this->matchesCondition($condition, $info)
 			&& $this->matchesAny($filter->types, [mb_strtolower($info->getTypeName())])
 			&& $this->matchesAny($filter->kinds, [$info->getDataKind()->value])
-			&& $this->matchesAny($filter->owners, array_map('mb_strtolower', $info->getOwnerTypes()))
+			&& $this->matchesAny($filter->owners, array_map(mb_strtolower(...), $info->getOwnerTypes()))
 			&& $this->inRange(count($info->layouts), $filter->layoutsMin, $filter->layoutsMax)
 			&& (!$filter->unused || $info->isUnused())
 			&& (!$filter->empty || $info->isEmpty()));
 
-		return $this->sort($fields, $direction, fn (FieldInfo $info) => match ($sort) {
+		return $this->sort($fields, $direction, fn(FieldInfo $info): string|int => match ($sort) {
 			self::SORT_TYPE => $info->getTypeName(),
 			self::SORT_LAYOUTS => count($info->layouts),
 			self::SORT_DATA => $this->getFieldData($info) ?? -1,
-			default => (string)$info->field->name,
+			default => (string) $info->field->name,
 		});
 	}
 
@@ -197,23 +199,23 @@ class ListService extends Component
 	 */
 	public function getVolumes(VolumeFilter $filter, string $sort = self::SORT_NAME, int $direction = SORT_ASC): array
 	{
-		$megabytes = fn (?float $value) => $value !== null ? (int)round($value * 1024 * 1024) : null;
+		$megabytes = fn(?float $value): ?int => $value !== null ? (int) round($value * 1024 * 1024) : null;
 
 		$labeled = $this->labeledIds(ColumnService::LIST_VOLUMES, $filter);
 		$condition = Hub::getInstance()->filters->infoCondition(CheckKind::Volumes, $filter->savedFilter);
 
-		$volumes = array_filter(Hub::getInstance()->volumes->getVolumes(), fn (VolumeInfo $info) => $this->matchesSearch($filter->search, $info->volume->name, $info->volume->handle)
-			&& $this->matchesLabels($filter->labels, $labeled, (int)$info->volume->id)
+		$volumes = array_filter(Hub::getInstance()->volumes->getVolumes(), fn(VolumeInfo $info): bool => $this->matchesSearch($filter->search, $info->volume->name, $info->volume->handle)
+			&& $this->matchesLabels($filter->labels, $labeled, (int) $info->volume->id)
 			&& $this->matchesCondition($condition, $info)
 			&& $this->matchesAny($filter->kinds, $info->getKindValues())
 			&& $this->matchesUrls($filter->urls, $info->hasUrls)
-			&& $this->inRange(fn () => $info->stats->total, $filter->assetsMin, $filter->assetsMax)
-			&& $this->inRange(fn () => $info->stats->size, $megabytes($filter->sizeMin), $megabytes($filter->sizeMax))
-			&& $this->inRange(fn () => $info->stats->missingAlt, $filter->altMin, $filter->altMax)
-			&& $this->inDateRange(fn () => $info->stats->lastUploaded, $filter->uploadedFrom, $filter->uploadedTo)
+			&& $this->inRange(fn(): int => $info->stats->total, $filter->assetsMin, $filter->assetsMax)
+			&& $this->inRange(fn(): int => $info->stats->size, $megabytes($filter->sizeMin), $megabytes($filter->sizeMax))
+			&& $this->inRange(fn(): int => $info->stats->missingAlt, $filter->altMin, $filter->altMax)
+			&& $this->inDateRange(fn(): ?DateTime => $info->stats->lastUploaded, $filter->uploadedFrom, $filter->uploadedTo)
 			&& (!$filter->empty || $info->isEmpty()));
 
-		return $this->sort($volumes, $direction, fn (VolumeInfo $info) => match ($sort) {
+		return $this->sort($volumes, $direction, fn(VolumeInfo $info): int|string|null => match ($sort) {
 			self::SORT_FILESYSTEM => $info->volume->getFs()->name,
 			self::SORT_ASSETS => $info->stats->total,
 			self::SORT_SIZE => $info->stats->size,
@@ -253,14 +255,14 @@ class ListService extends Component
 	{
 		$labeled = $this->labeledIds(ColumnService::LIST_USER_GROUPS, $filter);
 
-		$groups = array_filter($groups, fn (array $info) => $this->matchesSearch($filter->search, $info['group']->name, (string)$info['group']->handle, (string)$info['group']->description)
-			&& $this->matchesLabels($filter->labels, $labeled, (int)$info['group']->id)
+		$groups = array_filter($groups, fn(array $info): bool => $this->matchesSearch($filter->search, $info['group']->name, (string) $info['group']->handle, (string) $info['group']->description)
+			&& $this->matchesLabels($filter->labels, $labeled, (int) $info['group']->id)
 			&& $this->inRange($info['users'], $filter->usersMin, $filter->usersMax)
 			&& $this->inRange($info['permissions'], $filter->permissionsMin, $filter->permissionsMax)
 			&& ($filter->twoFactor === null || ($filter->twoFactor === UserGroupFilter::TWO_FACTOR_REQUIRED) === $info['requires2fa'])
 			&& (!$filter->empty || $info['users'] === 0));
 
-		return $this->sort($groups, $direction, fn (array $info) => match ($sort) {
+		return $this->sort($groups, $direction, fn(array $info) => match ($sort) {
 			self::SORT_USERS => $info['users'],
 			self::SORT_PERMISSIONS => $info['permissions'],
 			default => $info['group']->name,
@@ -291,7 +293,7 @@ class ListService extends Component
 	 */
 	private function sort(array $items, int $direction, callable $value): array
 	{
-		uasort($items, function ($a, $b) use ($value, $direction) {
+		uasort($items, function ($a, $b) use ($value, $direction): int {
 			$x = $value($a);
 			$y = $value($b);
 			$result = is_string($x) && is_string($y) ? strnatcasecmp($x, $y) : $x <=> $y;
@@ -372,14 +374,14 @@ class ListService extends Component
 	 */
 	private function inDateRange(DateTime|Closure|null $date, ?DateTime $from, ?DateTime $to): bool
 	{
-		if ($from === null && $to === null) {
+		if (!$from instanceof DateTime && !$to instanceof DateTime) {
 			return true;
 		}
 
 		$date = $date instanceof Closure ? $date() : $date;
 
 		return $date !== null
-			&& ($from === null || $date >= (clone $from)->setTime(0, 0))
-			&& ($to === null || $date < (clone $to)->setTime(0, 0)->modify('+1 day'));
+			&& (!$from instanceof DateTime || $date >= (clone $from)->setTime(0, 0))
+			&& (!$to instanceof DateTime || $date < (clone $to)->setTime(0, 0)->modify('+1 day'));
 	}
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use DateTime;
@@ -14,12 +16,17 @@ class EntryStatistics
 	public const ACTIVITY_NONE = 'none';
 
 	public int $total = 0;
+
 	public int $enabled = 0;
+
 	/** enabled entries with a post date in the future */
 	public int $pending = 0;
+
 	/** enabled entries with an expiry date in the past */
 	public int $expired = 0;
+
 	public int $drafts = 0;
+
 	public ?DateTime $lastUpdated = null;
 
 	public function getDisabled(): int
@@ -49,11 +56,11 @@ class EntryStatistics
 	 */
 	public function getActivity(int $staleMonths, ?DateTime $at = null): string
 	{
-		if ($this->lastUpdated === null) {
+		if (!$this->lastUpdated instanceof DateTime) {
 			return self::ACTIVITY_NONE;
 		}
 
-		$threshold = ($at !== null ? clone $at : new DateTime())->modify(sprintf('-%d months', $staleMonths));
+		$threshold = ($at instanceof DateTime ? clone $at : new DateTime())->modify(sprintf('-%d months', $staleMonths));
 
 		return $this->lastUpdated < $threshold ? self::ACTIVITY_STALE : self::ACTIVITY_RECENT;
 	}
@@ -66,7 +73,7 @@ class EntryStatistics
 		$this->expired += $stats->expired;
 		$this->drafts += $stats->drafts;
 
-		if ($stats->lastUpdated !== null && ($this->lastUpdated === null || $stats->lastUpdated > $this->lastUpdated)) {
+		if ($stats->lastUpdated instanceof DateTime && (!$this->lastUpdated instanceof DateTime || $stats->lastUpdated > $this->lastUpdated)) {
 			$this->lastUpdated = $stats->lastUpdated;
 		}
 

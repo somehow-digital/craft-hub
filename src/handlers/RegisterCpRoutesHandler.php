@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers;
 
 use craft\events\RegisterUrlRulesEvent;
@@ -79,19 +81,19 @@ class RegisterCpRoutesHandler
 		$event->rules['hub/manage/settings/trash'] = 'hub/settings/trash';
 
 		foreach (self::PAGES as $path => $controller) {
-			$event->rules[$path] = "hub/$controller/index";
-			$event->rules["$path/statistics"] = "hub/$controller/statistics";
-			$event->rules["$path/diagnostics"] = "hub/$controller/diagnostics";
+			$event->rules[$path] = "hub/{$controller}/index";
+			$event->rules["{$path}/statistics"] = "hub/{$controller}/statistics";
+			$event->rules["{$path}/diagnostics"] = "hub/{$controller}/diagnostics";
 
 			foreach (self::INDEX_TABS[$path] ?? [] as $tab) {
-				$event->rules["$path/$tab"] = "hub/$controller/$tab";
+				$event->rules["{$path}/{$tab}"] = "hub/{$controller}/{$tab}";
 			}
 
-			$event->rules["$path/<id:\d+>"] = "hub/$controller/view";
+			$event->rules["{$path}/<id:\d+>"] = "hub/{$controller}/view";
 
 			// The tabs of the detail pages are on URLs of their own too, below that of their overview.
 			$tabs = implode('|', [...self::LIST_TABS[$path], ...(in_array($path, self::STATISTICS_TABS, true) ? ['statistics'] : []), 'diagnostics']);
-			$event->rules["$path/<id:\d+>/<tab:$tabs>"] = "hub/$controller/view";
+			$event->rules["{$path}/<id:\d+>/<tab:{$tabs}>"] = "hub/{$controller}/view";
 		}
 
 		// User groups aren't elements, so their pages are below the tab listing them, and have no diagnostics.

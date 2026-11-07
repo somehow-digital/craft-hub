@@ -1,9 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\statistics;
 
 use Craft;
-use craft\elements\Entry;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\EntryStatistics;
@@ -28,10 +29,10 @@ final class EntriesSummary extends Summary
 		$months = $hub->filters->getThreshold(CheckKind::Entries, 'stale');
 
 		// Like the list, the entries of both sections and nested entry fields are counted.
-		$sumEntries = fn () => $hub->statistics->sumEntries($siteIds);
+		$sumEntries = fn() => $hub->statistics->sumEntries($siteIds);
 
 		return [
-			$this->lazyCard(Craft::t('app', 'Entries'), 'file-lines', function () use ($hub, $siteIds, $sumEntries, $path) {
+			$this->lazyCard(Craft::t('app', 'Entries'), 'file-lines', function () use ($hub, $siteIds, $sumEntries, $path): array {
 				$stats = $sumEntries();
 				$nested = 0;
 				foreach ($hub->statistics->getEntryRows($siteIds) as $row) {
@@ -47,7 +48,7 @@ final class EntriesSummary extends Summary
 
 				return $card;
 			}, $this->entriesHistory()),
-			$this->lazyCard(Craft::t('app', 'Sections'), 'layer-group', function () use ($hub, $path) {
+			$this->lazyCard(Craft::t('app', 'Sections'), 'layer-group', function () use ($hub, $path): array {
 				$counts = [];
 				$handles = [];
 				$stats = [];
@@ -64,11 +65,11 @@ final class EntriesSummary extends Summary
 					$this->entryColumns(),
 					$this->entryCells($stats),
 				);
-			}, fn (Snapshot $snapshot) => $this->labeledTopHistory($this->sectionLabels(), $this->byId(
+			}, fn(Snapshot $snapshot): array => $this->labeledTopHistory($this->sectionLabels(), $this->byId(
 				array_keys($snapshot->getSections()),
-				fn (int $id) => $snapshot->statistics->sumEntries($siteIds, $id)->total,
+				fn(int $id): int => $snapshot->statistics->sumEntries($siteIds, $id)->total,
 			))),
-			$this->lazyCard(Craft::t('hub', 'Entry Types'), 'shapes', function () use ($hub, $siteIds, $path) {
+			$this->lazyCard(Craft::t('hub', 'Entry Types'), 'shapes', function () use ($hub, $siteIds, $path): array {
 				$totals = [];
 				foreach ($hub->statistics->getEntryRows($siteIds) as $row) {
 					$totals[$row['typeId']] = ($totals[$row['typeId']] ?? new EntryStatistics())->add($row['stats']);
@@ -92,7 +93,7 @@ final class EntriesSummary extends Summary
 					$this->entryColumns(),
 					$this->entryCells($stats),
 				);
-			}, function (Snapshot $snapshot) use ($siteIds) {
+			}, function (Snapshot $snapshot) use ($siteIds): array {
 				$totals = [];
 				foreach ($snapshot->statistics->getEntryRows($siteIds) as $row) {
 					$totals[$row['typeId']] = ($totals[$row['typeId']] ?? 0) + $row['stats']->total;
@@ -100,11 +101,11 @@ final class EntriesSummary extends Summary
 
 				return $this->labeledTopHistory($this->entryTypeLabels(), array_filter($totals));
 			}),
-			$this->lazyCard(Craft::t('app', 'Authors'), 'user', fn () => $this->peopleCard(Craft::t('app', 'Authors'), 'user', $hub->entries->getAuthors(), 'author', $path, Craft::t('app', 'Entries'))),
-			$this->lazyCard(Craft::t('hub', 'Activity'), 'clock', function () use ($hub, $sumEntries, $path, $months) {
+			$this->lazyCard(Craft::t('app', 'Authors'), 'user', fn(): array => $this->peopleCard(Craft::t('app', 'Authors'), 'user', $hub->entries->getAuthors(), 'author', $path, Craft::t('app', 'Entries'))),
+			$this->lazyCard(Craft::t('hub', 'Activity'), 'clock', function () use ($hub, $sumEntries, $path, $months): array {
 				$stats = $sumEntries();
 				$stale = $hub->review->countStale($months);
-				$items = array_map(fn (SectionInfo $info) => [
+				$items = array_map(fn(SectionInfo $info): array => [
 					'label' => Craft::t('site', $info->section->name),
 					'url' => $this->hubUrl($path, ['section' => $info->section->handle]),
 					'stats' => $info->stats,

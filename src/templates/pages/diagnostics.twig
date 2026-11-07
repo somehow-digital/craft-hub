@@ -19,16 +19,16 @@
 				{%- if not (siteScoped ?? true) -%}
 					{{ 'Failed checks and things worth a closer look.'|t('hub') }}
 				{%- elseif selectedSites -%}
-					{{ 'Failed checks and things worth a closer look on {site}.'|t('hub', { site: selectedSites|map(site => site.name|t('site'))|join(', ') }) }}
+					{{ 'Failed checks and things worth a closer look on {site}.'|t('hub', {site: selectedSites|map(site => site.name|t('site'))|join(', ')}) }}
 				{%- else -%}
 					{{ 'Failed checks and things worth a closer look across all sites.'|t('hub') }}
 				{%- endif -%}
 			</p>
 		</div>
 		<span class="hub-badges">
-			{%- if failed %}{{ hub.badge('{count, plural, =1{# check failed} other{# checks failed}}'|t('hub', { count: failed }), 'orange') }}{% else %}{{ hub.badge('All clear'|t('hub'), 'green') }}{% endif -%}
+			{%- if failed %}{{ hub.badge('{count, plural, =1{# check failed} other{# checks failed}}'|t('hub', {count: failed}), 'orange') }}{% else %}{{ hub.badge('All clear'|t('hub'), 'green') }}{% endif -%}
 		</span>
 	</header>
 
-	{% include 'hub/_panels/diagnostics' with { tasks: tasks } only %}
+	{{ include('hub/_panels/diagnostics', {tasks: tasks}, false) }}
 {% endblock %}

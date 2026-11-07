@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -47,7 +49,7 @@ class DeleteUsers extends BulkAction
 		$elements = Craft::$app->getElements();
 		$users = $this->hub()->bulk->getElementsOf($this->list, $ids, User::class);
 
-		return $this->succeeded($this->hub()->users->getDeletableUsers(array_map(fn (User $user) => (int)$user->id, $users)), function (User $user) use ($elements, $inheritor) {
+		return $this->succeeded($this->hub()->users->getDeletableUsers(array_map(fn(User $user): int => (int) $user->id, $users)), function (User $user) use ($elements, $inheritor) {
 			if ($inheritor !== null && $user->id === $inheritor->id) {
 				return false;
 			}
@@ -62,12 +64,12 @@ class DeleteUsers extends BulkAction
 	{
 		$hubUsers = $this->hub()->users;
 		$users = $hubUsers->getDeletableUsers($ids);
-		$userIds = array_map(fn (User $user) => (int)$user->id, $users);
+		$userIds = array_map(fn(User $user): int => (int) $user->id, $users);
 		$counts = $hubUsers->getEntryCounts($userIds);
 		[$pageInfo, $shown] = (new Paginator($page))->items($users);
 
 		return new BulkPreview('user-deletion-preview', count($users), [
-			'items' => array_map(fn (User $user) => ['element' => $user, 'meta' => $user->email, 'count' => $counts[$user->id] ?? 0], $shown),
+			'items' => array_map(fn(User $user): array => ['element' => $user, 'meta' => $user->email, 'count' => $counts[$user->id] ?? 0], $shown),
 			'pageInfo' => $pageInfo,
 			'entries' => array_sum($counts),
 			'inheritors' => $hubUsers->getInheritors($userIds),

@@ -1,11 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Closure;
 use Craft;
 use craft\base\ElementInterface;
-use craft\elements\User;
 use craft\web\Controller;
 use craft\web\View;
 use SomehowDigital\Craft\Hub\bulk\BulkPreview;
@@ -70,23 +71,23 @@ abstract class BaseController extends Controller
 		// Craft only requires it of requests by the plugin's URLs, not of its actions.
 		$this->requirePermission('accessPlugin-' . Hub::getInstance()->id);
 
-		if ($this->page !== null && !Hub::getInstance()->access->canView($this->page)) {
+		if ($this->page instanceof Page && !Hub::getInstance()->access->canView($this->page)) {
 			throw new ForbiddenHttpException('User is not authorized to perform this action.');
 		}
 
 		// The diagnostics tabs of the index pages are only there while diagnostics are enabled.
-		if ($action->id === 'diagnostics' && $this->page !== null && !Hub::getInstance()->settings->enableDiagnostics) {
+		if ($action->id === 'diagnostics' && $this->page instanceof Page && !Hub::getInstance()->settings->enableDiagnostics) {
 			throw new NotFoundHttpException('Diagnostics are disabled.');
 		}
 
 		// The statistics tabs of the index pages are only there while statistics are enabled; the tab of the settings page
 		// of the same name isn't one of them, as it enables them again.
-		if ($action->id === 'statistics' && $this->page !== null && !Hub::getInstance()->settings->enableStatistics) {
+		if ($action->id === 'statistics' && $this->page instanceof Page && !Hub::getInstance()->settings->enableStatistics) {
 			throw new NotFoundHttpException('Statistics are disabled.');
 		}
 
 		// The trash tabs of the index pages are only there while the trash is enabled, for users who may view it.
-		if ($action->id === 'trash' && $this->page !== null) {
+		if ($action->id === 'trash' && $this->page instanceof Page) {
 			if (!Hub::getInstance()->settings->enableTrash) {
 				throw new NotFoundHttpException('The trash is disabled.');
 			}
@@ -168,7 +169,7 @@ abstract class BaseController extends Controller
 	 */
 	protected function trashTabs(): array
 	{
-		return $this->page !== null && Hub::getInstance()->access->canViewTrash($this->page) ? ['trash' => Craft::t('hub', 'Trash')] : [];
+		return $this->page instanceof Page && Hub::getInstance()->access->canViewTrash($this->page) ? ['trash' => Craft::t('hub', 'Trash')] : [];
 	}
 
 	/**
@@ -239,7 +240,7 @@ abstract class BaseController extends Controller
 		}
 
 		$session = Craft::$app->getSession();
-		$key = "hub:filters:$path";
+		$key = "hub:filters:{$path}";
 		$params = FilterParams::listParams($request->getQueryParamsWithoutPath());
 
 		if ($params !== [] || $request->getHeaders()->has(self::FILTERS_HEADER)) {
@@ -276,7 +277,7 @@ abstract class BaseController extends Controller
 	{
 		return $this->asJson([
 			'total' => $preview->total,
-			'html' => $this->getView()->renderTemplate("hub/_components/$preview->component", [
+			'html' => $this->getView()->renderTemplate("hub/_components/{$preview->component}", [
 				'total' => $preview->total,
 				'skipped' => $selected - $preview->total,
 				...$preview->variables,
@@ -304,7 +305,7 @@ abstract class BaseController extends Controller
 				$data = ($card['load'])();
 
 				if (isset($card['history'], $data['total'])) {
-					$range = (int)Craft::$app->getRequest()->getQueryParam(self::RANGE_PARAM, SnapshotService::RANGES[0]);
+					$range = (int) Craft::$app->getRequest()->getQueryParam(self::RANGE_PARAM, SnapshotService::RANGES[0]);
 					$data['chart'] = Hub::getInstance()->snapshots->chart($card['history'], [...$card, ...$data], $range);
 				}
 
@@ -346,7 +347,7 @@ abstract class BaseController extends Controller
 	 */
 	protected function checksPanel(Closure $checks): array
 	{
-		return ['checks' => fn () => ['hub/_panels/checks', ['checks' => $checks()]]];
+		return ['checks' => fn(): array => ['hub/_panels/checks', ['checks' => $checks()]]];
 	}
 
 	/**
@@ -358,7 +359,7 @@ abstract class BaseController extends Controller
 	 */
 	protected function renderStatistics(CheckKind $kind, array $cards, bool $siteScoped = true, array $extraTabs = []): Response
 	{
-		if (($card = $this->renderCard($cards)) !== null) {
+		if (($card = $this->renderCard($cards)) instanceof Response) {
 			return $card;
 		}
 
@@ -399,10 +400,10 @@ abstract class BaseController extends Controller
 			];
 		}
 
-		$tasks = $diagnostics->sort($tasks, $kind, fn (array $task) => [$task['key'], $task['value'] === 0, $task['severity']]);
+		$tasks = $diagnostics->sort($tasks, $kind, fn(array $task): array => [$task['key'], $task['value'] === 0, $task['severity']]);
 
 		// The tab sums the checks up as the panel does, so they're counted for both.
-		if (($panel = $this->renderPanel(['checks' => fn () => ['hub/_panels/diagnostics', ['tasks' => $tasks]]])) !== null) {
+		if (($panel = $this->renderPanel(['checks' => fn(): array => ['hub/_panels/diagnostics', ['tasks' => $tasks]]])) instanceof Response) {
 			return $panel;
 		}
 

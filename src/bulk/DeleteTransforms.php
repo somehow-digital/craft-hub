@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -39,7 +41,7 @@ class DeleteTransforms extends BulkAction
 		$assets = $this->hub()->bulk->getElementsOf($this->list, $ids, Asset::class);
 		$transforms = $files->getTransformsOf($assets);
 
-		return $this->succeeded($assets, fn (Asset $asset) => $service->canSave($asset)
+		return $this->succeeded($assets, fn(Asset $asset): bool => $service->canSave($asset)
 			&& $files->deleteTransforms($asset, array_column($transforms[$asset->id] ?? [], 'id')) > 0);
 	}
 
@@ -64,7 +66,7 @@ class DeleteTransforms extends BulkAction
 			'assets' => $shown,
 			'transforms' => $transforms,
 			'pageInfo' => $pageInfo,
-			'count' => array_sum(array_map('count', $transforms)),
+			'count' => array_sum(array_map(count(...), $transforms)),
 			'skipped' => $transformIds === null ? count(array_unique($ids)) - count($assets) : 0,
 		]);
 	}

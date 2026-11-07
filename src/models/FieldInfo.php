@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\FieldInterface;
@@ -33,8 +35,9 @@ class FieldInfo
 
 	public ReferenceStatistics $references;
 
-	public function __construct(public FieldInterface $field)
-	{
+	public function __construct(
+		public FieldInterface $field
+	) {
 		$this->stats = new EntryStatistics();
 		$this->references = new ReferenceStatistics();
 	}
@@ -55,7 +58,7 @@ class FieldInfo
 
 	public function getInstanceCount(): int
 	{
-		return array_sum(array_map(fn (LayoutUsage $usage) => $usage->instances, $this->layouts));
+		return array_sum(array_map(fn(LayoutUsage $usage): int => $usage->instances, $this->layouts));
 	}
 
 	public function isUnused(): bool
@@ -88,6 +91,6 @@ class FieldInfo
 	 */
 	public function getOwnerTypes(): array
 	{
-		return array_values(array_unique(array_map(fn (LayoutUsage $usage) => $usage->ownerType, $this->layouts)));
+		return array_values(array_unique(array_map(fn(LayoutUsage $usage): string => $usage->ownerType, $this->layouts)));
 	}
 }

@@ -1,66 +1,74 @@
 <?php
 
+declare(strict_types=1);
+
+use craft\base\ElementInterface;
+use craft\base\FieldInterface;
 use craft\elements\Asset;
 use craft\elements\db\ElementQuery;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\fields\Entries as EntriesField;
+use craft\models\EntryType;
+use craft\models\Section;
+use craft\models\UserGroup;
+use craft\models\Volume;
 use SomehowDigital\Craft\Hub\helpers\Paginator;
 use SomehowDigital\Craft\Hub\models\DeletionItem;
 use SomehowDigital\Craft\Hub\models\DeletionPreview;
 use SomehowDigital\Craft\Hub\services\DeletionService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->service = new DeletionService();
 	$this->related = $this->field(EntriesField::class, 3, 'related', ['name' => 'Related']);
 	$this->section(1, 'news', entryTypes: [$this->entryType(10, 'article', [$this->related])]);
 
 	// Values and labels of the totals of a preview, by their tone.
-	$this->effects = fn (DeletionPreview $preview, string $tone) => array_values(array_map(
-		fn (array $effect) => $effect['value'] . ' ' . $effect['label'],
-		array_filter($preview->effects, fn (array $effect) => $effect['tone'] === $tone),
+	$this->effects = fn(DeletionPreview $preview, string $tone): array => array_values(array_map(
+		fn(array $effect): string => $effect['value'] . ' ' . $effect['label'],
+		array_filter($preview->effects, fn(array $effect): bool => $effect['tone'] === $tone),
 	));
 
 	// Counts and labels of the groups of an item with anything in them, and the number of what each lists.
-	$this->groups = fn (DeletionItem $item) => array_map(fn (array $group) => $group['count'] . ' ' . $group['label'] . ' (' . count($group['items']) . ')', $item->getAffected());
+	$this->groups = fn(DeletionItem $item): array => array_map(fn(array $group): string => $group['count'] . ' ' . $group['label'] . ' (' . count($group['items']) . ')', $item->getAffected());
 
-	$this->entry = fn (int $id, array $config = []) => new Entry(['id' => $id, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'title' => "Entry $id", ...$config]);
+	$this->entry = fn(int $id, array $config = []): Entry => new Entry(['id' => $id, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'title' => "Entry {$id}", ...$config]);
 });
 
-it('previews the entries the user may delete, with the nested entries and drafts of each', function () {
+it('previews the entries the user may delete, with the nested entries and drafts of each', function (): void {
 	$one = ($this->entry)(1);
-	ElementQueries::respond(Entry::class, fn (ElementQuery $query) => match (true) {
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => match (true) {
 		$query->primaryOwnerId !== null => [($this->entry)(7, ['sectionId' => null, 'fieldId' => 2, 'primaryOwnerId' => 1, 'ownerId' => 1])],
 		$query->drafts === true => [($this->entry)(8, ['draftId' => 3, 'canonicalId' => 1])],
 		default => [$one, ($this->entry)(2)],
 	});
-	Craft::$app->getElements()->shouldReceive('canDelete')->andReturnUsing(fn (Entry $entry) => $entry->id === 1);
+	Craft::$app->getElements()->shouldReceive('canDelete')->andReturnUsing(fn(Entry $entry): bool => $entry->id === 1);
 
 	// One level of nested entries, then none.
-	$this->db()->respond('[[entries.primaryOwnerId]]', fn (string $sql) => substr_count($sql, 'primaryOwnerId') > 1 ? 0 : 3);
+	$this->db()->respond('[[entries.primaryOwnerId]]', fn(string $sql): int => substr_count($sql, 'primaryOwnerId') > 1 ? 0 : 3);
 	$this->db()->respond('INNER JOIN {{%drafts}}', 2);
-	$this->db()->respond('FROM {{%structureelements}}', fn (string $sql) => str_contains($sql, 'COUNT(') ? 4 : []);
+	$this->db()->respond('FROM {{%structureelements}}', fn(string $sql): array|int => str_contains($sql, 'COUNT(') ? 4 : []);
 
 	$preview = $this->service->getPreview('entries', [1, 2, 3]);
 
 	expect($preview->total)->toBe(1)
 		->and($preview->skipped)->toBe(2)
-		->and(array_map(fn (DeletionItem $item) => $item->model, $preview->items))->toBe([$one])
+		->and(array_map(fn(DeletionItem $item): ElementInterface|Section|EntryType|FieldInterface|Volume|UserGroup => $item->model, $preview->items))->toBe([$one])
 		->and(($this->effects)($preview, DeletionPreview::TONE_DELETED))->toBe(['3 Nested entries', '2 Drafts'])
 		->and(($this->effects)($preview, DeletionPreview::TONE_CHANGED))->toBe(['4 Child entries moved up'])
 		->and(($this->groups)($preview->items[0]))->toBe(['1 Nested entry (1)', '1 Draft (1)'])
 		->and($this->db()->queriesMatching('FROM {{%structureelements}}')[0])->toContain('NOT (`children`.`elementId`=1)');
 });
 
-it('lists the elements referencing each entry, apart from those deleted along with them', function () {
-	ElementQueries::respond(Entry::class, fn (ElementQuery $query) => match (true) {
+it('lists the elements referencing each entry, apart from those deleted along with them', function (): void {
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => match (true) {
 		$query->primaryOwnerId !== null, $query->drafts === true => [],
 		$query->id === [1, 2] => [($this->entry)(1), ($this->entry)(2)],
 		default => [($this->entry)(2), ($this->entry)(5, ['title' => 'Source'])],
 	});
 	Craft::$app->getElements()->shouldReceive('canDelete')->andReturn(true);
-	$this->db()->respond('FROM {{%relations}} {{relations}}', fn (string $sql) => str_contains($sql, 'GROUP BY') ? [] : [
+	$this->db()->respond('FROM {{%relations}} {{relations}}', fn(string $sql): array => str_contains($sql, 'GROUP BY') ? [] : [
 		['id' => 2, 'type' => Entry::class, 'fieldId' => 3, 'targetId' => 1],
 		['id' => 5, 'type' => Entry::class, 'fieldId' => 3, 'targetId' => 1],
 	]);
@@ -74,14 +82,14 @@ it('lists the elements referencing each entry, apart from those deleted along wi
 		->and($this->db()->queriesMatching('SELECT DISTINCT `relations`.`sourceId`')[0])->toContain('`relations`.`targetId` IN (1, 2)');
 });
 
-it('moves up the children of the entries shown that stay, reading them at once', function () {
-	ElementQueries::respond(Entry::class, fn (ElementQuery $query) => match (true) {
+it('moves up the children of the entries shown that stay, reading them at once', function (): void {
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => match (true) {
 		$query->primaryOwnerId !== null, $query->drafts === true => [],
 		$query->id === [1, 2] => [($this->entry)(1, ['structureId' => 1]), ($this->entry)(2, ['structureId' => 1])],
 		default => [($this->entry)(7)],
 	});
 	Craft::$app->getElements()->shouldReceive('canDelete')->andReturn(true);
-	$this->db()->respond('FROM {{%structureelements}}', fn (string $sql) => str_contains($sql, 'COUNT(') ? 1 : [['parentId' => 2, 'childId' => 7]]);
+	$this->db()->respond('FROM {{%structureelements}}', fn(string $sql): array|int => str_contains($sql, 'COUNT(') ? 1 : [['parentId' => 2, 'childId' => 7]]);
 
 	$preview = $this->service->getPreview('entries', [1, 2]);
 
@@ -90,7 +98,7 @@ it('moves up the children of the entries shown that stay, reading them at once',
 		->and($this->db()->queriesMatching('`parentId`')[0])->toContain('NOT (`children`.`elementId` IN (1, 2))');
 });
 
-it('previews files with their size, and the transforms and users whose photo each is', function () {
+it('previews files with their size, and the transforms and users whose photo each is', function (): void {
 	ElementQueries::respond(Asset::class, [
 		new Asset(['id' => 1, 'siteId' => 1, 'filename' => 'a.jpg', 'title' => 'A', 'size' => 1000 * 1000]),
 		new Asset(['id' => 2, 'siteId' => 1, 'filename' => 'b.jpg', 'title' => 'B', 'size' => 1000 * 1000]),
@@ -110,7 +118,7 @@ it('previews files with their size, and the transforms and users whose photo eac
 		->and($preview->items[1]->getAffected()[0])->toMatchArray(['count' => 1, 'items' => [$user]]);
 });
 
-it('previews nothing of lists that are not deleted, like the structure', function (string $list) {
+it('previews nothing of lists that are not deleted, like the structure', function (string $list): void {
 	$preview = $this->service->getPreview($list, [1, 2]);
 
 	expect($preview->total)->toBe(0)
@@ -118,8 +126,8 @@ it('previews nothing of lists that are not deleted, like the structure', functio
 		->and($preview->effects)->toBe([]);
 })->with(['users', 'sections', 'entryTypes', 'fields', 'volumes', 'userGroups']);
 
-it('details the items of the page asked for, kept within the pages there are', function () {
-	$types = array_map(fn (int $i) => $this->entryType($i, "type$i"), range(1, Paginator::PAGE_SIZE + 2));
+it('details the items of the page asked for, kept within the pages there are', function (): void {
+	$types = array_map(fn(int $i) => $this->entryType($i, "type{$i}"), range(1, Paginator::PAGE_SIZE + 2));
 
 	$second = new DeletionPreview();
 	$second->page = 2;
@@ -136,12 +144,14 @@ it('details the items of the page asked for, kept within the pages there are', f
 		->and($beyond->getItemIds())->toBe($second->getItemIds());
 });
 
-it('details the items of the first page, and lists the first of what each group is about', function () {
+it('details the items of the first page, and lists the first of what each group is about', function (): void {
 	$preview = new DeletionPreview();
-	$preview->setItems(array_map(fn (int $i) => $this->entryType($i, "type$i"), range(1, Paginator::PAGE_SIZE + 2)), '# entry types', 'shapes');
+	$preview->setItems(array_map(fn(int $i) => $this->entryType($i, "type{$i}"), range(1, Paginator::PAGE_SIZE + 2)), '# entry types', 'shapes');
+
 	$item = $preview->items[0];
-	$item->addGroup(DeletionPreview::TONE_KEPT, 'shapes', 'Kept', 13, array_map(fn (int $i) => "Type $i", range(1, 13)));
+	$item->addGroup(DeletionPreview::TONE_KEPT, 'shapes', 'Kept', 13, array_map(fn(int $i): string => "Type {$i}", range(1, 13)));
 	$item->addGroup(DeletionPreview::TONE_KEPT, 'shapes', 'None', 0);
+
 	$preview->addEffect(DeletionPreview::TONE_KEPT, 'shapes', 0, '0', 'None');
 
 	expect($preview->total)->toBe(Paginator::PAGE_SIZE + 2)

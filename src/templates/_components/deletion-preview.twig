@@ -9,7 +9,7 @@
 #}
 {% import 'hub/_components/macros' as hub %}
 
-{% set colors = { deleted: 'red', changed: 'orange', kept: 'gray' } %}
+{% set colors = {deleted: 'red', changed: 'orange', kept: 'gray'} %}
 
 {# The icon tile or thumbnail of an item, its linked title and what tells it apart. #}
 {% macro itemName(model) %}
@@ -85,17 +85,17 @@
 
 <div class="hub-deletion">
 	{% if not preview.total %}
-		{% set notice = { color: 'gray', icon: 'ban', title: 'Nothing to delete:'|t('hub'), text: 'None of the selected items can be deleted.'|t('hub') } %}
+		{% set notice = {color: 'gray', icon: 'ban', title: 'Nothing to delete:'|t('hub'), text: 'None of the selected items can be deleted.'|t('hub')} %}
 	{% else %}
-		{% set notice = { color: 'green', icon: 'trash-arrow-up', text: '{count, plural, =1{is} other{are}} moved to the trash, from which {count, plural, =1{it} other{they}} can be restored with what is deleted with {count, plural, =1{it} other{them}}.'|t('hub', { count: preview.total }) } %}
+		{% set notice = {color: 'green', icon: 'trash-arrow-up', text: '{count, plural, =1{is} other{are}} moved to the trash, from which {count, plural, =1{it} other{they}} can be restored with what is deleted with {count, plural, =1{it} other{them}}.'|t('hub', {count: preview.total})} %}
 	{% endif %}
 	<div class="hub-deletion__notice" data-color="{{ notice.color }}">
 		<span class="hub-deletion__notice-icon" aria-hidden="true">{{ iconSvg(notice.icon) }}</span>
 		<p>
-			<strong>{{ notice.title ?? preview.label|t('hub', { count: preview.total }) }}</strong>
+			<strong>{{ notice.title ?? preview.label|t('hub', {count: preview.total}) }}</strong>
 			{{ notice.text }}
 			{% if preview.skipped %}
-				<span class="hub-deletion__skipped" title="{{ '{count, plural, =1{One item is} other{# items are}} skipped, as you may not delete {count, plural, =1{it} other{them}} or {count, plural, =1{it no longer exists} other{they no longer exist}}.'|t('hub', { count: preview.skipped }) }}">{{ '{count, number} skipped'|t('hub', { count: preview.skipped }) }}</span>
+				<span class="hub-deletion__skipped" title="{{ '{count, plural, =1{One item is} other{# items are}} skipped, as you may not delete {count, plural, =1{it} other{them}} or {count, plural, =1{it no longer exists} other{they no longer exist}}.'|t('hub', {count: preview.skipped}) }}">{{ '{count, number} skipped'|t('hub', {count: preview.skipped}) }}</span>
 			{% endif %}
 		</p>
 	</div>
@@ -156,7 +156,7 @@
 													{{ _self.groupItem(entry) }}
 												{% endfor %}
 												{% if group.more %}
-													<li class="hub-deletion__element hub-muted">{{ '{count, number} more'|t('hub', { count: group.more }) }}</li>
+													<li class="hub-deletion__element hub-muted">{{ '{count, number} more'|t('hub', {count: group.more}) }}</li>
 												{% endif %}
 											</ul>
 										{% endif %}

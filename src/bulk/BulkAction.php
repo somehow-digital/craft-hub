@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use craft\base\ElementInterface;
@@ -11,9 +13,9 @@ use SomehowDigital\Craft\Hub\Hub;
  */
 abstract class BulkAction
 {
-	public function __construct(protected readonly string $list)
-	{
-	}
+	public function __construct(
+		protected readonly string $list
+	) {}
 
 	/**
 	 * How the action is offered in the menu of the list.
@@ -72,8 +74,8 @@ abstract class BulkAction
 	protected function succeeded(array $items, callable $callback): array
 	{
 		return array_values(array_map(
-			fn (ElementInterface $item) => (int)$item->id,
-			array_filter($items, fn (mixed $item) => $callback($item)),
+			fn(ElementInterface $item): int => (int) $item->id,
+			array_filter($items, fn(mixed $item) => $callback($item)),
 		));
 	}
 
@@ -86,7 +88,7 @@ abstract class BulkAction
 	{
 		$value = $params[$name] ?? null;
 
-		return is_numeric($value) && (int)$value > 0 ? (int)$value : 0;
+		return is_numeric($value) && (int) $value > 0 ? (int) $value : 0;
 	}
 
 	/**

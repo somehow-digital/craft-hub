@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Closure;
@@ -51,8 +53,8 @@ class FilterService extends Component
 	 */
 	public function getDefaults(): array
 	{
-		$filter = fn (string $name, string|Closure $description, string $icon, array|Closure $params, ?array $threshold = null) => compact('name', 'description', 'icon', 'params', 'threshold');
-		$months = fn (string $instructions) => ['label' => Craft::t('hub', 'Threshold'), 'instructions' => $instructions, 'unit' => Craft::t('hub', 'months'), 'default' => 12];
+		$filter = fn(string $name, string|Closure $description, string $icon, array|Closure $params, ?array $threshold = null): array => ['name' => $name, 'description' => $description, 'icon' => $icon, 'params' => $params, 'threshold' => $threshold];
+		$months = fn(string $instructions): array => ['label' => Craft::t('hub', 'Threshold'), 'instructions' => $instructions, 'unit' => Craft::t('hub', 'months'), 'default' => 12];
 
 		return [
 			CheckKind::Entries->value => [
@@ -62,7 +64,7 @@ class FilterService extends Component
 				'unreferenced' => $filter(Craft::t('hub', 'Unreferenced entries'), Craft::t('hub', 'Entries no element references, through a relation field or rich text.'), 'link-slash', ['usage' => EntryService::USAGE_UNREFERENCED]),
 				'stale' => $filter(
 					Craft::t('hub', 'Stale entries'),
-					fn (int $months) => Craft::t('hub', 'Entries no person has edited for {months, plural, =1{one month} other{# months}}.', ['months' => $months]),
+					fn(int $months) => Craft::t('hub', 'Entries no person has edited for {months, plural, =1{one month} other{# months}}.', ['months' => $months]),
 					'clock',
 					['stale' => '1'],
 					$months(Craft::t('hub', 'Entries no person has edited within this many months are stale.')),
@@ -79,14 +81,14 @@ class FilterService extends Component
 				'missingAlt' => $filter(Craft::t('hub', 'Images without alternative text'), Craft::t('hub', 'Images without alternative text.'), 'universal-access', ['alt' => '1']),
 				'large' => $filter(
 					Craft::t('hub', 'Large files'),
-					fn (int $size) => Craft::t('hub', 'Files larger than {size, number} MB.', ['size' => $size]),
+					fn(int $size) => Craft::t('hub', 'Files larger than {size, number} MB.', ['size' => $size]),
 					'weight-hanging',
-					fn (int $size) => ['sizeMin' => (string)$size],
+					fn(int $size): array => ['sizeMin' => (string) $size],
 					['label' => Craft::t('hub', 'Threshold'), 'instructions' => Craft::t('hub', 'Files larger than this many megabytes are large.'), 'unit' => 'MB', 'default' => 5],
 				),
 				'oversized' => $filter(
 					Craft::t('hub', 'Oversized images'),
-					fn (int $pixels) => Craft::t('hub', 'Images wider or taller than {pixels, number} px.', ['pixels' => $pixels]),
+					fn(int $pixels) => Craft::t('hub', 'Images wider or taller than {pixels, number} px.', ['pixels' => $pixels]),
 					'expand',
 					['oversized' => '1'],
 					['label' => Craft::t('hub', 'Threshold'), 'instructions' => Craft::t('hub', 'Images wider or taller than this many pixels are oversized.'), 'unit' => 'px', 'default' => 4000],
@@ -98,7 +100,7 @@ class FilterService extends Component
 				'adminsWithoutTwoFactor' => $filter(Craft::t('hub', 'Admins without two-step verification'), Craft::t('hub', 'Admins without an authenticator app or a passkey.'), 'shield-halved', ['admin' => '1', 'twoFactor' => 'without']),
 				'idle' => $filter(
 					Craft::t('hub', 'Idle users'),
-					fn (int $months) => Craft::t('hub', 'Active users who haven’t signed in for {months, plural, =1{one month} other{# months}}.', ['months' => $months]),
+					fn(int $months) => Craft::t('hub', 'Active users who haven’t signed in for {months, plural, =1{one month} other{# months}}.', ['months' => $months]),
 					'clock',
 					['login' => UserFilter::LOGIN_IDLE],
 					$months(Craft::t('hub', 'Active users who haven’t signed in within this many months are idle.')),
@@ -113,7 +115,7 @@ class FilterService extends Component
 				'empty' => $filter(Craft::t('hub', 'Empty entry types'), Craft::t('hub', 'Entry types that are assigned, but have no entries.'), 'box-open', ['kind' => 'empty']),
 				'stale' => $filter(
 					Craft::t('hub', 'Stale entry types'),
-					fn (int $months) => Craft::t('hub', 'Entry types whose entries no person has edited for {months, plural, =1{one month} other{# months}}.', ['months' => $months]),
+					fn(int $months) => Craft::t('hub', 'Entry types whose entries no person has edited for {months, plural, =1{one month} other{# months}}.', ['months' => $months]),
 					'clock',
 					['activity' => EntryStatistics::ACTIVITY_STALE],
 					$months(Craft::t('hub', 'Entry types whose entries no person has edited within this many months are stale.')),
@@ -123,7 +125,7 @@ class FilterService extends Component
 				'empty' => $filter(Craft::t('hub', 'Empty sections'), Craft::t('hub', 'Sections without entries.'), 'box-open', ['empty' => '1']),
 				'stale' => $filter(
 					Craft::t('hub', 'Stale sections'),
-					fn (int $months) => Craft::t('hub', 'Sections whose entries no person has edited for {months, plural, =1{one month} other{# months}}.', ['months' => $months]),
+					fn(int $months) => Craft::t('hub', 'Sections whose entries no person has edited for {months, plural, =1{one month} other{# months}}.', ['months' => $months]),
 					'clock',
 					['activity' => EntryStatistics::ACTIVITY_STALE],
 					$months(Craft::t('hub', 'Sections whose entries no person has edited within this many months are stale.')),
@@ -151,9 +153,9 @@ class FilterService extends Component
 	{
 		$this->filters ??= $this->loadFilters();
 
-		return $kind === null
-			? $this->filters
-			: array_filter($this->filters, fn (SavedFilter $filter) => $filter->kind === $kind);
+		return $kind instanceof CheckKind
+			? array_filter($this->filters, fn(SavedFilter $filter): bool => $filter->kind === $kind)
+			: $this->filters;
 	}
 
 	/**
@@ -180,8 +182,8 @@ class FilterService extends Component
 			$order = -count($filters);
 
 			foreach ($filters as $handle => $filter) {
-				$threshold = $configured["$kind.$handle"]['threshold'] ?? null;
-				$value = $threshold !== null ? (int)$threshold : $filter['threshold']['default'] ?? 0;
+				$threshold = $configured["{$kind}.{$handle}"]['threshold'] ?? null;
+				$value = $threshold !== null ? (int) $threshold : $filter['threshold']['default'] ?? 0;
 
 				$byKind[$kind][$handle] = new SavedFilter([
 					'kind' => CheckKind::from($kind),
@@ -190,7 +192,7 @@ class FilterService extends Component
 					'description' => $filter['description'] instanceof Closure ? ($filter['description'])($value) : $filter['description'],
 					'icon' => $filter['icon'],
 					'params' => $filter['params'] instanceof Closure ? ($filter['params'])($value) : $filter['params'],
-					'threshold' => $threshold !== null ? (int)$threshold : null,
+					'threshold' => $threshold !== null ? (int) $threshold : null,
 					'thresholdField' => $filter['threshold'],
 					'sortOrder' => $order++,
 				]);
@@ -198,8 +200,8 @@ class FilterService extends Component
 		}
 
 		foreach ($rows as $row) {
-			$kind = CheckKind::tryFrom((string)$row['kind']);
-			$handle = $row['handle'] !== null ? (string)$row['handle'] : null;
+			$kind = CheckKind::tryFrom((string) $row['kind']);
+			$handle = $row['handle'] !== null ? (string) $row['handle'] : null;
 
 			// Rows of predefined filters Hub no longer has are left out.
 			if ($kind === null || ($handle !== null && !isset($byKind[$kind->value][$handle]))) {
@@ -207,11 +209,11 @@ class FilterService extends Component
 			}
 
 			$filter = $handle !== null ? $byKind[$kind->value][$handle] : $this->createFilter($row, $kind);
-			$filter->id = (int)$row['id'];
-			$filter->uid = (string)$row['uid'];
-			$filter->name = (string)$row['name'];
-			$filter->enabled = (bool)$row['enabled'];
-			$filter->sortOrder = (int)$row['sortOrder'];
+			$filter->id = (int) $row['id'];
+			$filter->uid = (string) $row['uid'];
+			$filter->name = (string) $row['name'];
+			$filter->enabled = (bool) $row['enabled'];
+			$filter->sortOrder = (int) $row['sortOrder'];
 
 			$byKind[$kind->value][$handle ?? $filter->uid] = $filter;
 		}
@@ -220,7 +222,7 @@ class FilterService extends Component
 
 		foreach (CheckKind::cases() as $kind) {
 			$items = array_values($byKind[$kind->value] ?? []);
-			usort($items, fn (SavedFilter $a, SavedFilter $b) => $a->sortOrder <=> $b->sortOrder);
+			usort($items, fn(SavedFilter $a, SavedFilter $b): int => $a->sortOrder <=> $b->sortOrder);
 
 			foreach ($items as $filter) {
 				$filters[$filter->getKey()] = $filter;
@@ -264,7 +266,7 @@ class FilterService extends Component
 	 */
 	public function getEnabledFilters(CheckKind $kind): array
 	{
-		return array_values(array_filter($this->getFilters($kind), fn (SavedFilter $filter) => $filter->enabled));
+		return array_values(array_filter($this->getFilters($kind), fn(SavedFilter $filter): bool => $filter->enabled));
 	}
 
 	/**
@@ -275,7 +277,7 @@ class FilterService extends Component
 	{
 		$filter = $this->getFilter($kind, $uid);
 
-		return $filter !== null && $filter->isCustom() ? $filter : null;
+		return $filter instanceof SavedFilter && $filter->isCustom() ? $filter : null;
 	}
 
 	/**
@@ -290,10 +292,10 @@ class FilterService extends Component
 			->orderBy(['name' => SORT_ASC, 'id' => SORT_ASC])
 			->all();
 
-		$filters = array_map(fn (array $row) => $this->createFilter($row, $kind), $rows);
+		$filters = array_map(fn(array $row): SavedFilter => $this->createFilter($row, $kind), $rows);
 
 		// Names sort naturally, ignoring case, as the lists do.
-		usort($filters, fn (SavedFilter $a, SavedFilter $b) => strnatcasecmp($a->name, $b->name));
+		usort($filters, fn(SavedFilter $a, SavedFilter $b): int => strnatcasecmp($a->name, $b->name));
 
 		return $filters;
 	}
@@ -304,7 +306,7 @@ class FilterService extends Component
 	public function getOwnFilterById(int $id, int $userId): ?SavedFilter
 	{
 		$row = $this->query()->where(['id' => $id, 'userId' => $userId])->one();
-		$kind = $row !== null ? CheckKind::tryFrom((string)$row['kind']) : null;
+		$kind = $row !== null ? CheckKind::tryFrom((string) $row['kind']) : null;
 
 		return $kind !== null ? $this->createFilter($row, $kind) : null;
 	}
@@ -338,7 +340,7 @@ class FilterService extends Component
 		$normalized = [];
 
 		foreach ($params as $name => $value) {
-			$value = is_scalar($value) ? trim((string)$value) : '';
+			$value = is_scalar($value) ? trim((string) $value) : '';
 
 			if (!is_string($name) || in_array($name, self::IGNORED_PARAMS, true) || !preg_match('/^[a-zA-Z][a-zA-Z0-9]*$/', $name) || $value === '' || mb_strlen($value) > self::MAX_LENGTH) {
 				continue;
@@ -412,7 +414,7 @@ class FilterService extends Component
 	public function getMenu(CheckKind $kind, string $path, ?string $current = null): array
 	{
 		$user = Craft::$app->getUser();
-		$item = fn (SavedFilter $filter) => [
+		$item = fn(SavedFilter $filter): array => [
 			'id' => $filter->id,
 			'name' => $filter->getName(),
 			'description' => $filter->description,
@@ -426,7 +428,7 @@ class FilterService extends Component
 			'path' => $path,
 			'current' => $current,
 			'shared' => array_map($item, $this->getEnabledFilters($kind)),
-			'own' => $user->getId() !== null ? array_map($item, $this->getOwnFilters($kind, (int)$user->getId())) : [],
+			'own' => $user->getId() !== null ? array_map($item, $this->getOwnFilters($kind, (int) $user->getId())) : [],
 			'canManage' => $user->checkPermission(Hub::PERMISSION_MANAGE_FILTERS),
 			'manageUrl' => 'hub/manage/settings/filters#hub-filters-' . $kind->value,
 		];
@@ -462,7 +464,7 @@ class FilterService extends Component
 
 		if ($filter->id === null) {
 			$filter->uid ??= StringHelper::UUID();
-			$filter->sortOrder = $filter->isOwn() ? 0 : (int)(new Query())->from(self::TABLE)->where(['kind' => $filter->kind->value, 'userId' => null])->max('[[sortOrder]]') + 1;
+			$filter->sortOrder = $filter->isOwn() ? 0 : (int) (new Query())->from(self::TABLE)->where(['kind' => $filter->kind->value, 'userId' => null])->max('[[sortOrder]]') + 1;
 			$db->createCommand()->insert(self::TABLE, [
 				...$columns,
 				'kind' => $filter->kind->value,
@@ -471,7 +473,7 @@ class FilterService extends Component
 				'sortOrder' => $filter->sortOrder,
 				'uid' => $filter->uid,
 			])->execute();
-			$filter->id = (int)$db->getLastInsertID(self::TABLE);
+			$filter->id = (int) $db->getLastInsertID(self::TABLE);
 		} else {
 			$db->createCommand()->update(self::TABLE, $columns, ['id' => $filter->id])->execute();
 		}
@@ -503,7 +505,7 @@ class FilterService extends Component
 		$command = Craft::$app->getDb()->createCommand();
 
 		foreach (array_values($ids) as $order => $id) {
-			$command->update(self::TABLE, ['sortOrder' => $order + 1], ['id' => (int)$id, 'userId' => null], updateTimestamp: false)->execute();
+			$command->update(self::TABLE, ['sortOrder' => $order + 1], ['id' => (int) $id, 'userId' => null], updateTimestamp: false)->execute();
 		}
 
 		$this->filters = null;
@@ -557,17 +559,17 @@ class FilterService extends Component
 		$params = $this->decode($row['params'] ?? null);
 
 		return new SavedFilter([
-			'id' => (int)$row['id'],
+			'id' => (int) $row['id'],
 			'kind' => $kind,
-			'userId' => $row['userId'] !== null ? (int)$row['userId'] : null,
-			'name' => (string)$row['name'],
-			'description' => (string)$row['description'],
+			'userId' => $row['userId'] !== null ? (int) $row['userId'] : null,
+			'name' => (string) $row['name'],
+			'description' => (string) $row['description'],
 			'icon' => $row['icon'] ?: null,
 			'params' => $this->normalizeParams($params),
 			'condition' => $this->decode($row['matchCondition'] ?? null),
-			'enabled' => (bool)$row['enabled'],
-			'sortOrder' => (int)$row['sortOrder'],
-			'uid' => (string)$row['uid'],
+			'enabled' => (bool) $row['enabled'],
+			'sortOrder' => (int) $row['sortOrder'],
+			'uid' => (string) $row['uid'],
 		]);
 	}
 

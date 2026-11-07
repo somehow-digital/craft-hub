@@ -4,11 +4,11 @@
 {% set title = user.name %}
 {% set area = 'data' %}
 {% set selectedSubnavItem = 'users' %}
-{% set listTabs = [{ id: 'entries', label: 'Entries'|t('app') }, { id: 'assets', label: 'Assets'|t('app') }] %}
+{% set listTabs = [{id: 'entries', label: 'Entries'|t('app')}, {id: 'assets', label: 'Assets'|t('app')}] %}
 {% set path = 'hub/data/users/' ~ user.id %}
 {% set crumbs = [
-	{ label: 'Users'|t('app'), url: url('hub/data/users', { hubSite: hubSite }) },
-	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+	{label: 'Users'|t('app'), url: url('hub/data/users', {hubSite: hubSite})},
+	{label: title, url: url(path, {hubSite: hubSite}), current: true},
 ] %}
 
 {% block pageTitle %}
@@ -39,7 +39,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'users', id: user.id } only %}
+		{{ include('hub/_components/detail-labels', {list: 'users', id: user.id}, false) }}
 		<div class="data">
 			<dt class="heading">{{ 'Status'|t('app') }}</dt>
 			<dd class="value">{{ hub.userStatus(user) }}</dd>
@@ -68,7 +68,7 @@
 				<dd class="value">
 					<span class="hub-badges">
 						{%- for group in groups %}
-							<a class="hub-badge" data-color="violet" href="{{ url('hub/data/users', { hubSite: hubSite, group: group.handle }) }}">{{ group.name|t('site') }}</a>
+							<a class="hub-badge" data-color="violet" href="{{ url('hub/data/users', {hubSite: hubSite, group: group.handle}) }}">{{ group.name|t('site') }}</a>
 						{%- endfor -%}
 					</span>
 				</dd>
@@ -96,7 +96,7 @@
 				<dt class="heading">{{ 'Last invalid sign-in'|t('hub') }}</dt>
 				<dd class="value">
 					{{ hub.date(user.lastInvalidLoginDate) }}
-					{%- if user.invalidLoginCount %} <span class="hub-muted">{{ '{count, plural, =1{one attempt} other{# attempts}}'|t('hub', { count: user.invalidLoginCount }) }}</span>{% endif -%}
+					{%- if user.invalidLoginCount %} <span class="hub-muted">{{ '{count, plural, =1{one attempt} other{# attempts}}'|t('hub', {count: user.invalidLoginCount}) }}</span>{% endif -%}
 				</dd>
 			</div>
 		{% endif %}
@@ -135,23 +135,23 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/users/permissions' with { count: permissionCount, user: user, hubSite: hubSite } only %}
+	{{ include('hub/_panels/users/permissions', {count: permissionCount, user: user, hubSite: hubSite}, false) }}
 
-	{% include 'hub/_panels/users/references' with { count: referenceCount } only %}
+	{{ include('hub/_panels/users/references', {count: referenceCount}, false) }}
 
-	{% include 'hub/_panels/referenced' with { count: referencedCount } only %}
+	{{ include('hub/_panels/referenced', {count: referencedCount}, false) }}
 
 	{% if maintainedCount %}
-		{% include 'hub/_panels/users/maintains' with { count: maintainedCount, hubSite: hubSite } only %}
+		{{ include('hub/_panels/users/maintains', {count: maintainedCount, hubSite: hubSite}, false) }}
 	{% endif %}
 
-	{% include 'hub/_panels/activity' with { subject: 'user', id: user.id } only %}
+	{{ include('hub/_panels/activity', {subject: 'user', id: user.id}, false) }}
 {% endblock %}
 
 {% block list %}
 	{% if selectedTab == 'entries' %}
-		{% include 'hub/_components/entry-list' with { list: list, hubSite: hubSite } only %}
+		{{ include('hub/_components/entry-list', {list: list, hubSite: hubSite}, false) }}
 	{% else %}
-		{% include 'hub/_components/file-list' with { list: list, hubSite: hubSite } only %}
+		{{ include('hub/_components/file-list', {list: list, hubSite: hubSite}, false) }}
 	{% endif %}
 {% endblock %}

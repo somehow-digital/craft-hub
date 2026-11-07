@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use DateTime;
@@ -43,14 +45,17 @@ class EntryFilter
 	public ?string $usage = null;
 
 	public ?int $referencesMin = null;
+
 	public ?int $referencesMax = null;
 
 	/** post dates, both days included */
 	public ?DateTime $postedFrom = null;
+
 	public ?DateTime $postedTo = null;
 
 	/** dates of the last update, both days included */
 	public ?DateTime $updatedFrom = null;
+
 	public ?DateTime $updatedTo = null;
 
 	/** only entries no person has edited within this many months */

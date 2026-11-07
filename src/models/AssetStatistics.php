@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use DateTime;
@@ -21,6 +23,7 @@ class AssetStatistics
 
 	/** file size in bytes */
 	public int $size = 0;
+
 	/** file size in bytes of the assets without references */
 	public int $unusedSize = 0;
 
@@ -45,7 +48,7 @@ class AssetStatistics
 		$this->size += $stats->size;
 		$this->unusedSize += $stats->unusedSize;
 
-		if ($stats->lastUploaded !== null && ($this->lastUploaded === null || $stats->lastUploaded > $this->lastUploaded)) {
+		if ($stats->lastUploaded instanceof DateTime && (!$this->lastUploaded instanceof DateTime || $stats->lastUploaded > $this->lastUploaded)) {
 			$this->lastUploaded = $stats->lastUploaded;
 		}
 

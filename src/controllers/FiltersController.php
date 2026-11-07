@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
@@ -52,10 +54,10 @@ class FiltersController extends BaseController
 		$panels = [];
 		foreach (CheckKind::cases() as $kind) {
 			$kinds[$kind->value] = ['kind' => $kind, 'filters' => array_values($filters->getFilters($kind))];
-			$panels["hub-filters-$kind->value"] = fn () => ['hub/_panels/settings/filters', $kinds[$kind->value]];
+			$panels["hub-filters-{$kind->value}"] = fn(): array => ['hub/_panels/settings/filters', $kinds[$kind->value]];
 		}
 
-		if (($panel = $this->renderPanel($panels)) !== null) {
+		if (($panel = $this->renderPanel($panels)) instanceof Response) {
 			return $panel;
 		}
 
@@ -67,11 +69,11 @@ class FiltersController extends BaseController
 	 */
 	public function actionEdit(?int $filterId = null, ?string $kind = null, ?SavedFilter $filter = null): Response
 	{
-		if ($filter === null && $filterId !== null) {
+		if (!$filter instanceof SavedFilter && $filterId !== null) {
 			$filter = Hub::getInstance()->filters->getFilterById($filterId) ?? throw new NotFoundHttpException('Filter not found.');
 		}
 
-		$filter ??= new SavedFilter(['kind' => CheckKind::tryFrom((string)$kind) ?? throw new NotFoundHttpException('Kind not found.')]);
+		$filter ??= new SavedFilter(['kind' => CheckKind::tryFrom((string) $kind) ?? throw new NotFoundHttpException('Kind not found.')]);
 
 		return $this->renderTemplate('hub/pages/settings/filter', ['filter' => $filter]);
 	}
@@ -85,23 +87,23 @@ class FiltersController extends BaseController
 		$id = $request->getBodyParam('filterId');
 
 		if ($id) {
-			$filter = $filters->getFilterById((int)$id) ?? throw new NotFoundHttpException('Filter not found.');
+			$filter = $filters->getFilterById((int) $id) ?? throw new NotFoundHttpException('Filter not found.');
 		} else {
-			$kind = CheckKind::tryFrom((string)$request->getBodyParam('kind')) ?? throw new BadRequestHttpException('Unknown kind.');
+			$kind = CheckKind::tryFrom((string) $request->getBodyParam('kind')) ?? throw new BadRequestHttpException('Unknown kind.');
 			$filter = new SavedFilter(['kind' => $kind]);
 		}
 
-		$filter->name = (string)$request->getBodyParam('name', '');
-		$filter->enabled = (bool)$request->getBodyParam('enabled', true);
+		$filter->name = (string) $request->getBodyParam('name', '');
+		$filter->enabled = (bool) $request->getBodyParam('enabled', true);
 
 		if ($filter->thresholdField !== null) {
 			$threshold = $request->getBodyParam('threshold');
-			$filter->threshold = is_numeric($threshold) ? (int)$threshold : null;
+			$filter->threshold = is_numeric($threshold) ? (int) $threshold : null;
 		}
 
 		if (!$filter->isPredefined()) {
-			$filter->description = (string)$request->getBodyParam('description', '');
-			$filter->icon = (string)$request->getBodyParam('icon', '') ?: null;
+			$filter->description = (string) $request->getBodyParam('description', '');
+			$filter->icon = (string) $request->getBodyParam('icon', '') ?: null;
 			$filter->condition = $this->conditionConfig($filter->kind, $request->getBodyParam('condition'));
 		}
 
@@ -127,7 +129,7 @@ class FiltersController extends BaseController
 		$this->requirePostRequest();
 
 		$filters = Hub::getInstance()->filters;
-		$filter = $filters->getFilterById((int)Craft::$app->getRequest()->getRequiredBodyParam('id')) ?? throw new NotFoundHttpException('Filter not found.');
+		$filter = $filters->getFilterById((int) Craft::$app->getRequest()->getRequiredBodyParam('id')) ?? throw new NotFoundHttpException('Filter not found.');
 
 		if ($filter->isPredefined()) {
 			throw new BadRequestHttpException('Predefined filters can’t be deleted.');
@@ -137,7 +139,7 @@ class FiltersController extends BaseController
 
 		if ($checks !== []) {
 			return $this->asFailure(Craft::t('hub', 'The filter can’t be deleted, as checks flag its items: {checks}.', [
-				'checks' => implode(', ', array_map(fn (CheckDefinition $check) => $check->name, $checks)),
+				'checks' => implode(', ', array_map(fn(CheckDefinition $check): string => $check->name, $checks)),
 			]));
 		}
 
@@ -156,7 +158,7 @@ class FiltersController extends BaseController
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
 
-		$ids = Json::decode((string)Craft::$app->getRequest()->getRequiredBodyParam('ids'));
+		$ids = Json::decode((string) Craft::$app->getRequest()->getRequiredBodyParam('ids'));
 		Hub::getInstance()->filters->reorderFilters(Ids::positive($ids));
 
 		return $this->asSuccess();
@@ -172,8 +174,8 @@ class FiltersController extends BaseController
 
 		$request = Craft::$app->getRequest();
 		$filters = Hub::getInstance()->filters;
-		$filter = $filters->getFilterById((int)$request->getRequiredBodyParam('id')) ?? throw new NotFoundHttpException('Filter not found.');
-		$filter->enabled = (bool)$request->getRequiredBodyParam('enabled');
+		$filter = $filters->getFilterById((int) $request->getRequiredBodyParam('id')) ?? throw new NotFoundHttpException('Filter not found.');
+		$filter->enabled = (bool) $request->getRequiredBodyParam('enabled');
 
 		if (!$filters->saveFilter($filter)) {
 			return $this->asFailure(Craft::t('hub', 'Couldn’t save the filter.'));
@@ -196,8 +198,8 @@ class FiltersController extends BaseController
 		$request = Craft::$app->getRequest();
 		$filters = Hub::getInstance()->filters;
 		$kind = $this->ownKind();
-		$userId = (int)Craft::$app->getUser()->getId();
-		$name = trim((string)$request->getBodyParam('name', ''));
+		$userId = (int) Craft::$app->getUser()->getId();
+		$name = trim((string) $request->getBodyParam('name', ''));
 		$params = $filters->normalizeParams($request->getBodyParam('params'));
 
 		$filter = $filters->getOwnFilterByName($kind, $userId, $name) ?? new SavedFilter(['kind' => $kind, 'userId' => $userId]);
@@ -222,14 +224,14 @@ class FiltersController extends BaseController
 		$request = Craft::$app->getRequest();
 		$filters = Hub::getInstance()->filters;
 		$kind = $this->ownKind();
-		$userId = (int)Craft::$app->getUser()->getId();
-		$filter = $filters->getOwnFilterById((int)$request->getRequiredBodyParam('id'), $userId);
+		$userId = (int) Craft::$app->getUser()->getId();
+		$filter = $filters->getOwnFilterById((int) $request->getRequiredBodyParam('id'), $userId);
 
 		if ($filter === null || $filter->kind !== $kind) {
 			throw new NotFoundHttpException('Filter not found.');
 		}
 
-		$name = trim((string)$request->getBodyParam('name', ''));
+		$name = trim((string) $request->getBodyParam('name', ''));
 		$other = $filters->getOwnFilterByName($kind, $userId, $name);
 
 		if ($other !== null && $other->id !== $filter->id) {
@@ -254,9 +256,9 @@ class FiltersController extends BaseController
 		$this->requireAcceptsJson();
 
 		$kind = $this->ownKind();
-		$id = (int)Craft::$app->getRequest()->getRequiredBodyParam('id');
+		$id = (int) Craft::$app->getRequest()->getRequiredBodyParam('id');
 
-		if (!Hub::getInstance()->filters->deleteFilterById($id, (int)Craft::$app->getUser()->getId())) {
+		if (!Hub::getInstance()->filters->deleteFilterById($id, (int) Craft::$app->getUser()->getId())) {
 			throw new NotFoundHttpException('Filter not found.');
 		}
 
@@ -268,7 +270,7 @@ class FiltersController extends BaseController
 	 */
 	private function ownKind(): CheckKind
 	{
-		$kind = CheckKind::tryFrom((string)Craft::$app->getRequest()->getRequiredBodyParam('kind')) ?? throw new BadRequestHttpException('Unknown kind.');
+		$kind = CheckKind::tryFrom((string) Craft::$app->getRequest()->getRequiredBodyParam('kind')) ?? throw new BadRequestHttpException('Unknown kind.');
 
 		if (!Hub::getInstance()->access->canView($kind->page())) {
 			throw new ForbiddenHttpException('User is not authorized to perform this action.');

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\FieldInterface;
@@ -26,8 +28,7 @@ class MaintainerSource
 		public Section|EntryType|FieldInterface|Volume $item,
 		public array $users,
 		public array $groups,
-	) {
-	}
+	) {}
 
 	/**
 	 * What kind of item the maintainers are those of.

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 /**
@@ -11,8 +13,11 @@ class UserStatistics
 	public int $total = 0;
 
 	public int $active = 0;
+
 	public int $pending = 0;
+
 	public int $suspended = 0;
+
 	public int $locked = 0;
 
 	/** users who can't sign in, kept e.g. as authors */

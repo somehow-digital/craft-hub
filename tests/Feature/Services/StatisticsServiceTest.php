@@ -1,8 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 use SomehowDigital\Craft\Hub\services\StatisticsService;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->statistics = new StatisticsService();
 
 	$this->db()->respondToEntryRows([
@@ -24,7 +26,7 @@ beforeEach(function () {
 	]);
 });
 
-it('reads entry counts grouped by section, entry type and field', function () {
+it('reads entry counts grouped by section, entry type and field', function (): void {
 	$rows = $this->statistics->getEntryRows([1]);
 
 	expect($rows)->toHaveCount(3)
@@ -36,7 +38,7 @@ it('reads entry counts grouped by section, entry type and field', function () {
 		->and($rows[2]['stats']->lastUpdated)->toBeNull();
 });
 
-it('counts entries on the given sites, leaving out deleted ones, revisions and copies owned by drafts', function () {
+it('counts entries on the given sites, leaving out deleted ones, revisions and copies owned by drafts', function (): void {
 	$this->statistics->getEntryRows([2, 1]);
 
 	$sql = $this->db()->queriesMatching('{{hubEntryRows}}')[0];
@@ -50,7 +52,7 @@ it('counts entries on the given sites, leaving out deleted ones, revisions and c
 		->and($sql)->toContain('GROUP BY `sectionId`, `typeId`, `fieldId`');
 });
 
-it('reads the rows once per set of sites, regardless of their order', function () {
+it('reads the rows once per set of sites, regardless of their order', function (): void {
 	$this->statistics->getEntryRows([1, 2]);
 	$this->statistics->getEntryRows([2, 1]);
 	$this->statistics->getReferenceRows([1]);
@@ -65,7 +67,7 @@ it('reads the rows once per set of sites, regardless of their order', function (
 		->and($this->db()->queriesMatching('{{hubAssetRows}}'))->toHaveCount(1);
 });
 
-it('reads section entries and nested entries separately, only those summed', function () {
+it('reads section entries and nested entries separately, only those summed', function (): void {
 	$this->statistics->sumEntries([1], sectionId: 1);
 	$this->statistics->sumEntries([1], sectionId: 1, typeId: 10);
 
@@ -89,7 +91,7 @@ it('reads section entries and nested entries separately, only those summed', fun
 		->and($this->statistics->getEntryRows([1], nested: true))->toHaveCount(1);
 });
 
-it('sums entries by any combination of section, entry type and field', function () {
+it('sums entries by any combination of section, entry type and field', function (): void {
 	expect($this->statistics->sumEntries([1])->total)->toBe(9)
 		->and($this->statistics->sumEntries([1], sectionId: 1)->total)->toBe(5)
 		->and($this->statistics->sumEntries([1], typeId: 10)->total)->toBe(7)
@@ -99,7 +101,7 @@ it('sums entries by any combination of section, entry type and field', function 
 		->and($this->statistics->sumEntries([1], sectionId: 1)->lastUpdated->format('Y-m-d'))->toBe('2024-03-01');
 });
 
-it('returns copies of the sums', function () {
+it('returns copies of the sums', function (): void {
 	$this->statistics->sumEntries([1], sectionId: 1)->total = 100;
 	$this->statistics->sumReferences([1], 5)->references = 100;
 	$this->statistics->sumAssets([1], 3)->total = 100;
@@ -109,7 +111,7 @@ it('returns copies of the sums', function () {
 		->and($this->statistics->sumAssets([1], 3)->total)->toBe(6);
 });
 
-it('reads reference counts grouped by field and target section or volume', function () {
+it('reads reference counts grouped by field and target section or volume', function (): void {
 	$rows = $this->statistics->getReferenceRows([1, 2]);
 	$sql = $this->db()->queriesMatching('FROM {{%relations}} {{relations}}')[0];
 
@@ -121,7 +123,7 @@ it('reads reference counts grouped by field and target section or volume', funct
 		->and($sql)->toContain('`targetElements`.`dateDeleted` IS NULL');
 });
 
-it('sums references by any combination of field, section and volume', function () {
+it('sums references by any combination of field, section and volume', function (): void {
 	expect($this->statistics->sumReferences([1])->references)->toBe(11)
 		->and($this->statistics->sumReferences([1], 5)->references)->toBe(7)
 		->and($this->statistics->sumReferences([1], 5, 2)->sources)->toBe(1)
@@ -129,7 +131,7 @@ it('sums references by any combination of field, section and volume', function (
 		->and($this->statistics->sumReferences([1], 7)->references)->toBe(0);
 });
 
-it('reads asset counts grouped by volume and file kind', function () {
+it('reads asset counts grouped by volume and file kind', function (): void {
 	$rows = $this->statistics->getAssetRows([1]);
 
 	expect($rows[0])->toMatchArray(['volumeId' => 3, 'kind' => 'image'])
@@ -138,7 +140,7 @@ it('reads asset counts grouped by volume and file kind', function () {
 		->and($rows[1]['stats']->lastUploaded)->toBeNull();
 });
 
-it('counts assets on the given sites, with their references and alternative texts on those sites', function () {
+it('counts assets on the given sites, with their references and alternative texts on those sites', function (): void {
 	$this->site(3, 'fr');
 	$this->statistics->getAssetRows([1, 2]);
 
@@ -151,7 +153,7 @@ it('counts assets on the given sites, with their references and alternative text
 		->and($sql)->toContain('GROUP BY `volumeId`, `kind`');
 });
 
-it('sums assets by volume and file kind', function () {
+it('sums assets by volume and file kind', function (): void {
 	expect($this->statistics->sumAssets([1])->total)->toBe(8)
 		->and($this->statistics->sumAssets([1], 3)->size)->toBe(5100)
 		->and($this->statistics->sumAssets([1], 3)->unusedSize)->toBe(2100)
@@ -160,7 +162,7 @@ it('sums assets by volume and file kind', function () {
 		->and($this->statistics->sumAssets([1], 4, 'pdf')->total)->toBe(0);
 });
 
-it('collects the entries of all sites for a snapshot, by the sets of sites they are on and enabled on', function () {
+it('collects the entries of all sites for a snapshot, by the sets of sites they are on and enabled on', function (): void {
 	$this->db()->respond('`hubEntries`', [
 		['sectionId' => '1', 'typeId' => '10', 'fieldId' => null, 'sites' => '2,1', 'enabledSites' => null, 'total' => '3', 'enabled' => '0', 'pending' => '0', 'expired' => '0', 'drafts' => '1', 'lastUpdated' => ''],
 	]);
@@ -178,7 +180,7 @@ it('collects the entries of all sites for a snapshot, by the sets of sites they 
 		->and($sql)->toContain('GROUP BY `sectionId`, `typeId`, `fieldId`, `sites`, `enabledSites`');
 });
 
-it('collects the assets of all sites for a snapshot, used from the sites of their relations and reference tags alike', function () {
+it('collects the assets of all sites for a snapshot, used from the sites of their relations and reference tags alike', function (): void {
 	$this->db()->respond('`hubAssets`', [
 		['volumeId' => '3', 'kind' => 'image', 'sites' => '1,2', 'usedSites' => '2', 'taggedSites' => '1', 'altSites' => null, 'total' => '2', 'size' => '200', 'lastUploaded' => '2024-01-01 00:00:00'],
 		['volumeId' => '3', 'kind' => 'image', 'sites' => '1,2', 'usedSites' => '1,2', 'taggedSites' => null, 'altSites' => null, 'total' => '1', 'size' => '50', 'lastUploaded' => '2024-03-01 00:00:00'],
@@ -200,7 +202,7 @@ it('collects the assets of all sites for a snapshot, used from the sites of thei
 		->and($sql)->toContain('GROUP BY `volumeId`, `kind`, `sites`, `usedSites`, `taggedSites`, `altSites`');
 });
 
-it('collects the references of all sites for a snapshot, by the site of their source', function () {
+it('collects the references of all sites for a snapshot, by the site of their source', function (): void {
 	$this->db()->respond('`relations`.`sourceSiteId`', [
 		['fieldId' => '5', 'sectionId' => '1', 'volumeId' => null, 'siteId' => '2', 'references' => '6', 'sources' => '3', 'targets' => '2'],
 		['fieldId' => '6', 'sectionId' => null, 'volumeId' => '3', 'siteId' => null, 'references' => '4', 'sources' => '2', 'targets' => '4'],
@@ -217,7 +219,7 @@ it('collects the references of all sites for a snapshot, by the site of their so
 		->and($sql)->toContain('GROUP BY `relations`.`fieldId`, `targets`.`sectionId`, `targetAssets`.`volumeId`, `relations`.`sourceSiteId`');
 });
 
-it('aggregates the sets of sites for snapshots on PostgreSQL', function () {
+it('aggregates the sets of sites for snapshots on PostgreSQL', function (): void {
 	$this->createApp('pgsql');
 	(new StatisticsService())->collectEntryRows();
 	(new StatisticsService())->collectAssetRows();
@@ -228,8 +230,8 @@ it('aggregates the sets of sites for snapshots on PostgreSQL', function () {
 		->and($sql)->toContain('STRING_AGG(DISTINCT CAST(COALESCE("hubRelations"."sourceSiteId", 0) AS VARCHAR)');
 });
 
-it('counts the rows of a snapshot for any sites, like the live ones', function () {
-	$statistics = StatisticsService::fromSnapshot(fn (string $kind) => array_combine(['entries', 'assets', 'references'], [
+it('counts the rows of a snapshot for any sites, like the live ones', function (): void {
+	$statistics = StatisticsService::fromSnapshot(fn(string $kind): array => array_combine(['entries', 'assets', 'references'], [
 		[
 			['sectionId' => '1', 'typeId' => '10', 'fieldId' => null, 'sites' => '1,2', 'enabledSites' => '2', 'total' => '3', 'enabled' => '3', 'pending' => '1', 'expired' => '1', 'drafts' => '1', 'lastUpdated' => '2024-01-01 10:00:00'],
 			['sectionId' => '1', 'typeId' => '10', 'fieldId' => null, 'sites' => '1', 'enabledSites' => '1', 'total' => '2', 'enabled' => '2', 'pending' => '0', 'expired' => '0', 'drafts' => '0', 'lastUpdated' => null],
@@ -269,7 +271,7 @@ it('counts the rows of a snapshot for any sites, like the live ones', function (
 		->and($this->db()->queries)->toBe([]);
 });
 
-it('leaves out matching the sites of entries and assets on all sites, as every element is on one of them', function () {
+it('leaves out matching the sites of entries and assets on all sites, as every element is on one of them', function (): void {
 	$this->site(2, 'de');
 	$this->statistics->getEntryRows([1, 2], nested: false);
 	$this->statistics->getAssetRows([2, 1]);

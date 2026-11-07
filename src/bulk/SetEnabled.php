@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -14,8 +16,10 @@ use SomehowDigital\Craft\Hub\Hub;
  */
 class SetEnabled extends BulkAction
 {
-	public function __construct(string $list, private readonly bool $enabled)
-	{
+	public function __construct(
+		string $list,
+		private readonly bool $enabled
+	) {
 		parent::__construct($list);
 	}
 

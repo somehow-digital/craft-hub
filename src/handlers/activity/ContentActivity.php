@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers\activity;
 
 use Craft;
@@ -22,7 +24,6 @@ use craft\services\Assets;
 use craft\services\Drafts;
 use craft\services\Elements;
 use craft\services\Structures;
-use craft\services\Users;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\Hub;
@@ -64,23 +65,23 @@ class ContentActivity extends ActivitySubscriber
 
 	public function register(): void
 	{
-		Event::on(Elements::class, Elements::EVENT_BEFORE_SAVE_ELEMENT, fn (ElementEvent $event) => $this->saving[$event->element] = true);
-		Event::on(Elements::class, Elements::EVENT_AFTER_SAVE_ELEMENT, fn (ElementEvent $event) => $this->elementSaved($event));
-		Event::on(Elements::class, Elements::EVENT_AFTER_DELETE_ELEMENT, fn (ElementEvent $event) => $this->elementDeleted($event));
-		Event::on(Elements::class, Elements::EVENT_AFTER_DELETE_FOR_SITE, fn (ElementEvent $event) => $this->elementDeletedForSite($event));
-		Event::on(Elements::class, Elements::EVENT_AFTER_RESTORE_ELEMENT, fn (ElementEvent $event) => $this->elementRestored($event));
-		Event::on(Elements::class, Elements::EVENT_AFTER_MERGE_ELEMENTS, fn (MergeElementsEvent $event) => $this->elementsMerged($event));
-		Event::on(Structures::class, Structures::EVENT_AFTER_MOVE_ELEMENT, fn (MoveElementEvent $event) => $this->elementMoved($event));
-		Event::on(Assets::class, Assets::EVENT_AFTER_REPLACE_ASSET, fn (ReplaceAssetEvent $event) => $this->element(ActivityAction::Replaced, $event->asset, ['filename' => $event->filename]));
+		Event::on(Elements::class, Elements::EVENT_BEFORE_SAVE_ELEMENT, fn(ElementEvent $event): true => $this->saving[$event->element] = true);
+		Event::on(Elements::class, Elements::EVENT_AFTER_SAVE_ELEMENT, fn(ElementEvent $event) => $this->elementSaved($event));
+		Event::on(Elements::class, Elements::EVENT_AFTER_DELETE_ELEMENT, fn(ElementEvent $event) => $this->elementDeleted($event));
+		Event::on(Elements::class, Elements::EVENT_AFTER_DELETE_FOR_SITE, fn(ElementEvent $event) => $this->elementDeletedForSite($event));
+		Event::on(Elements::class, Elements::EVENT_AFTER_RESTORE_ELEMENT, fn(ElementEvent $event) => $this->elementRestored($event));
+		Event::on(Elements::class, Elements::EVENT_AFTER_MERGE_ELEMENTS, fn(MergeElementsEvent $event) => $this->elementsMerged($event));
+		Event::on(Structures::class, Structures::EVENT_AFTER_MOVE_ELEMENT, fn(MoveElementEvent $event) => $this->elementMoved($event));
+		Event::on(Assets::class, Assets::EVENT_AFTER_REPLACE_ASSET, fn(ReplaceAssetEvent $event) => $this->element(ActivityAction::Replaced, $event->asset, ['filename' => $event->filename]));
 
-		Event::on(Elements::class, Elements::EVENT_BEFORE_PERFORM_ACTION, fn (ElementActionEvent $event) => $this->performingAction($event));
-		Event::on(Elements::class, Elements::EVENT_AFTER_PERFORM_ACTION, fn (ElementActionEvent $event) => $this->performedAction($event));
-		Event::on(ElementIndexesController::class, Controller::EVENT_AFTER_ACTION, fn (ActionEvent $event) => $this->elementIndexAction($event));
+		Event::on(Elements::class, Elements::EVENT_BEFORE_PERFORM_ACTION, fn(ElementActionEvent $event) => $this->performingAction($event));
+		Event::on(Elements::class, Elements::EVENT_AFTER_PERFORM_ACTION, fn(ElementActionEvent $event) => $this->performedAction($event));
+		Event::on(ElementIndexesController::class, Controller::EVENT_AFTER_ACTION, fn(ActionEvent $event) => $this->elementIndexAction($event));
 
 		if (Hub::getInstance()->settings->activityDrafts) {
-			Event::on(Drafts::class, Drafts::EVENT_AFTER_CREATE_DRAFT, fn (DraftEvent $event) => $this->draftCreated($event));
-			Event::on(Drafts::class, Drafts::EVENT_BEFORE_APPLY_DRAFT, fn () => $this->applyingDrafts++);
-			Event::on(Drafts::class, Drafts::EVENT_AFTER_APPLY_DRAFT, fn () => $this->applyingDrafts--);
+			Event::on(Drafts::class, Drafts::EVENT_AFTER_CREATE_DRAFT, fn(DraftEvent $event) => $this->draftCreated($event));
+			Event::on(Drafts::class, Drafts::EVENT_BEFORE_APPLY_DRAFT, fn(): int => $this->applyingDrafts++);
+			Event::on(Drafts::class, Drafts::EVENT_AFTER_APPLY_DRAFT, fn(): int => $this->applyingDrafts--);
 		}
 	}
 
@@ -111,10 +112,10 @@ class ContentActivity extends ActivitySubscriber
 
 		// Unpublished drafts are applied by saving them for the first time; duplicates are saved as new elements.
 		if ($isNew) {
-			$this->element(ActivityAction::Created, $element, $derivative === null && $element->duplicateOf !== null ? ['duplicateOf' => $element->duplicateOf->getUiLabel()] : []);
+			$this->element(ActivityAction::Created, $element, !$derivative instanceof ElementInterface && $element->duplicateOf instanceof ElementInterface ? ['duplicateOf' => $element->duplicateOf->getUiLabel()] : []);
 		} else {
 			// Changes saved in the control panel are applied from provisional drafts, which are named like any other.
-			$draft = $derivative !== null && !$derivative->isProvisionalDraft ? $derivative->getBehavior('draft') : null;
+			$draft = $derivative instanceof ElementInterface && !$derivative->isProvisionalDraft ? $derivative->getBehavior('draft') : null;
 			$ignored = $element instanceof User ? [...self::IGNORED_ATTRIBUTES, ...self::IGNORED_USER_ATTRIBUTES] : self::IGNORED_ATTRIBUTES;
 			$data = array_filter([
 				'draft' => $draft instanceof DraftBehavior ? $draft->draftName : null,
@@ -308,7 +309,7 @@ class ContentActivity extends ActivitySubscriber
 			ActivityAction::Exported,
 			$query instanceof ElementQuery ? ActivitySubject::fromElementType($query->elementType) : ActivitySubject::Element,
 			data: array_filter([
-				'count' => (int)(clone $query)->count(),
+				'count' => (int) (clone $query)->count(),
 				'exporter' => is_string($exporter) && class_exists($exporter) && method_exists($exporter, 'displayName') ? $exporter::displayName() : null,
 				'format' => is_string($format = $request->getBodyParam('format')) ? $format : null,
 			]),

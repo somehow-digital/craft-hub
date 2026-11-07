@@ -7,12 +7,12 @@
 {% set area = 'structure' %}
 {% set selectedSubnavItem = 'entry-types' %}
 {# Entry types used by no section or field have no entries to list. #}
-{% set listTabs = info.sections|length or info.nestedFields|length ? [{ id: 'entries', label: 'Entries'|t('app') }] : [] %}
+{% set listTabs = info.sections|length or info.nestedFields|length ? [{id: 'entries', label: 'Entries'|t('app')}] : [] %}
 {% set statisticsTab = true %}
 {% set path = 'hub/structure/entry-types/' ~ entryType.id %}
 {% set crumbs = [
-	{ label: 'Entry Types'|t('hub'), url: url('hub/structure/entry-types', { hubSite: hubSite }) },
-	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+	{label: 'Entry Types'|t('hub'), url: url('hub/structure/entry-types', {hubSite: hubSite})},
+	{label: title, url: url(path, {hubSite: hubSite}), current: true},
 ] %}
 
 {% block pageTitle %}
@@ -33,7 +33,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'entryTypes', id: entryType.id } only %}
+		{{ include('hub/_components/detail-labels', {list: 'entryTypes', id: entryType.id}, false) }}
 		<div class="data">
 			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
 			<dd class="value"><code>{{ entryType.handle }}</code></dd>
@@ -54,7 +54,7 @@
 		</div>
 		{% if entryType.hasTitleField %}
 			<div class="data">
-				<dt class="heading">{{ '{name} Translation Method'|t('app', { name: 'Title'|t('app') }) }}</dt>
+				<dt class="heading">{{ '{name} Translation Method'|t('app', {name: 'Title'|t('app')}) }}</dt>
 				<dd class="value">{{ hub.translationMethod(entryType.titleTranslationMethod) }}</dd>
 			</div>
 			<div class="data">
@@ -76,7 +76,7 @@
 			<dd class="value">{{ entryType.showSlugField ? 'Yes'|t('app') : 'No'|t('app') }}</dd>
 		</div>
 		<div class="data">
-			<dt class="heading">{{ '{name} Translation Method'|t('app', { name: 'Slug'|t('app') }) }}</dt>
+			<dt class="heading">{{ '{name} Translation Method'|t('app', {name: 'Slug'|t('app')}) }}</dt>
 			<dd class="value">{{ hub.translationMethod(entryType.slugTranslationMethod) }}</dd>
 		</div>
 		<div class="data">
@@ -92,15 +92,15 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/maintainers' with { list: 'entryTypes', item: entryType, hubSite: hubSite } only %}
+	{{ include('hub/_panels/maintainers', {list: 'entryTypes', item: entryType, hubSite: hubSite}, false) }}
 
-	{% include 'hub/_panels/types/relations' with { info: info, entryType: entryType, siteIds: siteIds } only %}
+	{{ include('hub/_panels/types/relations', {info: info, entryType: entryType, siteIds: siteIds}, false) }}
 
-	{% include 'hub/_panels/field-layout' with { layout: entryType.getFieldLayout() } only %}
+	{{ include('hub/_panels/field-layout', {layout: entryType.getFieldLayout()}, false) }}
 
-	{% include 'hub/_panels/activity' with { subject: 'entryType', id: entryType.id } only %}
+	{{ include('hub/_panels/activity', {subject: 'entryType', id: entryType.id}, false) }}
 {% endblock %}
 
 {% block list %}
-	{% include 'hub/_components/entry-list' with { list: list, hubSite: hubSite } only %}
+	{{ include('hub/_components/entry-list', {list: list, hubSite: hubSite}, false) }}
 {% endblock %}

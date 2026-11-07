@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Closure;
@@ -57,17 +59,17 @@ class WorkController extends BaseController
 			throw new NotFoundHttpException('Tab not found.');
 		}
 
-		if (in_array($tab, [self::TAB_ENTRIES, self::TAB_ASSETS], true) && ($redirect = $this->keepFilters("$path/$tab")) !== null) {
+		if (in_array($tab, [self::TAB_ENTRIES, self::TAB_ASSETS], true) && ($redirect = $this->keepFilters("{$path}/{$tab}")) instanceof Response) {
 			return $redirect;
 		}
 
-		if ($tab === WorkService::SECTION_DIAGNOSTICS && ($panel = $this->renderPanel($this->diagnosticsPanels())) !== null) {
+		if ($tab === WorkService::SECTION_DIAGNOSTICS && ($panel = $this->renderPanel($this->diagnosticsPanels())) instanceof Response) {
 			return $panel;
 		}
 
 		$variables = match ($tab) {
-			self::TAB_ENTRIES => $this->entryListVariables("$path/entries", author: $user),
-			self::TAB_ASSETS => $this->fileListVariables("$path/assets", uploader: $user),
+			self::TAB_ENTRIES => $this->entryListVariables("{$path}/entries", author: $user),
+			self::TAB_ASSETS => $this->fileListVariables("{$path}/assets", uploader: $user),
 			WorkService::SECTION_DIAGNOSTICS => $this->diagnosticsVariables(),
 			default => [
 				'diagnostics' => $work->getDiagnostics(),
@@ -114,7 +116,7 @@ class WorkController extends BaseController
 
 		foreach ($lists as $list => $label) {
 			if ($hub->access->canView($list)) {
-				$tabs[$list] = ['label' => $label, 'url' => $this->hubUrl(WorkService::PATH . "/$list")];
+				$tabs[$list] = ['label' => $label, 'url' => $this->hubUrl(WorkService::PATH . "/{$list}")];
 			}
 		}
 
@@ -132,15 +134,13 @@ class WorkController extends BaseController
 		$all = Hub::getInstance()->work->getDiagnostics();
 		$filter = [
 			'kinds' => $params->list('kind', [CheckKind::Entries->value, CheckKind::Assets->value]),
-			'severities' => $params->list('severity', array_map(fn (Severity $severity) => $severity->value, Severity::cases())),
-			'checks' => $params->list('check', array_map(fn (Check $check) => (string)$check->key, $all)),
+			'severities' => $params->list('severity', array_map(fn(Severity $severity) => $severity->value, Severity::cases())),
+			'checks' => $params->list('check', array_map(fn(Check $check): string => (string) $check->key, $all)),
 		];
 
-		$checks = array_filter($all, function (Check $check) use ($filter) {
-			return ($filter['kinds'] === [] || in_array(explode('.', (string)$check->key)[0], $filter['kinds'], true))
+		$checks = array_filter($all, fn(Check $check): bool => ($filter['kinds'] === [] || in_array(explode('.', (string) $check->key)[0], $filter['kinds'], true))
 				&& ($filter['severities'] === [] || in_array($check->severity->value, $filter['severities'], true))
-				&& ($filter['checks'] === [] || in_array($check->key, $filter['checks'], true));
-		});
+				&& ($filter['checks'] === [] || in_array($check->key, $filter['checks'], true)));
 
 		return ['checks' => array_values($checks), 'allChecks' => $all, 'filter' => $filter, 'snoozeDays' => WorkService::SNOOZE_DAYS, 'snoozedCount' => Hub::getInstance()->work->countSnoozed()];
 	}
@@ -155,11 +155,11 @@ class WorkController extends BaseController
 	{
 		$work = Hub::getInstance()->work;
 		$key = Craft::$app->getRequest()->getQueryParam(self::PANEL_PARAM);
-		$check = fn () => $work->getDiagnostics(WorkService::CHECK_ITEM_LIMIT, (string)$key)[0] ?? throw new NotFoundHttpException('Check not found.');
+		$check = fn() => $work->getDiagnostics(WorkService::CHECK_ITEM_LIMIT, (string) $key)[0] ?? throw new NotFoundHttpException('Check not found.');
 
 		return [
-			'hub-snoozed' => fn () => ['hub/_panels/work/snoozed', ['snoozed' => $work->getSnoozed()]],
-			...(is_string($key) && $key !== 'hub-snoozed' ? [$key => fn () => ['hub/_panels/work/check', ['check' => $check(), 'snoozeDays' => WorkService::SNOOZE_DAYS]]] : []),
+			'hub-snoozed' => fn(): array => ['hub/_panels/work/snoozed', ['snoozed' => $work->getSnoozed()]],
+			...(is_string($key) && $key !== 'hub-snoozed' ? [$key => fn(): array => ['hub/_panels/work/check', ['check' => $check(), 'snoozeDays' => WorkService::SNOOZE_DAYS]]] : []),
 		];
 	}
 
@@ -175,23 +175,23 @@ class WorkController extends BaseController
 		$this->requirePostRequest();
 
 		$request = Craft::$app->getRequest();
-		$days = (int)$request->getRequiredBodyParam('days');
+		$days = (int) $request->getRequiredBodyParam('days');
 
 		if (!in_array($days, WorkService::SNOOZE_DAYS, true)) {
 			throw new BadRequestHttpException('Invalid number of days.');
 		}
 
 		$hub = Hub::getInstance();
-		$check = $hub->diagnostics->getDefinition((string)$request->getRequiredBodyParam('check'));
+		$check = $hub->diagnostics->getDefinition((string) $request->getRequiredBodyParam('check'));
 		$elementType = $check?->kind->elementType();
-		$element = $elementType !== null ? Craft::$app->getElements()->getElementById((int)$request->getRequiredBodyParam('element'), $elementType, '*') : null;
+		$element = $elementType !== null ? Craft::$app->getElements()->getElementById((int) $request->getRequiredBodyParam('element'), $elementType, '*') : null;
 
 		if ($check === null || $element === null) {
 			throw new NotFoundHttpException('Item not found.');
 		}
 
 		$this->requireViewable($element);
-		$hub->work->snooze($check, (int)$element->id, $days ?: null);
+		$hub->work->snooze($check, (int) $element->id, $days ?: null);
 
 		return $this->asSuccess($days ? Craft::t('hub', 'Snoozed for {days, plural, =1{one day} other{# days}}.', ['days' => $days]) : Craft::t('hub', 'Dismissed.'));
 	}
@@ -204,7 +204,7 @@ class WorkController extends BaseController
 		$this->requirePostRequest();
 
 		$request = Craft::$app->getRequest();
-		Hub::getInstance()->work->wake((string)$request->getRequiredBodyParam('check'), (int)$request->getRequiredBodyParam('element'));
+		Hub::getInstance()->work->wake((string) $request->getRequiredBodyParam('check'), (int) $request->getRequiredBodyParam('element'));
 
 		return $this->asSuccess(Craft::t('hub', 'Back on your list.'));
 	}

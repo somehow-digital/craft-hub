@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\User;
 use craft\models\Section;
 use craft\services\Entries;
@@ -13,7 +15,7 @@ use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 	$this->hub()->getSettings()->enableMaintainers = true;
 
@@ -36,14 +38,14 @@ beforeEach(function () {
 	};
 
 	$this->mockComponent('entries', Entries::class)
-		->shouldReceive('getSectionById')->andReturnUsing(fn (int $id) => $id === 1 ? new Section(['id' => 1, 'name' => 'News']) : null);
+		->shouldReceive('getSectionById')->andReturnUsing(fn(int $id): ?Section => $id === 1 ? new Section(['id' => 1, 'name' => 'News']) : null);
 });
 
-afterEach(function () {
+afterEach(function (): void {
 	$this->hub()->getSettings()->enableMaintainers = false;
 });
 
-it('sets the maintainers of an item, ignoring invalid IDs', function () {
+it('sets the maintainers of an item, ignoring invalid IDs', function (): void {
 	$service = Mockery::mock(MaintainerService::class)->makePartial();
 	$service->shouldReceive('setMaintainers')->once()->with(ColumnService::LIST_SECTIONS, 1, [3, 4], [7]);
 	$this->hub()->set('maintainers', $service);
@@ -53,7 +55,7 @@ it('sets the maintainers of an item, ignoring invalid IDs', function () {
 	expect($response->data['message'] ?? null)->toBe('Maintainers saved.');
 });
 
-it('clears the maintainers without any sent', function () {
+it('clears the maintainers without any sent', function (): void {
 	$service = Mockery::mock(MaintainerService::class)->makePartial();
 	$service->shouldReceive('setMaintainers')->once()->with(ColumnService::LIST_SECTIONS, 1, [], []);
 	$this->hub()->set('maintainers', $service);
@@ -61,22 +63,22 @@ it('clears the maintainers without any sent', function () {
 	($this->post)(['list' => ColumnService::LIST_SECTIONS, 'id' => 1, 'users' => '']);
 });
 
-it('rejects maintainers while disabled', function () {
+it('rejects maintainers while disabled', function (): void {
 	$this->hub()->getSettings()->enableMaintainers = false;
 
 	($this->post)(['list' => ColumnService::LIST_SECTIONS, 'id' => 1]);
 })->throws(ForbiddenHttpException::class);
 
-it('rejects lists without maintainers', function () {
+it('rejects lists without maintainers', function (): void {
 	($this->post)(['list' => ColumnService::LIST_ENTRIES, 'id' => 1]);
 })->throws(BadRequestHttpException::class);
 
-it('rejects users who may not manage maintainers', function () {
+it('rejects users who may not manage maintainers', function (): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_STRUCTURE, Page::Sections->viewPermission()]);
 
 	($this->post)(['list' => ColumnService::LIST_SECTIONS, 'id' => 1]);
 })->throws(ForbiddenHttpException::class);
 
-it('rejects items that do not exist', function () {
+it('rejects items that do not exist', function (): void {
 	($this->post)(['list' => ColumnService::LIST_SECTIONS, 'id' => 2]);
 })->throws(NotFoundHttpException::class);

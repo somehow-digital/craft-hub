@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Closure;
@@ -36,7 +38,7 @@ class FilesController extends BaseController
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/data/assets')) !== null) {
+		if (($redirect = $this->keepFilters('hub/data/assets')) instanceof Response) {
 			return $redirect;
 		}
 
@@ -55,7 +57,7 @@ class FilesController extends BaseController
 		$trash = $hub->trash;
 		$path = 'hub/data/assets/trash';
 
-		if (($redirect = $this->keepFilters($path)) !== null) {
+		if (($redirect = $this->keepFilters($path)) instanceof Response) {
 			return $redirect;
 		}
 
@@ -74,7 +76,7 @@ class FilesController extends BaseController
 				'assets' => $results,
 				'pageInfo' => $pageInfo,
 				'deleters' => in_array('deleter', $hub->columns->getShownKeys($columns), true)
-					? $trash->getDeleters(ActivitySubject::Asset, array_map(fn (Asset $asset) => (int)$asset->id, $results))
+					? $trash->getDeleters(ActivitySubject::Asset, array_map(fn(Asset $asset): int => (int) $asset->id, $results))
 					: [],
 				'volumes' => Craft::$app->getVolumes()->getAllVolumes(),
 				'fileKinds' => $hub->volumes->getAllKinds(),
@@ -114,10 +116,10 @@ class FilesController extends BaseController
 		$isPlayable = $asset->kind === Asset::KIND_VIDEO && Classifier::isPlayableVideo($asset->getMimeType());
 
 		$panel = $this->renderPanel($tab === self::TAB_DIAGNOSTICS
-			? $this->checksPanel(fn () => Hub::getInstance()->checks->forFile($asset))
+			? $this->checksPanel(fn() => Hub::getInstance()->checks->forFile($asset))
 			: $this->overviewPanels($asset, $isPlayable));
 
-		if ($panel !== null) {
+		if ($panel instanceof Response) {
 			return $panel;
 		}
 
@@ -173,7 +175,7 @@ class FilesController extends BaseController
 		$request = Craft::$app->getRequest();
 		$files = Hub::getInstance()->files;
 
-		$id = (int)$request->getRequiredBodyParam('assetId');
+		$id = (int) $request->getRequiredBodyParam('assetId');
 		$asset = $files->getFile($id) ?? throw new NotFoundHttpException('File not found.');
 
 		if (!Craft::$app->getElements()->canSave($asset)) {
@@ -182,12 +184,13 @@ class FilesController extends BaseController
 
 		$ids = $request->getBodyParam('transformIds');
 		$ids = Ids::positive($ids);
+
 		$count = $files->deleteTransforms($asset, $ids);
 
 		return $this->asSuccess(
 			Craft::t('hub', '{count, plural, =0{No transforms} =1{One transform} other{# transforms}} deleted.', ['count' => $count]),
 			['count' => $count],
-			$this->hubUrl("hub/data/assets/$id/" . self::TAB_TRANSFORMS),
+			$this->hubUrl("hub/data/assets/{$id}/" . self::TAB_TRANSFORMS),
 		);
 	}
 
@@ -205,7 +208,7 @@ class FilesController extends BaseController
 		$ids = $request->getBodyParam('transformIds');
 		$ids = Ids::positive($ids);
 
-		$preview = (new DeleteTransforms(ColumnService::LIST_FILES))->previewOf([(int)$request->getRequiredBodyParam('assetId')], (int)$request->getBodyParam('page', 1), $ids);
+		$preview = (new DeleteTransforms(ColumnService::LIST_FILES))->previewOf([(int) $request->getRequiredBodyParam('assetId')], (int) $request->getBodyParam('page', 1), $ids);
 
 		return $this->renderPreview($preview, 1);
 	}
@@ -220,12 +223,12 @@ class FilesController extends BaseController
 		$hub = Hub::getInstance();
 
 		return [
-			'preview' => fn () => ['hub/_panels/files/preview', ['asset' => $asset, 'isImage' => $asset->kind === Asset::KIND_IMAGE, 'isPlayable' => $isPlayable]],
-			'maintainers' => fn () => ['hub/_panels/element-maintainers', ['element' => $asset]],
-			'sites' => fn () => ['hub/_panels/files/sites', ['sites' => $hub->files->getSiteVariants($asset), 'isImage' => $asset->kind === Asset::KIND_IMAGE]],
-			'references' => fn () => ['hub/_panels/files/references', ['references' => $hub->references->getReferences($asset)]],
-			'referenced' => fn () => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($asset)]],
-			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::Asset->value, 'id' => $asset->id]],
+			'preview' => fn(): array => ['hub/_panels/files/preview', ['asset' => $asset, 'isImage' => $asset->kind === Asset::KIND_IMAGE, 'isPlayable' => $isPlayable]],
+			'maintainers' => fn(): array => ['hub/_panels/element-maintainers', ['element' => $asset]],
+			'sites' => fn(): array => ['hub/_panels/files/sites', ['sites' => $hub->files->getSiteVariants($asset), 'isImage' => $asset->kind === Asset::KIND_IMAGE]],
+			'references' => fn(): array => ['hub/_panels/files/references', ['references' => $hub->references->getReferences($asset)]],
+			'referenced' => fn(): array => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($asset)]],
+			'activity' => fn(): array => ['hub/_panels/activity', ['subject' => ActivitySubject::Asset->value, 'id' => $asset->id]],
 		];
 	}
 
@@ -245,8 +248,8 @@ class FilesController extends BaseController
 
 		$filter = new TrashedFileFilter();
 		$filter->search = $params->search();
-		$filter->volumes = $params->list('volume', array_map(fn (Volume $volume) => (string)$volume->handle, Craft::$app->getVolumes()->getAllVolumes()));
-		$filter->kinds = $params->list('kind', array_map('strval', array_keys(Hub::getInstance()->volumes->getAllKinds())));
+		$filter->volumes = $params->list('volume', array_map(fn(Volume $volume): string => (string) $volume->handle, Craft::$app->getVolumes()->getAllVolumes()));
+		$filter->kinds = $params->list('kind', array_map(strval(...), array_keys(Hub::getInstance()->volumes->getAllKinds())));
 		$filter->file = $params->choice('file', [TrashService::FILE_KEPT, TrashService::FILE_DELETED]);
 		$filter->deletedFrom = $params->date('deletedFrom');
 		$filter->deletedTo = $params->date('deletedTo');

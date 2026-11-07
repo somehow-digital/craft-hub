@@ -1,11 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\helpers;
 
 use Craft;
 use craft\elements\db\ElementQuery;
 use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\services\BulkService;
 use SomehowDigital\Craft\Hub\services\SelectionService;
 
 /**
@@ -13,7 +14,7 @@ use SomehowDigital\Craft\Hub\services\SelectionService;
  * before applying an action. Nothing is selected in lists without actions, nor by users who may not bulk-edit the list,
  * who apply the actions to one item at a time, so they don't review a selection either.
  */
-final class ListSelection
+final readonly class ListSelection
 {
 	/** query param of a list showing only its selected items, to review them before applying a bulk action */
 	public const PARAM = 'selection';
@@ -25,14 +26,13 @@ final class ListSelection
 	 * @param bool $review whether only the selected items are shown
 	 */
 	public function __construct(
-		public readonly string $list,
-		public readonly string $path,
-		private readonly array $actions,
-		private readonly bool $multiple,
-		public readonly array $ids,
-		public readonly bool $review,
-	) {
-	}
+		public string $list,
+		public string $path,
+		private array $actions,
+		private bool $multiple,
+		public array $ids,
+		public bool $review,
+	) {}
 
 	/**
 	 * The selection of a list on a page, reviewed as the query params of the request ask for it.

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -53,7 +55,7 @@ class SiteScopeService extends Component
 
 		if ($kept) {
 			$session = Craft::$app->getSession();
-			$sites !== [] ? $session->set(self::SESSION_KEY, implode(',', array_map(fn (Site $site) => $site->handle, $sites))) : $session->remove(self::SESSION_KEY);
+			$sites !== [] ? $session->set(self::SESSION_KEY, implode(',', array_map(fn(Site $site): ?string => $site->handle, $sites))) : $session->remove(self::SESSION_KEY);
 		}
 
 		return $sites;
@@ -64,13 +66,13 @@ class SiteScopeService extends Component
 	 */
 	private function sitesOf(mixed $value): array
 	{
-		$handles = array_unique(array_filter(array_map('trim', explode(',', is_string($value) ? $value : '')), fn (string $handle) => $handle !== ''));
+		$handles = array_unique(array_filter(array_map(trim(...), explode(',', is_string($value) ? $value : '')), fn(string $handle): bool => $handle !== ''));
 		$editableIds = Craft::$app->getSites()->getEditableSiteIds();
 
 		// Kept in the order of the sites, so the same selection always reads the same.
 		return array_values(array_filter(
 			Craft::$app->getSites()->getAllSites(),
-			fn (Site $site) => in_array($site->handle, $handles, true) && in_array($site->id, $editableIds, false),
+			fn(Site $site): bool => in_array($site->handle, $handles, true) && in_array($site->id, $editableIds, false),
 		));
 	}
 
@@ -81,7 +83,7 @@ class SiteScopeService extends Component
 	{
 		$sites = $this->getSites();
 
-		return $sites !== [] ? implode(',', array_map(fn (Site $site) => $site->handle, $sites)) : null;
+		return $sites !== [] ? implode(',', array_map(fn(Site $site): ?string => $site->handle, $sites)) : null;
 	}
 
 	/**
@@ -106,7 +108,7 @@ class SiteScopeService extends Component
 		}
 
 		$sites = $this->getSites();
-		$siteIds = $sites !== [] ? array_map(fn (Site $site) => $site->id, $sites) : Craft::$app->getSites()->getEditableSiteIds();
+		$siteIds = $sites !== [] ? array_map(fn(Site $site): ?int => $site->id, $sites) : Craft::$app->getSites()->getEditableSiteIds();
 		sort($siteIds);
 
 		return $this->siteIds = $siteIds;
@@ -133,7 +135,7 @@ class SiteScopeService extends Component
 	 */
 	public function inSiteScope(ElementQuery $query): ElementQuery
 	{
-		$selected = array_map(fn (Site $site) => $site->id, $this->getSites());
+		$selected = array_map(fn(Site $site): ?int => $site->id, $this->getSites());
 
 		return $query
 			->siteId($this->getSiteIds())

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -81,7 +83,7 @@ class UserService extends Component
 		}
 
 		if ($filter->logins !== []) {
-			$query->andWhere(['or', ...array_map(fn (string $login) => $this->loginCondition($login), $filter->logins)]);
+			$query->andWhere(['or', ...array_map($this->loginCondition(...), $filter->logins)]);
 		}
 
 		if (($login = Range::dateParam($filter->loginFrom, $filter->loginTo)) !== null) {
@@ -156,7 +158,7 @@ class UserService extends Component
 	 */
 	public function photoPlan(string $path = 'photo'): array
 	{
-		return [$path, ['withTransforms' => array_map(fn (int $size) => ['width' => $size, 'height' => $size, 'mode' => 'crop'], self::PHOTO_SIZES)]];
+		return [$path, ['withTransforms' => array_map(fn(int $size): array => ['width' => $size, 'height' => $size, 'mode' => 'crop'], self::PHOTO_SIZES)]];
 	}
 
 	/**
@@ -191,10 +193,10 @@ class UserService extends Component
 		$row = $this->usersQuery()->select($select)->one() ?: [];
 
 		$stats = new UserStatistics();
-		$stats->total = (int)($row['total'] ?? 0);
+		$stats->total = (int) ($row['total'] ?? 0);
 
 		foreach (array_keys($conditions) as $alias) {
-			$stats->$alias = (int)($row[$alias] ?? 0);
+			$stats->{$alias} = (int) ($row[$alias] ?? 0);
 		}
 
 		return $stats;
@@ -235,13 +237,13 @@ class UserService extends Component
 		foreach ($groups as $group) {
 			$infos[$group->id] = [
 				'group' => $group,
-				'users' => (int)($counts[$group->id] ?? 0),
+				'users' => (int) ($counts[$group->id] ?? 0),
 				'permissions' => count($permissions->getPermissionsByGroupId($group->id)),
 				'requires2fa' => $required === 'all' || (is_array($required) && in_array($group->uid, $required, true)),
 			];
 		}
 
-		uasort($infos, fn (array $a, array $b) => strnatcasecmp((string)$a['group']->name, (string)$b['group']->name));
+		uasort($infos, fn(array $a, array $b): int => strnatcasecmp((string) $a['group']->name, (string) $b['group']->name));
 
 		return $infos;
 	}
@@ -290,7 +292,7 @@ class UserService extends Component
 			->groupBy(['groupId'])
 			->pairs();
 
-		return array_map('intval', $counts);
+		return array_map(intval(...), $counts);
 	}
 
 	/**
@@ -312,7 +314,7 @@ class UserService extends Component
 
 		return array_values(array_filter(
 			User::find()->id($ids)->status(null)->all(),
-			fn (User $user) => $user->id !== $current->id && $service->canDelete($user),
+			fn(User $user): bool => $user->id !== $current->id && $service->canDelete($user),
 		));
 	}
 
@@ -331,7 +333,7 @@ class UserService extends Component
 		}
 
 		$users = $query->all();
-		usort($users, fn (User $a, User $b) => strnatcasecmp((string)$a->getName(), (string)$b->getName()));
+		usort($users, fn(User $a, User $b): int => strnatcasecmp($a->getName(), $b->getName()));
 
 		return $users;
 	}
@@ -364,7 +366,7 @@ class UserService extends Component
 			return $required === 'all';
 		}
 
-		$uids = array_map(fn (UserGroup $group) => $group->uid, $user->getGroups());
+		$uids = array_map(fn(UserGroup $group): ?string => $group->uid, $user->getGroups());
 
 		return ($user->admin && in_array('admins', $required, true)) || array_intersect($uids, $required) !== [];
 	}
@@ -387,7 +389,7 @@ class UserService extends Component
 			->groupBy(['hubAuthors.authorId'])
 			->pairs();
 
-		return array_map('intval', $counts);
+		return array_map(intval(...), $counts);
 	}
 
 	/**
@@ -408,7 +410,7 @@ class UserService extends Component
 			->groupBy(['hubAssets.uploaderId'])
 			->pairs();
 
-		return array_map('intval', $counts);
+		return array_map(intval(...), $counts);
 	}
 
 	/**
@@ -428,7 +430,7 @@ class UserService extends Component
 			...(new Query())->select(['userId'])->from([Table::WEBAUTHN])->where(['userId' => $userIds])->column(),
 		];
 
-		return array_fill_keys(array_map('intval', $ids), true) + array_fill_keys(array_map('intval', $userIds), false);
+		return array_fill_keys(array_map(intval(...), $ids), true) + array_fill_keys(array_map(intval(...), $userIds), false);
 	}
 
 	/**
@@ -479,7 +481,7 @@ class UserService extends Component
 			->column();
 
 		foreach ($direct as $name) {
-			$sources[strtolower((string)$name)]['direct'] = true;
+			$sources[strtolower((string) $name)]['direct'] = true;
 		}
 
 		return $sources;
@@ -494,7 +496,7 @@ class UserService extends Component
 	{
 		$names = Craft::$app->getUserPermissions()->getPermissionsByGroupId($group->id);
 
-		return $this->permissionHeadings(array_fill_keys(array_map('strtolower', $names), []));
+		return $this->permissionHeadings(array_fill_keys(array_map(strtolower(...), $names), []));
 	}
 
 	/**
@@ -511,7 +513,7 @@ class UserService extends Component
 
 		$service = Craft::$app->getUserPermissions();
 		$headings = [];
-		$permission = fn (string $name, string $label) => [
+		$permission = fn(string $name, string $label): array => [
 			'name' => $name,
 			'label' => $label,
 			'direct' => $sources[$name]['direct'] ?? false,
@@ -526,10 +528,10 @@ class UserService extends Component
 		}
 
 		foreach (array_keys($sources) as $name) {
-			$headings[Craft::t('hub', 'Other')][] = $permission((string)$name, (string)$name);
+			$headings[Craft::t('hub', 'Other')][] = $permission((string) $name, (string) $name);
 		}
 
-		return array_map(fn (string $heading, array $permissions) => ['heading' => $heading, 'permissions' => $permissions], array_keys($headings), $headings);
+		return array_map(fn(string $heading, array $permissions): array => ['heading' => $heading, 'permissions' => $permissions], array_keys($headings), $headings);
 	}
 
 	/**
@@ -542,15 +544,15 @@ class UserService extends Component
 	{
 		$flat = [];
 
-		$walk = function (string $heading, array $permissions) use (&$walk, &$flat) {
+		$walk = function (string $heading, array $permissions) use (&$walk, &$flat): void {
 			foreach ($permissions as $name => $permission) {
-				$flat[strtolower((string)$name)] ??= [$heading, (string)($permission['label'] ?? $name)];
+				$flat[strtolower((string) $name)] ??= [$heading, (string) ($permission['label'] ?? $name)];
 				$walk($heading, $permission['nested'] ?? []);
 			}
 		};
 
 		foreach ($groups as $group) {
-			$walk((string)($group['heading'] ?? ''), $group['permissions'] ?? []);
+			$walk((string) ($group['heading'] ?? ''), $group['permissions'] ?? []);
 		}
 
 		return $flat;
@@ -648,7 +650,7 @@ class UserService extends Component
 	private function groupCondition(array $handles): array|string
 	{
 		$groups = Craft::$app->getUserGroups();
-		$ids = array_values(array_filter(array_map(fn (string $handle) => $groups->getGroupByHandle($handle)?->id, $handles)));
+		$ids = array_values(array_filter(array_map(fn(string $handle) => $groups->getGroupByHandle($handle)?->id, $handles)));
 		$member = (new Query())
 			->from(['hubGroups' => Table::USERGROUPS_USERS])
 			->where('[[hubGroups.userId]] = [[elements.id]]');
@@ -721,7 +723,7 @@ class UserService extends Component
 	 */
 	private function liveCondition(string $alias): array
 	{
-		return ["$alias.dateDeleted" => null, "$alias.draftId" => null, "$alias.revisionId" => null];
+		return ["{$alias}.dateDeleted" => null, "{$alias}.draftId" => null, "{$alias}.revisionId" => null];
 	}
 
 	/**

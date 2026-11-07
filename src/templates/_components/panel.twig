@@ -21,7 +21,7 @@
 {% set panelDeferred = collapsible and not (loaded ?? false) %}
 {# The page of the URL, like that of a panel's pagination, is one of its path's segments in the CP, which Craft takes off it. #}
 {% set panelPage = craft.app.request.pageNum > 1 ? '/p' ~ craft.app.request.pageNum : '' %}
-{% set panelLazyUrl = panelDeferred ? (lazy ?? url(craft.app.request.pathInfo ~ panelPage, craft.app.request.queryParamsWithoutPath|merge({ panel: panelKey }))) : null %}
+{% set panelLazyUrl = panelDeferred ? (lazy ?? url(craft.app.request.pathInfo ~ panelPage, craft.app.request.queryParamsWithoutPath|merge({panel: panelKey}))) : null %}
 {% set panelRequested = collapsible and not panelDeferred and craft.app.request.getQueryParam('panel') == panelKey %}
 {% set descriptionId = (heading ?? false) and (description ?? false) ? 'hub-panel-description-' ~ random() : null %}
 

@@ -1,10 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers\activity;
 
 use Craft;
 use craft\base\PluginInterface;
-use craft\elements\User;
 use craft\events\ConfigEvent;
 use craft\events\PluginEvent;
 use craft\helpers\ArrayHelper;
@@ -93,22 +94,22 @@ class ConfigActivity extends ActivitySubscriber
 	{
 		foreach (self::CONFIG_EVENTS as [$class, $save, $delete, $property, $subject]) {
 			// Each event holds its model in a property of its own.
-			Event::on($class, $save, fn (Event $event) => $this->config(ArrayHelper::getValue($event, 'isNew') ? ActivityAction::Created : ActivityAction::Updated, $subject, ArrayHelper::getValue($event, $property)));
-			Event::on($class, $delete, fn (Event $event) => $this->config(ActivityAction::Deleted, $subject, ArrayHelper::getValue($event, $property)));
+			Event::on($class, $save, fn(Event $event) => $this->config(ArrayHelper::getValue($event, 'isNew') ? ActivityAction::Created : ActivityAction::Updated, $subject, ArrayHelper::getValue($event, $property)));
+			Event::on($class, $delete, fn(Event $event) => $this->config(ActivityAction::Deleted, $subject, ArrayHelper::getValue($event, $property)));
 		}
 
 		foreach (self::PROJECT_CONFIG_EVENTS as $name => $action) {
-			Event::on(ProjectConfig::class, $name, fn (ConfigEvent $event) => $this->configChanged($action, $event));
+			Event::on(ProjectConfig::class, $name, fn(ConfigEvent $event) => $this->configChanged($action, $event));
 		}
 
-		Event::on(ProjectConfig::class, ProjectConfig::EVENT_AFTER_APPLY_CHANGES, fn () => $this->configApplied());
+		Event::on(ProjectConfig::class, ProjectConfig::EVENT_AFTER_APPLY_CHANGES, fn() => $this->configApplied());
 
-		Event::on(GqlTokenRecord::class, BaseActiveRecord::EVENT_AFTER_INSERT, fn (AfterSaveEvent $event) => $this->token(ActivityAction::Created, $event));
-		Event::on(GqlTokenRecord::class, BaseActiveRecord::EVENT_AFTER_UPDATE, fn (AfterSaveEvent $event) => $this->token(ActivityAction::Updated, $event));
-		Event::on(GqlTokenRecord::class, BaseActiveRecord::EVENT_AFTER_DELETE, fn (Event $event) => $this->token(ActivityAction::Deleted, $event));
+		Event::on(GqlTokenRecord::class, BaseActiveRecord::EVENT_AFTER_INSERT, fn(AfterSaveEvent $event) => $this->token(ActivityAction::Created, $event));
+		Event::on(GqlTokenRecord::class, BaseActiveRecord::EVENT_AFTER_UPDATE, fn(AfterSaveEvent $event) => $this->token(ActivityAction::Updated, $event));
+		Event::on(GqlTokenRecord::class, BaseActiveRecord::EVENT_AFTER_DELETE, fn(Event $event) => $this->token(ActivityAction::Deleted, $event));
 
 		foreach (self::PLUGIN_EVENTS as $name => $action) {
-			Event::on(Plugins::class, $name, fn (PluginEvent $event) => $this->plugin($action, $event->plugin));
+			Event::on(Plugins::class, $name, fn(PluginEvent $event) => $this->plugin($action, $event->plugin));
 		}
 	}
 
@@ -137,7 +138,7 @@ class ConfigActivity extends ActivitySubscriber
 
 		if (preg_match('/^users\.groups\.([^.]+)\.permissions$/', $path, $matches)) {
 			$group = Craft::$app->getUserGroups()->getGroupByUid($matches[1]);
-			$this->permissionsChanged(ActivitySubject::UserGroup, $group?->id, $group?->name, (array)($event->oldValue ?? []), (array)($event->newValue ?? []));
+			$this->permissionsChanged(ActivitySubject::UserGroup, $group?->id, $group?->name, (array) ($event->oldValue ?? []), (array) ($event->newValue ?? []));
 
 			return;
 		}
@@ -156,7 +157,7 @@ class ConfigActivity extends ActivitySubscriber
 		}
 
 		foreach (self::CONFIG_ITEMS as $prefix => $subject) {
-			if (str_starts_with($path, "$prefix.")) {
+			if (str_starts_with($path, "{$prefix}.")) {
 				$this->configItem($subject, $prefix, $path, $action, $event);
 
 				return;
@@ -174,7 +175,7 @@ class ConfigActivity extends ActivitySubscriber
 		}
 
 		foreach (self::CONFIG_SETTINGS as $prefix => $title) {
-			if ($path === $prefix || str_starts_with($path, "$prefix.")) {
+			if ($path === $prefix || str_starts_with($path, "{$prefix}.")) {
 				$this->settingsChanged($prefix, $title, $path, $event, $applying);
 
 				return;
@@ -197,7 +198,7 @@ class ConfigActivity extends ActivitySubscriber
 		};
 		$keys = array_values(array_diff($keys, self::IGNORED_SETTINGS));
 
-		if ($keys !== [] && $this->once("settings:$prefix")) {
+		if ($keys !== [] && $this->once("settings:{$prefix}")) {
 			$this->activity()->record(ActivityAction::Updated, ActivitySubject::Settings, null, Craft::t('app', $title), ['attributes' => $keys]);
 		}
 	}
@@ -207,7 +208,7 @@ class ConfigActivity extends ActivitySubscriber
 	 */
 	private function pluginSettingsApplied(string $handle): void
 	{
-		if ($this->once("plugin:$handle")) {
+		if ($this->once("plugin:{$handle}")) {
 			$plugin = Craft::$app->getPlugins()->getPlugin($handle);
 			$this->activity()->record(ActivityAction::Updated, ActivitySubject::Plugin, null, $plugin->name ?? $handle, ['handle' => $handle]);
 		}
@@ -219,7 +220,7 @@ class ConfigActivity extends ActivitySubscriber
 	private function configItem(ActivitySubject $subject, string $prefix, string $path, ActivityAction $action, ConfigEvent $event): void
 	{
 		[$key] = explode('.', substr($path, strlen($prefix) + 1));
-		$itemPath = "$prefix.$key";
+		$itemPath = "{$prefix}.{$key}";
 
 		// Changes within an item are updates of it.
 		if ($path !== $itemPath) {
@@ -246,7 +247,7 @@ class ConfigActivity extends ActivitySubscriber
 	 */
 	private function routeTitle(array $config): ?string
 	{
-		$parts = array_map(fn (mixed $part) => is_array($part) ? '<' . ($part[0] ?? '') . '>' : (string)$part, (array)($config['uriParts'] ?? []));
+		$parts = array_map(fn(mixed $part): string => is_array($part) ? '<' . ($part[0] ?? '') . '>' : (string) $part, (array) ($config['uriParts'] ?? []));
 
 		return $parts !== [] ? implode('', $parts) : null;
 	}
@@ -263,7 +264,7 @@ class ConfigActivity extends ActivitySubscriber
 
 		return array_values(array_filter(
 			array_unique([...array_keys($old), ...array_keys($new)]),
-			fn (string|int $key) => ProjectConfigHelper::encodeValueAsString($old[$key] ?? null) !== ProjectConfigHelper::encodeValueAsString($new[$key] ?? null),
+			fn(string|int $key): bool => ProjectConfigHelper::encodeValueAsString($old[$key] ?? null) !== ProjectConfigHelper::encodeValueAsString($new[$key] ?? null),
 		));
 	}
 
@@ -286,7 +287,7 @@ class ConfigActivity extends ActivitySubscriber
 
 		$this->applying();
 
-		$this->activity()->record($action, ActivitySubject::GqlToken, $action !== ActivityAction::Deleted ? (int)$record->id : null, $record->name, $action === ActivityAction::Updated ? ['attributes' => $changes] : []);
+		$this->activity()->record($action, ActivitySubject::GqlToken, $action !== ActivityAction::Deleted ? (int) $record->id : null, $record->name, $action === ActivityAction::Updated ? ['attributes' => $changes] : []);
 	}
 
 	private function plugin(ActivityAction $action, PluginInterface $plugin): void

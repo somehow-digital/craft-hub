@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
 use craft\elements\Entry;
 use craft\elements\User;
+use craft\models\Section;
 use SomehowDigital\Craft\Hub\enums\Page;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\services\BulkService;
@@ -38,12 +41,12 @@ class ChangeAuthor extends BulkAction
 		$author = $authorId > 0 ? User::find()->id($authorId)->status(User::STATUS_ACTIVE)->one() : null;
 		$add = ($params['authors'] ?? null) === BulkService::AUTHORS_ADD;
 
-		return $author === null ? [] : $this->succeeded($this->entries($ids), fn (Entry $entry) => $this->change($entry, $author, $add));
+		return $author === null ? [] : $this->succeeded($this->entries($ids), fn(Entry $entry): bool => $this->change($entry, $author, $add));
 	}
 
 	public function preview(array $ids, int $page): ?BulkPreview
 	{
-		$entries = array_values(array_filter($this->entries($ids), fn (Entry $entry) => $this->hub()->entries->canChangeAuthors($entry)));
+		$entries = array_values(array_filter($this->entries($ids), $this->hub()->entries->canChangeAuthors(...)));
 		$authors = $this->hub()->entries->getAuthorCandidates($entries);
 
 		return new BulkPreview('author-preview', $authors !== [] ? count($entries) : 0, ['authors' => $authors]);
@@ -62,12 +65,12 @@ class ChangeAuthor extends BulkAction
 	{
 		$section = $entry->getSection();
 
-		if ($section === null || !$this->hub()->entries->canChangeAuthors($entry) || !$author->can("viewEntries:$section->uid")) {
+		if (!$section instanceof Section || !$this->hub()->entries->canChangeAuthors($entry) || !$author->can("viewEntries:{$section->uid}")) {
 			return false;
 		}
 
 		$authorIds = $entry->getAuthorIds();
-		$changed = $add ? array_values(array_unique([...$authorIds, (int)$author->id])) : [(int)$author->id];
+		$changed = $add ? array_values(array_unique([...$authorIds, (int) $author->id])) : [(int) $author->id];
 
 		if ($changed === $authorIds) {
 			return true;

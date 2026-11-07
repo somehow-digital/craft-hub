@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
@@ -151,36 +153,36 @@ trait ListVariables
 		$entries = $hub->entries;
 		$months = $hub->filters->getThreshold(CheckKind::Entries, 'stale');
 		$entryTypes = $hub->structure->getEntryTypes();
-		$nestedFields = array_filter($hub->structure->getFields(), fn (FieldInfo $info) => $info->isNested);
+		$nestedFields = array_filter($hub->structure->getFields(), fn(FieldInfo $info): bool => $info->isNested);
 
 		// While reviewing the selection, only the list's own limits apply.
 		$selection = ListSelection::fromRequest(ColumnService::LIST_ENTRIES, $path);
 		/** @var EntryFilter $filter */
 		$filter = $selection->review ? new EntryFilter() : $this->listFilterFromRequest(CheckKind::Entries);
 		// Sections and fields widen each other, so on the page of one the other isn't taken from the request.
-		$filter->sections = $section !== null ? [$section->handle] : ($field !== null ? [] : $filter->sections);
-		$filter->types = $entryType !== null ? [$entryType->handle] : $filter->types;
-		$filter->fields = $field !== null ? [$field->handle] : ($section !== null ? [] : $filter->fields);
-		$filter->authors = $author !== null ? [$author->id] : $filter->authors;
+		$filter->sections = $section instanceof Section ? [$section->handle] : ($field instanceof FieldInterface ? [] : $filter->sections);
+		$filter->types = $entryType instanceof EntryType ? [$entryType->handle] : $filter->types;
+		$filter->fields = $field instanceof FieldInterface ? [$field->handle] : ($section instanceof Section ? [] : $filter->fields);
+		$filter->authors = $author instanceof User ? [$author->id] : $filter->authors;
 
 		// Only sections, nested entry fields and entry types used together, with the ones the list is limited to.
 		$sectionIds = [];
 		$fieldIds = [];
 		$typeIds = [];
 		foreach ($entryTypes as $info) {
-			if ($entryType !== null && $info->entryType->id !== $entryType->id) {
+			if ($entryType instanceof EntryType && $info->entryType->id !== $entryType->id) {
 				continue;
 			}
 
 			foreach ($info->sections as $typeSection) {
-				if ($field === null && ($section === null || $typeSection->id === $section->id)) {
+				if (!$field instanceof FieldInterface && (!$section instanceof Section || $typeSection->id === $section->id)) {
 					$sectionIds[$typeSection->id] = true;
 					$typeIds[$info->entryType->id] = true;
 				}
 			}
 
 			foreach ($info->nestedFields as $nestedField) {
-				if ($section === null && ($field === null || $nestedField->id === $field->id)) {
+				if (!$section instanceof Section && (!$field instanceof FieldInterface || $nestedField->id === $field->id)) {
 					$fieldIds[$nestedField->id] = true;
 					$typeIds[$info->entryType->id] = true;
 				}
@@ -188,10 +190,10 @@ trait ListVariables
 		}
 
 		$listFixed = match (true) {
-			$section !== null => 'section',
-			$entryType !== null => 'type',
-			$field !== null => 'field',
-			$author !== null => 'author',
+			$section instanceof Section => 'section',
+			$entryType instanceof EntryType => 'type',
+			$field instanceof FieldInterface => 'field',
+			$author instanceof User => 'author',
 			default => null,
 		};
 
@@ -199,12 +201,12 @@ trait ListVariables
 		// the author.
 		$columns = $hub->columns->getColumns(ColumnService::LIST_ENTRIES, [
 			...match (true) {
-				$section !== null => ['origin', 'owner'],
-				$field !== null => ['origin'],
+				$section instanceof Section => ['origin', 'owner'],
+				$field instanceof FieldInterface => ['origin'],
 				$fieldIds === [] => ['owner'],
 				default => [],
 			},
-			...($author !== null ? ['creator'] : []),
+			...($author instanceof User ? ['creator'] : []),
 		]);
 		$shown = $hub->columns->getShownKeys($columns);
 
@@ -219,9 +221,12 @@ trait ListVariables
 		if (array_intersect(['owner', 'origin', 'maintainers'], $shown) !== []) {
 			$with[] = 'owner';
 		}
+
 		if (in_array('creator', $shown, true)) {
-			array_push($with, 'authors', $hub->users->photoPlan('authors.photo'));
+			$with[] = 'authors';
+			$with[] = $hub->users->photoPlan('authors.photo');
 		}
+
 		if ($with !== []) {
 			$query->with($with);
 		}
@@ -230,30 +235,30 @@ trait ListVariables
 		$options = $this->showsFilterOptions($selection);
 
 		$referenceCounts = in_array('references', $shown, true)
-			? $hub->references->getReferenceCounts(array_map(fn (Entry $entry) => $entry->id, $results))
+			? $hub->references->getReferenceCounts(array_map(fn(Entry $entry): ?int => $entry->id, $results))
 			: [];
 
 		return ['list' => [
-				'entries' => $results,
-				'pageInfo' => $pageInfo,
-				'referenceCounts' => $referenceCounts,
-				'lastEdited' => in_array('updated', $shown, true) ? $hub->edits->getLastEdited($results) : [],
-				'sections' => array_filter($hub->structure->getSections(), fn (SectionInfo $info) => isset($sectionIds[$info->section->id])),
-				'nestedFields' => array_filter($nestedFields, fn (FieldInfo $info) => isset($fieldIds[$info->field->id])),
-				'entryTypes' => array_filter($entryTypes, fn (EntryTypeInfo $info) => isset($typeIds[$info->entryType->id])),
-				'statuses' => array_intersect_key(Entry::statuses(), array_flip($entries->getStatuses())),
-				'staleMonths' => $months,
-				'authorOptions' => $author !== null || !$options ? [] : $this->pickedUserOptions($filter->authors),
-				'editorOptions' => $options ? $this->pickedUserOptions($filter->editors) : [],
-				'optionsUrls' => array_map(fn (string $name) => $this->filterOptionsUrl($name, ['section' => $section?->id, 'type' => $entryType?->id, 'field' => $field?->id]), ['author' => 'author', 'editor' => 'editor']),
-				'filter' => $filter,
-				'listPath' => $path,
-				'listFixed' => $listFixed,
-				'columns' => $columns,
-				...$this->savedFilterVariables(CheckKind::Entries, $path, $filter->savedFilter),
-				...$this->labelVariables(ColumnService::LIST_ENTRIES, array_map(fn (Entry $entry) => $entry->id, $results)),
-				...$selection->variables($filter),
-				...$sort->variables($path),
+			'entries' => $results,
+			'pageInfo' => $pageInfo,
+			'referenceCounts' => $referenceCounts,
+			'lastEdited' => in_array('updated', $shown, true) ? $hub->edits->getLastEdited($results) : [],
+			'sections' => array_filter($hub->structure->getSections(), fn(SectionInfo $info): bool => isset($sectionIds[$info->section->id])),
+			'nestedFields' => array_filter($nestedFields, fn(FieldInfo $info): bool => isset($fieldIds[$info->field->id])),
+			'entryTypes' => array_filter($entryTypes, fn(EntryTypeInfo $info): bool => isset($typeIds[$info->entryType->id])),
+			'statuses' => array_intersect_key(Entry::statuses(), array_flip($entries->getStatuses())),
+			'staleMonths' => $months,
+			'authorOptions' => $author instanceof User || !$options ? [] : $this->pickedUserOptions($filter->authors),
+			'editorOptions' => $options ? $this->pickedUserOptions($filter->editors) : [],
+			'optionsUrls' => array_map(fn(string $name) => $this->filterOptionsUrl($name, ['section' => $section?->id, 'type' => $entryType?->id, 'field' => $field?->id]), ['author' => 'author', 'editor' => 'editor']),
+			'filter' => $filter,
+			'listPath' => $path,
+			'listFixed' => $listFixed,
+			'columns' => $columns,
+			...$this->savedFilterVariables(CheckKind::Entries, $path, $filter->savedFilter),
+			...$this->labelVariables(ColumnService::LIST_ENTRIES, array_map(fn(Entry $entry): ?int => $entry->id, $results)),
+			...$selection->variables($filter),
+			...$sort->variables($path),
 		]];
 	}
 
@@ -273,13 +278,13 @@ trait ListVariables
 		$selection = ListSelection::fromRequest(ColumnService::LIST_FILES, $path);
 		/** @var FileFilter $filter */
 		$filter = $selection->review ? new FileFilter() : $this->listFilterFromRequest(CheckKind::Assets);
-		$filter->volumes = $volume !== null ? [$volume->handle] : $filter->volumes;
-		$filter->uploaders = $uploader !== null ? [$uploader->id] : $filter->uploaders;
+		$filter->volumes = $volume instanceof Volume ? [$volume->handle] : $filter->volumes;
+		$filter->uploaders = $uploader instanceof User ? [$uploader->id] : $filter->uploaders;
 
 		// On a user's page, they are the uploader.
 		$columns = $hub->columns->getColumns(ColumnService::LIST_FILES, [
-			...($volume !== null ? ['volume'] : []),
-			...($uploader !== null ? ['uploader'] : []),
+			...($volume instanceof Volume ? ['volume'] : []),
+			...($uploader instanceof User ? ['uploader'] : []),
 		]);
 
 		$sort = ListSort::fromRequest($files->getSortColumns(), FileService::SORT_UPLOADED);
@@ -296,35 +301,35 @@ trait ListVariables
 		$options = $this->showsFilterOptions($selection);
 
 		// Files without references are flagged next to their name, which is always shown.
-		$referenceCounts = $hub->references->getReferenceCounts(array_map(fn (Asset $asset) => $asset->id, $assets));
+		$referenceCounts = $hub->references->getReferenceCounts(array_map(fn(Asset $asset): ?int => $asset->id, $assets));
 
 		return ['list' => [
-				'assets' => $assets,
-				'pageInfo' => $pageInfo,
-				'referenceCounts' => $referenceCounts,
-				'canDownload' => $hub->access->canAct(Page::Assets, Hub::PERMISSION_DOWNLOAD_ASSETS),
-				'fileKinds' => $fileKinds,
-				'volumes' => $hub->volumes->getVolumeModels(),
-				'kindOptions' => $options ? $this->pickedKindOptions($filter->kinds) : [],
-				'extensionOptions' => $options ? array_combine($filter->extensions, $filter->extensions) : [],
-				'uploaderOptions' => $uploader !== null || !$options ? [] : $this->pickedUserOptions($filter->uploaders),
-				'optionsUrls' => [
-					'kind' => $this->filterOptionsUrl('kind'),
-					'extension' => $this->filterOptionsUrl('extension', ['volume' => $volume?->id]),
-					'uploader' => $this->filterOptionsUrl('uploader', ['volume' => $volume?->id]),
-				],
-				'filter' => $filter,
-				'listPath' => $path,
-				'listFixed' => match (true) {
-					$volume !== null => 'volume',
-					$uploader !== null => 'uploader',
-					default => null,
-				},
-				'columns' => $columns,
-				...$this->savedFilterVariables(CheckKind::Assets, $path, $filter->savedFilter),
-				...$this->labelVariables(ColumnService::LIST_FILES, array_map(fn (Asset $asset) => $asset->id, $assets)),
-				...$selection->variables($filter),
-				...$sort->variables($path),
+			'assets' => $assets,
+			'pageInfo' => $pageInfo,
+			'referenceCounts' => $referenceCounts,
+			'canDownload' => $hub->access->canAct(Page::Assets, Hub::PERMISSION_DOWNLOAD_ASSETS),
+			'fileKinds' => $fileKinds,
+			'volumes' => $hub->volumes->getVolumeModels(),
+			'kindOptions' => $options ? $this->pickedKindOptions($filter->kinds) : [],
+			'extensionOptions' => $options ? array_combine($filter->extensions, $filter->extensions) : [],
+			'uploaderOptions' => $uploader instanceof User || !$options ? [] : $this->pickedUserOptions($filter->uploaders),
+			'optionsUrls' => [
+				'kind' => $this->filterOptionsUrl('kind'),
+				'extension' => $this->filterOptionsUrl('extension', ['volume' => $volume?->id]),
+				'uploader' => $this->filterOptionsUrl('uploader', ['volume' => $volume?->id]),
+			],
+			'filter' => $filter,
+			'listPath' => $path,
+			'listFixed' => match (true) {
+				$volume instanceof Volume => 'volume',
+				$uploader instanceof User => 'uploader',
+				default => null,
+			},
+			'columns' => $columns,
+			...$this->savedFilterVariables(CheckKind::Assets, $path, $filter->savedFilter),
+			...$this->labelVariables(ColumnService::LIST_FILES, array_map(fn(Asset $asset): ?int => $asset->id, $assets)),
+			...$selection->variables($filter),
+			...$sort->variables($path),
 		]];
 	}
 
@@ -346,7 +351,7 @@ trait ListVariables
 		}
 
 		foreach ($users as $id => $item) {
-			$options[$id] = ['label' => (string)$item['user']->name, 'user' => $item['user']];
+			$options[$id] = ['label' => (string) $item['user']->name, 'user' => $item['user']];
 		}
 
 		return $options;
@@ -360,9 +365,9 @@ trait ListVariables
 	 */
 	protected function pickedUserOptions(array $values): array
 	{
-		$users = Hub::getInstance()->users->getUsers(array_values(array_filter($values, 'is_int')));
+		$users = Hub::getInstance()->users->getUsers(array_values(array_filter($values, is_int(...))));
 
-		return $this->userOptions(array_map(fn (User $user) => ['user' => $user], $users), in_array(FilterParams::ME, $values, true));
+		return $this->userOptions(array_map(fn(User $user): array => ['user' => $user], $users), in_array(FilterParams::ME, $values, true));
 	}
 
 	/**
@@ -373,7 +378,7 @@ trait ListVariables
 	 */
 	protected function kindOptions(array $kinds): array
 	{
-		return array_map(fn (FileKindInfo $kind) => ['label' => $kind->getLabel(), 'icon' => $kind->getIcon(), 'color' => $kind->getColor()], $kinds);
+		return array_map(fn(FileKindInfo $kind): array => ['label' => $kind->getLabel(), 'icon' => $kind->getIcon(), 'color' => $kind->getColor()], $kinds);
 	}
 
 	/**
@@ -396,7 +401,7 @@ trait ListVariables
 	 */
 	protected function activityUserOptions(array $userOptions): array
 	{
-		$choices = array_map(fn (array $option) => $option['user'] !== null ? $option : ['label' => $option['label'], 'icon' => 'user-slash', 'color' => 'gray'], $userOptions);
+		$choices = array_map(fn(array $option): array => $option['user'] !== null ? $option : ['label' => $option['label'], 'icon' => 'user-slash', 'color' => 'gray'], $userOptions);
 
 		return $choices + [ActivityFilter::USER_NONE => ['label' => Craft::t('hub', 'No user'), 'icon' => 'robot', 'color' => 'gray']];
 	}
@@ -416,10 +421,10 @@ trait ListVariables
 		$selection = ListSelection::fromRequest(ColumnService::LIST_USERS, $path);
 		/** @var UserFilter $filter */
 		$filter = $selection->review ? new UserFilter() : $this->listFilterFromRequest(CheckKind::Users);
-		$filter->groups = $group !== null ? [$group->handle] : $filter->groups;
+		$filter->groups = $group instanceof UserGroup ? [$group->handle] : $filter->groups;
 
 		// Craft Solo has no groups, so neither the column nor the filter is offered, as on the page of a group.
-		$columns = $hub->columns->getColumns(ColumnService::LIST_USERS, $groups === [] || $group !== null ? ['groups'] : []);
+		$columns = $hub->columns->getColumns(ColumnService::LIST_USERS, $groups === [] || $group instanceof UserGroup ? ['groups'] : []);
 		$shown = $hub->columns->getShownKeys($columns);
 
 		$sort = ListSort::fromRequest($users->getSortColumns(), UserService::SORT_CREATED);
@@ -433,26 +438,26 @@ trait ListVariables
 		}
 
 		[$pageInfo, $results] = Paginator::fromRequest()->elements($query);
-		$ids = array_map(fn (User $user) => $user->id, $results);
+		$ids = array_map(fn(User $user): ?int => $user->id, $results);
 		$twoFactor = in_array('twoFactor', $shown, true) ? $users->getTwoFactor($ids) : [];
 
 		return ['list' => [
-				'users' => $results,
-				'pageInfo' => $pageInfo,
-				'entryCounts' => in_array('entries', $shown, true) ? $users->getEntryCounts($ids) : [],
-				'assetCounts' => in_array('assets', $shown, true) ? $users->getAssetCounts($ids) : [],
-				'twoFactor' => $twoFactor,
-				'groups' => $groups,
-				'statuses' => User::statuses(),
-				'idleMonths' => $hub->filters->getThreshold(CheckKind::Users, 'idle'),
-				'filter' => $filter,
-				'listPath' => $path,
-				'listFixed' => $group !== null ? 'group' : null,
-				'columns' => $columns,
-				...$this->savedFilterVariables(CheckKind::Users, $path, $filter->savedFilter),
-				...$this->labelVariables(ColumnService::LIST_USERS, $ids),
-				...$selection->variables($filter),
-				...$sort->variables($path),
+			'users' => $results,
+			'pageInfo' => $pageInfo,
+			'entryCounts' => in_array('entries', $shown, true) ? $users->getEntryCounts($ids) : [],
+			'assetCounts' => in_array('assets', $shown, true) ? $users->getAssetCounts($ids) : [],
+			'twoFactor' => $twoFactor,
+			'groups' => $groups,
+			'statuses' => User::statuses(),
+			'idleMonths' => $hub->filters->getThreshold(CheckKind::Users, 'idle'),
+			'filter' => $filter,
+			'listPath' => $path,
+			'listFixed' => $group instanceof UserGroup ? 'group' : null,
+			'columns' => $columns,
+			...$this->savedFilterVariables(CheckKind::Users, $path, $filter->savedFilter),
+			...$this->labelVariables(ColumnService::LIST_USERS, $ids),
+			...$selection->variables($filter),
+			...$sort->variables($path),
 		]];
 	}
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -62,13 +64,13 @@ class LabelService extends Component
 
 		$labels = [];
 		foreach ($rows as $row) {
-			$labels[(int)$row['id']] = new Label([
-				'id' => (int)$row['id'],
-				'name' => (string)$row['name'],
-				'description' => (string)$row['description'],
+			$labels[(int) $row['id']] = new Label([
+				'id' => (int) $row['id'],
+				'name' => (string) $row['name'],
+				'description' => (string) $row['description'],
 				'icon' => $row['icon'] ?: null,
 				'color' => $row['color'] ?: null,
-				'sortOrder' => (int)$row['sortOrder'],
+				'sortOrder' => (int) $row['sortOrder'],
 				'uid' => $row['uid'],
 			]);
 		}
@@ -118,7 +120,7 @@ class LabelService extends Component
 	{
 		return $this->isEnabled()
 			&& isset(self::LISTS[$list])
-			&& ($page = Page::fromList($list)) !== null
+			&& ($page = Page::fromList($list)) instanceof Page
 			&& Hub::getInstance()->access->canLabel($page);
 	}
 
@@ -146,10 +148,10 @@ class LabelService extends Component
 		$isNew = $label->id === null;
 
 		if ($isNew) {
-			$label->sortOrder = (int)(new Query())->from(self::TABLE_LABELS)->max('[[sortOrder]]') + 1;
+			$label->sortOrder = (int) (new Query())->from(self::TABLE_LABELS)->max('[[sortOrder]]') + 1;
 			$db = Craft::$app->getDb();
 			$db->createCommand()->insert(self::TABLE_LABELS, [...$columns, 'sortOrder' => $label->sortOrder])->execute();
-			$label->id = (int)$db->getLastInsertID(self::TABLE_LABELS);
+			$label->id = (int) $db->getLastInsertID(self::TABLE_LABELS);
 		} else {
 			Craft::$app->getDb()->createCommand()->update(self::TABLE_LABELS, $columns, ['id' => $label->id])->execute();
 		}
@@ -186,7 +188,7 @@ class LabelService extends Component
 		$command = Craft::$app->getDb()->createCommand();
 
 		foreach (array_values($ids) as $order => $id) {
-			$command->update(self::TABLE_LABELS, ['sortOrder' => $order + 1], ['id' => (int)$id], updateTimestamp: false)->execute();
+			$command->update(self::TABLE_LABELS, ['sortOrder' => $order + 1], ['id' => (int) $id], updateTimestamp: false)->execute();
 		}
 
 		$this->labels = null;
@@ -224,12 +226,12 @@ class LabelService extends Component
 
 		$usage = [];
 		foreach ($rows as $row) {
-			$usage[(int)$row['labelId']][(string)$row['list']] = (int)$row['count'];
+			$usage[(int) $row['labelId']][(string) $row['list']] = (int) $row['count'];
 		}
 
 		$lists = array_fill_keys(array_keys(self::LISTS), 0);
 
-		return array_map(fn (array $counts) => array_filter(array_intersect_key(array_replace($lists, $counts), $lists)), $usage);
+		return array_map(fn(array $counts): array => array_filter(array_intersect_key(array_replace($lists, $counts), $lists)), $usage);
 	}
 
 	/**
@@ -247,7 +249,7 @@ class LabelService extends Component
 
 		$labeled = $this->labeledIds($list, $ids);
 
-		return array_filter(array_map(fn (array $labelIds) => $this->labelsIn($labelIds), $labeled));
+		return array_filter(array_map(fn(array $labelIds): array => $this->labelsIn($labelIds), $labeled));
 	}
 
 	/**
@@ -280,10 +282,10 @@ class LabelService extends Component
 		}
 
 		if ($added !== []) {
-			$command->batchInsert(self::TABLE_LABELED, ['labelId', 'list', 'itemId'], array_map(fn (int $labelId) => [$labelId, $list, $itemId], array_values($added)))->execute();
+			$command->batchInsert(self::TABLE_LABELED, ['labelId', 'list', 'itemId'], array_map(fn(int $labelId): array => [$labelId, $list, $itemId], array_values($added)))->execute();
 		}
 
-		if (($added !== [] || $removed !== []) && ($subject = ActivitySubject::fromList($list)) !== null) {
+		if (($added !== [] || $removed !== []) && ($subject = ActivitySubject::fromList($list)) instanceof ActivitySubject) {
 			$this->record(ActivityAction::Labeled, $subject, $itemId, $this->itemTitle($list, $itemId), $this->labelChanges($added, $removed));
 		}
 
@@ -334,7 +336,7 @@ class LabelService extends Component
 		}
 
 		// Each item changed is recorded on its own, like when labeled alone; a bulk action records them as its batch.
-		if ($changes !== [] && ($subject = ActivitySubject::fromList($list)) !== null) {
+		if ($changes !== [] && ($subject = ActivitySubject::fromList($list)) instanceof ActivitySubject) {
 			$titles = $this->itemTitles($list, array_keys($changes));
 
 			foreach ($changes as $itemId => [$added, $removed]) {
@@ -355,7 +357,7 @@ class LabelService extends Component
 			return [];
 		}
 
-		return array_map('intval', (new Query())
+		return array_map(intval(...), (new Query())
 			->select(['labelId', 'count' => 'COUNT(*)'])
 			->from(self::TABLE_LABELED)
 			->where(['list' => $list, 'itemId' => $itemIds])
@@ -384,17 +386,17 @@ class LabelService extends Component
 		}
 
 		$entries = Craft::$app->getEntries();
-		$exists = fn (callable $find) => array_values(array_filter($ids, fn (int $id) => $find($id) !== null));
+		$exists = fn(callable $find): array => array_values(array_filter($ids, fn(int $id): bool => $find($id) !== null));
 
-		return array_map('intval', match ($list) {
+		return array_map(intval(...), match ($list) {
 			ColumnService::LIST_ENTRIES => Entry::find()->id($ids)->site('*')->unique()->status(null)->ids(),
 			ColumnService::LIST_FILES => Asset::find()->id($ids)->site('*')->unique()->ids(),
 			ColumnService::LIST_USERS => User::find()->id($ids)->status(null)->ids(),
-			ColumnService::LIST_SECTIONS => $exists(fn (int $id) => $entries->getSectionById($id)),
-			ColumnService::LIST_ENTRY_TYPES => $exists(fn (int $id) => $entries->getEntryTypeById($id)),
-			ColumnService::LIST_FIELDS => $exists(fn (int $id) => Craft::$app->getFields()->getFieldById($id)),
-			ColumnService::LIST_VOLUMES => $exists(fn (int $id) => Craft::$app->getVolumes()->getVolumeById($id)),
-			ColumnService::LIST_USER_GROUPS => $exists(fn (int $id) => Craft::$app->getUserGroups()->getGroupById($id)),
+			ColumnService::LIST_SECTIONS => $exists(fn(int $id) => $entries->getSectionById($id)),
+			ColumnService::LIST_ENTRY_TYPES => $exists(fn(int $id) => $entries->getEntryTypeById($id)),
+			ColumnService::LIST_FIELDS => $exists(fn(int $id) => Craft::$app->getFields()->getFieldById($id)),
+			ColumnService::LIST_VOLUMES => $exists(fn(int $id) => Craft::$app->getVolumes()->getVolumeById($id)),
+			ColumnService::LIST_USER_GROUPS => $exists(fn(int $id) => Craft::$app->getUserGroups()->getGroupById($id)),
 			default => [],
 		});
 	}
@@ -411,7 +413,7 @@ class LabelService extends Component
 			return [];
 		}
 
-		$ids = array_map('strval', array_keys($this->getAllLabels()));
+		$ids = array_map(strval(...), array_keys($this->getAllLabels()));
 
 		return $ids !== [] ? [...$ids, self::LABEL_NONE] : [];
 	}
@@ -425,11 +427,11 @@ class LabelService extends Component
 	 */
 	public function condition(string $list, array $values, string $column = 'elements.id'): array
 	{
-		$ids = array_map('intval', array_values(array_diff($values, [self::LABEL_NONE])));
-		$labeled = fn (?array $labelIds) => (new Query())
+		$ids = array_map(intval(...), array_values(array_diff($values, [self::LABEL_NONE])));
+		$labeled = fn(?array $labelIds) => (new Query())
 			->from(['hubLabeled' => self::TABLE_LABELED])
 			->where(['hubLabeled.list' => $list])
-			->andWhere("[[hubLabeled.itemId]] = [[$column]]")
+			->andWhere("[[hubLabeled.itemId]] = [[{$column}]]")
 			->andFilterWhere(['hubLabeled.labelId' => $labelIds]);
 
 		$condition = ['or'];
@@ -454,7 +456,7 @@ class LabelService extends Component
 	public function matches(array $values, array $labelIds): bool
 	{
 		return $values === []
-			|| array_intersect($values, array_map('strval', $labelIds)) !== []
+			|| array_intersect($values, array_map(strval(...), $labelIds)) !== []
 			|| ($labelIds === [] && in_array(self::LABEL_NONE, $values, true));
 	}
 
@@ -483,7 +485,7 @@ class LabelService extends Component
 	 */
 	private function labelChanges(array $added, array $removed): array
 	{
-		$names = fn (array $ids) => array_values(array_map(fn (Label $label) => $label->name, $this->labelsIn($ids)));
+		$names = fn(array $ids): array => array_values(array_map(fn(Label $label): string => $label->name, $this->labelsIn($ids)));
 
 		return array_filter(['added' => $names($added), 'removed' => $names($removed)]);
 	}
@@ -515,13 +517,13 @@ class LabelService extends Component
 		if ($elements !== null) {
 			$titles = [];
 			foreach ($elements as $element) {
-				$titles[(int)$element->id] = $element instanceof User ? $element->getName() : $element->getUiLabel();
+				$titles[(int) $element->id] = $element instanceof User ? $element->getName() : $element->getUiLabel();
 			}
 
 			return $titles;
 		}
 
-		return array_combine($ids, array_map(fn (int $id) => match ($list) {
+		return array_combine($ids, array_map(fn(int $id) => match ($list) {
 			ColumnService::LIST_SECTIONS => $entries->getSectionById($id)?->name,
 			ColumnService::LIST_ENTRY_TYPES => $entries->getEntryTypeById($id)?->name,
 			ColumnService::LIST_FIELDS => Craft::$app->getFields()->getFieldById($id)?->name,
@@ -557,7 +559,7 @@ class LabelService extends Component
 
 		$labeled = [];
 		foreach ($rows as $row) {
-			$labeled[(int)$row['itemId']][] = (int)$row['labelId'];
+			$labeled[(int) $row['itemId']][] = (int) $row['labelId'];
 		}
 
 		return $labeled;
@@ -576,6 +578,6 @@ class LabelService extends Component
 			$this->labels = null;
 		}
 
-		return array_intersect_key($this->getAllLabels(), array_flip(array_map('intval', $ids)));
+		return array_intersect_key($this->getAllLabels(), array_flip(array_map(intval(...), $ids)));
 	}
 }

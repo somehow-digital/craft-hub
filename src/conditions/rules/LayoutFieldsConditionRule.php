@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
@@ -27,14 +29,15 @@ class LayoutFieldsConditionRule extends BaseMultiSelectConditionRule implements 
 		foreach (Hub::getInstance()->structure->getFields() as $info) {
 			$options[] = ['value' => $info->field->uid, 'label' => Craft::t('site', $info->field->name)];
 		}
-		usort($options, fn (array $a, array $b) => strcasecmp($a['label'], $b['label']));
+
+		usort($options, fn(array $a, array $b): int => strcasecmp($a['label'], $b['label']));
 
 		return $options;
 	}
 
 	public function matchInfo(SectionInfo|EntryTypeInfo|FieldInfo|VolumeInfo $info): bool
 	{
-		return $this->matchValue(array_map(fn (FieldInterface $field) => (string)$field->uid, match (true) {
+		return $this->matchValue(array_map(fn(FieldInterface $field): string => (string) $field->uid, match (true) {
 			$info instanceof EntryTypeInfo => $info->entryType->getFieldLayout()->getCustomFields(),
 			$info instanceof VolumeInfo => $info->volume->getFieldLayout()->getCustomFields(),
 			default => [],

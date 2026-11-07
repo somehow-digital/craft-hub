@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\helpers;
 
 /**
@@ -22,7 +24,7 @@ final class SiteSet
 			return [];
 		}
 
-		return array_map('intval', explode(',', $value));
+		return array_map(intval(...), explode(',', $value));
 	}
 
 	/**
@@ -37,7 +39,7 @@ final class SiteSet
 		}
 
 		if (in_array(self::ANY, $siteIds, true)) {
-			return (string)self::ANY;
+			return (string) self::ANY;
 		}
 
 		$siteIds = array_unique($siteIds);

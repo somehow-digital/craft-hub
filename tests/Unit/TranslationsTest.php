@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\web\View;
 use SomehowDigital\Craft\Hub\assets\HubAsset;
 use SomehowDigital\Craft\Hub\assets\SidebarAsset;
@@ -95,10 +97,12 @@ function placeholders(string $message): array
  */
 function registeredMessages(HubAsset|SidebarAsset $bundle): array
 {
-	$bundle->css = $bundle->js = [];
+	$bundle->css = [];
+	$bundle->js = [];
+
 	$registered = [];
 	$view = Mockery::mock(View::class)->shouldIgnoreMissing();
-	$view->shouldReceive('registerTranslations')->once()->with('hub', Mockery::on(function (array $messages) use (&$registered) {
+	$view->shouldReceive('registerTranslations')->once()->with('hub', Mockery::on(function (array $messages) use (&$registered): true {
 		$registered = $messages;
 
 		return true;
@@ -109,34 +113,34 @@ function registeredMessages(HubAsset|SidebarAsset $bundle): array
 	return $registered;
 }
 
-$translations = fn (string $language): array => require dirname(__DIR__, 2) . "/src/translations/$language/hub.php";
-$languages = array_map('basename', glob(dirname(__DIR__, 2) . '/src/translations/*', GLOB_ONLYDIR));
+$translations = fn(string $language): array => require dirname(__DIR__, 2) . "/src/translations/{$language}/hub.php";
+$languages = array_map(basename(...), glob(dirname(__DIR__, 2) . '/src/translations/*', GLOB_ONLYDIR));
 
-it('lists every message of the code in the source language, and no others', function () use ($translations) {
+it('lists every message of the code in the source language, and no others', function () use ($translations): void {
 	$source = array_keys($translations('en'));
 
 	expect(array_values(array_diff(hubMessages(), $source)))->toBe([])
 		->and(array_values(array_diff($source, hubMessages())))->toBe([]);
 });
 
-it('registers the messages the pages translate in the browser', function () {
+it('registers the messages the pages translate in the browser', function (): void {
 	$sources = sources(['js', 'twig']);
-	unset($sources[array_key_first(array_filter($sources, fn (string $path) => str_ends_with($path, 'sidebar.js'), ARRAY_FILTER_USE_KEY))]);
+	unset($sources[array_key_first(array_filter($sources, fn(string $path): bool => str_ends_with($path, 'sidebar.js'), ARRAY_FILTER_USE_KEY))]);
 
 	expect(registeredMessages(new HubAsset()))->toEqualCanonicalizing(scriptMessages($sources));
 });
 
-it('registers the messages the sidebar translates in the browser', function () {
-	$sources = array_filter(sources(['js']), fn (string $path) => str_ends_with($path, 'sidebar.js'), ARRAY_FILTER_USE_KEY);
+it('registers the messages the sidebar translates in the browser', function (): void {
+	$sources = array_filter(sources(['js']), fn(string $path): bool => str_ends_with($path, 'sidebar.js'), ARRAY_FILTER_USE_KEY);
 
 	expect(registeredMessages(new SidebarAsset()))->toEqualCanonicalizing(scriptMessages($sources));
 });
 
-it('translates every message of the source language', function (string $language) use ($translations) {
+it('translates every message of the source language', function (string $language) use ($translations): void {
 	expect(array_keys($translations($language)))->toEqualCanonicalizing(array_keys($translations('en')));
 })->with($languages);
 
-it('keeps the placeholders of the messages in their translations', function (string $language) use ($translations) {
+it('keeps the placeholders of the messages in their translations', function (string $language) use ($translations): void {
 	foreach ($translations($language) as $message => $translation) {
 		expect(placeholders($translation))->toBe(placeholders($message), $message);
 	}

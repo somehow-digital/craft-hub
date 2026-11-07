@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
@@ -28,7 +30,8 @@ class LayoutOwnerConditionRule extends BaseMultiSelectConditionRule implements I
 				$owners[$owner] = ['value' => $owner, 'label' => $owner];
 			}
 		}
-		usort($owners, fn (array $a, array $b) => strcasecmp($a['label'], $b['label']));
+
+		usort($owners, fn(array $a, array $b): int => strcasecmp($a['label'], $b['label']));
 
 		return $owners;
 	}

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\ElementInterface;
@@ -17,8 +19,7 @@ class EntryReference
 
 	public function __construct(
 		public ElementInterface $element,
-	) {
-	}
+	) {}
 
 	/**
 	 * @param string $label field names leading to the reference, joined by arrows for nested entries

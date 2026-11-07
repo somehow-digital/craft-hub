@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -49,7 +51,7 @@ class VolumeService extends Component
 	 */
 	public function getVolumesOf(FieldInterface $field): array
 	{
-		$holds = fn (VolumeInfo $info) => in_array($field->id, array_map(fn (FieldInterface $other) => $other->id, [...$info->assetFields, ...$info->linkFields]), true);
+		$holds = fn(VolumeInfo $info): bool => in_array($field->id, array_map(fn(FieldInterface $other): int|string|null => $other->id, [...$info->assetFields, ...$info->linkFields]), true);
 
 		return array_values(array_filter($this->getVolumes(), $holds));
 	}
@@ -103,7 +105,7 @@ class VolumeService extends Component
 	public function getVolumeModels(): array
 	{
 		$volumes = Craft::$app->getVolumes()->getAllVolumes();
-		usort($volumes, fn (Volume $a, Volume $b) => strnatcasecmp((string)$a->name, (string)$b->name));
+		usort($volumes, fn(Volume $a, Volume $b): int => strnatcasecmp((string) $a->name, (string) $b->name));
 
 		return $volumes;
 	}
@@ -130,7 +132,7 @@ class VolumeService extends Component
 			$kind->volumes[] = $volume;
 		}
 
-		uasort($fileKinds, fn (FileKindInfo $a, FileKindInfo $b) => $b->stats->total <=> $a->stats->total);
+		uasort($fileKinds, fn(FileKindInfo $a, FileKindInfo $b): int => $b->stats->total <=> $a->stats->total);
 
 		return $fileKinds;
 	}
@@ -162,11 +164,11 @@ class VolumeService extends Component
 		$volumesByUid = [];
 
 		foreach (Craft::$app->getVolumes()->getAllVolumes() as $volume) {
-			$id = (int)$volume->id;
+			$id = (int) $volume->id;
 			$info = new VolumeInfo($volume);
 			$info->hasUrls = $volume->getFs()->hasUrls;
-			$info->lazy('stats', fn () => $statistics->sumAssets($siteIds, $id));
-			$info->lazy('kinds', function () use ($statistics, $siteIds, $id) {
+			$info->lazy('stats', fn() => $statistics->sumAssets($siteIds, $id));
+			$info->lazy('kinds', function () use ($statistics, $siteIds, $id): array {
 				$kinds = [];
 				foreach ($statistics->getAssetRows($siteIds) as $row) {
 					if ($row['volumeId'] === $id) {
@@ -174,7 +176,7 @@ class VolumeService extends Component
 					}
 				}
 
-				uasort($kinds, fn (AssetStatistics $a, AssetStatistics $b) => $b->total <=> $a->total);
+				uasort($kinds, fn(AssetStatistics $a, AssetStatistics $b): int => $b->total <=> $a->total);
 
 				return $kinds;
 			});
@@ -203,7 +205,7 @@ class VolumeService extends Component
 				$volumeSources[$field->id] = [
 					$field,
 					$linkType->sources ?? '*',
-					array_keys(array_filter($volumesByUid, fn (VolumeInfo $info) => $info->hasUrls)),
+					array_keys(array_filter($volumesByUid, fn(VolumeInfo $info): bool => $info->hasUrls)),
 				];
 			}
 		}
@@ -218,14 +220,14 @@ class VolumeService extends Component
 		}
 
 		foreach ($volumes as $id => $info) {
-			$info->lazy('references', fn () => array_reduce(
+			$info->lazy('references', fn(): ReferenceStatistics => array_reduce(
 				[...$info->assetFields, ...$info->linkFields],
-				fn (ReferenceStatistics $sum, FieldInterface $field) => $sum->add($statistics->sumReferences($siteIds, $field->id, volumeId: $id)),
+				fn(ReferenceStatistics $sum, FieldInterface $field): ReferenceStatistics => $sum->add($statistics->sumReferences($siteIds, $field->id, volumeId: $id)),
 				new ReferenceStatistics(),
 			));
 		}
 
-		uasort($volumes, fn (VolumeInfo $a, VolumeInfo $b) => strnatcasecmp((string)$a->volume->name, (string)$b->volume->name));
+		uasort($volumes, fn(VolumeInfo $a, VolumeInfo $b): int => strnatcasecmp((string) $a->volume->name, (string) $b->volume->name));
 
 		return $volumes;
 	}

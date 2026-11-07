@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\FieldInterface;
@@ -28,8 +30,9 @@ class VolumeInfo
 	/** references from Assets and Link fields into this volume */
 	public ReferenceStatistics $references;
 
-	public function __construct(public Volume $volume)
-	{
+	public function __construct(
+		public Volume $volume
+	) {
 		$this->stats = new AssetStatistics();
 		$this->references = new ReferenceStatistics();
 	}

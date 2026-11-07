@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\User;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->identity = new User(['id' => 1]);
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturnUsing(fn () => $this->identity);
+	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturnUsing(fn(): ?User => $this->identity);
 	$this->columns = new ColumnService();
 });
 
@@ -17,7 +19,7 @@ function columnsOf(ColumnService $columns, string $list, array $omit = []): arra
 	return array_column($columns->getColumns($list, $omit), 'visible', 'key');
 }
 
-it('defines the columns of each list', function (string $list) {
+it('defines the columns of each list', function (string $list): void {
 	expect($this->columns->getDefinitions($list))->not->toBeEmpty();
 })->with([
 	ColumnService::LIST_SECTIONS,
@@ -30,12 +32,12 @@ it('defines the columns of each list', function (string $list) {
 	ColumnService::LIST_USER_GROUPS,
 ]);
 
-it('has no columns for unknown lists', function () {
+it('has no columns for unknown lists', function (): void {
 	expect($this->columns->getDefinitions('bogus'))->toBe([])
 		->and($this->columns->getColumns('bogus'))->toBe([]);
 });
 
-it('shows all columns in their default order', function () {
+it('shows all columns in their default order', function (): void {
 	expect(columnsOf($this->columns, ColumnService::LIST_FIELDS))->toBe([
 		'type' => true,
 		'layouts' => true,
@@ -49,7 +51,7 @@ it('shows all columns in their default order', function () {
 	]);
 });
 
-it('shows the columns in the order the user chose, hiding theirs', function () {
+it('shows the columns in the order the user chose, hiding theirs', function (): void {
 	$this->columns->saveColumns(ColumnService::LIST_FIELDS, ['status', 'type', 'bogus', 'type'], ['type', 'bogus']);
 
 	expect(columnsOf($this->columns, ColumnService::LIST_FIELDS))->toBe([
@@ -61,7 +63,7 @@ it('shows the columns in the order the user chose, hiding theirs', function () {
 	]);
 });
 
-it('shows columns added since the user chose theirs after them', function () {
+it('shows columns added since the user chose theirs after them', function (): void {
 	$this->preferences[1] = [ColumnService::PREFERENCE => [
 		ColumnService::LIST_FIELDS => ['order' => ['status', 'removed', 'type'], 'hidden' => ['type', 'removed']],
 	]];
@@ -75,7 +77,7 @@ it('shows columns added since the user chose theirs after them', function () {
 	]);
 });
 
-it('ignores malformed preferences', function (mixed $value) {
+it('ignores malformed preferences', function (mixed $value): void {
 	$this->preferences[1] = [ColumnService::PREFERENCE => $value];
 
 	expect(array_keys(columnsOf($this->columns, ColumnService::LIST_FIELDS)))->toBe(['type', 'layouts', 'data', 'status', 'settings']);
@@ -85,12 +87,12 @@ it('ignores malformed preferences', function (mixed $value) {
 	'not strings' => [[ColumnService::LIST_FIELDS => ['order' => [1, ['status']], 'hidden' => [null]]]],
 ]);
 
-it('leaves out the columns a page omits', function () {
+it('leaves out the columns a page omits', function (): void {
 	expect(array_keys(columnsOf($this->columns, ColumnService::LIST_ENTRIES, ['origin', 'owner', 'type'])))
 		->toBe(['status', 'creator', 'references', 'posted', 'updated', 'url', 'edit']);
 });
 
-it('keeps the place of omitted columns when saving the others', function () {
+it('keeps the place of omitted columns when saving the others', function (): void {
 	$this->columns->saveColumns(ColumnService::LIST_FILES, ['volume', 'size', 'kind', 'dimensions', 'references', 'uploaded', 'uploader'], ['volume']);
 
 	// On a volume's page, its column is omitted.
@@ -109,7 +111,7 @@ it('keeps the place of omitted columns when saving the others', function () {
 	]);
 });
 
-it('always shows the fixed columns last, whatever the user chose', function () {
+it('always shows the fixed columns last, whatever the user chose', function (): void {
 	$this->preferences[1] = [ColumnService::PREFERENCE => [
 		ColumnService::LIST_ENTRIES => ['order' => ['edit', 'url', 'status'], 'hidden' => ['edit', 'url']],
 	]];
@@ -121,7 +123,7 @@ it('always shows the fixed columns last, whatever the user chose', function () {
 		->and(array_column($this->columns->getColumns(ColumnService::LIST_ENTRIES), 'fixed', 'key'))->toMatchArray(['status' => false, 'url' => true, 'edit' => true]);
 });
 
-it('keeps no order or hidden state of the fixed columns', function () {
+it('keeps no order or hidden state of the fixed columns', function (): void {
 	$this->columns->saveColumns(ColumnService::LIST_USERS, ['edit', 'email', 'status'], ['edit']);
 
 	expect($this->preferences[1][ColumnService::PREFERENCE][ColumnService::LIST_USERS])->toBe([
@@ -130,7 +132,7 @@ it('keeps no order or hidden state of the fixed columns', function () {
 	]);
 });
 
-it('has a maintainers column only while maintainers are enabled', function (string $list) {
+it('has a maintainers column only while maintainers are enabled', function (string $list): void {
 	expect(array_column($this->columns->getColumns($list), 'key'))->not->toContain('maintainers');
 
 	$this->hub()->getSettings()->enableMaintainers = true;
@@ -149,7 +151,7 @@ it('has a maintainers column only while maintainers are enabled', function (stri
 	ColumnService::LIST_FILES,
 ]);
 
-it('keeps the columns of each list in the user preferences, next to the other preferences', function () {
+it('keeps the columns of each list in the user preferences, next to the other preferences', function (): void {
 	$this->preferences[1] = ['language' => 'de'];
 
 	$this->columns->saveColumns(ColumnService::LIST_SECTIONS, ['uri'], ['uri']);
@@ -163,7 +165,7 @@ it('keeps the columns of each list in the user preferences, next to the other pr
 		->and($this->preferences[1][ColumnService::PREFERENCE])->toHaveKey(ColumnService::LIST_VOLUMES);
 });
 
-it('resets the columns of a list', function () {
+it('resets the columns of a list', function (): void {
 	$this->columns->saveColumns(ColumnService::LIST_SECTIONS, ['updated', 'type'], ['type']);
 	$this->columns->saveColumns(ColumnService::LIST_FIELDS, ['status', 'type'], []);
 	$this->columns->resetColumns(ColumnService::LIST_SECTIONS);
@@ -172,7 +174,7 @@ it('resets the columns of a list', function () {
 		->and(columnsOf($this->columns, ColumnService::LIST_SECTIONS))->each->toBeTrue();
 });
 
-it('shows the default columns and keeps none without a signed-in user', function () {
+it('shows the default columns and keeps none without a signed-in user', function (): void {
 	$this->identity = null;
 	$this->columns->saveColumns(ColumnService::LIST_FIELDS, ['status'], ['status']);
 
@@ -180,13 +182,13 @@ it('shows the default columns and keeps none without a signed-in user', function
 		->and(columnsOf($this->columns, ColumnService::LIST_FIELDS))->each->toBeTrue();
 });
 
-it('names the columns the user shows', function () {
+it('names the columns the user shows', function (): void {
 	$this->columns->saveColumns(ColumnService::LIST_FIELDS, ['status', 'type'], ['type']);
 
 	expect($this->columns->getShownKeys($this->columns->getColumns(ColumnService::LIST_FIELDS)))->toBe(['status', 'layouts', 'data', 'settings']);
 });
 
-it('leaves out the settings column for users who can\'t open the settings', function () {
+it("leaves out the settings column for users who can't open the settings", function (): void {
 	$this->isAdmin = false;
 
 	expect(array_keys(columnsOf($this->columns, ColumnService::LIST_SECTIONS)))->not->toContain('settings')

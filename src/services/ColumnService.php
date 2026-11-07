@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -169,11 +171,11 @@ class ColumnService extends Component
 		$definitions = array_diff_key($this->getDefinitions($list), array_flip($omit));
 		['order' => $order, 'hidden' => $hidden] = $this->getPreference($list);
 
-		$fixed = array_keys(array_filter($definitions, fn (array $definition) => $definition['fixed'] ?? false));
+		$fixed = array_keys(array_filter($definitions, fn(array $definition) => $definition['fixed'] ?? false));
 		$movable = array_diff(array_keys($definitions), $fixed);
 		$keys = array_unique([...array_intersect($order, $movable), ...$movable, ...$fixed]);
 
-		return array_map(fn (string $key) => [
+		return array_map(fn(string $key): array => [
 			'key' => $key,
 			'label' => $definitions[$key]['label'],
 			'title' => $definitions[$key]['title'] ?? null,
@@ -192,7 +194,7 @@ class ColumnService extends Component
 	 */
 	public function getShownKeys(array $columns): array
 	{
-		return array_values(array_map(fn (array $column) => $column['key'], array_filter($columns, fn (array $column) => $column['visible'])));
+		return array_values(array_map(fn(array $column): string => $column['key'], array_filter($columns, fn(array $column): bool => $column['visible'])));
 	}
 
 	/**
@@ -204,7 +206,7 @@ class ColumnService extends Component
 	 */
 	public function saveColumns(string $list, array $order, array $hidden): void
 	{
-		$known = array_keys(array_filter($this->getDefinitions($list), fn (array $definition) => !($definition['fixed'] ?? false)));
+		$known = array_keys(array_filter($this->getDefinitions($list), fn(array $definition): bool => !($definition['fixed'] ?? false)));
 		$order = array_values(array_unique(array_intersect($order, $known)));
 		$hidden = array_intersect($hidden, $order);
 		$saved = $this->getPreference($list);
@@ -237,7 +239,7 @@ class ColumnService extends Component
 	private function getPreference(string $list): array
 	{
 		$userId = Craft::$app->getUser()->getId();
-		$lists = $userId !== null ? Craft::$app->getUsers()->getUserPreference((int)$userId, self::PREFERENCE, []) : [];
+		$lists = $userId !== null ? Craft::$app->getUsers()->getUserPreference((int) $userId, self::PREFERENCE, []) : [];
 		$value = is_array($lists) ? ($lists[$list] ?? []) : [];
 
 		return [
@@ -275,6 +277,6 @@ class ColumnService extends Component
 	 */
 	private function strings(mixed $values): array
 	{
-		return is_array($values) ? array_values(array_filter($values, 'is_string')) : [];
+		return is_array($values) ? array_values(array_filter($values, is_string(...))) : [];
 	}
 }

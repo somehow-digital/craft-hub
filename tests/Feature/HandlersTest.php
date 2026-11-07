@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\controllers\UserSettingsController;
 use craft\elements\Asset;
 use craft\elements\Category;
@@ -38,7 +40,7 @@ use SomehowDigital\Craft\Hub\services\ReferenceService;
 use yii\base\Action;
 use yii\base\ActionEvent;
 
-it('routes the Hub pages to their controllers', function () {
+it('routes the Hub pages to their controllers', function (): void {
 	$event = new RegisterUrlRulesEvent();
 	(new RegisterCpRoutesHandler())($event);
 
@@ -93,11 +95,11 @@ it('routes the Hub pages to their controllers', function () {
 		[, $controller, $action] = explode('/', $route);
 		$class = 'SomehowDigital\\Craft\\Hub\\controllers\\' . ucfirst($controller) . 'Controller';
 
-		expect(method_exists($class, 'action' . ucfirst($action)))->toBeTrue("$route has no action");
+		expect(method_exists($class, 'action' . ucfirst($action)))->toBeTrue("{$route} has no action");
 	}
 });
 
-it('adds the hub navigation item right before the data one and the structure one right after it', function () {
+it('adds the hub navigation item right before the data one and the structure one right after it', function (): void {
 	$event = new RegisterCpNavItemsEvent(['navItems' => [
 		['label' => 'Entries', 'url' => 'entries'],
 		['label' => 'Data', 'url' => 'hub/data'],
@@ -108,7 +110,7 @@ it('adds the hub navigation item right before the data one and the structure one
 	expect(array_column($event->navItems, 'url'))->toBe(['entries', 'hub/manage', 'hub/data', 'hub/structure', 'settings']);
 });
 
-it('puts the navigation items in place of the structure one, as the plugin\'s own, for users who may not open the data', function () {
+it("puts the navigation items in place of the structure one, as the plugin's own, for users who may not open the data", function (): void {
 	$this->request();
 	$this->actingAs(permissions: [Hub::PERMISSION_ACCESS_STRUCTURE, Page::Fields->viewPermission(), Hub::PERMISSION_MANAGE_LABELS]);
 	$event = new RegisterCpNavItemsEvent(['navItems' => [
@@ -121,7 +123,7 @@ it('puts the navigation items in place of the structure one, as the plugin\'s ow
 	expect(array_column($event->navItems, 'url'))->toBe(['entries', 'hub/manage', 'hub/structure', 'settings']);
 });
 
-it('adds no structure navigation item without the data one', function () {
+it('adds no structure navigation item without the data one', function (): void {
 	$event = new RegisterCpNavItemsEvent(['navItems' => [['label' => 'Entries', 'url' => 'entries']]]);
 	(new RegisterCpNavItemsHandler())($event);
 
@@ -143,7 +145,7 @@ function sidebarEvent(mixed $sender): DefineHtmlEvent
  */
 function sidebarServices(object $test): array
 {
-	$mock = fn (string $id, string $class) => (fn () => $this->mockComponent($id, $class))->call($test);
+	$mock = fn(string $id, string $class) => (fn() => $this->mockComponent($id, $class))->call($test);
 
 	$labels = $mock('hub.labels', LabelService::class);
 	$labels->shouldReceive('isEnabled')->andReturnTrue()->byDefault();
@@ -172,7 +174,7 @@ function sidebarServices(object $test): array
 	];
 }
 
-it('adds a panel with the labels, checks, last edit and references of an entry to its sidebar', function () {
+it('adds a panel with the labels, checks, last edit and references of an entry to its sidebar', function (): void {
 	$entry = new Entry(['id' => 5, 'siteId' => 1]);
 	$label = new Label(['id' => 1, 'name' => 'Review']);
 	$other = new Label(['id' => 2, 'name' => 'Keep']);
@@ -210,7 +212,7 @@ it('adds a panel with the labels, checks, last edit and references of an entry t
 	expect($event->html)->toBe('<existing><hub>');
 });
 
-it('adds the panel to the sidebar of assets and users, with their own list and checks', function (Closure $sender, string $list, string $checks) {
+it('adds the panel to the sidebar of assets and users, with their own list and checks', function (Closure $sender, string $list, string $checks): void {
 	$element = $sender();
 	$failed = [new Check('Check', 'Fix it.', 'Fine.', Severity::Notice, 'flag', false)];
 
@@ -239,11 +241,11 @@ it('adds the panel to the sidebar of assets and users, with their own list and c
 
 	expect($event->html)->toBe('<existing><hub>');
 })->with([
-	'asset' => [fn () => new Asset(['id' => 5]), ColumnService::LIST_FILES, 'forFile'],
-	'user' => [fn () => new User(['id' => 5]), ColumnService::LIST_USERS, 'forUser'],
+	'asset' => [fn(): Asset => new Asset(['id' => 5]), ColumnService::LIST_FILES, 'forFile'],
+	'user' => [fn(): User => new User(['id' => 5]), ColumnService::LIST_USERS, 'forUser'],
 ]);
 
-it('shows the labels and checks of the canonical entry on its drafts, with its references', function () {
+it('shows the labels and checks of the canonical entry on its drafts, with its references', function (): void {
 	$canonical = new Entry(['id' => 5]);
 	$draft = Mockery::mock(Entry::class)->makePartial();
 	$draft->id = 7;
@@ -255,7 +257,7 @@ it('shows the labels and checks of the canonical entry on its drafts, with its r
 	$services['checks']->shouldReceive('forEntry')->once()->with($canonical)->andReturn([]);
 	$services['edits']->shouldReceive('getLastEdit')->once()->with($canonical)->andReturn(['date' => null, 'user' => null]);
 	$services['references']->shouldReceive('getReferences')->once()->with($draft)->andReturn([]);
-	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn (array $variables) => $variables['element'] === $canonical && $variables['references'] === []))->andReturn('<hub>');
+	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn(array $variables): bool => $variables['element'] === $canonical && $variables['references'] === []))->andReturn('<hub>');
 
 	$event = sidebarEvent($draft);
 	(new DefineSidebarHtmlHandler())($event);
@@ -263,14 +265,14 @@ it('shows the labels and checks of the canonical entry on its drafts, with its r
 	expect($event->html)->toBe('<existing><hub>');
 });
 
-it('offers no labels to pick on revisions, nor to users who may not label the element', function (Closure $sender, bool $canApply) {
+it('offers no labels to pick on revisions, nor to users who may not label the element', function (Closure $sender, bool $canApply): void {
 	$services = sidebarServices($this);
 	$services['labels']->shouldReceive('getAllLabels')->andReturn([1 => new Label(['id' => 1, 'name' => 'Review'])]);
 	$services['labels']->shouldReceive('canApply')->andReturn($canApply);
 	$services['checks']->shouldReceive('forEntry')->andReturn([]);
 	$services['edits']->shouldReceive('getLastEdit')->andReturn(['date' => null, 'user' => null]);
 	$services['references']->shouldReceive('getReferences')->andReturn([]);
-	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn (array $variables) => $variables['labels'] === [] && $variables['allLabels'] === null))->andReturn('<hub>');
+	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn(array $variables): bool => $variables['labels'] === [] && $variables['allLabels'] === null))->andReturn('<hub>');
 
 	(new DefineSidebarHtmlHandler())(sidebarEvent($sender()));
 })->with([
@@ -283,10 +285,10 @@ it('offers no labels to pick on revisions, nor to users who may not label the el
 
 		return $revision;
 	}, true],
-	'without the permission' => [fn () => new Entry(['id' => 5]), false],
+	'without the permission' => [fn(): Entry => new Entry(['id' => 5]), false],
 ]);
 
-it('shows the maintainers of an element along with those of its fields, on top of what Hub knows of it', function () {
+it('shows the maintainers of an element along with those of its fields, on top of what Hub knows of it', function (): void {
 	$entry = new Entry(['id' => 5]);
 	$sources = [new MaintainerSource(ColumnService::LIST_SECTIONS, new Section(['id' => 1]), [new User(['id' => 3])], [])];
 
@@ -296,7 +298,7 @@ it('shows the maintainers of an element along with those of its fields, on top o
 	$services['checks']->shouldReceive('forEntry')->andReturn([]);
 	$services['edits']->shouldReceive('getLastEdit')->andReturn(['date' => null, 'user' => null]);
 	$services['references']->shouldReceive('getReferences')->once()->andReturn([]);
-	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn (array $variables) => $variables['maintainers'] === $sources && $variables['references'] === []))->andReturn('<hub>');
+	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn(array $variables): bool => $variables['maintainers'] === $sources && $variables['references'] === []))->andReturn('<hub>');
 
 	$event = sidebarEvent($entry);
 	(new DefineSidebarHtmlHandler())($event);
@@ -304,7 +306,7 @@ it('shows the maintainers of an element along with those of its fields, on top o
 	expect($event->html)->toBe('<existing><hub>');
 });
 
-it('shows only the maintainers to users who may not view the Hub page of the element', function () {
+it('shows only the maintainers to users who may not view the Hub page of the element', function (): void {
 	$this->actingAs(permissions: ['accessCp']);
 	$entry = new Entry(['id' => 5]);
 	$sources = [new MaintainerSource(ColumnService::LIST_SECTIONS, new Section(['id' => 1]), [new User(['id' => 3])], [])];
@@ -335,7 +337,7 @@ it('shows only the maintainers to users who may not view the Hub page of the ele
 	expect($event->html)->toBe('<existing><hub>');
 });
 
-it('adds nothing for users who may not view the Hub page of an element without maintainers', function () {
+it('adds nothing for users who may not view the Hub page of an element without maintainers', function (): void {
 	$this->actingAs(permissions: ['accessCp']);
 
 	$event = sidebarEvent(new Entry(['id' => 5]));
@@ -344,7 +346,7 @@ it('adds nothing for users who may not view the Hub page of an element without m
 	expect($event->html)->toBe('<existing>');
 });
 
-it('leaves out the labels and checks while they are disabled', function () {
+it('leaves out the labels and checks while they are disabled', function (): void {
 	$this->hub()->getSettings()->enableDiagnostics = false;
 
 	try {
@@ -353,7 +355,7 @@ it('leaves out the labels and checks while they are disabled', function () {
 		$services['labels']->shouldNotReceive('getLabelsOf');
 		$services['checks']->shouldNotReceive('forFile');
 		$services['references']->shouldReceive('getReferences')->andReturn([]);
-		$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn (array $variables) => $variables['labels'] === null && $variables['allLabels'] === null && $variables['checks'] === null))->andReturn('<hub>');
+		$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn(array $variables): bool => $variables['labels'] === null && $variables['allLabels'] === null && $variables['checks'] === null))->andReturn('<hub>');
 
 		(new DefineSidebarHtmlHandler())(sidebarEvent(new Asset(['id' => 5])));
 	} finally {
@@ -361,7 +363,7 @@ it('leaves out the labels and checks while they are disabled', function () {
 	}
 });
 
-it('leaves the sidebar of other elements, new entries and unpublished drafts alone', function (Closure $sender) {
+it('leaves the sidebar of other elements, new entries and unpublished drafts alone', function (Closure $sender): void {
 	$this->mockComponent('hub.references', ReferenceService::class)->shouldNotReceive('getReferences');
 
 	$event = sidebarEvent($sender());
@@ -369,8 +371,8 @@ it('leaves the sidebar of other elements, new entries and unpublished drafts alo
 
 	expect($event->html)->toBe('<existing>');
 })->with([
-	'category' => fn () => new Category(['id' => 5]),
-	'new entry' => fn () => new Entry(),
+	'category' => fn(): Category => new Category(['id' => 5]),
+	'new entry' => fn(): Entry => new Entry(),
 	'unpublished draft' => function () {
 		$draft = Mockery::mock(Entry::class)->makePartial();
 		$draft->id = 5;
@@ -380,7 +382,7 @@ it('leaves the sidebar of other elements, new entries and unpublished drafts alo
 	},
 ]);
 
-it('leaves the sidebar alone for users without access', function (Closure $sender, Page $page) {
+it('leaves the sidebar alone for users without access', function (Closure $sender, Page $page): void {
 	$this->actingAs(permissions: ['accessCp']);
 	$this->mockComponent('hub.references', ReferenceService::class)->shouldNotReceive('getReferences');
 
@@ -390,12 +392,12 @@ it('leaves the sidebar alone for users without access', function (Closure $sende
 	expect($event->html)->toBe('<existing>')
 		->and(Craft::$app->getUser()->checkPermission($page->viewPermission()))->toBeFalse();
 })->with([
-	'entry' => [fn () => new Entry(['id' => 5]), Page::Entries],
-	'asset' => [fn () => new Asset(['id' => 5]), Page::Assets],
-	'user' => [fn () => new User(['id' => 5]), Page::Users],
+	'entry' => [fn(): Entry => new Entry(['id' => 5]), Page::Entries],
+	'asset' => [fn(): Asset => new Asset(['id' => 5]), Page::Assets],
+	'user' => [fn(): User => new User(['id' => 5]), Page::Users],
 ]);
 
-it('adds the latest activity, what the element references and what a user maintains to the sidebar', function () {
+it('adds the latest activity, what the element references and what a user maintains to the sidebar', function (): void {
 	$user = new User(['id' => 5, 'username' => 'jane']);
 	$referenced = [new EntryReference(new Entry(['id' => 6]))];
 	$activities = [new Activity()];
@@ -410,7 +412,7 @@ it('adds the latest activity, what the element references and what a user mainta
 	$services['references']->shouldReceive('getReferenced')->once()->with($user)->andReturn($referenced);
 	$services['activity']->shouldReceive('canView')->andReturnTrue();
 	$services['activity']->shouldReceive('getItemActivities')->once()->with(ActivitySubject::User, 5, 5)->andReturn($activities);
-	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn (array $variables) => $variables['referenced'] === $referenced
+	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn(array $variables): bool => $variables['referenced'] === $referenced
 		&& $variables['maintained'] === $sources
 		&& $variables['activities'] === $activities
 		&& $variables['activitySubject'] === 'user'))->andReturn('<hub>');
@@ -426,7 +428,7 @@ function userGroupEvent(array $params, string $action = 'edit-group', ?Response 
 	$controller = new UserSettingsController('user-settings', Craft::$app);
 	$controller->actionParams = $params;
 
-	if ($result === null) {
+	if (!$result instanceof Response) {
 		$result = new Response();
 		$result->attachBehavior(CpScreenResponseBehavior::NAME, CpScreenResponseBehavior::class);
 	}
@@ -442,7 +444,7 @@ function userGroupSidebar(ActionEvent $event): mixed
 	return $event->result->getBehavior(CpScreenResponseBehavior::NAME)?->metaSidebarHtml;
 }
 
-it('adds a panel with the labels, what it maintains and the latest activity to the sidebar of a user group', function (array $params) {
+it('adds a panel with the labels, what it maintains and the latest activity to the sidebar of a user group', function (array $params): void {
 	$group = new UserGroup(['id' => 3, 'name' => 'Editors']);
 	$label = new Label(['id' => 1, 'name' => 'Review']);
 	$sources = [new MaintainerSource(ColumnService::LIST_SECTIONS, new Section(['id' => 1]), [], [$group])];
@@ -471,7 +473,7 @@ it('adds a panel with the labels, what it maintains and the latest activity to t
 	])->andReturn('<hub>');
 
 	$event = userGroupEvent($params);
-	$event->result->getBehavior(CpScreenResponseBehavior::NAME)->metaSidebarHtml(fn () => '<existing>');
+	$event->result->getBehavior(CpScreenResponseBehavior::NAME)->metaSidebarHtml(fn(): string => '<existing>');
 	(new UserGroupSidebarHandler())($event);
 
 	expect(userGroupSidebar($event))->toBe('<existing><hub>');
@@ -480,19 +482,19 @@ it('adds a panel with the labels, what it maintains and the latest activity to t
 	'failed to save' => [['groupId' => null, 'group' => new UserGroup(['id' => 3])]],
 ]);
 
-it('leaves user group pages alone without a group to show or a screen to add to', function (ActionEvent $event) {
+it('leaves user group pages alone without a group to show or a screen to add to', function (ActionEvent $event): void {
 	$this->mockComponent('view', View::class)->shouldNotReceive('registerAssetBundle');
 
 	(new UserGroupSidebarHandler())($event);
 
 	expect(userGroupSidebar($event))->toBeNull();
 })->with([
-	'new group' => fn () => userGroupEvent(['groupId' => null]),
-	'other action' => fn () => userGroupEvent(['groupId' => 3], 'save-group'),
-	'template of Craft Team' => fn () => userGroupEvent(['groupId' => 3], result: new Response()),
+	'new group' => fn(): ActionEvent => userGroupEvent(['groupId' => null]),
+	'other action' => fn(): ActionEvent => userGroupEvent(['groupId' => 3], 'save-group'),
+	'template of Craft Team' => fn(): ActionEvent => userGroupEvent(['groupId' => 3], result: new Response()),
 ]);
 
-it('leaves user group pages alone for users without access', function () {
+it('leaves user group pages alone for users without access', function (): void {
 	$this->actingAs(permissions: ['accessCp']);
 	$this->mockComponent('userGroups', UserGroups::class)->shouldReceive('getGroupById')->andReturn(new UserGroup(['id' => 3]));
 	$this->mockComponent('view', View::class)->shouldNotReceive('registerAssetBundle');
@@ -503,7 +505,7 @@ it('leaves user group pages alone for users without access', function () {
 	expect(userGroupSidebar($event))->toBeNull();
 });
 
-it('renders the panel of a user group, linking to its Hub page', function () {
+it('renders the panel of a user group, linking to its Hub page', function (): void {
 	$plugins = Mockery::mock(Craft::$app->getPlugins())->makePartial();
 	$plugins->shouldReceive('getPlugin')->with('hub')->andReturn($this->hub());
 	Craft::$app->set('plugins', $plugins);

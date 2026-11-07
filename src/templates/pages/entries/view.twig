@@ -11,13 +11,13 @@
 {% set area = 'data' %}
 {% set selectedSubnavItem = 'entries' %}
 {% set path = 'hub/data/entries/' ~ entry.id %}
-{% set listTabs = hasHistory ? [{ id: 'history', label: 'History'|t('hub') }] : [] %}
+{% set listTabs = hasHistory ? [{id: 'history', label: 'History'|t('hub')}] : [] %}
 {% set crumbs = [
-	{ label: 'Entries'|t('app'), url: url('hub/data/entries', { hubSite: hubSite }) },
+	{label: 'Entries'|t('app'), url: url('hub/data/entries', {hubSite: hubSite})},
 	section
-		? { label: section.name|t('site'), url: url('hub/data/entries', { hubSite: hubSite, section: section.handle }) }
-		: { label: field.name|t('site'), url: url('hub/data/entries', { hubSite: hubSite, field: field.handle }) },
-	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+		? {label: section.name|t('site'), url: url('hub/data/entries', {hubSite: hubSite, section: section.handle})}
+		: {label: field.name|t('site'), url: url('hub/data/entries', {hubSite: hubSite, field: field.handle})},
+	{label: title, url: url(path, {hubSite: hubSite}), current: true},
 ] %}
 
 {% block pageTitle %}
@@ -59,7 +59,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'entries', id: entry.id } only %}
+		{{ include('hub/_components/detail-labels', {list: 'entries', id: entry.id}, false) }}
 		<div class="data">
 			<dt class="heading">{{ 'Status'|t('app') }}</dt>
 			<dd class="value"><span class="status {{ entry.status }}" aria-hidden="true"></span>{{ entry.statuses()[entry.status] ?? entry.status }}</dd>
@@ -133,7 +133,7 @@
 			<dt class="heading">{{ 'Last edited'|t('hub') }}</dt>
 			<dd class="value">
 				{{ hub.activity(lastEdit.date, stale ? 'stale' : 'recent') }}
-				{% if lastEdit.user %}<span class="hub-muted">{{ 'by {user}'|t('hub', { user: lastEdit.user.friendlyName }) }}</span>{% endif %}
+				{% if lastEdit.user %}<span class="hub-muted">{{ 'by {user}'|t('hub', {user: lastEdit.user.friendlyName}) }}</span>{% endif %}
 			</dd>
 		</div>
 		<div class="data">
@@ -144,22 +144,22 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/element-maintainers' with { element: entry } only %}
+	{{ include('hub/_panels/element-maintainers', {element: entry}, false) }}
 
-	{% include 'hub/_panels/entries/sites' with { count: siteCount } only %}
+	{{ include('hub/_panels/entries/sites', {count: siteCount}, false) }}
 
-	{% include 'hub/_panels/entries/references' with { count: referenceCount } only %}
+	{{ include('hub/_panels/entries/references', {count: referenceCount}, false) }}
 
-	{% include 'hub/_panels/referenced' with { count: referencedCount } only %}
+	{{ include('hub/_panels/referenced', {count: referencedCount}, false) }}
 
-	{% include 'hub/_panels/activity' with { subject: 'entry', id: entry.id } only %}
+	{{ include('hub/_panels/activity', {subject: 'entry', id: entry.id}, false) }}
 {% endblock %}
 
 {% block list %}
 	{# Entries without versioning have drafts only. #}
 	{% if hasRevisions %}
-		{% include 'hub/_panels/entries/revisions' with { count: revisionCount, entry: entry } only %}
+		{{ include('hub/_panels/entries/revisions', {count: revisionCount, entry: entry}, false) }}
 	{% endif %}
 
-	{% include 'hub/_panels/entries/drafts' with { count: draftCount, entry: entry } only %}
+	{{ include('hub/_panels/entries/drafts', {count: draftCount, entry: entry}, false) }}
 {% endblock %}

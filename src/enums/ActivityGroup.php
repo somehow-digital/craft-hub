@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\enums;
 
 use Craft;
@@ -27,7 +29,7 @@ enum ActivityGroup: string
 	 */
 	public function actions(): array
 	{
-		return array_values(array_filter(ActivityAction::cases(), fn (ActivityAction $action) => $action->group() === $this));
+		return array_values(array_filter(ActivityAction::cases(), fn(ActivityAction $action): bool => $action->group() === $this));
 	}
 
 	public function label(): string

@@ -1,10 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 use SomehowDigital\Craft\Hub\helpers\ListSort;
 
 $columns = ['name' => SORT_ASC, 'entries' => SORT_DESC];
 
-it('sorts by the column asked for, in its natural direction unless told otherwise', function (array $params, string $column, int $direction) use ($columns) {
+it('sorts by the column asked for, in its natural direction unless told otherwise', function (array $params, string $column, int $direction) use ($columns): void {
 	$sort = new ListSort($columns, 'name', $params);
 
 	expect($sort->column)->toBe($column)
@@ -17,7 +19,7 @@ it('sorts by the column asked for, in its natural direction unless told otherwis
 	'malformed params' => [['sort' => ['entries'], 'dir' => ['asc']], 'name', SORT_ASC],
 ]);
 
-it('keeps only the sorting differing from the default as hidden fields', function (array $params, ?string $sort, ?string $dir) use ($columns) {
+it('keeps only the sorting differing from the default as hidden fields', function (array $params, ?string $sort, ?string $dir) use ($columns): void {
 	$variables = (new ListSort($columns, 'name', $params))->variables('hub/structure/sections');
 
 	expect($variables['sort'])->toBe($sort)
@@ -29,7 +31,7 @@ it('keeps only the sorting differing from the default as hidden fields', functio
 	'other column reversed' => [['sort' => 'entries', 'dir' => 'asc'], 'entries', 'asc'],
 ]);
 
-it('links each header to its next sorting, keeping the filters but not the page', function () use ($columns) {
+it('links each header to its next sorting, keeping the filters but not the page', function () use ($columns): void {
 	$headers = (new ListSort($columns, 'name', ['q' => 'news', 'page' => '3']))->variables('hub/structure/sections')['sortHeaders'];
 
 	expect($headers['name']['direction'])->toBe('asc')
@@ -38,8 +40,8 @@ it('links each header to its next sorting, keeping the filters but not the page'
 		->and($headers['entries']['url'])->toContain('sort=entries')->toContain('q=news')->not->toContain('page=');
 });
 
-it('resets a reversed column, keeping the default sort in URLs left without any other params', function () use ($columns) {
-	$reversed = fn (array $params) => (new ListSort($columns, 'name', $params))->variables('hub/structure/sections')['sortHeaders']['entries']['url'];
+it('resets a reversed column, keeping the default sort in URLs left without any other params', function () use ($columns): void {
+	$reversed = fn(array $params): string => (new ListSort($columns, 'name', $params))->variables('hub/structure/sections')['sortHeaders']['entries']['url'];
 
 	expect($reversed(['sort' => 'entries', 'dir' => 'asc']))->toContain('sort=name')->not->toContain('dir=')
 		->and($reversed(['sort' => 'entries', 'dir' => 'asc', 'q' => 'news']))->toContain('q=news')->not->toContain('sort=');

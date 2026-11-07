@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\Tests\Support;
 
 use craft\db\Connection;
@@ -93,7 +95,7 @@ class FakeConnection extends Connection
 	 */
 	public function respondToCounts(callable $rows): static
 	{
-		return $this->respond('[[hubElements]]', fn (string $sql) => $rows($this->elementQueryIn($sql)));
+		return $this->respond('[[hubElements]]', fn(string $sql) => $rows($this->elementQueryIn($sql)));
 	}
 
 	/**
@@ -104,12 +106,12 @@ class FakeConnection extends Connection
 	 */
 	public function respondToEntryRows(array|callable $rows): static
 	{
-		return $this->respond('[[hubEntryRows]]', function (string $sql) use ($rows) {
+		return $this->respond('[[hubEntryRows]]', function (string $sql) use ($rows): array {
 			$nested = !str_contains($sql, $this->quoteSql('NOT ([[entries.sectionId]] IS NULL)'));
 
 			return array_values(array_filter(
 				is_callable($rows) ? $rows($sql) : $rows,
-				fn (array $row) => ($row['sectionId'] === null) === $nested,
+				fn(array $row): bool => ($row['sectionId'] === null) === $nested,
 			));
 		});
 	}
@@ -141,7 +143,7 @@ class FakeConnection extends Connection
 	{
 		$pattern = $this->quoteSql($pattern);
 
-		return array_values(array_filter($this->queries, fn (string $sql) => str_contains($sql, $pattern)));
+		return array_values(array_filter($this->queries, fn(string $sql): bool => str_contains($sql, $pattern)));
 	}
 
 	/**

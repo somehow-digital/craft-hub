@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 /**
@@ -8,7 +10,9 @@ namespace SomehowDigital\Craft\Hub\models;
 class ReferenceStatistics
 {
 	public int $references = 0;
+
 	public int $sources = 0;
+
 	public int $targets = 0;
 
 	public function add(self $stats): self

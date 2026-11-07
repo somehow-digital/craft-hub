@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\User;
 use craft\helpers\Json;
 use SomehowDigital\Craft\Hub\conditions\rules\HandleConditionRule;
@@ -18,11 +20,11 @@ use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 
 	// Filters offered to everyone have no user; the others are those of user 1.
-	$this->db()->respond('FROM {{%hub_filters}}', fn (string $sql) => str_contains($sql, '`userId` IS NULL') ? [
+	$this->db()->respond('FROM {{%hub_filters}}', fn(string $sql): array => str_contains($sql, '`userId` IS NULL') ? [
 		['id' => 1, 'kind' => 'sections', 'handle' => 'empty', 'userId' => null, 'name' => null, 'description' => null, 'icon' => null, 'params' => null, 'matchCondition' => null, 'enabled' => 1, 'sortOrder' => 1, 'uid' => 'empty'],
 		[
 			'id' => 2, 'kind' => 'sections', 'handle' => null, 'userId' => null, 'name' => 'Public', 'description' => 'With URLs.', 'icon' => null, 'params' => null,
@@ -52,16 +54,16 @@ beforeEach(function () {
 	};
 });
 
-it('lists the filters of each kind, without writing anything', function () {
+it('lists the filters of each kind, without writing anything', function (): void {
 	$variables = $this->runAction(FiltersController::class, 'index')->variables;
 
-	expect(array_keys($variables['kinds']))->toBe(array_map(fn (CheckKind $kind) => $kind->value, CheckKind::cases()))
+	expect(array_keys($variables['kinds']))->toBe(array_map(fn(CheckKind $kind) => $kind->value, CheckKind::cases()))
 		->and($variables['kinds']['sections']['kind'])->toBe(CheckKind::Sections)
-		->and(array_map(fn (SavedFilter $filter) => $filter->getName(), $variables['kinds']['sections']['filters']))->toBe(['Stale sections', 'Sections without URLs', 'Empty sections', 'Public'])
+		->and(array_map(fn(SavedFilter $filter): string => $filter->getName(), $variables['kinds']['sections']['filters']))->toBe(['Stale sections', 'Sections without URLs', 'Empty sections', 'Public'])
 		->and($this->db()->queriesMatching('INSERT INTO {{%hub_filters}}'))->toBeEmpty();
 });
 
-it('edits a new custom filter of a kind, or an existing filter', function () {
+it('edits a new custom filter of a kind, or an existing filter', function (): void {
 	$new = $this->runAction(FiltersController::class, 'edit', ['kind' => 'entries'])->variables;
 	$existing = $this->runAction(FiltersController::class, 'edit', ['filterId' => 2])->variables;
 
@@ -70,16 +72,16 @@ it('edits a new custom filter of a kind, or an existing filter', function () {
 		->and($existing['filter']->name)->toBe('Public');
 });
 
-it('edits no unknown filter or kind, nor the own filters of users', function (array $params) {
+it('edits no unknown filter or kind, nor the own filters of users', function (array $params): void {
 	$this->runAction(FiltersController::class, 'edit', $params);
 })->with([[['filterId' => 9]], [['filterId' => 5]], [['kind' => 'bogus']]])->throws(NotFoundHttpException::class);
 
-it('only lets users with the permission manage the filters', function (string $action) {
+it('only lets users with the permission manage the filters', function (string $action): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_STRUCTURE, 'hub-viewSections', Hub::PERMISSION_MANAGE_DIAGNOSTICS]);
 	$this->runAction(FiltersController::class, $action, ['kind' => 'entries']);
 })->with(['index', 'edit'])->throws(ForbiddenHttpException::class);
 
-it('saves a new custom filter with the rules of its condition, whatever else was posted', function () {
+it('saves a new custom filter with the rules of its condition, whatever else was posted', function (): void {
 	$this->mockComponent('hub.activity', ActivityService::class)->shouldReceive('record')->once()->with(ActivityAction::Created, ActivitySubject::Filter, Mockery::any(), 'Pages', ['kind' => 'Sections']);
 
 	$response = ($this->post)('save', [
@@ -100,21 +102,21 @@ it('saves a new custom filter with the rules of its condition, whatever else was
 		->and($insert)->not->toContain('Bogus');
 });
 
-it('fails to save a custom filter without a rule', function () {
+it('fails to save a custom filter without a rule', function (): void {
 	$response = ($this->post)('save', ['kind' => 'entries', 'name' => 'All', 'condition' => ['conditionRules' => []]]);
 
 	expect($response->getStatusCode())->toBe(400)
 		->and($response->data['errors'])->toHaveKey('condition');
 });
 
-it('saves only the name and whether a predefined filter is enabled', function () {
+it('saves only the name and whether a predefined filter is enabled', function (): void {
 	($this->post)('save', ['filterId' => 1, 'name' => 'Nothing in it', 'enabled' => '', 'description' => 'Bogus']);
 	$update = $this->db()->queriesMatching('UPDATE {{%hub_filters}}')[0];
 
 	expect($update)->toContain("`name`='Nothing in it'")->toContain('`enabled`=FALSE')->not->toContain('Bogus');
 });
 
-it('saves the threshold of a predefined filter, or clears it for its default', function () {
+it('saves the threshold of a predefined filter, or clears it for its default', function (): void {
 	$this->db()->respond('FROM {{%hub_filters}}', [thresholdRow('sections', 'stale', 6)]);
 	$id = crc32('sections.stale');
 
@@ -126,13 +128,13 @@ it('saves the threshold of a predefined filter, or clears it for its default', f
 		->and($updates[1])->toContain('`threshold`=NULL');
 });
 
-it('saves no threshold of filters without one', function () {
+it('saves no threshold of filters without one', function (): void {
 	($this->post)('save', ['filterId' => 1, 'threshold' => '3']);
 
 	expect($this->db()->queriesMatching('UPDATE {{%hub_filters}}')[0])->not->toContain('`threshold`=3');
 });
 
-it('deletes no custom filter whose items checks flag', function () {
+it('deletes no custom filter whose items checks flag', function (): void {
 	$this->db()->respond('FROM {{%hub_checks}}', [[
 		'id' => 7, 'kind' => 'sections', 'handle' => null, 'filter' => 'public', 'name' => 'Public', 'description' => 'With URLs.', 'passedDescription' => null,
 		'icon' => null, 'severity' => null, 'enabled' => 1, 'sortOrder' => 1, 'uid' => 'public-check',
@@ -145,11 +147,11 @@ it('deletes no custom filter whose items checks flag', function () {
 		->and($this->db()->queriesMatching('DELETE FROM {{%hub_filters}}'))->toBe([]);
 });
 
-it('saves no filter of an unknown kind', function () {
+it('saves no filter of an unknown kind', function (): void {
 	($this->post)('save', ['kind' => 'bogus', 'name' => 'Bogus']);
 })->throws(BadRequestHttpException::class);
 
-it('deletes custom filters, but no predefined ones', function () {
+it('deletes custom filters, but no predefined ones', function (): void {
 	($this->post)('delete', ['id' => 2]);
 
 	expect($this->db()->queriesMatching('DELETE FROM {{%hub_filters}}')[0])->toContain('`id`=2');
@@ -157,7 +159,7 @@ it('deletes custom filters, but no predefined ones', function () {
 	($this->post)('delete', ['id' => 1]);
 })->throws(BadRequestHttpException::class);
 
-it('toggles and reorders the filters', function () {
+it('toggles and reorders the filters', function (): void {
 	$toggled = ($this->post)('toggle', ['id' => 2, 'enabled' => '0'])->data;
 	($this->post)('reorder', ['ids' => '["2","1"]']);
 	$updates = $this->db()->queriesMatching('UPDATE {{%hub_filters}}');
@@ -168,12 +170,12 @@ it('toggles and reorders the filters', function () {
 		->and($updates[1])->toContain('`sortOrder`=1')->toContain('`id`=2');
 });
 
-it('only lets users with the permission change the filters', function (string $action) {
+it('only lets users with the permission change the filters', function (string $action): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_STRUCTURE, 'hub-viewSections']);
 	($this->post)($action, ['id' => 2, 'ids' => '[]', 'enabled' => '1', 'kind' => 'entries']);
 })->with(['save', 'delete', 'toggle', 'reorder'])->throws(ForbiddenHttpException::class);
 
-it('saves the filters a list shows as an own filter of the user, rendering the saved filters again', function () {
+it('saves the filters a list shows as an own filter of the user, rendering the saved filters again', function (): void {
 	// Users' own filters aren't recorded.
 	$this->mockComponent('hub.activity', ActivityService::class)->shouldNotReceive('record');
 
@@ -194,14 +196,14 @@ it('saves the filters a list shows as an own filter of the user, rendering the s
 		->and($response['html'])->toContain('hub/structure/sections');
 });
 
-it('replaces the filters of the own filter of the same name', function () {
+it('replaces the filters of the own filter of the same name', function (): void {
 	($this->post)('save-own', ['kind' => 'sections', 'name' => 'channels', 'params' => ['type' => 'single']]);
 
 	expect($this->db()->queriesMatching('INSERT INTO {{%hub_filters}}'))->toBe([])
 		->and($this->db()->queriesMatching('UPDATE {{%hub_filters}}')[0])->toContain('{\"type\":\"single\"}')->toContain('`id`=5');
 });
 
-it('fails to save an own filter without filters or a name', function (array $body, string $message) {
+it('fails to save an own filter without filters or a name', function (array $body, string $message): void {
 	$response = ($this->post)('save-own', ['kind' => 'sections', ...$body]);
 
 	expect($response->getStatusCode())->toBe(400)
@@ -211,7 +213,7 @@ it('fails to save an own filter without filters or a name', function (array $bod
 	'no name' => [['name' => ' ', 'params' => ['type' => 'channel']], 'Name cannot be blank'],
 ]);
 
-it('renames and deletes the own filters of the user only', function () {
+it('renames and deletes the own filters of the user only', function (): void {
 	$this->db()->respond('DELETE FROM {{%hub_filters}}', 1);
 
 	$renamed = ($this->post)('rename-own', ['kind' => 'sections', 'id' => 5, 'name' => 'All channels'])->data;
@@ -223,16 +225,16 @@ it('renames and deletes the own filters of the user only', function () {
 		->and($this->db()->queriesMatching('DELETE FROM {{%hub_filters}}')[0])->toContain('`id`=5')->toContain('`userId`=1');
 });
 
-it('renames no own filter of another kind', function () {
+it('renames no own filter of another kind', function (): void {
 	($this->post)('rename-own', ['kind' => 'entries', 'id' => 5, 'name' => 'Other']);
 })->throws(NotFoundHttpException::class);
 
-it('only lets users who may view the list change their own filters', function (string $action) {
+it('only lets users who may view the list change their own filters', function (string $action): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, 'hub-viewEntries']);
 	($this->post)($action, ['kind' => 'sections', 'id' => 5, 'name' => 'Mine', 'params' => ['type' => 'channel']]);
 })->with(['save-own', 'rename-own', 'delete-own'])->throws(ForbiddenHttpException::class);
 
-it('offers the saved filters in the list, applying the condition of a custom one', function () {
+it('offers the saved filters in the list, applying the condition of a custom one', function (): void {
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['filter' => 'public']);
 
 	expect($variables->variables['list']['savedFilters']['current'])->toBe('public')
@@ -241,15 +243,15 @@ it('offers the saved filters in the list, applying the condition of a custom one
 		->and(array_column($variables->variables['list']['savedFilters']['own'], 'name'))->toBe(['Channels']);
 });
 
-it('ignores unknown custom filters in the list', function () {
+it('ignores unknown custom filters in the list', function (): void {
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['filter' => 'bogus']);
 
 	expect($variables->variables['list']['filter']->savedFilter)->toBeNull()
 		->and($variables->variables['list']['savedFilters']['current'])->toBeNull();
 });
 
-it('renames no own filter to the name of another one', function () {
-	$this->db()->respond('FROM {{%hub_filters}}', fn (string $sql) => str_contains($sql, '`userId` IS NULL') ? [] : [
+it('renames no own filter to the name of another one', function (): void {
+	$this->db()->respond('FROM {{%hub_filters}}', fn(string $sql): array => str_contains($sql, '`userId` IS NULL') ? [] : [
 		['id' => 5, 'kind' => 'sections', 'handle' => null, 'userId' => 1, 'name' => 'Channels', 'description' => null, 'icon' => null, 'params' => Json::encode(['type' => 'channel']), 'matchCondition' => null, 'enabled' => 1, 'sortOrder' => 0, 'uid' => 'channels'],
 		['id' => 6, 'kind' => 'sections', 'handle' => null, 'userId' => 1, 'name' => 'Singles', 'description' => null, 'icon' => null, 'params' => Json::encode(['type' => 'single']), 'matchCondition' => null, 'enabled' => 1, 'sortOrder' => 1, 'uid' => 'singles'],
 	]);
@@ -261,13 +263,13 @@ it('renames no own filter to the name of another one', function () {
 		->and($this->db()->queriesMatching('UPDATE {{%hub_filters}}'))->toBe([]);
 });
 
-it('renames no own filter to a blank name', function () {
+it('renames no own filter to a blank name', function (): void {
 	$response = ($this->post)('rename-own', ['kind' => 'sections', 'id' => 5, 'name' => ' ']);
 
 	expect($response->getStatusCode())->toBe(400)
 		->and($response->data['message'])->toContain('Name cannot be blank');
 });
 
-it('deletes no own filter that does not exist', function () {
+it('deletes no own filter that does not exist', function (): void {
 	($this->post)('delete-own', ['kind' => 'sections', 'id' => 99]);
 })->throws(NotFoundHttpException::class);

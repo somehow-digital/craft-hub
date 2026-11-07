@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\events\DeleteElementEvent;
@@ -9,7 +11,7 @@ use SomehowDigital\Craft\Hub\handlers\TrashTracker;
 use SomehowDigital\Craft\Hub\services\TrashService;
 use yii\base\Event;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->trash = $this->mockComponent('hub.trash', TrashService::class);
 
 	// Only the tracker under test handles the events, not the activity log.
@@ -18,11 +20,11 @@ beforeEach(function () {
 	Event::off(Elements::class, Elements::EVENT_AFTER_RESTORE_ELEMENT);
 	(new TrashTracker())->register();
 
-	$this->deleting = fn (object $element, bool $hardDelete = false) => Event::trigger(Elements::class, Elements::EVENT_BEFORE_DELETE_ELEMENT, new DeleteElementEvent(['element' => $element, 'hardDelete' => $hardDelete]));
-	$this->deleted = fn (object $element) => Event::trigger(Elements::class, Elements::EVENT_AFTER_DELETE_ELEMENT, new ElementEvent(['element' => $element]));
+	$this->deleting = fn(object $element, bool $hardDelete = false) => Event::trigger(Elements::class, Elements::EVENT_BEFORE_DELETE_ELEMENT, new DeleteElementEvent(['element' => $element, 'hardDelete' => $hardDelete]));
+	$this->deleted = fn(object $element) => Event::trigger(Elements::class, Elements::EVENT_AFTER_DELETE_ELEMENT, new ElementEvent(['element' => $element]));
 });
 
-it('keeps the files of assets moved to the trash', function () {
+it('keeps the files of assets moved to the trash', function (): void {
 	$asset = new Asset(['id' => 5]);
 
 	($this->deleting)($asset);
@@ -30,7 +32,7 @@ it('keeps the files of assets moved to the trash', function () {
 	expect($asset->keepFileOnDelete)->toBeTrue();
 });
 
-it('leaves the files of assets deleted permanently or along with their volume as they are', function (array $config, bool $hardDelete) {
+it('leaves the files of assets deleted permanently or along with their volume as they are', function (array $config, bool $hardDelete): void {
 	$asset = new Asset(['id' => 5, ...$config]);
 
 	($this->deleting)($asset, $hardDelete);
@@ -41,7 +43,7 @@ it('leaves the files of assets deleted permanently or along with their volume as
 	'deleted with its volume' => [['deletedWithVolume' => true], false],
 ]);
 
-it('records the files kept of trashed assets', function () {
+it('records the files kept of trashed assets', function (): void {
 	$asset = new Asset(['id' => 5, 'keepFileOnDelete' => true]);
 	$this->trash->shouldReceive('recordKeptFile')->once()->with($asset);
 
@@ -51,7 +53,7 @@ it('records the files kept of trashed assets', function () {
 	($this->deleted)(new Entry(['id' => 8]));
 });
 
-it('forgets the files kept of assets deleted permanently or restored', function () {
+it('forgets the files kept of assets deleted permanently or restored', function (): void {
 	$this->trash->shouldReceive('forgetKeptFile')->once()->with(5);
 	$this->trash->shouldReceive('forgetKeptFile')->once()->with(6);
 

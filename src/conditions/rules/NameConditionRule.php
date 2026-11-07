@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
@@ -23,6 +25,6 @@ class NameConditionRule extends BaseTextConditionRule implements InfoConditionRu
 
 	public function matchInfo(SectionInfo|EntryTypeInfo|FieldInfo|VolumeInfo $info): bool
 	{
-		return $this->matchValue((string)$this->item($info)->name);
+		return $this->matchValue((string) $this->item($info)->name);
 	}
 }

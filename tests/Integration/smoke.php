@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * Runs Hub's queries against the real database of an installed Craft project, as the other tests answer them with fakes:
  * php tests/Integration/smoke.php /path/to/project
@@ -7,11 +9,14 @@
  * Every getter of Hub's services taking no arguments is called, every sort column and filter of the lists is queried, and
  * the condition limiting lists to what users may view is run. Exits with 1 on any database error.
  */
-
+use craft\console\Application;
 use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\elements\User;
+use Dotenv\Dotenv;
+use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\models\ActivityFilter;
 use SomehowDigital\Craft\Hub\models\EntryFilter;
 use SomehowDigital\Craft\Hub\models\FileFilter;
 use SomehowDigital\Craft\Hub\models\TrashedEntryFilter;
@@ -22,16 +27,16 @@ use yii\db\Exception as DbException;
 $root = realpath($argv[1] ?? '') ?: exit("Usage: php smoke.php /path/to/project\n");
 
 define('CRAFT_BASE_PATH', $root);
-define('CRAFT_VENDOR_PATH', "$root/vendor");
+define('CRAFT_VENDOR_PATH', "{$root}/vendor");
 
-require "$root/vendor/autoload.php";
+require "{$root}/vendor/autoload.php";
 
-if (class_exists(Dotenv\Dotenv::class) && is_file("$root/.env")) {
-	Dotenv\Dotenv::createUnsafeImmutable($root)->safeLoad();
+if (class_exists(Dotenv::class) && is_file("{$root}/.env")) {
+	Dotenv::createUnsafeImmutable($root)->safeLoad();
 }
 
-/** @var craft\console\Application $app */
-$app = require "$root/vendor/craftcms/cms/bootstrap/console.php";
+/** @var Application $app */
+$app = require "{$root}/vendor/craftcms/cms/bootstrap/console.php";
 
 $hub = Hub::getInstance() ?? exit("Hub isn't installed.\n");
 $failed = 0;
@@ -42,9 +47,9 @@ $check = function (string $name, callable $run) use (&$failed, &$ran): void {
 
 	try {
 		$run();
-	} catch (DbException $e) {
+	} catch (DbException $dbException) {
 		$failed++;
-		fwrite(STDERR, "FAILED $name: {$e->getMessage()}\n");
+		fwrite(STDERR, "FAILED {$name}: {$dbException->getMessage()}\n");
 	}
 };
 
@@ -53,7 +58,7 @@ foreach ($hub->getComponents() as $id => $definition) {
 
 	foreach ((new ReflectionClass($service))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
 		if ($method->getDeclaringClass()->getName() === $service::class && preg_match('/^(get|count)/', $method->name) && $method->getNumberOfRequiredParameters() === 0) {
-			$check("$id::{$method->name}", function () use ($service, $method) {
+			$check("{$id}::{$method->name}", function () use ($service, $method): void {
 				try {
 					$service->{$method->name}();
 				} catch (DbException $e) {
@@ -90,34 +95,34 @@ $userFilter->entriesMin = 0;
 
 foreach ([[$hub->entries, $entryFilter], [$hub->files, $fileFilter], [$hub->users, $userFilter]] as [$service, $filter]) {
 	foreach ($service->getSortColumns() as $column => $direction) {
-		$check($service::class . " sorted by $column", fn () => $service->getQuery(new $filter(), $column, $direction)->limit(1)->all());
+		$check($service::class . " sorted by {$column}", fn() => $service->getQuery(new $filter(), $column, $direction)->limit(1)->all());
 	}
 
-	$check($service::class . ' filtered', fn () => $service->getQuery($filter)->count());
+	$check($service::class . ' filtered', fn() => $service->getQuery($filter)->count());
 }
 
 foreach (array_keys($hub->trash->getEntrySortColumns()) as $column) {
-	$check("trashed entries sorted by $column", fn () => $hub->trash->getEntryQuery(new TrashedEntryFilter(), $column)->limit(1)->all());
+	$check("trashed entries sorted by {$column}", fn() => $hub->trash->getEntryQuery(new TrashedEntryFilter(), $column)->limit(1)->all());
 }
 
 foreach (array_keys($hub->trash->getFileSortColumns()) as $column) {
-	$check("trashed files sorted by $column", fn () => $hub->trash->getFileQuery(new TrashedFileFilter(), $column)->limit(1)->all());
+	$check("trashed files sorted by {$column}", fn() => $hub->trash->getFileQuery(new TrashedFileFilter(), $column)->limit(1)->all());
 }
 
-$check('entries limited to viewable ones', fn () => Entry::find()->andWhere($hub->entries->sectionsCondition([1], [2], 1))->limit(1)->all());
-$check('files limited to viewable ones', fn () => Asset::find()->andWhere(['or', ['assets.volumeId' => [1]], ['assets.volumeId' => [2], 'assets.uploaderId' => 1]])->limit(1)->all());
-$check('labels condition', fn () => User::find()->andWhere($hub->labels->condition('users', ['1', 'none']))->limit(1)->all());
-$check('reference counts', fn () => $hub->references->getReferenceCounts([1]));
-$check('references of each', fn () => $hub->references->getReferencesOfEach([1], fn () => false));
-$check('children of deleted entries', fn () => (fn () => $this->childrenOf([1], [1]))->call($hub->deletion));
-$check('deleters', fn () => $hub->trash->getDeleters(SomehowDigital\Craft\Hub\enums\ActivitySubject::Entry, [1]));
-$check('activity list', fn () => $hub->activity->getQuery(new SomehowDigital\Craft\Hub\models\ActivityFilter())->limit(1)->all());
-$check('garbage collection', function () use ($hub) {
+$check('entries limited to viewable ones', fn() => Entry::find()->andWhere($hub->entries->sectionsCondition([1], [2], 1))->limit(1)->all());
+$check('files limited to viewable ones', fn() => Asset::find()->andWhere(['or', ['assets.volumeId' => [1]], ['assets.volumeId' => [2], 'assets.uploaderId' => 1]])->limit(1)->all());
+$check('labels condition', fn() => User::find()->andWhere($hub->labels->condition('users', ['1', 'none']))->limit(1)->all());
+$check('reference counts', fn() => $hub->references->getReferenceCounts([1]));
+$check('references of each', fn() => $hub->references->getReferencesOfEach([1], fn(): false => false));
+$check('children of deleted entries', fn() => (fn() => $this->childrenOf([1], [1]))->call($hub->deletion));
+$check('deleters', fn() => $hub->trash->getDeleters(ActivitySubject::Entry, [1]));
+$check('activity list', fn() => $hub->activity->getQuery(new ActivityFilter())->limit(1)->all());
+$check('garbage collection', function () use ($hub): void {
 	$hub->labels->deleteOrphans();
 	$hub->activity->deleteExpired();
 	$hub->snapshots->deleteExpired();
 	$hub->trash->deletePurgedFiles();
 });
 
-echo "$ran checks, $failed failed\n";
+echo "{$ran} checks, {$failed} failed\n";
 exit($failed > 0 ? 1 : 0);

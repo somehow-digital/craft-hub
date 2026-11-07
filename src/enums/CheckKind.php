@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\enums;
 
 use Craft;
@@ -133,7 +135,7 @@ enum CheckKind: string
 		});
 
 		$rules = $config['conditionRules'] ?? [];
-		$condition->setConditionRules(is_array($rules) ? array_values(array_filter($rules, 'is_array')) : []);
+		$condition->setConditionRules(is_array($rules) ? array_values(array_filter($rules, is_array(...))) : []);
 
 		return $condition;
 	}

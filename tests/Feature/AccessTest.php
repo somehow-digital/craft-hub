@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\helpers\Json;
@@ -20,12 +22,12 @@ use SomehowDigital\Craft\Hub\services\FileService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 use yii\web\ForbiddenHttpException;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->request();
 	Craft::$app->getUser()->shouldReceive('getId')->andReturn(7);
 });
 
-it('limits entries to those of sections the user may view, as Craft does', function () {
+it('limits entries to those of sections the user may view, as Craft does', function (): void {
 	$this->section(1, 'news');
 	$this->section(2, 'blog');
 	$this->section(3, 'home', Section::TYPE_SINGLE);
@@ -40,7 +42,7 @@ it('limits entries to those of sections the user may view, as Craft does', funct
 		->and($condition[2][1]->from)->toHaveKey('hubOwners');
 });
 
-it('limits files to those of volumes the user may view, as Craft does', function () {
+it('limits files to those of volumes the user may view, as Craft does', function (): void {
 	$this->volume(1, 'images');
 	$this->volume(2, 'documents');
 	$this->volume(3, 'secret');
@@ -53,7 +55,7 @@ it('limits files to those of volumes the user may view, as Craft does', function
 	]);
 });
 
-it('applies the limits to the lists', function () {
+it('applies the limits to the lists', function (): void {
 	$this->section(1, 'news');
 	$this->volume(1, 'images');
 	$this->actingAs(permissions: []);
@@ -65,14 +67,14 @@ it('applies the limits to the lists', function () {
 		->and($files)->toContain('assets.volumeId');
 });
 
-it('leaves lists unlimited for admins', function () {
+it('leaves lists unlimited for admins', function (): void {
 	$this->actingAs(admin: true);
 
 	expect((new EntryService())->viewableCondition())->toBeNull()
 		->and((new FileService())->viewableCondition())->toBeNull();
 });
 
-it('refuses the pages of entries and files the user may not view', function (string $controller, string $class, array $config) {
+it('refuses the pages of entries and files the user may not view', function (string $controller, string $class, array $config): void {
 	$this->createContentModel();
 	ElementQueries::respond($class, [new $class(['id' => 1, 'siteId' => 1, ...$config])]);
 	$this->canView = false;
@@ -83,7 +85,7 @@ it('refuses the pages of entries and files the user may not view', function (str
 	[FilesController::class, Asset::class, ['volumeId' => 1]],
 ])->throws(ForbiddenHttpException::class);
 
-it('refuses Hub to users without access to the plugin, whatever else they may do', function () {
+it('refuses Hub to users without access to the plugin, whatever else they may do', function (): void {
 	$this->hasPluginAccess = false;
 
 	expect($this->hub()->access->canView(Page::Entries))->toBeFalse();
@@ -91,7 +93,7 @@ it('refuses Hub to users without access to the plugin, whatever else they may do
 	$this->runAction(EntriesController::class, 'index');
 })->throws(ForbiddenHttpException::class);
 
-it('accepts only names of Craft icons', function (string $icon, bool $valid) {
+it('accepts only names of Craft icons', function (string $icon, bool $valid): void {
 	$models = [new Label(['name' => 'Name', 'icon' => $icon]), new SavedFilter(['kind' => CheckKind::Entries, 'name' => 'Name', 'icon' => $icon]), new CheckDefinition(['kind' => CheckKind::Entries, 'name' => 'Name', 'icon' => $icon])];
 
 	foreach ($models as $model) {
@@ -106,7 +108,7 @@ it('accepts only names of Craft icons', function (string $icon, bool $valid) {
 	['<svg></svg>', false],
 ]);
 
-it('loads the items of bulk actions on the selected sites, in the first one selected', function () {
+it('loads the items of bulk actions on the selected sites, in the first one selected', function (): void {
 	$this->site(2, 'de');
 	$this->site(3, 'fr');
 	$this->request([Hub::SITE_PARAM => 'de']);

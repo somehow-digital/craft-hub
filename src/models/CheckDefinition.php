@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use Craft;
@@ -104,7 +106,7 @@ class CheckDefinition extends Model
 	{
 		return [
 			[['name', 'description', 'passedDescription'], 'trim'],
-			[['name', 'description'], 'required', 'when' => fn () => !$this->isDefault()],
+			[['name', 'description'], 'required', 'when' => fn(): bool => !$this->isDefault()],
 			[['name', 'icon'], 'string', 'max' => 255],
 			[['icon'], 'match', 'pattern' => Label::ICON_PATTERN],
 			[['filter'], 'validateFilter', 'skipOnEmpty' => false],
@@ -116,7 +118,7 @@ class CheckDefinition extends Model
 	 */
 	public function validateFilter(): void
 	{
-		if (!$this->isDefault() && $this->getFilter() === null) {
+		if (!$this->isDefault() && !$this->getFilter() instanceof SavedFilter) {
 			$this->addError('filter', Craft::t('hub', 'Choose the filter whose items are flagged.'));
 		}
 	}

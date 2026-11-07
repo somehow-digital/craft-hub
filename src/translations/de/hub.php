@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * The German translations of Hub's messages, see `src/translations/en/hub.php`.
  */

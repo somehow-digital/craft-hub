@@ -1,12 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\fields\Assets as AssetsField;
 use craft\fields\Link;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\FileKindInfo;
 use SomehowDigital\Craft\Hub\models\VolumeInfo;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->volume(1, 'images', name: 'Images');
 	$this->volume(2, 'documents', hasUrls: false, name: 'Documents');
 	$this->volume(3, 'archive', hasUrls: false, name: 'Archive');
@@ -34,13 +36,13 @@ beforeEach(function () {
 	$this->service = $this->hub()->volumes;
 });
 
-it('lists volumes by name', function () {
-	expect(array_map(fn (VolumeInfo $info) => $info->volume->handle, $this->service->getVolumes()))->toBe([3 => 'archive', 2 => 'documents', 1 => 'images'])
+it('lists volumes by name', function (): void {
+	expect(array_map(fn(VolumeInfo $info): ?string => $info->volume->handle, $this->service->getVolumes()))->toBe([3 => 'archive', 2 => 'documents', 1 => 'images'])
 		->and($this->service->getVolume(1)->volume->handle)->toBe('images')
 		->and($this->service->getVolume(99))->toBeNull();
 });
 
-it('sums the assets of each volume by file kind, largest first', function () {
+it('sums the assets of each volume by file kind, largest first', function (): void {
 	$images = $this->service->getVolume(1);
 
 	expect($images->hasUrls)->toBeTrue()
@@ -54,17 +56,17 @@ it('sums the assets of each volume by file kind, largest first', function () {
 		->and($this->service->getVolume(3)->isEmpty())->toBeTrue();
 });
 
-it('sums the file kinds of all volumes, largest first', function () {
+it('sums the file kinds of all volumes, largest first', function (): void {
 	$kinds = $this->service->getFileKinds();
 
 	expect(array_keys($kinds))->toBe(['image', 'pdf'])
 		->and($kinds['pdf'])->toBeInstanceOf(FileKindInfo::class)
 		->and($kinds['pdf']->stats->total)->toBe(3)
-		->and(array_map(fn ($volume) => $volume->handle, $kinds['pdf']->volumes))->toBe(['images', 'documents']);
+		->and(array_map(fn($volume) => $volume->handle, $kinds['pdf']->volumes))->toBe(['images', 'documents']);
 });
 
-it('finds the fields that can relate to the assets of each volume', function () {
-	$handles = fn (array $fields) => array_map(fn ($field) => $field->handle, $fields);
+it('finds the fields that can relate to the assets of each volume', function (): void {
+	$handles = fn(array $fields): array => array_map(fn($field) => $field->handle, $fields);
 
 	expect($handles($this->service->getVolume(1)->assetFields))->toBe(['gallery'])
 		// Link fields that allow all volumes only allow volumes with URLs.
@@ -74,17 +76,18 @@ it('finds the fields that can relate to the assets of each volume', function () 
 		->and($this->service->getVolume(3)->linkFields)->toBe([]);
 });
 
-it('sums the references into each volume', function () {
+it('sums the references into each volume', function (): void {
 	expect($this->service->getVolume(1)->references->references)->toBe(7)
 		->and($this->service->getVolume(2)->references->references)->toBe(1)
 		->and($this->service->getVolume(3)->references->references)->toBe(0);
 });
 
-it('builds the overview once per set of sites', function () {
+it('builds the overview once per set of sites', function (): void {
 	$this->site(2, 'de');
 
 	$this->service->getVolumes();
 	$this->service->getFileKinds();
+
 	expect($this->db()->queriesMatching('{{hubAssetRows}}'))->toHaveCount(1);
 
 	$this->request([Hub::SITE_PARAM => 'de']);
@@ -92,7 +95,7 @@ it('builds the overview once per set of sites', function () {
 	expect($this->db()->queriesMatching('{{hubAssetRows}}'))->toHaveCount(2);
 });
 
-it('only reads the counts of volumes when they are shown', function () {
+it('only reads the counts of volumes when they are shown', function (): void {
 	$volumes = $this->service->getVolumes();
 
 	expect($volumes[1]->assetFields)->not->toBe([])
@@ -105,7 +108,7 @@ it('only reads the counts of volumes when they are shown', function () {
 		->and($volumes[1]->references->references)->toBe(7);
 });
 
-it('names the file kinds without looking up which assets are used', function () {
+it('names the file kinds without looking up which assets are used', function (): void {
 	$this->db()->respond('FROM {{%assets}} {{assets}}', [['kind' => 'image'], ['kind' => 'pdf']]);
 
 	expect(array_keys($this->service->getKinds()))->toBe(['image', 'pdf'])
@@ -114,14 +117,14 @@ it('names the file kinds without looking up which assets are used', function () 
 		->and($this->db()->queriesMatching('{{hubAssetRows}}'))->toBe([]);
 });
 
-it('reads the file kinds from the asset statistics once they are loaded', function () {
+it('reads the file kinds from the asset statistics once they are loaded', function (): void {
 	$this->service->getFileKinds();
 
 	expect(array_keys($this->service->getKinds()))->toBe(['video', 'image', 'pdf'])
 		->and($this->db()->queriesMatching('GROUP BY [[assets.kind]]'))->toBe([]);
 });
 
-it('lists the volumes without what is known about them, in the order of their names', function () {
-	expect(array_map(fn ($volume) => $volume->handle, $this->service->getVolumeModels()))->toBe(['archive', 'documents', 'images'])
+it('lists the volumes without what is known about them, in the order of their names', function (): void {
+	expect(array_map(fn($volume) => $volume->handle, $this->service->getVolumeModels()))->toBe(['archive', 'documents', 'images'])
 		->and($this->db()->queriesMatching('{{hubAssetRows}}'))->toBe([]);
 });

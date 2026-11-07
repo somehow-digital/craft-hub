@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
@@ -25,8 +27,8 @@ class MaintainersController extends BaseController
 
 		$request = Craft::$app->getRequest();
 		$maintainers = Hub::getInstance()->maintainers;
-		$list = (string)$request->getRequiredBodyParam('list');
-		$id = (int)$request->getRequiredBodyParam('id');
+		$list = (string) $request->getRequiredBodyParam('list');
+		$id = (int) $request->getRequiredBodyParam('id');
 
 		if (!$maintainers->isEnabled()) {
 			throw new ForbiddenHttpException('Maintainers are disabled.');

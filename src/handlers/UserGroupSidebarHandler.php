@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers;
 
 use Craft;
@@ -35,7 +37,7 @@ class UserGroupSidebarHandler
 		$group = $this->group($controller->actionParams);
 		$hub = Hub::getInstance();
 
-		if (!$screen instanceof CpScreenResponseBehavior || $group === null || !$hub->access->canView(Page::Users)) {
+		if (!$screen instanceof CpScreenResponseBehavior || !$group instanceof UserGroup || !$hub->access->canView(Page::Users)) {
 			return;
 		}
 
@@ -44,7 +46,7 @@ class UserGroupSidebarHandler
 		$view->registerAssetBundle(SidebarAsset::class);
 
 		$html = $view->renderTemplate('hub/_sidebar/hub', [
-			...$hub->labels->getItemVariables(ColumnService::LIST_USER_GROUPS, (int)$group->id),
+			...$hub->labels->getItemVariables(ColumnService::LIST_USER_GROUPS, (int) $group->id),
 			'element' => $group,
 			'list' => ColumnService::LIST_USER_GROUPS,
 			'maintainers' => [],
@@ -54,7 +56,7 @@ class UserGroupSidebarHandler
 			'references' => null,
 			'referenced' => null,
 			'maintained' => $hub->maintainers->getMaintainedByGroup($group),
-			'activities' => $hub->activity->canView() ? $hub->activity->getItemActivities(ActivitySubject::UserGroup, (int)$group->id, DefineSidebarHtmlHandler::ACTIVITY_LIMIT) : null,
+			'activities' => $hub->activity->canView() ? $hub->activity->getItemActivities(ActivitySubject::UserGroup, (int) $group->id, DefineSidebarHtmlHandler::ACTIVITY_LIMIT) : null,
 		]);
 
 		$existing = $screen->metaSidebarHtml;
@@ -72,6 +74,6 @@ class UserGroupSidebarHandler
 		$group = $params['group'] ?? null;
 		$id = $group instanceof UserGroup ? $group->id : $params['groupId'] ?? null;
 
-		return $id ? Craft::$app->getUserGroups()->getGroupById((int)$id) : null;
+		return $id ? Craft::$app->getUserGroups()->getGroupById((int) $id) : null;
 	}
 }

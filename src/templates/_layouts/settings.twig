@@ -16,27 +16,27 @@
 
 {% set tabs = {} %}
 {% if currentUser.can('hub-manageFilters') %}
-	{% set tabs = tabs|merge({ filters: { label: 'Filters'|t('hub'), url: url(path ~ '/filters') } }) %}
+	{% set tabs = tabs|merge({filters: {label: 'Filters'|t('hub'), url: url(path ~ '/filters')}}) %}
 {% endif %}
 {% if currentUser.can('hub-manageLabels') %}
-	{% set tabs = tabs|merge({ labels: { label: 'Labels'|t('hub'), url: url(path ~ '/labels') } }) %}
+	{% set tabs = tabs|merge({labels: {label: 'Labels'|t('hub'), url: url(path ~ '/labels')}}) %}
 {% endif %}
 {% if currentUser.can('hub-manageDiagnostics') %}
-	{% set tabs = tabs|merge({ diagnostics: { label: 'Diagnostics'|t('hub'), url: url(path ~ '/diagnostics') } }) %}
+	{% set tabs = tabs|merge({diagnostics: {label: 'Diagnostics'|t('hub'), url: url(path ~ '/diagnostics')}}) %}
 {% endif %}
 {% if currentUser.admin %}
 	{% set tabs = tabs|merge({
-		maintainers: { label: 'Maintainers'|t('hub'), url: url(path ~ '/maintainers') },
-		statistics: { label: 'Statistics'|t('hub'), url: url(path ~ '/statistics') },
-		activity: { label: 'Activity'|t('hub'), url: url(path ~ '/activity') },
-		trash: { label: 'Trash'|t('hub'), url: url(path ~ '/trash') },
+		maintainers: {label: 'Maintainers'|t('hub'), url: url(path ~ '/maintainers')},
+		statistics: {label: 'Statistics'|t('hub'), url: url(path ~ '/statistics')},
+		activity: {label: 'Activity'|t('hub'), url: url(path ~ '/activity')},
+		trash: {label: 'Trash'|t('hub'), url: url(path ~ '/trash')},
 	}) %}
 {% endif %}
 
 {# The selected tab ends the crumbs and starts the document title, as on the other Hub pages. #}
 {% set docTitle = tabs[selectedTab].label ~ ' - ' ~ title %}
 {% set crumbs = [
-	{ label: 'Hub'|t('hub'), url: url('hub/manage') },
-	{ label: title, url: url(path) },
-	tabs[selectedTab]|merge({ current: true }),
+	{label: 'Hub'|t('hub'), url: url('hub/manage')},
+	{label: title, url: url(path)},
+	tabs[selectedTab]|merge({current: true}),
 ] %}

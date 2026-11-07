@@ -27,12 +27,12 @@
 				</span>
 				<span class="hub-name__meta">
 					{%- if type != activity.title -%}
-						<a class="hub-activity-type" href="{{ url(listPath, { type: subject.value }) }}" title="{{ 'Show only activity of this type'|t('hub') }}">{{ type }}</a>
+						<a class="hub-activity-type" href="{{ url(listPath, {type: subject.value}) }}" title="{{ 'Show only activity of this type'|t('hub') }}">{{ type }}</a>
 					{%- endif -%}
 					{%- if activity.batchCount %}
 						{%- if type != activity.title %} · {% endif -%}
 						<button type="button" class="hub-activity-toggle" aria-expanded="false" data-hub-batch="{{ activity.id }}">
-							{{- '{count, plural, =1{One change} other{# changes}}'|t('hub', { count: activity.batchCount }) -}}
+							{{- '{count, plural, =1{One change} other{# changes}}'|t('hub', {count: activity.batchCount}) -}}
 						</button>
 					{%- endif -%}
 				</span>
@@ -43,7 +43,7 @@
 		<td{{ hub.cellAttributes(column) }}>
 			{%- if not column.visible -%}
 			{%- elseif column.key == 'action' -%}
-				<a class="hub-badge" data-color="{{ action.color() }}" href="{{ url(listPath, { event: action.group().value }) }}" title="{{ 'Show only “{action}” activity'|t('hub', { action: action.group().label() }) }}">
+				<a class="hub-badge" data-color="{{ action.color() }}" href="{{ url(listPath, {event: action.group().value}) }}" title="{{ 'Show only “{action}” activity'|t('hub', {action: action.group().label()}) }}">
 					<span class="hub-badge__icon" aria-hidden="true">{{ iconSvg(action.icon()) }}</span>
 					{{- action.label() -}}
 				</a>
@@ -51,13 +51,13 @@
 				{% if activity.userId %}
 					<span class="hub-activity-user">
 						{{- hub.user(activity.user, activity.userName) -}}
-						{%- if activity.impersonatorName %}{{ hub.badge('by {name}'|t('hub', { name: activity.impersonatorName }), 'orange', 'Impersonated'|t('hub'), 'user-secret') }}{% endif -%}
+						{%- if activity.impersonatorName %}{{ hub.badge('by {name}'|t('hub', {name: activity.impersonatorName}), 'orange', 'Impersonated'|t('hub'), 'user-secret') }}{% endif -%}
 					</span>
 				{% else %}
 					<span class="hub-muted" title="{{ 'Done by a guest, the system or on the command line'|t('hub') }}">{{ 'No user'|t('hub') }}</span>
 				{% endif %}
 			{%- elseif column.key == 'details' -%}
-				{% include 'hub/_components/activity-details' with { activity: activity } only %}
+				{{ include('hub/_components/activity-details', {activity: activity}, false) }}
 			{%- elseif column.key == 'site' -%}
 				{% if activity.site %}{{ activity.site.name|t('site') }}{% else %}<span class="hub-muted">—</span>{% endif %}
 			{%- elseif column.key == 'ip' -%}
@@ -75,14 +75,14 @@
 	{% endfor %}
 </tr>
 {% for item in activity.batched %}
-	{% include 'hub/_components/activity-row' with { activity: item, batched: true, listPath: listPath, columns: columns } only %}
+	{{ include('hub/_components/activity-row', {activity: item, batched: true, listPath: listPath, columns: columns}, false) }}
 {% endfor %}
 {% if activity.batchCount > activity.batched|length %}
 	<tr class="hub-activity-batched" data-hub-batch-of="{{ activity.id }}" hidden>
 		<td colspan="{{ columns|length + 1 }}">
 			{#- Batches listed by the activities of theirs matching the filters list those, by the same filters. #}
 			{% set batchParams = activity.batchFiltered ? craft.app.request.queryParamsWithoutPath|filter((value, key) => key != 'page') : {} %}
-			<a href="{{ url(listPath, batchParams|merge({ batch: activity.id })) }}">{{ 'Show all {count, number} changes'|t('hub', { count: activity.batchCount }) }}</a>
+			<a href="{{ url(listPath, batchParams|merge({batch: activity.id})) }}">{{ 'Show all {count, number} changes'|t('hub', {count: activity.batchCount}) }}</a>
 		</td>
 	</tr>
 {% endif %}

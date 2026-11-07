@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\db\UserQuery;
 use craft\elements\User;
 use craft\enums\CmsEdition;
@@ -7,14 +9,14 @@ use SomehowDigital\Craft\Hub\models\UserFilter;
 use SomehowDigital\Craft\Hub\services\UserService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->editors = $this->userGroup(1, 'editors', ['accessCp', 'utility:updates']);
 	$this->userGroup(2, 'authors');
 	$this->users = new UserService();
 });
 
-it('loads users to show with their photos and thumbnails at once', function () {
-	ElementQueries::respond(User::class, fn (UserQuery $query) => [new User(['id' => 1])]);
+it('loads users to show with their photos and thumbnails at once', function (): void {
+	ElementQueries::respond(User::class, fn(UserQuery $query): array => [new User(['id' => 1])]);
 
 	expect($this->users->getUsers([]))->toBe([])
 		->and(ElementQueries::executed(User::class))->toBe([])
@@ -34,13 +36,13 @@ function userFilter(array $values): UserFilter
 	$filter = new UserFilter();
 
 	foreach ($values as $name => $value) {
-		$filter->$name = $value;
+		$filter->{$name} = $value;
 	}
 
 	return $filter;
 }
 
-it('queries all users, most recently created first', function () {
+it('queries all users, most recently created first', function (): void {
 	$query = $this->users->getQuery(new UserFilter());
 
 	expect($query->status)->toBeNull()
@@ -50,7 +52,7 @@ it('queries all users, most recently created first', function () {
 		->and($query->lastLoginDate)->toBeNull();
 });
 
-it('narrows the users by the filters', function () {
+it('narrows the users by the filters', function (): void {
 	$query = $this->users->getQuery(userFilter([
 		'search' => 'jane',
 		'statuses' => ['active', 'locked'],
@@ -70,7 +72,7 @@ it('narrows the users by the filters', function () {
 		]);
 });
 
-it('narrows the users by their groups, or to those in none', function () {
+it('narrows the users by their groups, or to those in none', function (): void {
 	$where = $this->users->getQuery(userFilter(['groups' => ['editors', 'none']]))->where;
 
 	expect($where[0])->toBe('or')
@@ -80,11 +82,11 @@ it('narrows the users by their groups, or to those in none', function () {
 		->and(rawSql($where[2][1]))->not->toContain('`groupId`=');
 });
 
-it('matches no users for groups that do not exist', function () {
+it('matches no users for groups that do not exist', function (): void {
 	expect($this->users->getQuery(userFilter(['groups' => ['bogus']]))->where)->toBe('0=1');
 });
 
-it('narrows the users by how recently they signed in, active users only', function () {
+it('narrows the users by how recently they signed in, active users only', function (): void {
 	[$or, $recent, $idle, $never] = $this->users->getQuery(userFilter(['logins' => UserFilter::getLogins()]))->where;
 	$active = ['users.active' => true, 'users.suspended' => false];
 
@@ -100,7 +102,7 @@ it('narrows the users by how recently they signed in, active users only', functi
 		->and($never)->toBe(['and', $active, ['users.lastLoginDate' => null]]);
 });
 
-it('narrows the users by two-step verification', function (string $twoFactor, string $operator) {
+it('narrows the users by two-step verification', function (string $twoFactor, string $operator): void {
 	$where = $this->users->getQuery(userFilter(['twoFactor' => $twoFactor]))->where;
 	$condition = $operator === 'not' ? $where[1] : $where;
 
@@ -113,7 +115,7 @@ it('narrows the users by two-step verification', function (string $twoFactor, st
 	'without' => [UserFilter::TWO_FACTOR_WITHOUT, 'not'],
 ]);
 
-it('narrows the users by the number of entries they are an author of', function () {
+it('narrows the users by the number of entries they are an author of', function (): void {
 	$where = $this->users->getQuery(userFilter(['entriesMin' => 2]))->where;
 
 	expect($where[0])->toBe('and')
@@ -122,7 +124,7 @@ it('narrows the users by the number of entries they are an author of', function 
 		->and($where[1][2])->toBe(2);
 });
 
-it('narrows the users by the number of assets they uploaded', function () {
+it('narrows the users by the number of assets they uploaded', function (): void {
 	$where = $this->users->getQuery(userFilter(['assetsMin' => 1, 'assetsMax' => 3]))->where;
 
 	expect($where[0])->toBe('and')
@@ -133,7 +135,7 @@ it('narrows the users by the number of assets they uploaded', function () {
 		->and($where[2][2])->toBe(3);
 });
 
-it('sorts the users', function (string $sort, int $direction, array $order) {
+it('sorts the users', function (string $sort, int $direction, array $order): void {
 	expect($this->users->getQuery(new UserFilter(), $sort, $direction)->orderBy)->toBe($order);
 })->with([
 	'by name, falling back to the username' => [UserService::SORT_USER, SORT_ASC, ["(COALESCE(NULLIF([[users.fullName]], ''), [[users.username]]))" => SORT_ASC, 'elements.id' => SORT_ASC]],
@@ -141,21 +143,21 @@ it('sorts the users', function (string $sort, int $direction, array $order) {
 	'by sign-in, never last' => [UserService::SORT_LOGIN, SORT_ASC, ['(CASE WHEN [[users.lastLoginDate]] IS NULL THEN 1 ELSE 0 END)' => SORT_ASC, 'users.lastLoginDate' => SORT_ASC, 'elements.id' => SORT_ASC]],
 ]);
 
-it('sorts the users by the number of entries they are an author of', function () {
+it('sorts the users by the number of entries they are an author of', function (): void {
 	$order = $this->users->getQuery(new UserFilter(), UserService::SORT_ENTRIES)->orderBy;
 
 	expect(array_key_first($order))->toStartWith('(SELECT COUNT(*)')->toContain('`hubAuthors`.`authorId` = `elements`.`id`')
 		->and(array_values($order))->toBe([SORT_DESC, SORT_DESC]);
 });
 
-it('sorts the users by the number of assets they uploaded', function () {
+it('sorts the users by the number of assets they uploaded', function (): void {
 	$order = $this->users->getQuery(new UserFilter(), UserService::SORT_ASSETS)->orderBy;
 
 	expect(array_key_first($order))->toStartWith('(SELECT COUNT(*)')->toContain('`hubAssets`.`uploaderId` = `elements`.`id`')
 		->and(array_values($order))->toBe([SORT_DESC, SORT_DESC]);
 });
 
-it('sorts names ascending, numbers and dates descending', function () {
+it('sorts names ascending, numbers and dates descending', function (): void {
 	expect($this->users->getSortColumns())->toBe([
 		'user' => SORT_ASC,
 		'email' => SORT_ASC,
@@ -166,15 +168,15 @@ it('sorts names ascending, numbers and dates descending', function () {
 	]);
 });
 
-it('finds a user regardless of their status', function () {
+it('finds a user regardless of their status', function (): void {
 	$user = new User(['id' => 3]);
-	ElementQueries::respond(User::class, fn (UserQuery $query) => $query->id === 3 && $query->status === null ? [$user] : []);
+	ElementQueries::respond(User::class, fn(UserQuery $query): array => $query->id === 3 && $query->status === null ? [$user] : []);
 
 	expect($this->users->getUser(3))->toBe($user)
 		->and($this->users->getUser(4))->toBeNull();
 });
 
-it('counts the users once', function () {
+it('counts the users once', function (): void {
 	$this->db()->respond('FROM {{%users}} {{users}}', [[
 		'total' => '9', 'active' => '5', 'pending' => '1', 'suspended' => '1', 'locked' => '1', 'inactive' => '2', 'admins' => '2',
 		'recentLogin' => '3', 'idle' => '1', 'twoFactor' => '2', 'adminsWithoutTwoFactor' => '1', 'unverifiedEmail' => '1',
@@ -195,11 +197,11 @@ it('counts the users once', function () {
 		->and($sql)->toContain('SUM(CASE WHEN (`users`.`active`=TRUE) AND (`users`.`suspended`=FALSE) THEN 1 ELSE 0 END) AS `active`');
 });
 
-it('counts no users without any', function () {
+it('counts no users without any', function (): void {
 	expect($this->users->getStatistics()->total)->toBe(0);
 });
 
-it('lists the groups by name, with their users, permissions and whether they require two-step verification', function () {
+it('lists the groups by name, with their users, permissions and whether they require two-step verification', function (): void {
 	$this->db()->respond('{{%usergroups_users}}', [['groupId' => '1', 'count' => '3']]);
 	$users = Mockery::mock(UserService::class)->makePartial();
 	$users->shouldReceive('getRequired2fa')->andReturn(['admins', 'group-authors']);
@@ -215,19 +217,19 @@ it('lists the groups by name, with their users, permissions and whether they req
 		->and($groups[2]['requires2fa'])->toBeTrue();
 });
 
-it('lists no groups without any', function () {
+it('lists no groups without any', function (): void {
 	$this->userGroups = [];
 
 	expect($this->users->getGroups())->toBe([])
 		->and($this->db()->queriesMatching('{{%usergroups_users}}'))->toBe([]);
 });
 
-it('requires two-step verification of all users, admins or the users of groups', function (mixed $required, bool $admin, array $groups, bool $expected) {
+it('requires two-step verification of all users, admins or the users of groups', function (mixed $required, bool $admin, array $groups, bool $expected): void {
 	Craft::$app->edition = CmsEdition::Pro;
 	$users = Mockery::mock(UserService::class)->makePartial();
 	$users->shouldReceive('getRequired2fa')->andReturn($required);
 	$user = new User(['id' => 3, 'admin' => $admin]);
-	$user->setGroups(array_map(fn (int $id) => $this->userGroups[$id], $groups));
+	$user->setGroups(array_map(fn(int $id) => $this->userGroups[$id], $groups));
 
 	expect($users->requires2fa($user))->toBe($expected);
 })->with([
@@ -238,14 +240,14 @@ it('requires two-step verification of all users, admins or the users of groups',
 	'a group' => [['group-editors'], false, [1, 2], true],
 ]);
 
-it('never requires two-step verification on Craft Solo', function () {
+it('never requires two-step verification on Craft Solo', function (): void {
 	$users = Mockery::mock(UserService::class)->makePartial();
 	$users->shouldNotReceive('getRequired2fa');
 
 	expect($users->requires2fa(new User(['id' => 3])))->toBeFalse();
 });
 
-it('counts the entries the users are an author of', function () {
+it('counts the entries the users are an author of', function (): void {
 	$this->db()->respond('{{%entries_authors}}', [['authorId' => '3', 'count' => '2']]);
 
 	expect($this->users->getEntryCounts([3, 4]))->toBe([3 => 2])
@@ -253,7 +255,7 @@ it('counts the entries the users are an author of', function () {
 		->and($this->users->getEntryCounts([]))->toBe([]);
 });
 
-it('counts the assets the users uploaded', function () {
+it('counts the assets the users uploaded', function (): void {
 	$this->db()->respond('{{%assets}}', [['uploaderId' => '3', 'count' => '5']]);
 
 	expect($this->users->getAssetCounts([3, 4]))->toBe([3 => 5])
@@ -261,7 +263,7 @@ it('counts the assets the users uploaded', function () {
 		->and($this->users->getAssetCounts([]))->toBe([]);
 });
 
-it('tells which users have set up an authenticator app or a passkey', function () {
+it('tells which users have set up an authenticator app or a passkey', function (): void {
 	$this->db()->respond('{{%authenticator}}', [['userId' => '3']]);
 	$this->db()->respond('{{%webauthn}}', [['userId' => '4']]);
 
@@ -270,7 +272,7 @@ it('tells which users have set up an authenticator app or a passkey', function (
 		->and($this->users->getTwoFactor([]))->toBe([]);
 });
 
-it('lists the permissions of a user by heading, with what grants them', function () {
+it('lists the permissions of a user by heading, with what grants them', function (): void {
 	Craft::$app->edition = CmsEdition::Pro;
 	$this->db()->respond('{{%userpermissions_users}}', [['name' => 'viewusers'], ['name' => 'legacy:do']]);
 	$user = new User(['id' => 3]);
@@ -288,7 +290,7 @@ it('lists the permissions of a user by heading, with what grants them', function
 		->and($permissions[2]['permissions'][0])->toMatchArray(['name' => 'legacy:do', 'label' => 'legacy:do']);
 });
 
-it('lists the permissions of the team on Craft Team', function () {
+it('lists the permissions of the team on Craft Team', function (): void {
 	Craft::$app->edition = CmsEdition::Team;
 	Craft::$app->getUserGroups()->shouldReceive('getTeamGroup')->andReturn($this->editors);
 
@@ -298,29 +300,29 @@ it('lists the permissions of the team on Craft Team', function () {
 		->and($permissions[0]['permissions'][0]['groups'])->toBe([$this->editors]);
 });
 
-it('lists the permissions of a group by heading', function () {
+it('lists the permissions of a group by heading', function (): void {
 	$permissions = $this->users->getGroupPermissions($this->editors);
 
 	expect(array_column($permissions, 'heading'))->toBe(['General'])
 		->and(array_column($permissions[0]['permissions'], 'label'))->toBe(['Access the control panel', 'Updates']);
 });
 
-it('lists no permissions of groups without any', function () {
+it('lists no permissions of groups without any', function (): void {
 	expect($this->users->getGroupPermissions($this->userGroup(9, 'empty')))->toBe([]);
 });
 
-it('lists no permissions of users without any', function () {
+it('lists no permissions of users without any', function (): void {
 	$user = new User(['id' => 3]);
 	$user->setGroups([]);
 
 	expect($this->users->getPermissions($user))->toBe([]);
 });
 
-it('offers the groups the current user may assign, all of them to admins and none in Craft Solo', function () {
+it('offers the groups the current user may assign, all of them to admins and none in Craft Solo', function (): void {
 	Craft::$app->edition = CmsEdition::Pro;
 	$editor = new User(['id' => 5, 'username' => 'editor']);
 	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn($editor);
-	Craft::$app->getUserPermissions()->shouldReceive('doesUserHavePermission')->andReturnUsing(fn (int $id, string $permission) => $permission === 'assignUserGroup:group-authors');
+	Craft::$app->getUserPermissions()->shouldReceive('doesUserHavePermission')->andReturnUsing(fn(int $id, string $permission): bool => $permission === 'assignUserGroup:group-authors');
 
 	expect(array_keys($this->users->getAssignableGroups()))->toBe([2]);
 
@@ -331,25 +333,25 @@ it('offers the groups the current user may assign, all of them to admins and non
 	expect($this->users->getAssignableGroups())->toBe([]);
 });
 
-it('deletes no users for users who may not delete users', function () {
+it('deletes no users for users who may not delete users', function (): void {
 	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 5, 'username' => 'editor']));
 	Craft::$app->getUserPermissions()->shouldReceive('doesUserHavePermission')->andReturnFalse();
 
 	expect($this->users->getDeletableUsers([1, 2]))->toBe([]);
 });
 
-it('offers the active users other than those deleted to inherit their content, by name', function () {
+it('offers the active users other than those deleted to inherit their content, by name', function (): void {
 	ElementQueries::respond(User::class, [new User(['id' => 3, 'username' => 'zed']), new User(['id' => 4, 'username' => 'amy'])]);
 
 	$inheritors = $this->users->getInheritors([1, 2]);
 	$query = ElementQueries::executed(User::class)[0];
 
-	expect(array_map(fn (User $user) => $user->id, $inheritors))->toBe([4, 3])
+	expect(array_map(fn(User $user): ?int => $user->id, $inheritors))->toBe([4, 3])
 		->and($query->id)->toBe(['not', 1, 2])
 		->and($query->status)->toBe(User::STATUS_ACTIVE);
 });
 
-it('counts the users in each group', function () {
+it('counts the users in each group', function (): void {
 	$this->db()->respond('FROM {{%usergroups_users}}', [['groupId' => '1', 'count' => '2']]);
 
 	expect($this->users->getGroupCounts([1, 2]))->toBe([1 => 2])

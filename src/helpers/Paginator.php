@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\helpers;
 
 use Closure;
@@ -14,7 +16,7 @@ use SomehowDigital\Craft\Hub\services\QueryService;
  * Splits the lists of the Hub into pages, like Craft's paginator: the page asked for is kept within the pages there are,
  * a list without items having a single, empty page. Only the items of the page shown are loaded.
  */
-final class Paginator
+final readonly class Paginator
 {
 	/** items of a page of every list */
 	public const PAGE_SIZE = 50;
@@ -22,9 +24,10 @@ final class Paginator
 	/**
 	 * @param int $page the page asked for, kept within the pages there are
 	 */
-	public function __construct(private readonly int $page, private readonly int $pageSize = self::PAGE_SIZE)
-	{
-	}
+	public function __construct(
+		private int $page,
+		private int $pageSize = self::PAGE_SIZE
+	) {}
 
 	/**
 	 * A paginator of the page of the URL.
@@ -43,7 +46,7 @@ final class Paginator
 	 */
 	public function items(array $items): array
 	{
-		return $this->paginate(count($items), fn (int $offset, int $limit) => array_slice($items, $offset, $limit, true));
+		return $this->paginate(count($items), fn(int $offset, int $limit): array => array_slice($items, $offset, $limit, true));
 	}
 
 	/**
@@ -54,8 +57,8 @@ final class Paginator
 	public function rows(Query $query): array
 	{
 		return $this->paginate(
-			(int)(clone $query)->orderBy([])->count(),
-			fn (int $offset, int $limit) => (clone $query)->offset($offset)->limit($limit)->all(),
+			(int) (clone $query)->orderBy([])->count(),
+			fn(int $offset, int $limit) => (clone $query)->offset($offset)->limit($limit)->all(),
 		);
 	}
 
@@ -70,7 +73,7 @@ final class Paginator
 
 		$total = $queries->total($query);
 
-		return $this->paginate($total, fn (int $offset, int $limit) => $queries->page($query, $offset, $limit, $total));
+		return $this->paginate($total, fn(int $offset, int $limit) => $queries->page($query, $offset, $limit, $total));
 	}
 
 	/**
@@ -83,7 +86,7 @@ final class Paginator
 	{
 		$queries = Hub::getInstance()->queries;
 
-		return $this->paginate($queries->total($query), fn (int $offset, int $limit) => (clone $query)->offset($offset)->limit($limit)->all());
+		return $this->paginate($queries->total($query), fn(int $offset, int $limit) => (clone $query)->offset($offset)->limit($limit)->all());
 	}
 
 	/**
@@ -95,7 +98,7 @@ final class Paginator
 	 */
 	private function paginate(int $total, Closure $load): array
 	{
-		$totalPages = max(1, (int)ceil($total / $this->pageSize));
+		$totalPages = max(1, (int) ceil($total / $this->pageSize));
 		$page = max(1, min($this->page, $totalPages));
 		$offset = ($page - 1) * $this->pageSize;
 		$items = $load($offset, $this->pageSize);

@@ -12,38 +12,38 @@
 
 {% set groupOptions = {} %}
 {% for info in list.groups %}
-	{% set groupOptions = groupOptions|merge({ (info.group.handle): { label: info.group.name|t('site'), icon: 'users', color: 'violet' } }) %}
+	{% set groupOptions = groupOptions|merge({(info.group.handle): {label: info.group.name|t('site'), icon: 'users', color: 'violet'}}) %}
 {% endfor %}
 {% if groupOptions|length %}
-	{% set groupOptions = groupOptions|merge({ none: { label: 'No group'|t('hub'), color: 'gray' } }) %}
+	{% set groupOptions = groupOptions|merge({none: {label: 'No group'|t('hub'), color: 'gray'}}) %}
 {% endif %}
 
-{% embed 'hub/_components/panel' with { list: list, groupOptions: groupOptions, hubSite: hubSite, labelable: labelable } only %}
+{% embed 'hub/_components/panel' with {list: list, groupOptions: groupOptions, hubSite: hubSite, labelable: labelable} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		<form method="get" class="hub-filters" action="{{ url(list.listPath) }}" data-hub-submit{% if list.bulkSelection.review ?? false %} hidden{% endif %}>
-			{% include 'hub/_components/saved-filters' with { savedFilters: list.savedFilters, hubSite: hubSite } only %}
+			{{ include('hub/_components/saved-filters', {savedFilters: list.savedFilters, hubSite: hubSite}, false) }}
 			{{ hub.search('Search by name, username or email'|t('hub'), list.filter.search) }}
 			{{ hub.dropdown('Status'|t('app'), 'circle-half-stroke', hub.choices('status', list.statuses|map((status, key) => {
 				label: status.label,
-				color: { active: 'green', pending: 'orange', suspended: 'red', locked: 'red' }[key] ?? 'gray',
+				color: {active: 'green', pending: 'orange', suspended: 'red', locked: 'red'}[key] ?? 'gray',
 			}), list.filter.statuses)) }}
 			{% if groupOptions|length and list.listFixed != 'group' %}
 				{{ hub.dropdown('User Groups'|t('app'), 'users', hub.choices('group', groupOptions, list.filter.groups)) }}
 			{% endif %}
 			{{ hub.dropdown('Sign-ins'|t('hub'), 'clock', hub.choices('login', {
-				recent: { label: 'Recently'|t('hub'), color: 'green' },
-				idle: { label: 'Idle for {months, plural, =1{one month} other{# months}}'|t('hub', { months: list.idleMonths }), color: 'orange' },
-				never: { label: 'Never'|t('hub'), color: 'gray' },
-			}, list.filter.logins, { label: 'Active users'|t('hub') })
-				~ hub.range('login', 'Last Login'|t('app'), list.filter.loginFrom, list.filter.loginTo, { type: 'date' })) }}
+				recent: {label: 'Recently'|t('hub'), color: 'green'},
+				idle: {label: 'Idle for {months, plural, =1{one month} other{# months}}'|t('hub', {months: list.idleMonths}), color: 'orange'},
+				never: {label: 'Never'|t('hub'), color: 'gray'},
+			}, list.filter.logins, {label: 'Active users'|t('hub')})
+				~ hub.range('login', 'Last Login'|t('app'), list.filter.loginFrom, list.filter.loginTo, {type: 'date'})) }}
 			{{ hub.dropdown('Two-step verification'|t('hub'), 'shield-halved', hub.choices('twoFactor', {
-				with: { label: 'Set up'|t('hub'), color: 'green' },
-				without: { label: 'Not set up'|t('hub'), color: 'orange' },
-			}, list.filter.twoFactor, { multiple: false, label: 'Authenticator app or passkey'|t('hub') })) }}
+				with: {label: 'Set up'|t('hub'), color: 'green'},
+				without: {label: 'Not set up'|t('hub'), color: 'orange'},
+			}, list.filter.twoFactor, {multiple: false, label: 'Authenticator app or passkey'|t('hub')})) }}
 			{{ hub.dropdown('Content'|t('hub'), 'file-lines', hub.range('entries', 'Entries as author'|t('hub'), list.filter.entriesMin, list.filter.entriesMax)
 				~ hub.range('assets', 'Assets as uploader'|t('hub'), list.filter.assetsMin, list.filter.assetsMax)
-				~ hub.range('created', 'Created'|t('hub'), list.filter.createdFrom, list.filter.createdTo, { type: 'date' })) }}
+				~ hub.range('created', 'Created'|t('hub'), list.filter.createdFrom, list.filter.createdTo, {type: 'date'})) }}
 			{{ hub.labelFilter(list.labelOptions, list.filter.labels) }}
 			{{ hub.toggle('admin', 'Admins only'|t('hub'), list.filter.admin) }}
 			{{ hub.toggle('unverified', 'Unverified email only'|t('hub'), list.filter.unverifiedEmail) }}
@@ -55,7 +55,7 @@
 		</form>
 
 		{% if list.users|length %}
-			{% embed 'hub/_components/bulk' with { bulkList: 'users', bulkNone: 'No users selected'|t('hub'), list: list, labelable: labelable } only %}
+			{% embed 'hub/_components/bulk' with {bulkList: 'users', bulkNone: 'No users selected'|t('hub'), list: list, labelable: labelable} only %}
 				{% block table %}
 					{% import 'hub/_components/macros' as hub %}
 					<div class="hub-table">
@@ -84,7 +84,7 @@
 													{% if user.groups|length %}
 														<span class="hub-badges">
 															{%- for group in user.groups %}
-																<a class="hub-badge" data-color="violet" href="{{ url(list.listPath, { group: group.handle }) }}">{{ group.name|t('site') }}</a>
+																<a class="hub-badge" data-color="violet" href="{{ url(list.listPath, {group: group.handle}) }}">{{ group.name|t('site') }}</a>
 															{%- endfor -%}
 														</span>
 													{% else %}
@@ -119,11 +119,11 @@
 					</div>
 				{% endblock %}
 				{% block footer %}
-					{% include '_includes/pagination' with {
+					{{ include('_includes/pagination', {
 						pageInfo: list.pageInfo,
 						itemLabel: 'user'|t('app'),
 						itemsLabel: 'users'|t('app'),
-					} only %}
+					}, false) }}
 				{% endblock %}
 			{% endembed %}
 		{% else %}

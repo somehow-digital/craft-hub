@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -32,7 +34,7 @@ class Restore extends BulkAction
 
 		return $this->succeeded(
 			$this->hub()->bulk->getElements($this->list, $ids),
-			fn (ElementInterface $element) => $service->canSave($element) && $service->restoreElement($element),
+			fn(ElementInterface $element): bool => $service->canSave($element) && $service->restoreElement($element),
 		);
 	}
 }

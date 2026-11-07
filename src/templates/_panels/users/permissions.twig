@@ -45,7 +45,7 @@
 										<span class="hub-badges">
 											{%- if permission.direct %}{{ hub.badge('Directly'|t('hub'), 'gray', null, 'user') }}{% endif -%}
 											{%- for group in permission.groups %}
-												<a class="hub-badge" data-color="violet" href="{{ url('hub/data/users', { hubSite: hubSite, group: group.handle }) }}">{{ group.name|t('site') }}</a>
+												<a class="hub-badge" data-color="violet" href="{{ url('hub/data/users', {hubSite: hubSite, group: group.handle}) }}">{{ group.name|t('site') }}</a>
 											{%- endfor -%}
 										</span>
 									</td>

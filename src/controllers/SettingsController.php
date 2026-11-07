@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
@@ -29,7 +31,7 @@ class SettingsController extends BaseController
 
 		foreach ($tabs as $tab => $permission) {
 			if ($user->checkPermission($permission)) {
-				return $this->redirect($this->hubUrl("hub/manage/settings/$tab"));
+				return $this->redirect($this->hubUrl("hub/manage/settings/{$tab}"));
 			}
 		}
 

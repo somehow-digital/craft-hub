@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\models\UserGroup;
 use SomehowDigital\Craft\Hub\models\EntryStatistics;
 use SomehowDigital\Craft\Hub\models\EntryTypeFilter;
@@ -9,7 +11,7 @@ use SomehowDigital\Craft\Hub\models\UserGroupFilter;
 use SomehowDigital\Craft\Hub\models\VolumeFilter;
 use SomehowDigital\Craft\Hub\services\ListService;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 
 	$this->lists = new ListService();
@@ -25,7 +27,7 @@ function listFilter(string $class, array $values): object
 	$filter = new $class();
 
 	foreach ($values as $name => $value) {
-		$filter->$name = $value;
+		$filter->{$name} = $value;
 	}
 
 	return $filter;
@@ -35,10 +37,11 @@ function listFilter(string $class, array $values): object
  * The handles of the listed items, in order.
  *
  * @return string[]
+ * @param object[] $items
  */
 function listed(array $items, string $property): array
 {
-	return array_values(array_map(fn (object $info) => $info->$property->handle, $items));
+	return array_values(array_map(fn(object $info) => $info->{$property}->handle, $items));
 }
 
 function withVolumes(): void
@@ -52,12 +55,12 @@ function withVolumes(): void
 	]);
 }
 
-it('lists the sections by name', function () {
+it('lists the sections by name', function (): void {
 	expect(listed($this->lists->getSections(new SectionFilter()), 'section'))->toBe(['archive', 'news', 'pages', 'settings'])
 		->and(listed($this->lists->getSections(new SectionFilter(), direction: SORT_DESC), 'section'))->toBe(['settings', 'pages', 'news', 'archive']);
 });
 
-it('filters the sections', function (array $values, array $handles) {
+it('filters the sections', function (array $values, array $handles): void {
 	expect(listed($this->lists->getSections(listFilter(SectionFilter::class, $values)), 'section'))->toBe($handles);
 })->with([
 	'by name' => [['search' => 'NEW'], ['news']],
@@ -71,7 +74,7 @@ it('filters the sections', function (array $values, array $handles) {
 	'empty' => [['empty' => true], ['archive']],
 ]);
 
-it('sorts the sections', function (string $sort, int $direction, array $handles) {
+it('sorts the sections', function (string $sort, int $direction, array $handles): void {
 	expect(listed($this->lists->getSections(new SectionFilter(), $sort, $direction), 'section'))->toBe($handles);
 })->with([
 	'by type' => [ListService::SORT_TYPE, SORT_ASC, ['archive', 'news', 'settings', 'pages']],
@@ -80,11 +83,11 @@ it('sorts the sections', function (string $sort, int $direction, array $handles)
 	'by last update' => [ListService::SORT_UPDATED, SORT_DESC, ['news', 'pages', 'settings', 'archive']],
 ]);
 
-it('lists the entry types by name', function () {
+it('lists the entry types by name', function (): void {
 	expect(listed($this->lists->getEntryTypes(new EntryTypeFilter()), 'entryType'))->toBe(['article', 'block', 'empty', 'orphan', 'page']);
 });
 
-it('filters the entry types', function (array $values, array $handles) {
+it('filters the entry types', function (array $values, array $handles): void {
 	expect(listed($this->lists->getEntryTypes(listFilter(EntryTypeFilter::class, $values)), 'entryType'))->toBe($handles);
 })->with([
 	'by search' => [['search' => 'art'], ['article']],
@@ -94,7 +97,7 @@ it('filters the entry types', function (array $values, array $handles) {
 	'by activity' => [['activities' => [EntryStatistics::ACTIVITY_NONE]], ['empty', 'orphan']],
 ]);
 
-it('sorts the entry types', function (string $sort, array $handles) {
+it('sorts the entry types', function (string $sort, array $handles): void {
 	expect(listed($this->lists->getEntryTypes(new EntryTypeFilter(), $sort, SORT_DESC), 'entryType'))->toBe($handles);
 })->with([
 	'by entries' => [ListService::SORT_ENTRIES, ['block', 'article', 'page', 'empty', 'orphan']],
@@ -102,11 +105,11 @@ it('sorts the entry types', function (string $sort, array $handles) {
 	'by last update' => [ListService::SORT_UPDATED, ['article', 'block', 'page', 'empty', 'orphan']],
 ]);
 
-it('lists the fields by name', function () {
+it('lists the fields by name', function (): void {
 	expect(listed($this->lists->getFields(new FieldFilter()), 'field'))->toBe(['blocks', 'cta', 'image', 'legacy', 'related', 'summary', 'teaserImage', 'teaserImg', 'unusedText']);
 });
 
-it('filters the fields', function (array $values, array $handles) {
+it('filters the fields', function (array $values, array $handles): void {
 	expect(listed($this->lists->getFields(listFilter(FieldFilter::class, $values)), 'field'))->toBe($handles);
 })->with([
 	'by search' => [['search' => 'teaser'], ['teaserImage', 'teaserImg']],
@@ -118,7 +121,7 @@ it('filters the fields', function (array $values, array $handles) {
 	'empty' => [['empty' => true, 'kinds' => ['nested']], []],
 ]);
 
-it('sorts the fields', function (string $sort, int $direction, array $handles) {
+it('sorts the fields', function (string $sort, int $direction, array $handles): void {
 	expect(listed($this->lists->getFields(new FieldFilter(), $sort, $direction), 'field'))->toBe($handles);
 })->with([
 	'by type' => [ListService::SORT_TYPE, SORT_ASC, ['image', 'teaserImage', 'teaserImg', 'related', 'cta', 'blocks', 'legacy', 'summary', 'unusedText']],
@@ -126,7 +129,7 @@ it('sorts the fields', function (string $sort, int $direction, array $handles) {
 	'by data' => [ListService::SORT_DATA, SORT_DESC, ['blocks', 'related', 'image', 'cta', 'teaserImage', 'teaserImg', 'legacy', 'summary', 'unusedText']],
 ]);
 
-it('tells how much data fields hold', function () {
+it('tells how much data fields hold', function (): void {
 	$structure = $this->hub()->structure;
 
 	expect($this->lists->getFieldData($structure->getField(2)))->toBe(7)
@@ -134,13 +137,13 @@ it('tells how much data fields hold', function () {
 		->and($this->lists->getFieldData($structure->getField(1)))->toBeNull();
 });
 
-it('lists the volumes by name', function () {
+it('lists the volumes by name', function (): void {
 	withVolumes();
 
 	expect(listed($this->lists->getVolumes(new VolumeFilter()), 'volume'))->toBe(['documents', 'images', 'videos']);
 });
 
-it('filters the volumes', function (array $values, array $handles) {
+it('filters the volumes', function (array $values, array $handles): void {
 	withVolumes();
 
 	expect(listed($this->lists->getVolumes(listFilter(VolumeFilter::class, $values)), 'volume'))->toBe($handles);
@@ -157,7 +160,7 @@ it('filters the volumes', function (array $values, array $handles) {
 	'empty' => [['empty' => true], ['videos']],
 ]);
 
-it('sorts the volumes', function (string $sort, array $handles) {
+it('sorts the volumes', function (string $sort, array $handles): void {
 	withVolumes();
 
 	expect(listed($this->lists->getVolumes(new VolumeFilter(), $sort, SORT_DESC), 'volume'))->toBe($handles);
@@ -177,7 +180,7 @@ it('sorts the volumes', function (string $sort, array $handles) {
  */
 function userGroupInfos(): array
 {
-	$info = fn (int $id, string $handle, int $users, int $permissions, bool $requires2fa, ?string $description = null) => [
+	$info = fn(int $id, string $handle, int $users, int $permissions, bool $requires2fa, ?string $description = null): array => [
 		'group' => new UserGroup(['id' => $id, 'handle' => $handle, 'name' => ucfirst($handle), 'description' => $description]),
 		'users' => $users,
 		'permissions' => $permissions,
@@ -197,14 +200,14 @@ function userGroupInfos(): array
  */
 function groupHandles(array $groups): array
 {
-	return array_values(array_map(fn (array $info) => $info['group']->handle, $groups));
+	return array_values(array_map(fn(array $info) => $info['group']->handle, $groups));
 }
 
-it('lists the user groups by name', function () {
+it('lists the user groups by name', function (): void {
 	expect(groupHandles($this->lists->getUserGroups(userGroupInfos(), new UserGroupFilter())))->toBe(['admins', 'editors', 'guests']);
 });
 
-it('filters the user groups', function (array $values, array $handles) {
+it('filters the user groups', function (array $values, array $handles): void {
 	expect(groupHandles($this->lists->getUserGroups(userGroupInfos(), listFilter(UserGroupFilter::class, $values))))->toBe($handles);
 })->with([
 	'by search' => [['search' => 'news'], ['editors']],
@@ -215,7 +218,7 @@ it('filters the user groups', function (array $values, array $handles) {
 	'empty' => [['empty' => true], ['guests']],
 ]);
 
-it('sorts the user groups', function (string $sort, array $handles) {
+it('sorts the user groups', function (string $sort, array $handles): void {
 	expect(groupHandles($this->lists->getUserGroups(userGroupInfos(), new UserGroupFilter(), $sort, SORT_DESC)))->toBe($handles);
 })->with([
 	'by name' => [ListService::SORT_NAME, ['guests', 'editors', 'admins']],
@@ -223,7 +226,7 @@ it('sorts the user groups', function (string $sort, array $handles) {
 	'by permissions' => [ListService::SORT_PERMISSIONS, ['admins', 'editors', 'guests']],
 ]);
 
-it('lists the sort columns with their default direction', function () {
+it('lists the sort columns with their default direction', function (): void {
 	expect($this->lists->getSectionSortColumns())->toBe(['name' => SORT_ASC, 'type' => SORT_ASC, 'entries' => SORT_DESC, 'references' => SORT_DESC, 'updated' => SORT_DESC])
 		->and($this->lists->getEntryTypeSortColumns())->toBe(['name' => SORT_ASC, 'relations' => SORT_DESC, 'entries' => SORT_DESC, 'updated' => SORT_DESC])
 		->and($this->lists->getFieldSortColumns())->toBe(['name' => SORT_ASC, 'type' => SORT_ASC, 'layouts' => SORT_DESC, 'data' => SORT_DESC])
@@ -231,7 +234,7 @@ it('lists the sort columns with their default direction', function () {
 		->and($this->lists->getUserGroupSortColumns())->toBe(['name' => SORT_ASC, 'users' => SORT_DESC, 'permissions' => SORT_DESC]);
 });
 
-it('reads the statistics of sections only while filtered by them, as they are counted for the whole site', function () {
+it('reads the statistics of sections only while filtered by them, as they are counted for the whole site', function (): void {
 	$this->lists->getSections(listFilter(SectionFilter::class, ['types' => ['channel']]));
 
 	expect($this->db()->queriesMatching('{{hubEntryRows}}'))->toBe([])

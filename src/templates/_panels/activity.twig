@@ -37,7 +37,7 @@
 							{% for activity in activities %}
 								<tr>
 									<th>{{ hub.badge(activity.action.label(), activity.action.color(), null, activity.action.icon()) }}</th>
-									<td>{% include 'hub/_components/activity-details' with { activity: activity } only %}</td>
+									<td>{{ include('hub/_components/activity-details', {activity: activity}, false) }}</td>
 									<td>{{ hub.user(activity.user, activity.userName) }}</td>
 									<td>{{ hub.date(activity.dateCreated) }}</td>
 								</tr>
@@ -46,7 +46,7 @@
 					</table>
 				</div>
 				<footer class="hub-panel__footer">
-					<a href="{{ url('hub/manage/activity', { type: subject, item: itemId }) }}">{{ 'Show all activity'|t('hub') }}</a>
+					<a href="{{ url('hub/manage/activity', {type: subject, item: itemId}) }}">{{ 'Show all activity'|t('hub') }}</a>
 				</footer>
 			{% else %}
 				{{ hub.emptyState('clock-rotate-left', 'No activity recorded yet.'|t('hub')) }}

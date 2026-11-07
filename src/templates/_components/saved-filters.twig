@@ -12,7 +12,7 @@
 
 {% set menu = savedFilters %}
 {% set id = 'hub-saved-' ~ random() %}
-{% set siteParams = hubSite ? { hubSite: hubSite } : {} %}
+{% set siteParams = hubSite ? {hubSite: hubSite} : {} %}
 
 {% macro item(item, path, siteParams) %}
 	<a class="hub-saved__item" href="{{ url(path, item.params|merge(siteParams)) }}" data-hub-saved-item data-params="{{ item.params|json_encode }}"

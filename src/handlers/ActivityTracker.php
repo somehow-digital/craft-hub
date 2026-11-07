@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers;
 
 use SomehowDigital\Craft\Hub\handlers\activity\AccountActivity;

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub;
 
 use Craft;
@@ -18,7 +20,6 @@ use craft\web\Application as WebApplication;
 use craft\web\twig\variables\Cp;
 use craft\web\UrlManager;
 use RuntimeException;
-use SomehowDigital\Craft\Hub\enums\Page;
 use SomehowDigital\Craft\Hub\handlers\ActivityTracker;
 use SomehowDigital\Craft\Hub\handlers\ContentTracker;
 use SomehowDigital\Craft\Hub\handlers\DefineSidebarHtmlHandler;
@@ -130,7 +131,9 @@ class Hub extends Plugin
 	public const SITE_PARAM = 'hubSite';
 
 	public bool $hasCpSection = true;
+
 	public bool $hasCpSettings = true;
+
 	public string $schemaVersion = '1.0.0';
 
 	/**
@@ -275,7 +278,7 @@ class Hub extends Plugin
 		Event::on(
 			Dashboard::class,
 			Dashboard::EVENT_REGISTER_WIDGET_TYPES,
-			function (RegisterComponentTypesEvent $event) {
+			function (RegisterComponentTypesEvent $event): void {
 				$event->types[] = MyWork::class;
 			}
 		);
@@ -286,7 +289,7 @@ class Hub extends Plugin
 		Event::on(
 			Gc::class,
 			Gc::EVENT_RUN,
-			function () {
+			function (): void {
 				$this->labels->deleteOrphans();
 				$this->maintainers->deleteOrphans();
 				$this->activity->deleteExpired();
@@ -316,7 +319,7 @@ class Hub extends Plugin
 		Event::on(
 			WebApplication::class,
 			WebApplication::EVENT_AFTER_REQUEST,
-			fn () => $this->snapshots->pushIfDue()
+			fn() => $this->snapshots->pushIfDue()
 		);
 	}
 

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
@@ -45,7 +47,7 @@ class ActivityController extends BaseController
 		$activity = $hub->activity;
 		$path = 'hub/manage/activity';
 
-		$batchId = (int)Craft::$app->getRequest()->getQueryParam('batch') ?: null;
+		$batchId = (int) Craft::$app->getRequest()->getQueryParam('batch') ?: null;
 		$batch = $batchId !== null ? $activity->populate($activity->getQuery(new ActivityFilter())->where(['id' => $batchId, 'batchId' => null])->all())[0] ?? null : null;
 
 		if ($batchId !== null && $batch === null) {
@@ -53,9 +55,9 @@ class ActivityController extends BaseController
 		}
 
 		// The log of one item, opened from its page, isn't kept along with the filters, as the batch isn't.
-		$item = (int)Craft::$app->getRequest()->getQueryParam('item') ?: null;
+		$item = (int) Craft::$app->getRequest()->getQueryParam('item') ?: null;
 
-		if ($batch === null && $item === null && ($redirect = $this->keepFilters($path)) !== null) {
+		if ($batch === null && $item === null && ($redirect = $this->keepFilters($path)) instanceof Response) {
 			return $redirect;
 		}
 
@@ -65,6 +67,7 @@ class ActivityController extends BaseController
 		$filter = $this->filterFromRequest(array_keys($userOptions));
 		$filter->batch = $batch?->id;
 		$filter->item = count($filter->subjects) === 1 ? $item : null;
+
 		$sort = ListSort::fromRequest($activity->getSortColumns(), ActivityService::SORT_DATE);
 		[$pageInfo, $rows] = Paginator::fromRequest()->rows($activity->getQuery($filter, $sort->column, $sort->direction));
 
@@ -99,9 +102,9 @@ class ActivityController extends BaseController
 		$filter = new ActivityFilter();
 		$filter->search = $params->search();
 		// Not `action`, which Craft takes for the action to run, and which would shadow the action of the filters form.
-		$filter->actions = $params->list('event', array_map(fn (ActivityGroup $group) => $group->value, ActivityGroup::cases()));
-		$filter->subjects = $params->list('type', array_map(fn (ActivitySubject $subject) => $subject->value, ActivitySubject::cases()));
-		$filter->users = $params->list('user', [...array_map('strval', $userIds), ActivityFilter::USER_NONE]);
+		$filter->actions = $params->list('event', array_map(fn(ActivityGroup $group) => $group->value, ActivityGroup::cases()));
+		$filter->subjects = $params->list('type', array_map(fn(ActivitySubject $subject) => $subject->value, ActivitySubject::cases()));
+		$filter->users = $params->list('user', [...array_map(strval(...), $userIds), ActivityFilter::USER_NONE]);
 		$filter->dateFrom = $params->date('dateFrom');
 		$filter->dateTo = $params->date('dateTo');
 

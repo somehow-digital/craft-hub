@@ -18,17 +18,17 @@
 {% set filter = check.getFilter() %}
 {% set severity = check.getSeverity() %}
 {% set title = check.id ? check.name : 'New check'|t('hub') %}
-{% set kindLabel = '{list} check'|t('hub', { list: kind.label() }) %}
+{% set kindLabel = '{list} check'|t('hub', {list: kind.label()}) %}
 {% set type = check.isDefault() ? hub.badge('Default'|t('hub'), 'gray') : hub.badge('Custom'|t('hub'), 'violet') %}
 {% set icon = check.getIcon() %}
 {% set color = severity.color() %}
 
 {# The preview follows the severity, whose blank option is the default one's. #}
-{% set severityColors = { '': check.defaultSeverity.color() } %}
-{% set severityLabels = { '': check.defaultSeverity.label() } %}
+{% set severityColors = {'': check.defaultSeverity.color()} %}
+{% set severityLabels = {'': check.defaultSeverity.label()} %}
 {% for item in severities %}
-	{% set severityColors = severityColors|merge({ (item.value): item.color() }) %}
-	{% set severityLabels = severityLabels|merge({ (item.value): item.label() }) %}
+	{% set severityColors = severityColors|merge({(item.value): item.color()}) %}
+	{% set severityLabels = severityLabels|merge({(item.value): item.label()}) %}
 {% endfor %}
 {% set mirror %}
 	{%- if not check.isDefault() %} data-hub-mirror-icon="icon" data-hub-mirror-fallback="{{ iconSvg(filter ? filter.getIcon() : 'list-check')|e('html_attr') }}"{% endif -%}
@@ -47,8 +47,8 @@
 			label: 'Delete check'|t('hub'),
 			action: 'hub/checks/delete',
 			redirect: 'hub/manage/settings/diagnostics'|hash,
-			params: { id: check.id },
-			confirm: 'Are you sure you want to delete “{name}”?'|t('hub', { name: check.name }),
+			params: {id: check.id},
+			confirm: 'Are you sure you want to delete “{name}”?'|t('hub', {name: check.name}),
 			destructive: true,
 		},
 	]|filter %}
@@ -67,7 +67,7 @@
 			</div>
 		</div>
 	{% else %}
-		{% embed 'hub/_components/panel' with { heading: 'Check'|t('hub'), icon: 'list-check', color: 'gray', collapsible: false, check: check } only %}
+		{% embed 'hub/_components/panel' with {heading: 'Check'|t('hub'), icon: 'list-check', color: 'gray', collapsible: false, check: check} only %}
 			{% block body %}
 				{% import '_includes/forms' as forms %}
 				<div class="hub-panel__fields">
@@ -121,7 +121,7 @@
 
 	{% embed 'hub/_components/panel' with {
 		heading: 'Filter'|t('hub'),
-		description: check.isDefault() ? '{kind} the filter lists fail the check.'|t('hub', { kind: kind.label() }),
+		description: check.isDefault() ? '{kind} the filter lists fail the check.'|t('hub', {kind: kind.label()}),
 		icon: 'filter',
 		color: 'blue',
 		collapsible: false,
@@ -148,11 +148,11 @@
 					{{ forms.selectField({
 						first: true,
 						label: 'Filter'|t('hub'),
-						instructions: '{kind} the filter lists fail the check. Filters are managed on the filters tab.'|t('hub', { kind: kind.label() }),
+						instructions: '{kind} the filter lists fail the check. Filters are managed on the filters tab.'|t('hub', {kind: kind.label()}),
 						id: 'filter',
 						name: 'filter',
 						value: check.filter,
-						options: [{ label: 'Choose a filter'|t('hub'), value: '' }]|merge(filters|map(item => {
+						options: [{label: 'Choose a filter'|t('hub'), value: ''}]|merge(filters|map(item => {
 							label: item.getName() ~ (item.isPredefined() ? '' : ' (' ~ 'Custom'|t('hub') ~ ')'),
 							value: item.handle ?? item.uid,
 						})),
@@ -218,8 +218,8 @@
 			id: 'severity',
 			name: 'severity',
 			value: check.severity.value ?? '',
-			options: (check.isDefault() ? [{ label: 'Default ({severity})'|t('hub', { severity: check.defaultSeverity.label() }), value: '' }] : [])
-				|merge(severities|map(item => { label: item.label(), value: item.value })),
+			options: (check.isDefault() ? [{label: 'Default ({severity})'|t('hub', {severity: check.defaultSeverity.label()}), value: ''}] : [])
+				|merge(severities|map(item => {label: item.label(), value: item.value})),
 		}) }}
 	</div>
 	<dl class="meta read-only hub-details">

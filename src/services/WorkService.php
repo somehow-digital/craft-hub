@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -91,7 +93,7 @@ class WorkService extends Component
 
 		$key = sprintf('hub:work:counts:%d:%s', $userId, implode(',', Hub::getInstance()->siteScope->getSiteIds()));
 
-		return Craft::$app->getCache()->getOrSet($key, fn () => $this->countAll(), self::COUNTS_DURATION, new TagDependency(['tags' => $this->cacheTag($userId)]));
+		return Craft::$app->getCache()->getOrSet($key, fn(): array => $this->countAll(), self::COUNTS_DURATION, new TagDependency(['tags' => $this->cacheTag($userId)]));
 	}
 
 	/**
@@ -140,8 +142,8 @@ class WorkService extends Component
 
 		foreach ($sections as $id => $section) {
 			$sections[$id]['url'] = $id === self::SECTION_DIAGNOSTICS
-				? $hub->siteScope->pageUrl(self::PATH . "/$id")
-				: $hub->siteScope->pageUrl(self::PATH) . "#hub-work-$id";
+				? $hub->siteScope->pageUrl(self::PATH . "/{$id}")
+				: $hub->siteScope->pageUrl(self::PATH) . "#hub-work-{$id}";
 		}
 
 		return $sections;
@@ -160,7 +162,7 @@ class WorkService extends Component
 		$total = $this->total($query);
 		$items = [];
 
-		foreach ($query !== null ? $this->items($query, $total, $limit) : [] as $entry) {
+		foreach ($query instanceof EntryQuery ? $this->items($query, $total, $limit) : [] as $entry) {
 			$items[] = ['element' => $entry, 'note' => $this->draftNote($entry), 'date' => $entry->dateUpdated];
 		}
 
@@ -197,7 +199,7 @@ class WorkService extends Component
 			}
 		}
 
-		usort($checks, fn (Check $a, Check $b) => $a->severity->rank() <=> $b->severity->rank());
+		usort($checks, fn(Check $a, Check $b): int => $a->severity->rank() <=> $b->severity->rank());
 
 		return $checks;
 	}
@@ -215,7 +217,7 @@ class WorkService extends Component
 		$now = new DateTime();
 		$items = [];
 
-		foreach ($query !== null ? $this->items($query, $total, $limit) : [] as $entry) {
+		foreach ($query instanceof EntryQuery ? $this->items($query, $total, $limit) : [] as $entry) {
 			/** @var Entry $entry */
 			$publishes = $entry->postDate !== null && $entry->postDate > $now;
 			$items[] = [
@@ -248,15 +250,15 @@ class WorkService extends Component
 		foreach ($hub->maintainers->getMaintainedBy($user) as $source) {
 			$page = Page::fromList($source->list);
 
-			if ($page !== null && $hub->access->canView($page)) {
-				$failed = array_filter($this->checksOf($source), fn (Check $check) => !$check->passed);
-				$ranks = array_map(fn (Check $check) => $check->severity, $failed);
-				usort($ranks, fn (Severity $a, Severity $b) => $a->rank() <=> $b->rank());
+			if ($page instanceof Page && $hub->access->canView($page)) {
+				$failed = array_filter($this->checksOf($source), fn(Check $check): bool => !$check->passed);
+				$ranks = array_map(fn(Check $check): Severity => $check->severity, $failed);
+				usort($ranks, fn(Severity $a, Severity $b): int => $a->rank() <=> $b->rank());
 				$maintained[] = ['source' => $source, 'failed' => count($failed), 'severity' => $ranks[0] ?? null];
 			}
 		}
 
-		usort($maintained, fn (array $a, array $b) => ($a['severity']?->rank() ?? PHP_INT_MAX) <=> ($b['severity']?->rank() ?? PHP_INT_MAX));
+		usort($maintained, fn(array $a, array $b): int => ($a['severity']?->rank() ?? PHP_INT_MAX) <=> ($b['severity']?->rank() ?? PHP_INT_MAX));
 
 		return $maintained;
 	}
@@ -269,7 +271,7 @@ class WorkService extends Component
 	{
 		$userId = $this->userId();
 
-		return $userId !== null ? (int)$this->snoozedQuery($userId)->count() : 0;
+		return $userId !== null ? (int) $this->snoozedQuery($userId)->count() : 0;
 	}
 
 	/**
@@ -295,10 +297,10 @@ class WorkService extends Component
 		$ids = [];
 
 		foreach ($rows as $row) {
-			$elementType = $diagnostics->getDefinition((string)$row['checkKey'])?->kind->elementType();
+			$elementType = $diagnostics->getDefinition((string) $row['checkKey'])?->kind->elementType();
 
 			if ($elementType !== null) {
-				$ids[$elementType][] = (int)$row['elementId'];
+				$ids[$elementType][] = (int) $row['elementId'];
 			}
 		}
 
@@ -311,15 +313,15 @@ class WorkService extends Component
 		$snoozed = [];
 
 		foreach ($rows as $row) {
-			$check = $diagnostics->getDefinition((string)$row['checkKey']);
-			$element = $elements[(int)$row['elementId']] ?? null;
+			$check = $diagnostics->getDefinition((string) $row['checkKey']);
+			$element = $elements[(int) $row['elementId']] ?? null;
 
 			if ($check !== null && $element !== null) {
 				$snoozed[] = ['element' => $element, 'check' => $check, 'until' => $row['dateUntil'] !== null ? DateTimeHelper::toDateTime($row['dateUntil']) : null];
 			}
 		}
 
-		usort($snoozed, fn (array $a, array $b) => [$a['until'] === null, $a['until']] <=> [$b['until'] === null, $b['until']]);
+		usort($snoozed, fn(array $a, array $b): int => [$a['until'] === null, $a['until']] <=> [$b['until'] === null, $b['until']]);
 
 		return $snoozed;
 	}
@@ -340,13 +342,13 @@ class WorkService extends Component
 	 */
 	public function snooze(CheckDefinition $check, int $elementId, ?int $days): void
 	{
-		$userId = (int)$this->userId();
+		$userId = (int) $this->userId();
 
 		Craft::$app->getDb()->createCommand()->upsert(self::TABLE_SNOOZES, [
 			'userId' => $userId,
 			'elementId' => $elementId,
 			'checkKey' => $check->getKey(),
-			'dateUntil' => $days !== null ? Db::prepareDateForDb((new DateTime())->modify("+$days days")) : null,
+			'dateUntil' => $days !== null ? Db::prepareDateForDb((new DateTime())->modify("+{$days} days")) : null,
 		])->execute();
 
 		TagDependency::invalidate(Craft::$app->getCache(), $this->cacheTag($userId));
@@ -357,7 +359,7 @@ class WorkService extends Component
 	 */
 	public function wake(string $checkKey, int $elementId): void
 	{
-		$userId = (int)$this->userId();
+		$userId = (int) $this->userId();
 
 		Craft::$app->getDb()->createCommand()->delete(self::TABLE_SNOOZES, ['userId' => $userId, 'elementId' => $elementId, 'checkKey' => $checkKey])->execute();
 
@@ -385,7 +387,7 @@ class WorkService extends Component
 	 */
 	public function deleteExpired(): void
 	{
-		$keys = array_map(fn (CheckDefinition $definition) => $definition->getKey(), Hub::getInstance()->diagnostics->getDefinitions());
+		$keys = array_map(fn(CheckDefinition $definition): string => $definition->getKey(), Hub::getInstance()->diagnostics->getDefinitions());
 
 		Craft::$app->getDb()->createCommand()->delete(self::TABLE_SNOOZES, [
 			'or',
@@ -498,7 +500,7 @@ class WorkService extends Component
 	{
 		$filter = $this->ownEntries();
 
-		if ($filter === null) {
+		if (!$filter instanceof EntryFilter) {
 			return null;
 		}
 
@@ -573,7 +575,7 @@ class WorkService extends Component
 	{
 		$tab = $definition->kind === CheckKind::Entries ? 'entries' : 'assets';
 
-		return Hub::getInstance()->siteScope->pageUrl(self::PATH . "/$tab", $definition->getFilter()?->getListParams() ?? []);
+		return Hub::getInstance()->siteScope->pageUrl(self::PATH . "/{$tab}", $definition->getFilter()?->getListParams() ?? []);
 	}
 
 	/**
@@ -590,7 +592,7 @@ class WorkService extends Component
 			return [];
 		}
 
-		$id = (int)$source->item->id;
+		$id = (int) $source->item->id;
 
 		return match ($source->list) {
 			ColumnService::LIST_SECTIONS => ($info = $hub->structure->getSection($id)) !== null ? $hub->checks->forSection($info, counted: false) : [],
@@ -610,17 +612,17 @@ class WorkService extends Component
 	{
 		$id = Craft::$app->getUser()->getId();
 
-		return $id !== null ? (int)$id : null;
+		return $id !== null ? (int) $id : null;
 	}
 
 	private function cacheTag(int $userId): string
 	{
-		return "hub:work:$userId";
+		return "hub:work:{$userId}";
 	}
 
 	private function total(?ElementQuery $query): int
 	{
-		return $query !== null ? Hub::getInstance()->queries->total(clone $query) : 0;
+		return $query instanceof ElementQuery ? Hub::getInstance()->queries->total(clone $query) : 0;
 	}
 
 	/**

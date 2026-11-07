@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\db\ElementQuery;
 use craft\elements\Entry;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
@@ -8,7 +10,7 @@ use SomehowDigital\Craft\Hub\models\CheckDefinition;
 use SomehowDigital\Craft\Hub\services\DiagnosticsService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 
 	$this->diagnostics = new DiagnosticsService();
@@ -34,12 +36,12 @@ function customCheckRow(int $id, string $kind, string $filter, array $row = []):
 		'severity' => 'warning',
 		'enabled' => 1,
 		'sortOrder' => 9,
-		'uid' => "check-$id",
+		'uid' => "check-{$id}",
 		...$row,
 	];
 }
 
-it('lists the default checks of each kind in their order, each of the predefined filter of its handle', function () {
+it('lists the default checks of each kind in their order, each of the predefined filter of its handle', function (): void {
 	$definitions = $this->diagnostics->getDefinitions(CheckKind::Users);
 
 	expect(array_keys($definitions))->toBe(['users.locked', 'users.adminsWithoutTwoFactor', 'users.idle', 'users.pending', 'users.suspended', 'users.unverifiedEmail'])
@@ -52,7 +54,7 @@ it('lists the default checks of each kind in their order, each of the predefined
 		->and(array_keys($this->diagnostics->getDefinitions()))->toHaveCount(20);
 });
 
-it('describes the default checks by the thresholds of their filters', function () {
+it('describes the default checks by the thresholds of their filters', function (): void {
 	$this->db()->respond('FROM {{%hub_filters}}', [thresholdRow('entries', 'stale', 3)]);
 
 	$check = $this->diagnostics->getDefinition('entries.stale');
@@ -62,7 +64,7 @@ it('describes the default checks by the thresholds of their filters', function (
 		->and($check->getListDescription())->toBe('Entries no person has edited for 3 months.');
 });
 
-it('lists the checks as configured, default checks without a row first', function () {
+it('lists the checks as configured, default checks without a row first', function (): void {
 	$this->db()->respond('FROM {{%hub_checks}}', [
 		['id' => 1, 'kind' => 'sections', 'handle' => 'empty', 'filter' => null, 'severity' => 'error', 'enabled' => 0, 'sortOrder' => 3, 'uid' => 'empty'],
 		customCheckRow(2, 'sections', 'withoutUrls', ['sortOrder' => 2]),
@@ -86,19 +88,19 @@ it('lists the checks as configured, default checks without a row first', functio
 		->and($this->diagnostics->getEnabledChecks(CheckKind::Sections))->toBe([$custom]);
 });
 
-it('finds the custom checks of a filter', function () {
+it('finds the custom checks of a filter', function (): void {
 	$this->db()->respond('FROM {{%hub_checks}}', [
 		customCheckRow(2, 'sections', 'withoutUrls'),
 		customCheckRow(3, 'volumes', 'withoutUrls'),
 	]);
 	$filters = $this->hub()->filters;
 
-	expect(array_map(fn (CheckDefinition $check) => $check->id, $this->diagnostics->getChecksOfFilter($filters->getFilter(CheckKind::Sections, 'withoutUrls'))))->toBe([2])
+	expect(array_map(fn(CheckDefinition $check): ?int => $check->id, $this->diagnostics->getChecksOfFilter($filters->getFilter(CheckKind::Sections, 'withoutUrls'))))->toBe([2])
 		->and($this->diagnostics->getChecksOfFilter($filters->getFilter(CheckKind::Sections, 'empty')))->toBe([]);
 });
 
-it('sorts failed checks first, by severity, then those of the kind before those of the items it holds', function () {
-	$item = fn (string $key, bool $passed, Severity $severity) => compact('key', 'passed', 'severity');
+it('sorts failed checks first, by severity, then those of the kind before those of the items it holds', function (): void {
+	$item = fn(string $key, bool $passed, Severity $severity): array => ['key' => $key, 'passed' => $passed, 'severity' => $severity];
 
 	$items = $this->diagnostics->sort([
 		$item('entries.stale', false, Severity::Notice),
@@ -106,12 +108,12 @@ it('sorts failed checks first, by severity, then those of the kind before those 
 		$item('entries.drafts', false, Severity::Warning),
 		$item('sections.unknown', false, Severity::Notice),
 		$item('entries.disabled', true, Severity::Notice),
-	], CheckKind::Sections, fn (array $item) => [$item['key'], $item['passed'], $item['severity']]);
+	], CheckKind::Sections, fn(array $item): array => [$item['key'], $item['passed'], $item['severity']]);
 
 	expect(array_column($items, 'key'))->toBe(['entries.drafts', 'sections.unknown', 'entries.stale', 'sections.empty', 'entries.disabled']);
 });
 
-it('flags the items of a structure page its filter matches', function () {
+it('flags the items of a structure page its filter matches', function (): void {
 	$check = $this->diagnostics->getDefinition('sections.empty');
 
 	expect($this->diagnostics->fails($check, 4))->toBeTrue()
@@ -120,8 +122,8 @@ it('flags the items of a structure page its filter matches', function () {
 		->and($this->diagnostics->getFailingQuery($check))->toBeNull();
 });
 
-it('flags the elements its filter matches', function () {
-	ElementQueries::respond(Entry::class, fn (ElementQuery $query) => $query->status === ['disabled'] ? [new Entry(['id' => 5, 'siteId' => 1])] : []);
+it('flags the elements its filter matches', function (): void {
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => $query->status === ['disabled'] ? [new Entry(['id' => 5, 'siteId' => 1])] : []);
 
 	$check = $this->diagnostics->getDefinition('entries.disabled');
 
@@ -130,8 +132,8 @@ it('flags the elements its filter matches', function () {
 		->and($this->diagnostics->fails($this->diagnostics->getDefinition('entries.drafts'), 5))->toBeFalse();
 });
 
-it('counts the elements a check flags for all sections and entry types at once', function () {
-	$this->db()->respondToCounts(fn () => [
+it('counts the elements a check flags for all sections and entry types at once', function (): void {
+	$this->db()->respondToCounts(fn(): array => [
 		['sectionId' => 1, 'typeId' => 10, 'total' => 3],
 		['sectionId' => 2, 'typeId' => 11, 'total' => 2],
 	]);
@@ -144,7 +146,7 @@ it('counts the elements a check flags for all sections and entry types at once',
 		->and(conditions($this->diagnostics->getFailingQuery($check)))->not->toBe([]);
 });
 
-it('saves a new custom check last in the order of its kind', function () {
+it('saves a new custom check last in the order of its kind', function (): void {
 	$this->db()->respond('MAX([[sortOrder]])', 4);
 
 	$check = new CheckDefinition([
@@ -161,7 +163,7 @@ it('saves a new custom check last in the order of its kind', function () {
 		->and($this->db()->queriesMatching('INSERT INTO {{%hub_checks}}')[0])->toContain("'Public'")->toContain("'warning'")->toContain("'sections'")->toContain("'withoutUrls'");
 });
 
-it('rejects custom checks without a name, description or filter of their kind', function () {
+it('rejects custom checks without a name, description or filter of their kind', function (): void {
 	$check = new CheckDefinition(['kind' => CheckKind::Entries, 'name' => ' ', 'filter' => 'withoutUrls']);
 
 	expect($this->diagnostics->saveDefinition($check))->toBeFalse()
@@ -169,7 +171,7 @@ it('rejects custom checks without a name, description or filter of their kind', 
 		->and($this->db()->queriesMatching('INSERT INTO'))->toBe([]);
 });
 
-it('only saves whether a default check is enabled and its severity', function () {
+it('only saves whether a default check is enabled and its severity', function (): void {
 	$this->db()->respond('FROM {{%hub_checks}}', [
 		['id' => 1, 'kind' => 'fields', 'handle' => 'unused', 'filter' => null, 'severity' => null, 'enabled' => 1, 'sortOrder' => 1, 'uid' => 'unused'],
 	]);
@@ -179,16 +181,16 @@ it('only saves whether a default check is enabled and its severity', function ()
 
 	expect($this->diagnostics->saveDefinition($check))->toBeTrue()
 		->and($this->db()->queriesMatching('UPDATE {{%hub_checks}}')[0])
-		->toContain("`enabled`=FALSE")->toContain("`severity`='warning'")->not->toContain('`name`')->not->toContain('`filter`');
+		->toContain('`enabled`=FALSE')->toContain("`severity`='warning'")->not->toContain('`name`')->not->toContain('`filter`');
 });
 
-it('deletes only custom checks', function () {
+it('deletes only custom checks', function (): void {
 	$this->diagnostics->deleteDefinitionById(3);
 
 	expect($this->db()->queriesMatching('DELETE FROM {{%hub_checks}}')[0])->toContain('`id`=3')->toContain('`handle` IS NULL');
 });
 
-it('gives the default checks without a row one, numbering the checks of each kind', function () {
+it('gives the default checks without a row one, numbering the checks of each kind', function (): void {
 	$this->db()->respond('FROM {{%hub_checks}}', [
 		['id' => 1, 'kind' => 'fields', 'handle' => 'empty', 'filter' => null, 'severity' => null, 'enabled' => 1, 'sortOrder' => 1, 'uid' => 'empty'],
 	]);
@@ -201,8 +203,8 @@ it('gives the default checks without a row one, numbering the checks of each kin
 		->and($this->db()->queriesMatching('UPDATE {{%hub_checks}}')[0])->toContain('`sortOrder`=2')->toContain('`id`=1');
 });
 
-it('tells whether a check flags any element of an item by looking up the first of them, narrowed to it first', function () {
-	ElementQueries::respond(Entry::class, fn (ElementQuery $query) => str_contains(conditionSql($query->where), '`entries`.`sectionId`=1') ? [new Entry(['id' => 5])] : []);
+it('tells whether a check flags any element of an item by looking up the first of them, narrowed to it first', function (): void {
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => str_contains(conditionSql($query->where), '`entries`.`sectionId`=1') ? [new Entry(['id' => 5])] : []);
 	$check = $this->diagnostics->getDefinition('entries.drafts');
 
 	expect($this->diagnostics->hasFailing($check, ['sectionId' => 1]))->toBeTrue()
@@ -212,8 +214,8 @@ it('tells whether a check flags any element of an item by looking up the first o
 		->and($this->db()->counts())->toBe([]);
 });
 
-it('tells whether a check flags any element of an item by its counts, once they are counted', function () {
-	$this->db()->respondToCounts(fn () => [['sectionId' => 1, 'typeId' => 10, 'total' => 3]]);
+it('tells whether a check flags any element of an item by its counts, once they are counted', function (): void {
+	$this->db()->respondToCounts(fn(): array => [['sectionId' => 1, 'typeId' => 10, 'total' => 3]]);
 	$check = $this->diagnostics->getDefinition('entries.drafts');
 	$this->diagnostics->countFailing($check);
 
@@ -222,6 +224,6 @@ it('tells whether a check flags any element of an item by its counts, once they 
 		->and(ElementQueries::executed(Entry::class))->toBe([]);
 });
 
-it('tells whether a check flags an item of a structure page by its filter', function () {
+it('tells whether a check flags an item of a structure page by its filter', function (): void {
 	expect($this->diagnostics->hasFailing($this->diagnostics->getDefinition('sections.empty'), []))->toBeTrue();
 });

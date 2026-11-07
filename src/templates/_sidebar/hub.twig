@@ -41,7 +41,7 @@
 			{% set referencing = reference.element %}
 			<li class="hub-sidebar__reference">
 				<div class="hub-sidebar__reference-element">
-					{{ elementChip(referencing, { hyperlink: true }) }}
+					{{ elementChip(referencing, {hyperlink: true}) }}
 					{% if referencing is instance of('craft\\elements\\Entry') and referencing.type %}
 						<span class="hub-sidebar__note hub-sidebar__type">{{ referencing.type.name|t('site') }}</span>
 					{% endif %}
@@ -67,7 +67,7 @@
 	</ul>
 
 	{% if references|length > referenceLimit %}
-		<p class="hub-sidebar__note hub-sidebar__more">{{ '{count, number} more'|t('hub', { count: references|length - referenceLimit }) }}</p>
+		<p class="hub-sidebar__note hub-sidebar__more">{{ '{count, number} more'|t('hub', {count: references|length - referenceLimit}) }}</p>
 	{% endif %}
 {%- endmacro %}
 
@@ -108,7 +108,7 @@
 		<details class="hub-sidebar__section" data-hub-sidebar-section="labels" data-hub-sidebar-labels="{{ list }}" data-hub-sidebar-id="{{ element.id }}">
 			{{ _self.summary('tags', 'Labels'|t('hub'), _self.count(labels|length, null, 'data-hub-sidebar-labels-count')) }}
 			<div class="hub-sidebar__body">
-				{% include 'hub/_components/label-editor' with { labels: labels, allLabels: allLabels, canManageLabels: canManageLabels } only %}
+				{{ include('hub/_components/label-editor', {labels: labels, allLabels: allLabels, canManageLabels: canManageLabels}, false) }}
 			</div>
 		</details>
 	{% endif %}
@@ -137,7 +137,7 @@
 				{% else %}
 					<p class="hub-sidebar__passed" data-color="green">
 						<span class="hub-sidebar__check-icon" aria-hidden="true">{{ iconSvg('circle-check') }}</span>
-						<span>{{ 'Passes all {count, plural, =1{# check} other{# checks}}.'|t('hub', { count: checks|length }) }}</span>
+						<span>{{ 'Passes all {count, plural, =1{# check} other{# checks}}.'|t('hub', {count: checks|length}) }}</span>
 					</p>
 				{% endif %}
 				{% if hubUrl|trim %}
@@ -161,7 +161,7 @@
 						<dt>{{ 'By'|t('hub') }}</dt>
 						<dd>
 							{% if lastEdit.user %}
-								{{ elementChip(lastEdit.user, { hyperlink: true }) }}
+								{{ elementChip(lastEdit.user, {hyperlink: true}) }}
 							{% else %}
 								<span class="hub-muted">{{ 'Unknown'|t('hub') }}</span>
 							{% endif %}
@@ -179,7 +179,7 @@
 				{% if references|length %}
 					{{ _self.referenceList(references) }}
 				{% else %}
-					<p class="hub-sidebar__empty">{{ 'No other elements reference this {type}.'|t('hub', { type: element.lowerDisplayName() }) }}</p>
+					<p class="hub-sidebar__empty">{{ 'No other elements reference this {type}.'|t('hub', {type: element.lowerDisplayName()}) }}</p>
 				{% endif %}
 			</div>
 		</details>
@@ -215,11 +215,11 @@
 					{% for activity in activities %}
 						<div class="hub-sidebar__fact">
 							<dt>{{ activity.dateCreated|timestamp('short') }}</dt>
-							<dd>{{ activity.action.label() }}{% if activity.user or activity.userName %} <span class="hub-muted">{{ 'by {user}'|t('hub', { user: activity.user ? activity.user.friendlyName : activity.userName }) }}</span>{% endif %}</dd>
+							<dd>{{ activity.action.label() }}{% if activity.user or activity.userName %} <span class="hub-muted">{{ 'by {user}'|t('hub', {user: activity.user ? activity.user.friendlyName : activity.userName}) }}</span>{% endif %}</dd>
 						</div>
 					{% endfor %}
 				</dl>
-				<a class="hub-sidebar__link" href="{{ url('hub/manage/activity', { type: activitySubject, item: element.id }) }}">{{ 'Show all activity'|t('hub') }}</a>
+				<a class="hub-sidebar__link" href="{{ url('hub/manage/activity', {type: activitySubject, item: element.id}) }}">{{ 'Show all activity'|t('hub') }}</a>
 			</div>
 		</details>
 	{% endif %}

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\Tests\Support;
 
 use Craft;
@@ -88,55 +90,56 @@ trait InteractsWithCraft
 
 		/** @var Sites&MockInterface $sites */
 		$sites = Mockery::mock(Sites::class)->makePartial();
-		$sites->shouldReceive('getAllSites')->andReturnUsing(fn () => array_values($this->sites))->byDefault();
-		$sites->shouldReceive('getSiteById')->andReturnUsing(fn ($id) => $this->sites[$id] ?? null)->byDefault();
-		$sites->shouldReceive('getAllSiteIds')->andReturnUsing(fn () => array_keys($this->sites))->byDefault();
-		$sites->shouldReceive('getEditableSiteIds')->andReturnUsing(fn () => $this->editableSiteIds ?? array_keys($this->sites))->byDefault();
-		$sites->shouldReceive('getPrimarySite')->andReturnUsing(fn () => array_values(array_filter($this->sites, fn (Site $site) => $site->primary))[0])->byDefault();
-		$sites->shouldReceive('getCurrentSite')->andReturnUsing(fn () => array_values(array_filter($this->sites, fn (Site $site) => $site->primary))[0])->byDefault();
+		$sites->shouldReceive('getAllSites')->andReturnUsing(fn(): array => array_values($this->sites))->byDefault();
+		$sites->shouldReceive('getSiteById')->andReturnUsing(fn(int $id): ?Site => $this->sites[$id] ?? null)->byDefault();
+		$sites->shouldReceive('getSiteByHandle')->andReturnUsing(fn(string $handle) => $this->findBy($this->sites, 'handle', $handle))->byDefault();
+		$sites->shouldReceive('getAllSiteIds')->andReturnUsing(fn(): array => array_keys($this->sites))->byDefault();
+		$sites->shouldReceive('getEditableSiteIds')->andReturnUsing(fn(): array => $this->editableSiteIds ?? array_keys($this->sites))->byDefault();
+		$sites->shouldReceive('getPrimarySite')->andReturnUsing(fn() => array_values(array_filter($this->sites, fn(Site $site): bool => $site->primary))[0])->byDefault();
+		$sites->shouldReceive('getCurrentSite')->andReturnUsing(fn() => array_values(array_filter($this->sites, fn(Site $site): bool => $site->primary))[0])->byDefault();
 		Craft::$app->set('sites', $sites);
 
 		/** @var Entries&MockInterface $entries */
 		$entries = Mockery::mock(Entries::class)->makePartial();
-		$entries->shouldReceive('getAllSections')->andReturnUsing(fn () => array_values($this->sections))->byDefault();
-		$entries->shouldReceive('getAllEntryTypes')->andReturnUsing(fn () => array_values($this->entryTypes))->byDefault();
-		$entries->shouldReceive('getSectionByHandle')->andReturnUsing(fn ($handle) => $this->findBy($this->sections, 'handle', $handle))->byDefault();
-		$entries->shouldReceive('getSectionById')->andReturnUsing(fn ($id) => $this->sections[$id] ?? null)->byDefault();
-		$entries->shouldReceive('getEntryTypeById')->andReturnUsing(fn ($id) => $this->entryTypes[$id] ?? null)->byDefault();
-		$entries->shouldReceive('getEntryTypeByUid')->andReturnUsing(fn ($uid) => $this->findBy($this->entryTypes, 'uid', $uid))->byDefault();
-		$entries->shouldReceive('getEntryTypeByHandle')->andReturnUsing(fn ($handle) => $this->findBy($this->entryTypes, 'handle', $handle))->byDefault();
+		$entries->shouldReceive('getAllSections')->andReturnUsing(fn(): array => array_values($this->sections))->byDefault();
+		$entries->shouldReceive('getAllEntryTypes')->andReturnUsing(fn(): array => array_values($this->entryTypes))->byDefault();
+		$entries->shouldReceive('getSectionByHandle')->andReturnUsing(fn($handle) => $this->findBy($this->sections, 'handle', $handle))->byDefault();
+		$entries->shouldReceive('getSectionById')->andReturnUsing(fn(int $id): ?Section => $this->sections[$id] ?? null)->byDefault();
+		$entries->shouldReceive('getEntryTypeById')->andReturnUsing(fn(int $id): ?EntryType => $this->entryTypes[$id] ?? null)->byDefault();
+		$entries->shouldReceive('getEntryTypeByUid')->andReturnUsing(fn($uid) => $this->findBy($this->entryTypes, 'uid', $uid))->byDefault();
+		$entries->shouldReceive('getEntryTypeByHandle')->andReturnUsing(fn($handle) => $this->findBy($this->entryTypes, 'handle', $handle))->byDefault();
 		Craft::$app->set('entries', $entries);
 
 		/** @var Fields&MockInterface $fields */
 		$fields = Mockery::mock(Fields::class)->makePartial();
-		$fields->shouldReceive('getAllFields')->andReturnUsing(fn () => array_values($this->fields))->byDefault();
-		$fields->shouldReceive('getFieldById')->andReturnUsing(fn ($id) => $this->fields[$id] ?? null)->byDefault();
-		$fields->shouldReceive('getFieldByUid')->andReturnUsing(fn ($uid) => $this->findBy($this->fields, 'uid', $uid))->byDefault();
-		$fields->shouldReceive('getFieldByHandle')->andReturnUsing(fn ($handle) => $this->findBy($this->fields, 'handle', $handle))->byDefault();
-		$fields->shouldReceive('getAllLayouts')->andReturnUsing(fn () => [
-			...array_map(fn (EntryType $entryType) => $entryType->getFieldLayout(), array_values($this->entryTypes)),
-			...array_map(fn (Volume $volume) => $volume->getFieldLayout(), array_values($this->volumes)),
+		$fields->shouldReceive('getAllFields')->andReturnUsing(fn(): array => array_values($this->fields))->byDefault();
+		$fields->shouldReceive('getFieldById')->andReturnUsing(fn(int $id): ?FieldInterface => $this->fields[$id] ?? null)->byDefault();
+		$fields->shouldReceive('getFieldByUid')->andReturnUsing(fn($uid) => $this->findBy($this->fields, 'uid', $uid))->byDefault();
+		$fields->shouldReceive('getFieldByHandle')->andReturnUsing(fn($handle) => $this->findBy($this->fields, 'handle', $handle))->byDefault();
+		$fields->shouldReceive('getAllLayouts')->andReturnUsing(fn(): array => [
+			...array_map(fn(EntryType $entryType): FieldLayout => $entryType->getFieldLayout(), array_values($this->entryTypes)),
+			...array_map(fn(Volume $volume): FieldLayout => $volume->getFieldLayout(), array_values($this->volumes)),
 			...$this->layouts,
 		])->byDefault();
 		Craft::$app->set('fields', $fields);
 
 		/** @var Volumes&MockInterface $volumes */
 		$volumes = Mockery::mock(Volumes::class)->makePartial();
-		$volumes->shouldReceive('getAllVolumes')->andReturnUsing(fn () => array_values($this->volumes))->byDefault();
-		$volumes->shouldReceive('getVolumeByHandle')->andReturnUsing(fn ($handle) => $this->findBy($this->volumes, 'handle', $handle))->byDefault();
-		$volumes->shouldReceive('getVolumeById')->andReturnUsing(fn ($id) => $this->volumes[$id] ?? null)->byDefault();
+		$volumes->shouldReceive('getAllVolumes')->andReturnUsing(fn(): array => array_values($this->volumes))->byDefault();
+		$volumes->shouldReceive('getVolumeByHandle')->andReturnUsing(fn($handle) => $this->findBy($this->volumes, 'handle', $handle))->byDefault();
+		$volumes->shouldReceive('getVolumeById')->andReturnUsing(fn(int $id): ?Volume => $this->volumes[$id] ?? null)->byDefault();
 		Craft::$app->set('volumes', $volumes);
 
 		/** @var UserGroups&MockInterface $userGroups */
 		$userGroups = Mockery::mock(UserGroups::class)->makePartial();
-		$userGroups->shouldReceive('getAllGroups')->andReturnUsing(fn () => array_values($this->userGroups))->byDefault();
-		$userGroups->shouldReceive('getGroupByHandle')->andReturnUsing(fn ($handle) => $this->findBy($this->userGroups, 'handle', $handle))->byDefault();
+		$userGroups->shouldReceive('getAllGroups')->andReturnUsing(fn(): array => array_values($this->userGroups))->byDefault();
+		$userGroups->shouldReceive('getGroupByHandle')->andReturnUsing(fn($handle) => $this->findBy($this->userGroups, 'handle', $handle))->byDefault();
 		$userGroups->shouldReceive('getGroupsByUserId')->andReturn([])->byDefault();
 		Craft::$app->set('userGroups', $userGroups);
 
 		/** @var UserPermissions&MockInterface $userPermissions */
 		$userPermissions = Mockery::mock(UserPermissions::class)->makePartial();
-		$userPermissions->shouldReceive('getPermissionsByGroupId')->andReturnUsing(fn (int $id) => $this->groupPermissions[$id] ?? [])->byDefault();
+		$userPermissions->shouldReceive('getPermissionsByGroupId')->andReturnUsing(fn(int $id): array => $this->groupPermissions[$id] ?? [])->byDefault();
 		$userPermissions->shouldReceive('getAllPermissions')->andReturn([
 			['heading' => 'General', 'permissions' => [
 				'accessCp' => ['label' => 'Access the control panel', 'nested' => [
@@ -157,32 +160,32 @@ trait InteractsWithCraft
 
 		/** @var Elements&MockInterface $elements */
 		$elements = Mockery::mock(Elements::class)->makePartial();
-		$elements->shouldReceive('canSave')->andReturnUsing(fn () => $this->canSave)->byDefault();
-		$elements->shouldReceive('canView')->andReturnUsing(fn () => $this->canView)->byDefault();
+		$elements->shouldReceive('canSave')->andReturnUsing(fn() => $this->canSave)->byDefault();
+		$elements->shouldReceive('canView')->andReturnUsing(fn() => $this->canView)->byDefault();
 		Craft::$app->set('elements', $elements);
 
 		/** @var UserComponent&MockInterface $user */
 		$user = Mockery::mock(UserComponent::class)->makePartial();
-		$user->shouldReceive('getIsAdmin')->andReturnUsing(fn () => $this->isAdmin)->byDefault();
-		$user->shouldReceive('checkPermission')->andReturnUsing(fn (string $permission) => $permission === 'accessPlugin-hub' ? $this->hasPluginAccess : $this->permissions === null || in_array($permission, $this->permissions, true))->byDefault();
+		$user->shouldReceive('getIsAdmin')->andReturnUsing(fn() => $this->isAdmin)->byDefault();
+		$user->shouldReceive('checkPermission')->andReturnUsing(fn(string $permission) => $permission === 'accessPlugin-hub' ? $this->hasPluginAccess : $this->permissions === null || in_array($permission, $this->permissions, true))->byDefault();
 		$user->shouldReceive('getIdentity')->andReturn(null)->byDefault();
 		Craft::$app->set('user', $user);
 
 		/** @var Session&MockInterface $session */
 		$session = Mockery::mock(Session::class)->makePartial();
-		$session->shouldReceive('get')->andReturnUsing(fn (string $key, mixed $default = null) => $this->session[$key] ?? $default)->byDefault();
-		$session->shouldReceive('set')->andReturnUsing(function (string $key, mixed $value) {
+		$session->shouldReceive('get')->andReturnUsing(fn(string $key, mixed $default = null): mixed => $this->session[$key] ?? $default)->byDefault();
+		$session->shouldReceive('set')->andReturnUsing(function (string $key, mixed $value): void {
 			$this->session[$key] = $value;
 		})->byDefault();
-		$session->shouldReceive('remove')->andReturnUsing(function (string $key) {
+		$session->shouldReceive('remove')->andReturnUsing(function (string $key): void {
 			unset($this->session[$key]);
 		})->byDefault();
 		Craft::$app->set('session', $session);
 
 		/** @var Users&MockInterface $users */
 		$users = Mockery::mock(Users::class)->makePartial();
-		$users->shouldReceive('getUserPreferences')->andReturnUsing(fn (int $id) => $this->preferences[$id] ?? [])->byDefault();
-		$users->shouldReceive('saveUserPreferences')->andReturnUsing(function ($user, array $preferences) {
+		$users->shouldReceive('getUserPreferences')->andReturnUsing(fn(int $id): array => $this->preferences[$id] ?? [])->byDefault();
+		$users->shouldReceive('saveUserPreferences')->andReturnUsing(function ($user, array $preferences): void {
 			$this->preferences[$user->id] = $preferences + ($this->preferences[$user->id] ?? []);
 		})->byDefault();
 		Craft::$app->set('users', $users);
@@ -202,13 +205,13 @@ trait InteractsWithCraft
 	{
 		return $this->sites[$id] = new Site([
 			'id' => $id,
-			'uid' => "site-$handle",
+			'uid' => "site-{$handle}",
 			'handle' => $handle,
 			'name' => ucfirst($handle),
 			'language' => 'en-US',
 			'primary' => $primary,
 			'hasUrls' => true,
-			'baseUrl' => "https://example.test/$handle",
+			'baseUrl' => "https://example.test/{$handle}",
 		]);
 	}
 
@@ -219,11 +222,11 @@ trait InteractsWithCraft
 	{
 		$entryType = new EntryType([
 			'id' => $id,
-			'uid' => "entry-type-$handle",
+			'uid' => "entry-type-{$handle}",
 			'handle' => $handle,
 			'name' => $name ?? ucfirst($handle),
 		]);
-		$entryType->setFieldLayout($this->layout(Entry::class, "entry-type-$handle", $fields));
+		$entryType->setFieldLayout($this->layout(Entry::class, "entry-type-{$handle}", $fields));
 
 		return $this->entryTypes[$id] = $entryType;
 	}
@@ -236,16 +239,16 @@ trait InteractsWithCraft
 	{
 		$section = new Section([
 			'id' => $id,
-			'uid' => "section-$handle",
+			'uid' => "section-{$handle}",
 			'handle' => $handle,
 			'name' => $name ?? ucfirst($handle),
 			'type' => $type,
 		]);
 		$section->setEntryTypes($entryTypes);
-		$section->setSiteSettings(array_map(fn (int $siteId, bool $hasUrls) => new Section_SiteSettings([
+		$section->setSiteSettings(array_map(fn(int $siteId, bool $hasUrls): Section_SiteSettings => new Section_SiteSettings([
 			'siteId' => $siteId,
 			'hasUrls' => $hasUrls,
-			'uriFormat' => $hasUrls ? "$handle/{slug}" : null,
+			'uriFormat' => $hasUrls ? "{$handle}/{slug}" : null,
 		]), array_keys($urls), $urls));
 
 		return $this->sections[$id] = $section;
@@ -263,7 +266,7 @@ trait InteractsWithCraft
 		$field = Craft::createObject([
 			'class' => $class,
 			'id' => $id,
-			'uid' => "field-$handle",
+			'uid' => "field-{$handle}",
 			'handle' => $handle,
 			'name' => $config['name'] ?? ucfirst($handle),
 			...$config,
@@ -281,7 +284,7 @@ trait InteractsWithCraft
 
 		return $this->userGroups[$id] = new UserGroup([
 			'id' => $id,
-			'uid' => "group-$handle",
+			'uid' => "group-{$handle}",
 			'handle' => $handle,
 			'name' => ucfirst($handle),
 		]);
@@ -294,12 +297,12 @@ trait InteractsWithCraft
 	{
 		$volume = new Volume([
 			'id' => $id,
-			'uid' => "volume-$handle",
+			'uid' => "volume-{$handle}",
 			'handle' => $handle,
 			'name' => $name ?? ucfirst($handle),
 		]);
-		$volume->setFs(new Local(['handle' => "fs-$handle", 'name' => ucfirst($handle) . ' Files', 'hasUrls' => $hasUrls, 'url' => $hasUrls ? "https://example.test/$handle" : null]));
-		$volume->setFieldLayout($this->layout(Asset::class, "volume-$handle", $fields));
+		$volume->setFs(new Local(['handle' => "fs-{$handle}", 'name' => ucfirst($handle) . ' Files', 'hasUrls' => $hasUrls, 'url' => $hasUrls ? "https://example.test/{$handle}" : null]));
+		$volume->setFieldLayout($this->layout(Asset::class, "volume-{$handle}", $fields));
 
 		return $this->volumes[$id] = $volume;
 	}
@@ -310,12 +313,12 @@ trait InteractsWithCraft
 	 */
 	protected function layout(string $type, string $uid, array $fields = []): FieldLayout
 	{
-		$layout = new FieldLayout(['type' => $type, 'uid' => "layout-$uid"]);
+		$layout = new FieldLayout(['type' => $type, 'uid' => "layout-{$uid}"]);
 		$layout->setTabs([
 			new FieldLayoutTab([
 				'layout' => $layout,
 				'name' => 'Content',
-				'elements' => array_map(fn (FieldInterface $field) => new CustomField($field), $fields),
+				'elements' => array_map(fn(FieldInterface $field): CustomField => new CustomField($field), $fields),
 			]),
 		]);
 
@@ -330,7 +333,7 @@ trait InteractsWithCraft
 	private function findBy(array $items, string $property, mixed $value): ?object
 	{
 		foreach ($items as $item) {
-			if ($item->$property === $value) {
+			if ($item->{$property} === $value) {
 				return $item;
 			}
 		}

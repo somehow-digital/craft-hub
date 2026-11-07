@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\elements\db;
 
 use craft\elements\db\EntryQuery;

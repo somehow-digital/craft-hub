@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
@@ -52,7 +54,7 @@ class LabelsController extends BaseController
 	{
 		$this->requirePermission(Hub::PERMISSION_MANAGE_LABELS);
 
-		if ($label === null && $labelId !== null) {
+		if (!$label instanceof Label && $labelId !== null) {
 			$label = Hub::getInstance()->labels->getLabelById($labelId) ?? throw new NotFoundHttpException('Label not found.');
 		}
 
@@ -73,13 +75,13 @@ class LabelsController extends BaseController
 		$request = Craft::$app->getRequest();
 		$labels = Hub::getInstance()->labels;
 		$id = $request->getBodyParam('labelId');
-		$label = $id ? $labels->getLabelById((int)$id) ?? throw new NotFoundHttpException('Label not found.') : new Label();
+		$label = $id ? $labels->getLabelById((int) $id) ?? throw new NotFoundHttpException('Label not found.') : new Label();
 
-		$label->name = (string)$request->getBodyParam('name', '');
-		$label->description = (string)$request->getBodyParam('description', '');
-		$label->icon = (string)$request->getBodyParam('icon', '') ?: null;
+		$label->name = (string) $request->getBodyParam('name', '');
+		$label->description = (string) $request->getBodyParam('description', '');
+		$label->icon = (string) $request->getBodyParam('icon', '') ?: null;
 		// Craft's color select sends its blank option as `__blank__`.
-		$color = (string)$request->getBodyParam('color', '');
+		$color = (string) $request->getBodyParam('color', '');
 		$label->color = $color !== '' && $color !== '__blank__' ? $color : null;
 
 		if (!$labels->saveLabel($label)) {
@@ -100,7 +102,7 @@ class LabelsController extends BaseController
 		$this->requirePostRequest();
 		$this->requirePermission(Hub::PERMISSION_MANAGE_LABELS);
 
-		Hub::getInstance()->labels->deleteLabelById((int)Craft::$app->getRequest()->getRequiredBodyParam('id'));
+		Hub::getInstance()->labels->deleteLabelById((int) Craft::$app->getRequest()->getRequiredBodyParam('id'));
 
 		return $this->asSuccess(Craft::t('hub', 'Label deleted.'), redirect: $this->hubUrl('hub/manage/settings/labels'));
 	}
@@ -115,7 +117,7 @@ class LabelsController extends BaseController
 		$this->requirePermission(Hub::PERMISSION_MANAGE_LABELS);
 
 		$labels = Hub::getInstance()->labels;
-		$id = (int)Craft::$app->getRequest()->getRequiredBodyParam('id');
+		$id = (int) Craft::$app->getRequest()->getRequiredBodyParam('id');
 		$label = $labels->getLabelById($id) ?? throw new NotFoundHttpException('Label not found.');
 		$count = $labels->clearLabelById($id);
 
@@ -134,7 +136,7 @@ class LabelsController extends BaseController
 		$this->requireAcceptsJson();
 		$this->requirePermission(Hub::PERMISSION_MANAGE_LABELS);
 
-		$ids = Json::decode((string)Craft::$app->getRequest()->getRequiredBodyParam('ids'));
+		$ids = Json::decode((string) Craft::$app->getRequest()->getRequiredBodyParam('ids'));
 		Hub::getInstance()->labels->reorderLabels(Ids::positive($ids));
 
 		return $this->asSuccess();
@@ -150,12 +152,13 @@ class LabelsController extends BaseController
 
 		$request = Craft::$app->getRequest();
 		$labels = Hub::getInstance()->labels;
-		$list = (string)$request->getRequiredBodyParam('list');
+		$list = (string) $request->getRequiredBodyParam('list');
 
 		if (!Hub::getInstance()->labels->isEnabled()) {
 			throw new ForbiddenHttpException('Labels are disabled.');
 		}
-		$id = (int)$request->getRequiredBodyParam('id');
+
+		$id = (int) $request->getRequiredBodyParam('id');
 
 		if (!isset(LabelService::LISTS[$list])) {
 			throw new BadRequestHttpException('Unknown list.');
@@ -186,7 +189,7 @@ class LabelsController extends BaseController
 		$this->requireAcceptsJson();
 
 		$request = Craft::$app->getRequest();
-		$list = (string)$request->getRequiredBodyParam('list');
+		$list = (string) $request->getRequiredBodyParam('list');
 
 		if (!Hub::getInstance()->labels->isEnabled()) {
 			throw new ForbiddenHttpException('Labels are disabled.');
@@ -205,7 +208,7 @@ class LabelsController extends BaseController
 
 		return $this->asJson([
 			'total' => count($ids),
-			'counts' => (object)Hub::getInstance()->labels->countLabelsOf($list, $ids),
+			'counts' => (object) Hub::getInstance()->labels->countLabelsOf($list, $ids),
 		]);
 	}
 

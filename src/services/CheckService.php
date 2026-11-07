@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -32,7 +34,7 @@ class CheckService extends Component
 	 */
 	public function forEntry(Entry $entry): array
 	{
-		return $this->forItem(CheckKind::Entries, (int)$entry->id);
+		return $this->forItem(CheckKind::Entries, (int) $entry->id);
 	}
 
 	/**
@@ -40,7 +42,7 @@ class CheckService extends Component
 	 */
 	public function forFile(Asset $asset): array
 	{
-		return $this->forItem(CheckKind::Assets, (int)$asset->id);
+		return $this->forItem(CheckKind::Assets, (int) $asset->id);
 	}
 
 	/**
@@ -48,7 +50,7 @@ class CheckService extends Component
 	 */
 	public function forUser(User $user): array
 	{
-		return $this->forItem(CheckKind::Users, (int)$user->id);
+		return $this->forItem(CheckKind::Users, (int) $user->id);
 	}
 
 	/**
@@ -57,9 +59,9 @@ class CheckService extends Component
 	 */
 	public function forSection(SectionInfo $info, bool $counted = true): array
 	{
-		$id = (int)$info->section->id;
+		$id = (int) $info->section->id;
 
-		return $this->forItem(CheckKind::Sections, $id, [CheckKind::Entries, ['sectionId' => $id], "hub/structure/sections/$id/entries"], $counted);
+		return $this->forItem(CheckKind::Sections, $id, [CheckKind::Entries, ['sectionId' => $id], "hub/structure/sections/{$id}/entries"], $counted);
 	}
 
 	/**
@@ -70,8 +72,8 @@ class CheckService extends Component
 	 */
 	public function forEntryType(EntryTypeInfo $info, bool $counted = true): array
 	{
-		$id = (int)$info->entryType->id;
-		$entries = $info->sections !== [] || $info->nestedFields !== [] ? [CheckKind::Entries, ['typeId' => $id], "hub/structure/entry-types/$id/entries"] : null;
+		$id = (int) $info->entryType->id;
+		$entries = $info->sections !== [] || $info->nestedFields !== [] ? [CheckKind::Entries, ['typeId' => $id], "hub/structure/entry-types/{$id}/entries"] : null;
 
 		return $this->forItem(CheckKind::EntryTypes, $id, $entries, $counted);
 	}
@@ -81,7 +83,7 @@ class CheckService extends Component
 	 */
 	public function forField(FieldInfo $info): array
 	{
-		return $this->forItem(CheckKind::Fields, (int)$info->field->id);
+		return $this->forItem(CheckKind::Fields, (int) $info->field->id);
 	}
 
 	/**
@@ -90,9 +92,9 @@ class CheckService extends Component
 	 */
 	public function forVolume(VolumeInfo $info, bool $counted = true): array
 	{
-		$id = (int)$info->volume->id;
+		$id = (int) $info->volume->id;
 
-		return $this->forItem(CheckKind::Volumes, $id, [CheckKind::Assets, ['volumeId' => $id], "hub/structure/volumes/$id/assets"], $counted);
+		return $this->forItem(CheckKind::Volumes, $id, [CheckKind::Assets, ['volumeId' => $id], "hub/structure/volumes/{$id}/assets"], $counted);
 	}
 
 	/**
@@ -107,8 +109,8 @@ class CheckService extends Component
 	private function forItem(CheckKind $kind, int $id, ?array $held = null, bool $counted = true): array
 	{
 		// Counted checks tell whether any element fails them as well.
-		return $this->checks["$kind->value:$id"]
-			?? ($counted ? $this->checks["$kind->value:$id"] = $this->check($kind, $id, $held, true) : $this->checks["$kind->value:$id:any"] ??= $this->check($kind, $id, $held, false));
+		return $this->checks["{$kind->value}:{$id}"]
+			?? ($counted ? $this->checks["{$kind->value}:{$id}"] = $this->check($kind, $id, $held, true) : $this->checks["{$kind->value}:{$id}:any"] ??= $this->check($kind, $id, $held, false));
 	}
 
 	/**
@@ -128,7 +130,7 @@ class CheckService extends Component
 			$checks = [...$checks, ...$this->heldChecks($held, $counted)];
 		}
 
-		return $diagnostics->sort($checks, $kind, fn (Check $check) => [(string)$check->key, $check->passed, $check->severity]);
+		return $diagnostics->sort($checks, $kind, fn(Check $check): array => [(string) $check->key, $check->passed, $check->severity]);
 	}
 
 	/**

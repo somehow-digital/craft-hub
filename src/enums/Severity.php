@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\enums;
 
 use Craft;
@@ -19,7 +21,7 @@ enum Severity: string
 	public static function sorted(): array
 	{
 		$cases = self::cases();
-		usort($cases, fn (self $a, self $b) => $a->rank() <=> $b->rank());
+		usort($cases, fn(self $a, self $b): int => $a->rank() <=> $b->rank());
 
 		return $cases;
 	}

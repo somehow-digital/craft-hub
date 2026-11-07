@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers;
 
 use craft\elements\Asset;
@@ -7,7 +9,6 @@ use craft\events\DeleteElementEvent;
 use craft\events\ElementEvent;
 use craft\services\Elements;
 use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\services\TrashService;
 use yii\base\Event;
 
 /**
@@ -23,9 +24,9 @@ class TrashTracker
 {
 	public function register(): void
 	{
-		Event::on(Elements::class, Elements::EVENT_BEFORE_DELETE_ELEMENT, fn (DeleteElementEvent $event) => $this->deleting($event));
-		Event::on(Elements::class, Elements::EVENT_AFTER_DELETE_ELEMENT, fn (ElementEvent $event) => $this->deleted($event));
-		Event::on(Elements::class, Elements::EVENT_AFTER_RESTORE_ELEMENT, fn (ElementEvent $event) => $this->restored($event));
+		Event::on(Elements::class, Elements::EVENT_BEFORE_DELETE_ELEMENT, fn(DeleteElementEvent $event) => $this->deleting($event));
+		Event::on(Elements::class, Elements::EVENT_AFTER_DELETE_ELEMENT, fn(ElementEvent $event) => $this->deleted($event));
+		Event::on(Elements::class, Elements::EVENT_AFTER_RESTORE_ELEMENT, fn(ElementEvent $event) => $this->restored($event));
 	}
 
 	private function deleting(DeleteElementEvent $event): void
@@ -49,7 +50,7 @@ class TrashTracker
 
 		if ($asset->hardDelete) {
 			// Deleted permanently, along with its file, unless it's kept for another reason.
-			$trash->forgetKeptFile((int)$asset->id);
+			$trash->forgetKeptFile((int) $asset->id);
 		} elseif ($asset->keepFileOnDelete && !$asset->deletedWithVolume) {
 			$trash->recordKeptFile($asset);
 		}
@@ -58,7 +59,7 @@ class TrashTracker
 	private function restored(ElementEvent $event): void
 	{
 		if ($event->element instanceof Asset) {
-			Hub::getInstance()->trash->forgetKeptFile((int)$event->element->id);
+			Hub::getInstance()->trash->forgetKeptFile((int) $event->element->id);
 		}
 	}
 }

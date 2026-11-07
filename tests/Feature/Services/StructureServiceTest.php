@@ -1,12 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Address;
 use craft\elements\Category;
+use craft\elements\Tag;
+use craft\fields\Entries;
+use craft\fields\Link;
+use craft\fields\Matrix;
 use craft\fields\PlainText;
 use craft\models\CategoryGroup;
+use craft\models\EntryType;
 use craft\models\TagGroup;
 use SomehowDigital\Craft\Hub\enums\UsageKind;
 use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\models\EntryStatistics;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\LayoutUsage;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
@@ -18,21 +26,21 @@ use SomehowDigital\Craft\Hub\Tests\Support\Fields\LayoutProviderField;
  */
 function handles(array $items): array
 {
-	return array_map(fn (object $item) => $item->handle, array_values($items));
+	return array_map(fn(object $item) => $item->handle, array_values($items));
 }
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 	$this->structure = $this->hub()->structure;
 });
 
-it('lists sections, entry types and fields by name', function () {
-	expect(array_map(fn (SectionInfo $info) => $info->section->handle, $this->structure->getSections()))->toBe([4 => 'archive', 1 => 'news', 2 => 'pages', 3 => 'settings'])
-		->and(array_map(fn (EntryTypeInfo $info) => $info->entryType->handle, $this->structure->getEntryTypes()))->toBe([10 => 'article', 12 => 'block', 14 => 'empty', 13 => 'orphan', 11 => 'page'])
+it('lists sections, entry types and fields by name', function (): void {
+	expect(array_map(fn(SectionInfo $info): ?string => $info->section->handle, $this->structure->getSections()))->toBe([4 => 'archive', 1 => 'news', 2 => 'pages', 3 => 'settings'])
+		->and(array_map(fn(EntryTypeInfo $info): ?string => $info->entryType->handle, $this->structure->getEntryTypes()))->toBe([10 => 'article', 12 => 'block', 14 => 'empty', 13 => 'orphan', 11 => 'page'])
 		->and(array_keys($this->structure->getFields()))->toBe([2, 4, 5, 7, 3, 1, 9, 10, 6]);
 });
 
-it('looks up sections, entry types and fields by ID', function () {
+it('looks up sections, entry types and fields by ID', function (): void {
 	expect($this->structure->getSection(1)->section->handle)->toBe('news')
 		->and($this->structure->getSection(99))->toBeNull()
 		->and($this->structure->getEntryType(12)->entryType->handle)->toBe('block')
@@ -41,7 +49,7 @@ it('looks up sections, entry types and fields by ID', function () {
 		->and($this->structure->getField(99))->toBeNull();
 });
 
-it('describes sections', function () {
+it('describes sections', function (): void {
 	$news = $this->structure->getSection(1);
 	$settings = $this->structure->getSection(3);
 
@@ -58,8 +66,8 @@ it('describes sections', function () {
 		->and($this->structure->getSection(4)->isEmpty())->toBeTrue();
 });
 
-it('classifies entry types by how they are used', function () {
-	$kinds = array_map(fn (EntryTypeInfo $info) => $info->kinds, $this->structure->getEntryTypes());
+it('classifies entry types by how they are used', function (): void {
+	$kinds = array_map(fn(EntryTypeInfo $info): array => $info->kinds, $this->structure->getEntryTypes());
 
 	expect($kinds)->toBe([
 		10 => [UsageKind::Section, UsageKind::Reference, UsageKind::Link, UsageKind::HasUrls],
@@ -70,7 +78,7 @@ it('classifies entry types by how they are used', function () {
 	]);
 });
 
-it('describes entry types', function () {
+it('describes entry types', function (): void {
 	$article = $this->structure->getEntryType(10);
 	$block = $this->structure->getEntryType(12);
 	$page = $this->structure->getEntryType(11);
@@ -86,7 +94,7 @@ it('describes entry types', function () {
 		->and($page->stats->total)->toBe(3);
 });
 
-it('describes nested entry fields', function () {
+it('describes nested entry fields', function (): void {
 	$blocks = $this->structure->getField(2);
 	$legacy = $this->structure->getField(7);
 
@@ -100,7 +108,7 @@ it('describes nested entry fields', function () {
 		->and($legacy->entryTypes)->toBe([]);
 });
 
-it('describes relational fields', function () {
+it('describes relational fields', function (): void {
 	$related = $this->structure->getField(3);
 	$cta = $this->structure->getField(4);
 	$image = $this->structure->getField(5);
@@ -116,16 +124,16 @@ it('describes relational fields', function () {
 		->and($this->structure->getField(1)->isRelational)->toBeFalse();
 });
 
-it('does not take Link fields without element link types for relational fields', function () {
-	$this->field(craft\fields\Link::class, 20, 'website', ['types' => ['url']]);
+it('does not take Link fields without element link types for relational fields', function (): void {
+	$this->field(Link::class, 20, 'website', ['types' => ['url']]);
 
 	expect($this->structure->getField(20)->isRelational)->toBeFalse()
 		->and($this->structure->getField(20)->sections)->toBe([]);
 });
 
-it('lists the layouts fields are placed in', function () {
+it('lists the layouts fields are placed in', function (): void {
 	$summary = $this->structure->getField(1);
-	$labels = array_map(fn (LayoutUsage $usage) => [$usage->ownerType, $usage->label, $usage->instances], $summary->layouts);
+	$labels = array_map(fn(LayoutUsage $usage): array => [$usage->ownerType, $usage->label, $usage->instances], $summary->layouts);
 
 	expect($labels)->toHaveCount(5)
 		->and($labels)->toContain(['Entry Type', 'Block', 1], ['Entry Type', 'Article', 1], ['Entry Type', 'Page', 2], ['Volume', 'Images', 1], ['Users', 'Users', 1])
@@ -133,7 +141,7 @@ it('lists the layouts fields are placed in', function () {
 		->and($this->structure->getField(6)->isUnused())->toBeTrue();
 });
 
-it('links layouts to their owners', function () {
+it('links layouts to their owners', function (): void {
 	$usages = [];
 	foreach ($this->structure->getField(1)->layouts as $usage) {
 		$usages[$usage->label] = $usage;
@@ -146,7 +154,7 @@ it('links layouts to their owners', function () {
 		->and($usages['Users']->model)->toBeNull();
 });
 
-it('describes layouts of fields, category and tag groups, addresses and other element types', function () {
+it('describes layouts of fields, category and tag groups, addresses and other element types', function (): void {
 	$plain = $this->field(PlainText::class, 30, 'plain');
 	$provider = $this->field(LayoutProviderField::class, 31, 'provider');
 	$provider->layout = $this->layout(Address::class, 'provider', [$plain]);
@@ -160,7 +168,7 @@ it('describes layouts of fields, category and tag groups, addresses and other el
 	Craft::$app->getCategories()->shouldReceive('getAllGroups')->andReturn([$group]);
 
 	$tags = new TagGroup(['id' => 2, 'name' => 'Keywords', 'handle' => 'keywords']);
-	$tags->setFieldLayout($this->layout(craft\elements\Tag::class, 'keywords', [$plain]));
+	$tags->setFieldLayout($this->layout(Tag::class, 'keywords', [$plain]));
 	$this->layouts[] = $tags->getFieldLayout();
 	Craft::$app->getTags()->shouldReceive('getAllTagGroups')->andReturn([$tags]);
 
@@ -169,7 +177,7 @@ it('describes layouts of fields, category and tag groups, addresses and other el
 		$usages[$usage->label] = $usage;
 	}
 
-	expect(array_map(fn (LayoutUsage $usage) => $usage->ownerType, $usages))->toBe([
+	expect(array_map(fn(LayoutUsage $usage): string => $usage->ownerType, $usages))->toBe([
 		'Provider' => 'Layout Provider',
 		'Addresses' => 'Addresses',
 		'Category' => 'Categories',
@@ -183,10 +191,10 @@ it('describes layouts of fields, category and tag groups, addresses and other el
 		->and($usages['Keywords']->url)->toContain('settings/tags/2');
 });
 
-it('scopes URLs and counts to the selected sites', function () {
+it('scopes URLs and counts to the selected sites', function (): void {
 	$this->request([Hub::SITE_PARAM => 'de']);
 
-	$this->db()->respondToEntryRows(fn (string $sql) => str_contains($sql, '`elements_sites`.`siteId`=2') ? [
+	$this->db()->respondToEntryRows(fn(string $sql): array => str_contains($sql, '`elements_sites`.`siteId`=2') ? [
 		['sectionId' => 1, 'typeId' => 10, 'fieldId' => null, 'total' => 2, 'enabled' => 2, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => null],
 	] : []);
 
@@ -197,7 +205,7 @@ it('scopes URLs and counts to the selected sites', function () {
 		->and($this->structure->getEntryType(12)->kinds)->toBe([UsageKind::Nested, UsageKind::Empty]);
 });
 
-it('builds the graph once per set of sites', function () {
+it('builds the graph once per set of sites', function (): void {
 	$this->structure->getSections();
 	$this->structure->getFields();
 	$this->structure->getEntryTypes();
@@ -206,7 +214,7 @@ it('builds the graph once per set of sites', function () {
 	$this->structure->getSections();
 });
 
-it('reads the statistics when they are first shown', function () {
+it('reads the statistics when they are first shown', function (): void {
 	$sections = $this->structure->getSections();
 	$this->structure->getEntryTypes();
 	$this->structure->getFields();
@@ -224,22 +232,22 @@ it('reads the statistics when they are first shown', function () {
 		->and($this->db()->queriesMatching('{{hubEntryRows}}'))->toHaveCount(2);
 });
 
-it('keeps statistics set before they are read', function () {
+it('keeps statistics set before they are read', function (): void {
 	$section = $this->structure->getSection(1);
-	$section->stats = new SomehowDigital\Craft\Hub\models\EntryStatistics();
+	$section->stats = new EntryStatistics();
 
 	expect($section->stats->total)->toBe(0)
 		->and(isset($section->references))->toBeTrue()
 		->and($this->db()->queriesMatching('FROM'))->toBe([]);
 });
 
-it('leaves out fields that are not among all fields', function () {
+it('leaves out fields that are not among all fields', function (): void {
 	$fields = Craft::$app->getFields();
-	$stray = new craft\fields\Entries(['id' => 40, 'uid' => 'stray', 'handle' => 'stray', 'sources' => '*']);
-	$strayMatrix = new craft\fields\Matrix(['id' => 41, 'uid' => 'stray-matrix', 'handle' => 'strayMatrix']);
-	$fields->shouldReceive('getFieldsByType')->andReturnUsing(fn (string $type) => match ($type) {
-		craft\fields\Entries::class => [$stray],
-		craft\fields\Matrix::class => [$strayMatrix],
+	$stray = new Entries(['id' => 40, 'uid' => 'stray', 'handle' => 'stray', 'sources' => '*']);
+	$strayMatrix = new Matrix(['id' => 41, 'uid' => 'stray-matrix', 'handle' => 'strayMatrix']);
+	$fields->shouldReceive('getFieldsByType')->andReturnUsing(fn(string $type): array => match ($type) {
+		Entries::class => [$stray],
+		Matrix::class => [$strayMatrix],
 		default => [],
 	});
 
@@ -247,8 +255,8 @@ it('leaves out fields that are not among all fields', function () {
 		->and($this->structure->getSection(1)->referenceFields)->toBe([]);
 });
 
-it('leaves out nested entry types that are not among all entry types', function () {
-	$stray = new craft\models\EntryType(['id' => 50, 'uid' => 'stray', 'handle' => 'stray', 'name' => 'Stray']);
+it('leaves out nested entry types that are not among all entry types', function (): void {
+	$stray = new EntryType(['id' => 50, 'uid' => 'stray', 'handle' => 'stray', 'name' => 'Stray']);
 	$this->fields[7]->setEntryTypes([$stray]);
 
 	expect($this->structure->getField(7)->entryTypes)->toBe([])

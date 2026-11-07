@@ -24,7 +24,7 @@
 				</ul>
 				{% if list.total > list.items|length %}
 					<div class="hub-work-footer">
-						<span class="hub-muted">{{ 'Showing {shown, number} of {total, number}'|t('hub', { shown: list.items|length, total: list.total }) }}</span>
+						<span class="hub-muted">{{ 'Showing {shown, number} of {total, number}'|t('hub', {shown: list.items|length, total: list.total}) }}</span>
 					</div>
 				{% endif %}
 			{% else %}
@@ -67,7 +67,7 @@
 {% macro maintainedState(row) %}
 	{%- import 'hub/_components/macros' as hub -%}
 	{%- if row.failed -%}
-		{{ hub.badge('{count, plural, =1{One issue} other{# issues}}'|t('hub', { count: row.failed }), row.severity.color()) }}
+		{{ hub.badge('{count, plural, =1{One issue} other{# issues}}'|t('hub', {count: row.failed}), row.severity.color()) }}
 	{%- else -%}
 		{{ hub.badge('All clear'|t('hub'), 'green') }}
 	{%- endif -%}
@@ -105,7 +105,7 @@
 		<div class="hub-work-menu__popover" id="{{ id }}" popover role="menu">
 			{% for day in days %}
 				<button type="submit" form="{{ id }}-form" name="days" value="{{ day }}" role="menuitem">
-					{{- day ? 'For {days, plural, =1{one day} other{# days}}'|t('hub', { days: day }) : 'Dismiss for good'|t('hub') -}}
+					{{- day ? 'For {days, plural, =1{one day} other{# days}}'|t('hub', {days: day}) : 'Dismiss for good'|t('hub') -}}
 				</button>
 			{% endfor %}
 		</div>

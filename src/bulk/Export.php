@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -66,8 +68,8 @@ class Export extends BulkAction implements SendsFile
 	{
 		$hub = $this->hub();
 		$exporters = $hub->bulk->getExporters($this->list);
-		$exporter = $exporters[(string)($params['exporter'] ?? array_key_first($exporters))] ?? null;
-		$format = (string)($params['format'] ?? Response::FORMAT_CSV);
+		$exporter = $exporters[(string) ($params['exporter'] ?? array_key_first($exporters))] ?? null;
+		$format = (string) ($params['format'] ?? Response::FORMAT_CSV);
 
 		if ($exporter === null || ($exporter::isFormattable() && !isset($hub->bulk->getExportFormats()[$format]))) {
 			throw new BadRequestHttpException('Unknown exporter or format.');
@@ -85,7 +87,7 @@ class Export extends BulkAction implements SendsFile
 
 		try {
 			foreach ($elements as $element) {
-				$hub->activity->record(ActivityAction::Exported, $subject, (int)$element->id, $element->getUiLabel(), siteId: $element instanceof User ? null : $element->siteId);
+				$hub->activity->record(ActivityAction::Exported, $subject, (int) $element->id, $element->getUiLabel(), siteId: $element instanceof User ? null : $element->siteId);
 			}
 		} finally {
 			$hub->activity->endBatch();
@@ -106,7 +108,7 @@ class Export extends BulkAction implements SendsFile
 			$export = is_callable($export) ? $export() : $export;
 
 			if (!is_iterable($export)) {
-				throw new InvalidValueException(get_class($exporter) . '::export() must return an array or generator function since isFormattable() returns true.');
+				throw new InvalidValueException($exporter::class . '::export() must return an array or generator function since isFormattable() returns true.');
 			}
 
 			$response->data = $export;

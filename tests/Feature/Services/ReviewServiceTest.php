@@ -1,15 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\db\EntryQuery;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\services\ReviewService;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->site(2, 'de');
 	$this->review = new ReviewService();
 });
 
-it('matches unreferenced elements with a condition for each way to reference them', function () {
+it('matches unreferenced elements with a condition for each way to reference them', function (): void {
 	$unreferenced = $this->review->unreferencedCondition();
 
 	expect(array_column(array_slice($unreferenced, 1), 0))->toBe(['not exists', 'not exists', 'not in'])
@@ -18,13 +20,13 @@ it('matches unreferenced elements with a condition for each way to reference the
 		->and(conditionSql($unreferenced))->toContain('NOT IN (SELECT `hubUsers`.`photoId`');
 });
 
-it('leaves user photos out of the references of elements that cannot be photos', function () {
+it('leaves user photos out of the references of elements that cannot be photos', function (): void {
 	expect($this->review->referenceCountSql())->toContain('`hubUsers`')
 		->and($this->review->referenceCountSql(false))->not->toContain('`hubUsers`');
 });
 
-it('counts stale entries by the number of months', function () {
-	$this->db()->respondToCounts(fn (EntryQuery $query) => [['sectionId' => 1, 'typeId' => 10, 'total' => str_contains(conditionSql($query->where), (new DateTime('-6 months', new DateTimeZone('UTC')))->format('Y-m-d')) ? 4 : 1]]);
+it('counts stale entries by the number of months', function (): void {
+	$this->db()->respondToCounts(fn(EntryQuery $query): array => [['sectionId' => 1, 'typeId' => 10, 'total' => str_contains(conditionSql($query->where), (new DateTime('-6 months', new DateTimeZone('UTC')))->format('Y-m-d')) ? 4 : 1]]);
 
 	expect($this->review->countStale(6))->toBe(4)
 		->and($this->review->countStale(12, 1, 10))->toBe(1)
@@ -32,7 +34,7 @@ it('counts stale entries by the number of months', function () {
 		->and($this->db()->counts())->toHaveCount(2);
 });
 
-it('queries stale entries by when a person last edited them, least recently edited first', function () {
+it('queries stale entries by when a person last edited them, least recently edited first', function (): void {
 	$query = $this->review->getStaleQuery(3, typeId: 11);
 	$edited = $this->hub()->edits->lastEditedSql();
 
@@ -47,7 +49,7 @@ it('queries stale entries by when a person last edited them, least recently edit
 		->and(conditions($query)[0][1])->toBe(['entries.primaryOwnerId' => null]);
 });
 
-it('queries stale entries of a nested entry field', function () {
+it('queries stale entries of a nested entry field', function (): void {
 	$query = $this->review->getStaleQuery(3, fieldId: 5);
 
 	expect($query->fieldId)->toBe(5)
@@ -55,7 +57,7 @@ it('queries stale entries of a nested entry field', function () {
 		->and($query->typeId)->toBeNull();
 });
 
-it('matches images without alternative text on the counted sites', function () {
+it('matches images without alternative text on the counted sites', function (): void {
 	$this->request([Hub::SITE_PARAM => 'de']);
 	$condition = $this->review->missingAltCondition();
 
@@ -64,7 +66,7 @@ it('matches images without alternative text on the counted sites', function () {
 		->and(rawSql($condition[3][1]))->toContain('`hubAssetsSites`.`siteId`=2');
 });
 
-it('matches images larger than the threshold', function () {
+it('matches images larger than the threshold', function (): void {
 	$this->db()->respond('FROM {{%hub_filters}}', [thresholdRow('assets', 'oversized', 2000)]);
 
 	expect($this->review->largeImageCondition())->toBe([
@@ -74,13 +76,13 @@ it('matches images larger than the threshold', function () {
 	]);
 });
 
-it('builds subqueries for the queried elements', function () {
+it('builds subqueries for the queried elements', function (): void {
 	expect(rawSql($this->review->referencesQuery()))->toContain('`hubSources`.`draftId` IS NULL')
 		->and(rawSql($this->review->draftsQuery()))->toContain('`hubDraftsInfo`.`provisional`=FALSE')
 		->and(rawSql($this->review->draftsQuery()))->toContain('`hubDraftsSites`.`siteId` = `elements_sites`.`siteId`');
 });
 
-it('finds the entries with drafts of a user, including their unsaved changes', function () {
+it('finds the entries with drafts of a user, including their unsaved changes', function (): void {
 	[$in, $column, $drafts] = $this->review->userDraftsCondition(7);
 	$sql = $drafts->createCommand()->getRawSql();
 
@@ -90,6 +92,6 @@ it('finds the entries with drafts of a user, including their unsaved changes', f
 		->and($sql)->not->toContain('provisional');
 });
 
-it('finds the entries with drafts in the drafts alone', function () {
+it('finds the entries with drafts in the drafts alone', function (): void {
 	expect(preg_replace('/\s+/', ' ', rawSql($this->review->draftedQuery())))->toBe('SELECT DISTINCT `hubDrafted`.`canonicalId` AS `canonicalId` FROM `drafts` `hubDrafted` WHERE (`hubDrafted`.`provisional`=FALSE) AND (NOT (`hubDrafted`.`canonicalId` IS NULL))');
 });

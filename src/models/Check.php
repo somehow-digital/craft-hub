@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use SomehowDigital\Craft\Hub\enums\Severity;
@@ -36,8 +38,7 @@ class Check
 		public Severity $severity,
 		public string $icon,
 		public bool $passed,
-	) {
-	}
+	) {}
 
 	/**
 	 * Links the check to the next step, unless there is nowhere to go, e.g. as the user can't open the page.

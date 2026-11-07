@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\helpers;
 
 use SomehowDigital\Craft\Hub\enums\UsageKind;
@@ -39,6 +41,7 @@ final class Classifier
 						$uids[$uid] = true;
 					}
 				}
+
 				continue;
 			}
 
@@ -148,7 +151,7 @@ final class Classifier
 	 */
 	public static function isPlayableVideo(?string $mimeType): bool
 	{
-		return in_array(strtolower((string)$mimeType), ['video/mp4', 'video/webm', 'video/ogg'], true);
+		return in_array(strtolower((string) $mimeType), ['video/mp4', 'video/webm', 'video/ogg'], true);
 	}
 
 	private static function normalizeHandle(string $handle): string

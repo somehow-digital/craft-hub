@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use Closure;
@@ -19,7 +21,7 @@ trait LazyProperties
 	 */
 	public function lazy(string $property, Closure $loader): void
 	{
-		unset($this->$property);
+		unset($this->{$property});
 		$this->loaders[$property] = $loader;
 	}
 
@@ -28,7 +30,7 @@ trait LazyProperties
 		$loader = $this->loaders[$name] ?? throw new LogicException(sprintf('Undefined property: %s::$%s', static::class, $name));
 		unset($this->loaders[$name]);
 
-		return $this->$name = $loader();
+		return $this->{$name} = $loader();
 	}
 
 	/**

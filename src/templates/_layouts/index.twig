@@ -13,15 +13,15 @@
 {% set path = 'hub/' ~ area ~ '/' ~ page %}
 {% set selectedSubnavItem = page %}
 
-{% set tabs = { list: { label: title, url: url(path, { hubSite: hubSite }) } } %}
+{% set tabs = {list: {label: title, url: url(path, {hubSite: hubSite})}} %}
 {% for id, label in extraTabs ?? {} %}
-	{% set tabs = tabs|merge({ (id): { label: label, url: url(path ~ '/' ~ id, { hubSite: hubSite }) } }) %}
+	{% set tabs = tabs|merge({(id): {label: label, url: url(path ~ '/' ~ id, {hubSite: hubSite})}}) %}
 {% endfor %}
 {% if statisticsEnabled ?? true %}
-	{% set tabs = tabs|merge({ statistics: { label: 'Statistics'|t('hub'), url: url(path ~ '/statistics', { hubSite: hubSite }) } }) %}
+	{% set tabs = tabs|merge({statistics: {label: 'Statistics'|t('hub'), url: url(path ~ '/statistics', {hubSite: hubSite})}}) %}
 {% endif %}
 {% if diagnosticsEnabled ?? true %}
-	{% set tabs = tabs|merge({ diagnostics: { label: 'Diagnostics'|t('hub'), url: url(path ~ '/diagnostics', { hubSite: hubSite }) } }) %}
+	{% set tabs = tabs|merge({diagnostics: {label: 'Diagnostics'|t('hub'), url: url(path ~ '/diagnostics', {hubSite: hubSite})}}) %}
 {% endif %}
 
 {# The page title names the elements, which are kept in the document title along with the selected tab. #}
@@ -29,8 +29,8 @@
 
 {# The selected tab ends the crumbs, as on the detail pages, which start with the list they belong to. #}
 {% set crumbs = selectedTab != 'list'
-	? [tabs.list, tabs[selectedTab]|merge({ current: true })]
-	: [tabs.list|merge({ current: true })] %}
+	? [tabs.list, tabs[selectedTab]|merge({current: true})]
+	: [tabs.list|merge({current: true})] %}
 
 {% block actionButton %}
 	{% if siteScoped ?? true %}

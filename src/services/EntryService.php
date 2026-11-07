@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -130,7 +132,7 @@ class EntryService extends Component
 		}
 
 		if ($filter->myDrafts) {
-			$query->andWhere($review->userDraftsCondition((int)Craft::$app->getUser()->getId()));
+			$query->andWhere($review->userDraftsCondition((int) Craft::$app->getUser()->getId()));
 		}
 
 		if ($filter->comingUp) {
@@ -184,12 +186,12 @@ class EntryService extends Component
 			return [];
 		}
 
-		$users = Hub::getInstance()->users->getUsers(array_map('intval', array_keys($counts)));
+		$users = Hub::getInstance()->users->getUsers(array_map(intval(...), array_keys($counts)));
 		$authors = [];
 
 		foreach ($counts as $id => $count) {
 			if (isset($users[$id])) {
-				$authors[(int)$id] = ['user' => $users[$id], 'count' => (int)$count];
+				$authors[(int) $id] = ['user' => $users[$id], 'count' => (int) $count];
 			}
 		}
 
@@ -220,11 +222,11 @@ class EntryService extends Component
 		$conditions = [];
 
 		if ($sections !== []) {
-			$conditions[] = ['entries.sectionId' => array_values(array_filter(array_map(fn (string $handle) => $entries->getSectionByHandle($handle)?->id, $sections)))];
+			$conditions[] = ['entries.sectionId' => array_values(array_filter(array_map(fn(string $handle) => $entries->getSectionByHandle($handle)?->id, $sections)))];
 		}
 
 		if ($fields !== []) {
-			$conditions[] = ['entries.fieldId' => array_values(array_filter(array_map(fn (string $handle) => Craft::$app->getFields()->getFieldByHandle($handle)?->id, $fields)))];
+			$conditions[] = ['entries.fieldId' => array_values(array_filter(array_map(fn(string $handle) => Craft::$app->getFields()->getFieldByHandle($handle)?->id, $fields)))];
 		}
 
 		return $conditions !== [] ? ['or', ...$conditions] : null;
@@ -314,7 +316,7 @@ class EntryService extends Component
 		$drafts = [];
 
 		$found = Entry::find()
-			->draftOf(array_map(fn (Entry $entry) => (int)$entry->id, $entries))
+			->draftOf(array_map(fn(Entry $entry): int => (int) $entry->id, $entries))
 			->site('*')
 			->unique()
 			->status(null)
@@ -324,11 +326,11 @@ class EntryService extends Component
 
 		foreach ($found as $draft) {
 			if ($service->canDelete($draft)) {
-				$drafts[(int)$draft->getCanonicalId()][] = $draft;
+				$drafts[(int) $draft->getCanonicalId()][] = $draft;
 			}
 		}
 
-		return [array_values(array_filter($entries, fn (Entry $entry) => isset($drafts[$entry->id]))), $drafts];
+		return [array_values(array_filter($entries, fn(Entry $entry): bool => isset($drafts[$entry->id]))), $drafts];
 	}
 
 	/**
@@ -343,7 +345,7 @@ class EntryService extends Component
 		$ids = [];
 
 		foreach ($this->authoredSections($entries) as $section) {
-			$ids = [...$ids, ...User::find()->can("viewEntries:$section->uid")->status(User::STATUS_ACTIVE)->ids()];
+			$ids = [...$ids, ...User::find()->can("viewEntries:{$section->uid}")->status(User::STATUS_ACTIVE)->ids()];
 		}
 
 		if ($ids === []) {
@@ -351,7 +353,7 @@ class EntryService extends Component
 		}
 
 		$users = User::find()->id(array_values(array_unique($ids)))->status(User::STATUS_ACTIVE)->all();
-		usort($users, fn (User $a, User $b) => strnatcasecmp((string)$a->getName(), (string)$b->getName()));
+		usort($users, fn(User $a, User $b): int => strnatcasecmp($a->getName(), $b->getName()));
 
 		return $users;
 	}
@@ -365,13 +367,13 @@ class EntryService extends Component
 		$user = Craft::$app->getUser()->getIdentity();
 		$section = $entry->getSection();
 
-		if ($user === null || $section === null || $this->authoredSections([$entry]) === [] || !Craft::$app->getElements()->canSave($entry)) {
+		if ($user === null || !$section instanceof Section || $this->authoredSections([$entry]) === [] || !Craft::$app->getElements()->canSave($entry)) {
 			return false;
 		}
 
 		$authorIds = $entry->getAuthorIds();
 
-		return $authorIds === [] || in_array($user->id, $authorIds, true) || $user->can("changeAuthorForPeerEntries:$section->uid");
+		return $authorIds === [] || in_array($user->id, $authorIds, true) || $user->can("changeAuthorForPeerEntries:{$section->uid}");
 	}
 
 	/**
@@ -386,14 +388,14 @@ class EntryService extends Component
 		$targets = [];
 
 		foreach (Craft::$app->getEntries()->getAllSections() as $section) {
-			$count = count(array_filter($entries, fn (Entry $entry) => $this->canMoveTo($entry, $section)));
+			$count = count(array_filter($entries, fn(Entry $entry): bool => $this->canMoveTo($entry, $section)));
 
 			if ($count > 0) {
 				$targets[$section->id] = ['section' => $section, 'count' => $count];
 			}
 		}
 
-		uasort($targets, fn (array $a, array $b) => strnatcasecmp((string)$a['section']->name, (string)$b['section']->name));
+		uasort($targets, fn(array $a, array $b): int => strnatcasecmp((string) $a['section']->name, (string) $b['section']->name));
 
 		return $targets;
 	}
@@ -410,8 +412,8 @@ class EntryService extends Component
 			&& $section->type !== Section::TYPE_SINGLE
 			&& $entry->sectionId !== null
 			&& $entry->sectionId !== $section->id
-			&& in_array($entry->typeId, array_map(fn (EntryType $type) => $type->id, $section->getEntryTypes()), true)
-			&& $user->can("saveEntries:$section->uid")
+			&& in_array($entry->typeId, array_map(fn(EntryType $type): ?int => $type->id, $section->getEntryTypes()), true)
+			&& $user->can("saveEntries:{$section->uid}")
 			&& $entry->canMove($user);
 	}
 
@@ -475,8 +477,8 @@ class EntryService extends Component
 		$authored = [];
 
 		foreach (Craft::$app->getEntries()->getAllSections() as $section) {
-			if ($user->checkPermission("viewEntries:$section->uid")) {
-				if ($section->type === Section::TYPE_SINGLE || $user->checkPermission("viewPeerEntries:$section->uid")) {
+			if ($user->checkPermission("viewEntries:{$section->uid}")) {
+				if ($section->type === Section::TYPE_SINGLE || $user->checkPermission("viewPeerEntries:{$section->uid}")) {
 					$all[] = $section->id;
 				} else {
 					$authored[] = $section->id;
@@ -484,7 +486,7 @@ class EntryService extends Component
 			}
 		}
 
-		return $this->sectionsCondition($all, $authored, (int)$user->getId());
+		return $this->sectionsCondition($all, $authored, (int) $user->getId());
 	}
 
 	/**
@@ -497,12 +499,12 @@ class EntryService extends Component
 	 */
 	public function sectionsCondition(array $all, array $authored, int $userId): array
 	{
-		$condition = fn (string $alias) => [
+		$condition = fn(string $alias): array => [
 			'or',
-			["$alias.sectionId" => $all],
-			['and', ["$alias.sectionId" => $authored], ['exists', (new Query())
+			["{$alias}.sectionId" => $all],
+			['and', ["{$alias}.sectionId" => $authored], ['exists', (new Query())
 				->from(['hubAuthors' => Table::ENTRIES_AUTHORS])
-				->where("[[hubAuthors.entryId]] = [[$alias.id]]")
+				->where("[[hubAuthors.entryId]] = [[{$alias}.id]]")
 				->andWhere(['hubAuthors.authorId' => $userId])]],
 		];
 

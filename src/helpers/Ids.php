@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\helpers;
 
 /**
@@ -14,6 +16,6 @@ final class Ids
 	 */
 	public static function positive(mixed $ids): array
 	{
-		return is_array($ids) ? array_values(array_filter(array_map('intval', $ids), fn (int $id) => $id > 0)) : [];
+		return is_array($ids) ? array_values(array_filter(array_map(intval(...), $ids), fn(int $id): bool => $id > 0)) : [];
 	}
 }

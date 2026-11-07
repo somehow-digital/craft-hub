@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\fields\Entries as EntriesField;
@@ -54,7 +56,7 @@ function entryStats(int $total, int $enabled = 0, int $drafts = 0, ?string $last
 	return $stats;
 }
 
-it('sums asset statistics, keeping the last upload', function () {
+it('sums asset statistics, keeping the last upload', function (): void {
 	$stats = assetStats(4, 3, 2, 1, 1000, '2024-01-01')
 		->add(assetStats(2, 0, 2, 2, 500, '2024-03-01'))
 		->add(assetStats(1, 1, 0, 0, 10, '2024-02-01'))
@@ -66,12 +68,12 @@ it('sums asset statistics, keeping the last upload', function () {
 		->and($stats->getAverageSize())->toBe(215);
 });
 
-it('averages no assets to zero', function () {
+it('averages no assets to zero', function (): void {
 	expect((new AssetStatistics())->getAverageSize())->toBe(0)
 		->and((new AssetStatistics())->add(assetStats(0, lastUploaded: '2024-01-01'))->lastUploaded)->not->toBeNull();
 });
 
-it('sums entry statistics, keeping the last update', function () {
+it('sums entry statistics, keeping the last update', function (): void {
 	$stats = entryStats(3, 2, 1, '2024-01-01')
 		->add(entryStats(2, 2, 0))
 		->add(entryStats(1, 0, 4, '2023-01-01'));
@@ -80,7 +82,7 @@ it('sums entry statistics, keeping the last update', function () {
 		->and($stats->lastUpdated->format('Y-m-d'))->toBe('2024-01-01');
 });
 
-it('tells how recently entries were updated', function () {
+it('tells how recently entries were updated', function (): void {
 	expect(entryStats(0)->getActivity(12))->toBe(EntryStatistics::ACTIVITY_NONE)
 		->and(entryStats(1, lastUpdated: '-13 months')->getActivity(12))->toBe(EntryStatistics::ACTIVITY_STALE)
 		->and(entryStats(1, lastUpdated: '-11 months')->getActivity(12))->toBe(EntryStatistics::ACTIVITY_RECENT)
@@ -89,7 +91,7 @@ it('tells how recently entries were updated', function () {
 		->and(EntryStatistics::getActivities())->toBe(['recent', 'stale', 'none']);
 });
 
-it('sums reference statistics', function () {
+it('sums reference statistics', function (): void {
 	$a = new ReferenceStatistics();
 	$a->references = 3;
 	$a->sources = 2;
@@ -104,7 +106,7 @@ it('sums reference statistics', function () {
 		->and([$a->references, $a->sources, $a->targets])->toBe([4, 3, 2]);
 });
 
-it('links a check to the next step, unless there is none', function () {
+it('links a check to the next step, unless there is none', function (): void {
 	$check = new Check('Heading', 'Failed', 'Passed', Severity::Notice, 'icon', false);
 
 	expect($check->link(null, 'Open')->url)->toBeNull()
@@ -113,7 +115,7 @@ it('links a check to the next step, unless there is none', function () {
 		->and([$check->url, $check->action])->toBe(['https://example.test', 'Open']);
 });
 
-it('collects the paths of a reference once', function () {
+it('collects the paths of a reference once', function (): void {
 	$field = new PlainText(['id' => 1]);
 	$reference = new EntryReference(new Entry(['id' => 1]));
 	$reference->addPath('Content → Image', $field);
@@ -126,7 +128,7 @@ it('collects the paths of a reference once', function () {
 	]);
 });
 
-it('describes the usage of an entry type', function () {
+it('describes the usage of an entry type', function (): void {
 	$info = new EntryTypeInfo(new EntryType(['id' => 1]));
 	$info->sections = [new Section(['id' => 1])];
 	$info->nestedFields = [new Matrix(['id' => 1]), new Matrix(['id' => 2])];
@@ -138,7 +140,7 @@ it('describes the usage of an entry type', function () {
 		->and($info->getKindValues())->toBe(['section', 'nested']);
 });
 
-it('describes a field holding plain values', function () {
+it('describes a field holding plain values', function (): void {
 	$info = new FieldInfo(new PlainText(['id' => 1]));
 
 	expect($info->getTypeName())->toBe(PlainText::displayName())
@@ -155,7 +157,7 @@ it('describes a field holding plain values', function () {
 		->and($info->getOwnerTypes())->toBe(['Entry Type', 'Volume']);
 });
 
-it('tells whether a placed nested field is empty', function () {
+it('tells whether a placed nested field is empty', function (): void {
 	$info = new FieldInfo(new Matrix(['id' => 1]));
 	$info->isNested = true;
 	$info->isRelational = true;
@@ -170,7 +172,7 @@ it('tells whether a placed nested field is empty', function () {
 	expect($info->isEmpty())->toBeFalse();
 });
 
-it('tells whether a placed relational field is empty', function () {
+it('tells whether a placed relational field is empty', function (): void {
 	$info = new FieldInfo(new EntriesField(['id' => 1]));
 	$info->isRelational = true;
 	$info->layouts = [new LayoutUsage('Entry Type', 'Article')];
@@ -182,7 +184,7 @@ it('tells whether a placed relational field is empty', function () {
 	expect($info->isEmpty())->toBeFalse();
 });
 
-it('describes file kinds', function (string $kind, string $icon, string $color) {
+it('describes file kinds', function (string $kind, string $icon, string $color): void {
 	$info = new FileKindInfo($kind);
 
 	expect($info->getIcon())->toBe($icon)
@@ -204,7 +206,7 @@ it('describes file kinds', function (string $kind, string $icon, string $color) 
 	[Asset::KIND_UNKNOWN, 'file', 'gray'],
 ]);
 
-it('tells whether a section is empty', function () {
+it('tells whether a section is empty', function (): void {
 	$info = new SectionInfo(new Section(['id' => 1]));
 
 	expect($info->isEmpty())->toBeTrue()
@@ -214,7 +216,7 @@ it('tells whether a section is empty', function () {
 	expect($info->isEmpty())->toBeFalse();
 });
 
-it('tells whether a volume is empty and which file kinds it holds', function () {
+it('tells whether a volume is empty and which file kinds it holds', function (): void {
 	$info = new VolumeInfo(new Volume(['id' => 1]));
 
 	expect($info->isEmpty())->toBeTrue()
@@ -227,11 +229,11 @@ it('tells whether a volume is empty and which file kinds it holds', function () 
 		->and($info->getKindValues())->toBe(['image', 'pdf']);
 });
 
-it('lists how recently users signed in', function () {
+it('lists how recently users signed in', function (): void {
 	expect(UserFilter::getLogins())->toBe(['recent', 'idle', 'never']);
 });
 
-it('counts the active users who have not signed in yet', function () {
+it('counts the active users who have not signed in yet', function (): void {
 	$stats = new UserStatistics();
 	$stats->active = 5;
 	$stats->recentLogin = 2;
@@ -244,11 +246,11 @@ it('counts the active users who have not signed in yet', function () {
 	expect($stats->getNew())->toBe(0);
 });
 
-it('lists the image orientations', function () {
+it('lists the image orientations', function (): void {
 	expect(FileFilter::getOrientations())->toBe(['landscape', 'portrait', 'square']);
 });
 
-it('validates the settings', function () {
+it('validates the settings', function (): void {
 	$settings = new Settings();
 
 	expect($settings->validate())->toBeTrue();
@@ -259,7 +261,7 @@ it('validates the settings', function () {
 		->and(array_keys($settings->getErrors()))->toBe(['activityRetentionDays']);
 });
 
-it('names the subject of an activity as it was, or by how many items it was done to', function () {
+it('names the subject of an activity as it was, or by how many items it was done to', function (): void {
 	$activity = new Activity();
 	$activity->action = ActivityAction::Exported;
 	$activity->subject = ActivitySubject::Entry;
@@ -276,7 +278,7 @@ it('names the subject of an activity as it was, or by how many items it was done
 	expect($activity->getTitle())->toBe('Hello');
 });
 
-it('tells the site of an activity and who impersonated its user', function () {
+it('tells the site of an activity and who impersonated its user', function (): void {
 	$activity = new Activity();
 
 	expect($activity->getSite())->toBeNull()
@@ -289,7 +291,7 @@ it('tells the site of an activity and who impersonated its user', function () {
 		->and($activity->getImpersonatorName())->toBe('admin');
 });
 
-it('names the attributes and fields an update changed', function () {
+it('names the attributes and fields an update changed', function (): void {
 	$this->field(PlainText::class, 1, 'summary', ['name' => 'Short Summary']);
 	$activity = new Activity();
 	$activity->data = ['attributes' => ['typeId', 'slug', 'enabled', 'enabledForSite'], 'fields' => ['summary', 'deleted']];

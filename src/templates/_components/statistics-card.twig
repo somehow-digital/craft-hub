@@ -25,7 +25,7 @@
 	icon: card.icon,
 	id: 'hub-statistics-' ~ card.key,
 	loaded: loaded,
-	lazy: loaded ? null : url(craft.app.request.pathInfo, craft.app.request.queryParamsWithoutPath|merge({ card: card.key })),
+	lazy: loaded ? null : url(craft.app.request.pathInfo, craft.app.request.queryParamsWithoutPath|merge({card: card.key})),
 	card: card,
 	segments: segments,
 	barSegments: barSegments,
@@ -96,7 +96,7 @@
 		</div>
 
 		{% if card.chart ?? null %}
-			{% include 'hub/_components/statistics-chart' with { chart: card.chart, key: card.key } only %}
+			{{ include('hub/_components/statistics-chart', {chart: card.chart, key: card.key}, false) }}
 		{% endif %}
 
 		{% if table and table.rows|length %}

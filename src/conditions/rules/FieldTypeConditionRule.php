@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
@@ -26,7 +28,8 @@ class FieldTypeConditionRule extends BaseMultiSelectConditionRule implements Inf
 		foreach (Hub::getInstance()->structure->getFields() as $info) {
 			$options[$info->field::class] = ['value' => $info->field::class, 'label' => $info->getTypeName()];
 		}
-		usort($options, fn (array $a, array $b) => strcasecmp($a['label'], $b['label']));
+
+		usort($options, fn(array $a, array $b): int => strcasecmp($a['label'], $b['label']));
 
 		return $options;
 	}

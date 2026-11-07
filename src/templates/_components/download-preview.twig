@@ -12,19 +12,19 @@
 
 <div class="hub-deletion">
 	{% if not total %}
-		{% set notice = { color: 'gray', icon: 'ban', title: 'Nothing to download:'|t('hub'), text: 'None of the selected files can be downloaded.'|t('hub') } %}
+		{% set notice = {color: 'gray', icon: 'ban', title: 'Nothing to download:'|t('hub'), text: 'None of the selected files can be downloaded.'|t('hub')} %}
 	{% elseif total == 1 %}
-		{% set notice = { color: 'blue', icon: 'file-arrow-down', text: 'is downloaded as it is.'|t('hub') } %}
+		{% set notice = {color: 'blue', icon: 'file-arrow-down', text: 'is downloaded as it is.'|t('hub')} %}
 	{% else %}
-		{% set notice = { color: 'blue', icon: 'file-zipper', text: 'are downloaded in a zip archive, in folders by volume and path.'|t('hub') } %}
+		{% set notice = {color: 'blue', icon: 'file-zipper', text: 'are downloaded in a zip archive, in folders by volume and path.'|t('hub')} %}
 	{% endif %}
 	<div class="hub-deletion__notice" data-color="{{ notice.color }}">
 		<span class="hub-deletion__notice-icon" aria-hidden="true">{{ iconSvg(notice.icon) }}</span>
 		<p>
-			<strong>{{ notice.title ?? '{count, plural, =1{One file} other{# files}}'|t('hub', { count: total }) }}</strong>
+			<strong>{{ notice.title ?? '{count, plural, =1{One file} other{# files}}'|t('hub', {count: total}) }}</strong>
 			{{ notice.text }}
 			{% if skipped %}
-				<span class="hub-deletion__skipped" title="{{ '{count, plural, =1{One file is} other{# files are}} skipped, as you may not view {count, plural, =1{it} other{them}} or {count, plural, =1{it no longer exists} other{they no longer exist}}.'|t('hub', { count: skipped }) }}">{{ '{count, number} skipped'|t('hub', { count: skipped }) }}</span>
+				<span class="hub-deletion__skipped" title="{{ '{count, plural, =1{One file is} other{# files are}} skipped, as you may not view {count, plural, =1{it} other{them}} or {count, plural, =1{it no longer exists} other{they no longer exist}}.'|t('hub', {count: skipped}) }}">{{ '{count, number} skipped'|t('hub', {count: skipped}) }}</span>
 			{% endif %}
 		</p>
 	</div>

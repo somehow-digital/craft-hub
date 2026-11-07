@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -111,8 +113,8 @@ class NavigationService extends Component
 			// link itself carries the selected sites.
 			$items[$segment] = [
 				'label' => $label,
-				'url' => "$path/$segment",
-				'linkAttributes' => ['href' => UrlHelper::cpUrl("$path/$segment", $params)],
+				'url' => "{$path}/{$segment}",
+				'linkAttributes' => ['href' => UrlHelper::cpUrl("{$path}/{$segment}", $params)],
 			];
 		}
 

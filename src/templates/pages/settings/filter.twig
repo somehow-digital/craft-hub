@@ -13,7 +13,7 @@
 {% set tab = 'filters' %}
 {% set kind = filter.kind %}
 {% set title = filter.id ? filter.getName() : 'New filter'|t('hub') %}
-{% set kindLabel = '{list} filter'|t('hub', { list: kind.label() }) %}
+{% set kindLabel = '{list} filter'|t('hub', {list: kind.label()}) %}
 {% set type = filter.isPredefined() ? hub.badge('Predefined'|t('hub'), 'gray') : hub.badge('Custom'|t('hub'), 'violet') %}
 {% set icon = filter.getIcon() %}
 {% set color = 'blue' %}
@@ -33,8 +33,8 @@
 			label: 'Delete filter'|t('hub'),
 			action: 'hub/filters/delete',
 			redirect: 'hub/manage/settings/filters'|hash,
-			params: { id: filter.id },
-			confirm: 'Are you sure you want to delete “{name}”?'|t('hub', { name: filter.getName() }),
+			params: {id: filter.id},
+			confirm: 'Are you sure you want to delete “{name}”?'|t('hub', {name: filter.getName()}),
 			destructive: true,
 		},
 	]|filter %}
@@ -55,7 +55,7 @@
 		</div>
 	{% endif %}
 
-	{% embed 'hub/_components/panel' with { heading: 'Filter'|t('hub'), icon: 'filter', color: 'blue', collapsible: false, filter: filter } only %}
+	{% embed 'hub/_components/panel' with {heading: 'Filter'|t('hub'), icon: 'filter', color: 'blue', collapsible: false, filter: filter} only %}
 		{% block body %}
 			{% import '_includes/forms' as forms %}
 			<div class="hub-panel__fields">
@@ -131,7 +131,7 @@
 				<div class="hub-panel__fields">
 					{{ forms.field({
 						first: true,
-						instructions: 'The list shows the {kind} matching these rules, along with its other filters.'|t('hub', { kind: kind.label()|lower }),
+						instructions: 'The list shows the {kind} matching these rules, along with its other filters.'|t('hub', {kind: kind.label()|lower}),
 						fieldClass: 'hub-condition',
 						errors: filter.getErrors('condition'),
 					}, filter.getCondition().getBuilderHtml()) }}

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\helpers;
 
 use Craft;
@@ -9,21 +11,24 @@ use craft\helpers\UrlHelper;
  * The column and direction a list sorted on the server is sorted by, as its query params say (`sort` and `dir`): columns
  * sort in their natural direction unless `dir` says otherwise, and unknown ones sort by the default column.
  */
-final class ListSort
+final readonly class ListSort
 {
 	/** the column sorted by */
-	public readonly string $column;
+	public string $column;
 
 	/** `SORT_ASC` or `SORT_DESC` */
-	public readonly int $direction;
+	public int $direction;
 
 	/**
 	 * @param array<string,int> $columns column => natural direction, `SORT_ASC` or `SORT_DESC`
 	 * @param string $default column sorted by unless another one is asked for
 	 * @param array<string,mixed> $params query params of the list
 	 */
-	public function __construct(private readonly array $columns, private readonly string $default, private readonly array $params)
-	{
+	public function __construct(
+		private array $columns,
+		private string $default,
+		private array $params
+	) {
 		$sort = $params['sort'] ?? null;
 		$this->column = is_string($sort) && isset($columns[$sort]) ? $sort : $default;
 		$this->direction = match ($params['dir'] ?? null) {
@@ -57,7 +62,7 @@ final class ListSort
 		return [
 			'sortHeaders' => $this->headers($path),
 			'sort' => $this->column !== $this->default || !$natural ? $this->column : null,
-			'dir' => !$natural ? self::dir($this->direction) : null,
+			'dir' => !$natural ? $this->dir($this->direction) : null,
 		];
 	}
 
@@ -86,20 +91,20 @@ final class ListSort
 				$query['sort'] = $column;
 
 				if ($next !== $natural) {
-					$query['dir'] = self::dir($next);
+					$query['dir'] = $this->dir($next);
 				}
 			}
 
 			$headers[$column] = [
 				'url' => UrlHelper::cpUrl($path, $query),
-				'direction' => $column === $this->column ? self::dir($this->direction) : null,
+				'direction' => $column === $this->column ? $this->dir($this->direction) : null,
 			];
 		}
 
 		return $headers;
 	}
 
-	private static function dir(int $direction): string
+	private function dir(int $direction): string
 	{
 		return $direction === SORT_ASC ? 'asc' : 'desc';
 	}

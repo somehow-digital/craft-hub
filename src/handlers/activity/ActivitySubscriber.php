@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers\activity;
 
 use SomehowDigital\Craft\Hub\enums\ActivityAction;

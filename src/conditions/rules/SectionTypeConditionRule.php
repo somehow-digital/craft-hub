@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
@@ -22,7 +24,7 @@ class SectionTypeConditionRule extends BaseMultiSelectConditionRule implements I
 
 	protected function options(): array
 	{
-		return array_map(fn (SectionType $type) => ['value' => $type->value, 'label' => $type->label()], SectionType::cases());
+		return array_map(fn(SectionType $type): array => ['value' => $type->value, 'label' => $type->label()], SectionType::cases());
 	}
 
 	public function matchInfo(SectionInfo|EntryTypeInfo|FieldInfo|VolumeInfo $info): bool

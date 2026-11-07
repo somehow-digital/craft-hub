@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -41,8 +43,8 @@ class ChangeGroups extends BulkAction
 		$remove = [];
 
 		foreach ($picked as $id => $change) {
-			if (isset($assignable[(int)$id]) && in_array($change, [BulkService::GROUP_ADD, BulkService::GROUP_REMOVE], true)) {
-				$change === BulkService::GROUP_ADD ? $add[] = (int)$id : $remove[] = (int)$id;
+			if (isset($assignable[(int) $id]) && in_array($change, [BulkService::GROUP_ADD, BulkService::GROUP_REMOVE], true)) {
+				$change === BulkService::GROUP_ADD ? $add[] = (int) $id : $remove[] = (int) $id;
 			}
 		}
 
@@ -52,13 +54,13 @@ class ChangeGroups extends BulkAction
 
 		$service = Craft::$app->getUsers();
 
-		return $this->succeeded($this->users($ids), function (User $user) use ($service, $add, $remove) {
-			$groupIds = array_map(fn (UserGroup $group) => (int)$group->id, $user->getGroups());
+		return $this->succeeded($this->users($ids), function (User $user) use ($service, $add, $remove): bool {
+			$groupIds = array_map(fn(UserGroup $group): int => (int) $group->id, $user->getGroups());
 			$changed = array_values(array_diff(array_unique([...$groupIds, ...$add]), $remove));
 			sort($groupIds);
 			sort($changed);
 
-			return $changed === $groupIds || $service->assignUserToGroups((int)$user->id, $changed);
+			return $changed === $groupIds || $service->assignUserToGroups((int) $user->id, $changed);
 		});
 	}
 
@@ -69,7 +71,7 @@ class ChangeGroups extends BulkAction
 
 		return new BulkPreview('groups-preview', $groups !== [] ? count($users) : 0, [
 			'groups' => $groups,
-			'counts' => $this->hub()->users->getGroupCounts(array_map(fn (User $user) => (int)$user->id, $users)),
+			'counts' => $this->hub()->users->getGroupCounts(array_map(fn(User $user): int => (int) $user->id, $users)),
 		]);
 	}
 
@@ -86,7 +88,7 @@ class ChangeGroups extends BulkAction
 
 		return array_values(array_filter(
 			$this->hub()->bulk->getElementsOf($this->list, $ids, User::class),
-			fn (User $user) => $current !== null && $user->id !== $current->id && $service->canSave($user),
+			fn(User $user): bool => $current !== null && $user->id !== $current->id && $service->canSave($user),
 		));
 	}
 }

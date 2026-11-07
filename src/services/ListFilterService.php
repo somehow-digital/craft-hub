@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -60,13 +62,13 @@ class ListFilterService extends Component
 	{
 		$hub = Hub::getInstance();
 		$entries = Craft::$app->getEntries();
-		$nested = array_filter($hub->structure->getFields(), fn (FieldInfo $info) => $info->isNested);
+		$nested = array_filter($hub->structure->getFields(), fn(FieldInfo $info): bool => $info->isNested);
 
 		$filter = new EntryFilter();
-		$filter->sections = $params->list('section', array_map(fn (Section $section) => $section->handle, $entries->getAllSections()));
-		$filter->types = $params->list('type', array_map(fn (EntryType $type) => $type->handle, $entries->getAllEntryTypes()));
+		$filter->sections = $params->list('section', array_map(fn(Section $section): ?string => $section->handle, $entries->getAllSections()));
+		$filter->types = $params->list('type', array_map(fn(EntryType $type): ?string => $type->handle, $entries->getAllEntryTypes()));
 		$filter->origin = $params->choice('origin', [EntryService::ORIGIN_SECTION, EntryService::ORIGIN_NESTED]);
-		$filter->fields = $params->list('field', array_map(fn (FieldInfo $info) => (string)$info->field->handle, $nested));
+		$filter->fields = $params->list('field', array_map(fn(FieldInfo $info): string => (string) $info->field->handle, $nested));
 		$filter->statuses = $params->list('status', $hub->entries->getStatuses());
 		$filter->authors = $params->users('author');
 		$filter->editors = $params->users('editor');
@@ -87,12 +89,12 @@ class ListFilterService extends Component
 
 	private function fileFilter(FilterParams $params): FileFilter
 	{
-		$kinds = array_map('strval', array_keys(Hub::getInstance()->volumes->getAllKinds()));
+		$kinds = array_map(strval(...), array_keys(Hub::getInstance()->volumes->getAllKinds()));
 
 		$filter = new FileFilter();
-		$filter->volumes = $params->list('volume', array_map(fn (Volume $volume) => (string)$volume->handle, Craft::$app->getVolumes()->getAllVolumes()));
+		$filter->volumes = $params->list('volume', array_map(fn(Volume $volume): string => (string) $volume->handle, Craft::$app->getVolumes()->getAllVolumes()));
 		$filter->kinds = $params->list('kind', $kinds);
-		$filter->extensions = array_values(array_filter(array_map('mb_strtolower', $params->list('extension')), fn (string $extension) => preg_match('/^[a-z0-9]+$/', $extension) === 1));
+		$filter->extensions = array_values(array_filter(array_map(mb_strtolower(...), $params->list('extension')), fn(string $extension): bool => preg_match('/^[a-z0-9]+$/', $extension) === 1));
 		$filter->orientations = $params->list('orientation', FileFilter::getOrientations());
 		$filter->uploaders = $params->users('uploader');
 		$filter->usage = $params->choice('usage', [FileService::USAGE_USED, FileService::USAGE_UNUSED]);
@@ -115,7 +117,7 @@ class ListFilterService extends Component
 	private function userFilter(FilterParams $params): UserFilter
 	{
 		$users = Hub::getInstance()->users;
-		$groups = array_map(fn (array $info) => (string)$info['group']->handle, $users->getGroups());
+		$groups = array_map(fn(array $info): string => (string) $info['group']->handle, $users->getGroups());
 
 		$filter = new UserFilter();
 		$filter->groups = $params->list('group', $groups !== [] ? [...$groups, UserFilter::GROUP_NONE] : []);
@@ -139,7 +141,7 @@ class ListFilterService extends Component
 	private function entryTypeFilter(FilterParams $params): EntryTypeFilter
 	{
 		$filter = new EntryTypeFilter();
-		$filter->kinds = $params->list('kind', array_map(fn (UsageKind $kind) => $kind->value, UsageKind::listed()));
+		$filter->kinds = $params->list('kind', array_map(fn(UsageKind $kind) => $kind->value, UsageKind::listed()));
 		$filter->entriesMin = $params->int('entriesMin');
 		$filter->entriesMax = $params->int('entriesMax');
 		$filter->relationsMin = $params->int('relationsMin');
@@ -152,7 +154,7 @@ class ListFilterService extends Component
 	private function sectionFilter(FilterParams $params): SectionFilter
 	{
 		$filter = new SectionFilter();
-		$filter->types = $params->list('type', array_map(fn (SectionType $type) => $type->value, SectionType::cases()));
+		$filter->types = $params->list('type', array_map(fn(SectionType $type) => $type->value, SectionType::cases()));
 		$filter->urls = $params->choice('urls', [ListService::URLS_YES, ListService::URLS_NO]);
 		$filter->entriesMin = $params->int('entriesMin');
 		$filter->entriesMax = $params->int('entriesMax');
@@ -171,12 +173,12 @@ class ListFilterService extends Component
 		$owners = [];
 		foreach (Hub::getInstance()->structure->getFields() as $info) {
 			$types[] = mb_strtolower($info->getTypeName());
-			array_push($owners, ...array_map('mb_strtolower', $info->getOwnerTypes()));
+			array_push($owners, ...array_map(mb_strtolower(...), $info->getOwnerTypes()));
 		}
 
 		$filter = new FieldFilter();
 		$filter->types = $params->list('type', array_values(array_unique($types)));
-		$filter->kinds = $params->list('kind', array_map(fn (DataKind $kind) => $kind->value, DataKind::cases()));
+		$filter->kinds = $params->list('kind', array_map(fn(DataKind $kind) => $kind->value, DataKind::cases()));
 		$filter->owners = $params->list('owner', array_values(array_unique($owners)));
 		$filter->layoutsMin = $params->int('layoutsMin');
 		$filter->layoutsMax = $params->int('layoutsMax');
@@ -189,7 +191,7 @@ class ListFilterService extends Component
 	private function volumeFilter(FilterParams $params): VolumeFilter
 	{
 		$filter = new VolumeFilter();
-		$filter->kinds = $params->list('kind', array_map('strval', array_keys(Hub::getInstance()->volumes->getKinds())));
+		$filter->kinds = $params->list('kind', array_map(strval(...), array_keys(Hub::getInstance()->volumes->getKinds())));
 		$filter->urls = $params->choice('urls', [ListService::URLS_YES, ListService::URLS_NO]);
 		$filter->assetsMin = $params->int('assetsMin');
 		$filter->assetsMax = $params->int('assetsMax');

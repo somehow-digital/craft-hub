@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\statistics;
 
 use Craft;
@@ -23,17 +25,17 @@ final class FilesSummary extends Summary
 		$hub = Hub::getInstance();
 		$path = 'hub/data/assets';
 		$siteIds = $hub->siteScope->getSiteIds();
-		$volumes = fn () => $hub->volumes->getVolumes();
+		$volumes = fn() => $hub->volumes->getVolumes();
 
 		return [
-			$this->lazyCard(Craft::t('app', 'Assets'), 'image', function () use ($path) {
+			$this->lazyCard(Craft::t('app', 'Assets'), 'image', function () use ($path): array {
 				$card = $this->assetsCard($this->assetTotals());
 				$card['segments'][0]['url'] = $this->hubUrl($path, ['usage' => FileService::USAGE_USED]);
 				$card['segments'][1]['url'] = $this->hubUrl($path, ['usage' => FileService::USAGE_UNUSED]);
 
 				return $card;
 			}, $this->assetsHistory()),
-			$this->lazyCard(Craft::t('app', 'Volumes'), 'folder-open', function () use ($volumes, $path) {
+			$this->lazyCard(Craft::t('app', 'Volumes'), 'folder-open', function () use ($volumes, $path): array {
 				$counts = [];
 				$handles = [];
 				foreach ($volumes() as $info) {
@@ -48,29 +50,29 @@ final class FilesSummary extends Summary
 					$this->assetColumns(),
 					$this->assetCells($this->volumeStats($volumes())),
 				);
-			}, fn (Snapshot $snapshot) => $this->labeledTopHistory($this->volumeLabels(), $this->byId(
+			}, fn(Snapshot $snapshot): array => $this->labeledTopHistory($this->volumeLabels(), $this->byId(
 				array_keys($snapshot->getVolumes()),
-				fn (int $id) => $snapshot->statistics->sumAssets($siteIds, $id)->total,
+				fn(int $id): int => $snapshot->statistics->sumAssets($siteIds, $id)->total,
 			))),
 			$this->fileKindsCard($path),
-			$this->lazyCard(Craft::t('app', 'Alternative Text'), 'universal-access', function () use ($volumes, $path) {
+			$this->lazyCard(Craft::t('app', 'Alternative Text'), 'universal-access', function () use ($volumes, $path): array {
 				$card = $this->altCard($this->assetTotals(), $this->volumeStats($volumes()));
 				$card['segments'][1]['url'] = $this->hubUrl($path, ['alt' => 1]);
 
 				return $card;
-			}, $this->assetsHistory(card: fn (AssetStatistics $stats) => $this->altCard($stats))),
-			$this->lazyCard(Craft::t('hub', 'Extensions'), 'file-code', function () use ($hub, $path) {
+			}, $this->assetsHistory(card: fn(AssetStatistics $stats): array => $this->altCard($stats))),
+			$this->lazyCard(Craft::t('hub', 'Extensions'), 'file-code', function () use ($hub, $path): array {
 				$extensions = $hub->files->getExtensions();
 
 				return $this->withColumns(
 					// Uppercased like they are commonly referred to, and filtered by their lowercase.
-					$this->topCard(Craft::t('hub', 'Extensions'), 'file-code', array_combine(array_map('mb_strtoupper', array_keys($extensions)), $extensions), 'extension', path: $path),
+					$this->topCard(Craft::t('hub', 'Extensions'), 'file-code', array_combine(array_map(mb_strtoupper(...), array_keys($extensions)), $extensions), 'extension', path: $path),
 					Craft::t('app', 'Assets'),
 					[],
 					[],
 				);
 			}),
-			$this->lazyCard(Craft::t('hub', 'Uploaders'), 'user', fn () => $this->peopleCard(Craft::t('hub', 'Uploaders'), 'user', $hub->files->getUploaders(), 'uploader', $path, Craft::t('app', 'Assets'))),
+			$this->lazyCard(Craft::t('hub', 'Uploaders'), 'user', fn(): array => $this->peopleCard(Craft::t('hub', 'Uploaders'), 'user', $hub->files->getUploaders(), 'uploader', $path, Craft::t('app', 'Assets'))),
 		];
 	}
 }

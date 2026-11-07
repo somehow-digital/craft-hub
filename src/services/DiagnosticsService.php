@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -52,7 +54,7 @@ class DiagnosticsService extends Component
 	public function getDefaults(): array
 	{
 		$filters = Hub::getInstance()->filters;
-		$check = fn (string $name, string $description, string $passedDescription, Severity $severity) => compact('name', 'description', 'passedDescription', 'severity');
+		$check = fn(string $name, string $description, string $passedDescription, Severity $severity): array => ['name' => $name, 'description' => $description, 'passedDescription' => $passedDescription, 'severity' => $severity];
 		$stale = ['months' => $filters->getThreshold(CheckKind::Entries, 'stale')];
 		$size = ['size' => $filters->getThreshold(CheckKind::Assets, 'large')];
 		$pixels = ['pixels' => $filters->getThreshold(CheckKind::Assets, 'oversized')];
@@ -205,9 +207,9 @@ class DiagnosticsService extends Component
 	{
 		$this->definitions ??= $this->loadDefinitions();
 
-		return $kind === null
-			? $this->definitions
-			: array_filter($this->definitions, fn (CheckDefinition $definition) => $definition->kind === $kind);
+		return $kind instanceof CheckKind
+			? array_filter($this->definitions, fn(CheckDefinition $definition): bool => $definition->kind === $kind)
+			: $this->definitions;
 	}
 
 	/**
@@ -242,8 +244,8 @@ class DiagnosticsService extends Component
 		}
 
 		foreach ($rows as $row) {
-			$kind = CheckKind::tryFrom((string)$row['kind']);
-			$handle = $row['handle'] !== null ? (string)$row['handle'] : null;
+			$kind = CheckKind::tryFrom((string) $row['kind']);
+			$handle = $row['handle'] !== null ? (string) $row['handle'] : null;
 
 			// Rows of default checks Hub no longer has are left out.
 			if ($kind === null || ($handle !== null && !isset($byKind[$kind->value][$handle]))) {
@@ -252,18 +254,18 @@ class DiagnosticsService extends Component
 
 			$definition = $handle !== null ? $byKind[$kind->value][$handle] : new CheckDefinition([
 				'kind' => $kind,
-				'filter' => (string)$row['filter'],
-				'name' => (string)$row['name'],
-				'description' => (string)$row['description'],
-				'passedDescription' => (string)$row['passedDescription'],
+				'filter' => (string) $row['filter'],
+				'name' => (string) $row['name'],
+				'description' => (string) $row['description'],
+				'passedDescription' => (string) $row['passedDescription'],
 				'icon' => $row['icon'] ?: null,
 			]);
 
-			$definition->id = (int)$row['id'];
-			$definition->uid = (string)$row['uid'];
-			$definition->severity = Severity::tryFrom((string)$row['severity']);
-			$definition->enabled = (bool)$row['enabled'];
-			$definition->sortOrder = (int)$row['sortOrder'];
+			$definition->id = (int) $row['id'];
+			$definition->uid = (string) $row['uid'];
+			$definition->severity = Severity::tryFrom((string) $row['severity']);
+			$definition->enabled = (bool) $row['enabled'];
+			$definition->sortOrder = (int) $row['sortOrder'];
 
 			$byKind[$kind->value][$handle ?? $definition->uid] = $definition;
 		}
@@ -272,7 +274,7 @@ class DiagnosticsService extends Component
 
 		foreach (CheckKind::cases() as $kind) {
 			$checks = array_values($byKind[$kind->value] ?? []);
-			usort($checks, fn (CheckDefinition $a, CheckDefinition $b) => $a->sortOrder <=> $b->sortOrder);
+			usort($checks, fn(CheckDefinition $a, CheckDefinition $b): int => $a->sortOrder <=> $b->sortOrder);
 
 			foreach ($checks as $definition) {
 				$definitions[$definition->getKey()] = $definition;
@@ -307,7 +309,7 @@ class DiagnosticsService extends Component
 	{
 		return array_values(array_filter(
 			$this->getDefinitions($kind),
-			fn (CheckDefinition $definition) => $definition->enabled && $definition->getFilter() !== null,
+			fn(CheckDefinition $definition): bool => $definition->enabled && $definition->getFilter() instanceof SavedFilter,
 		));
 	}
 
@@ -320,7 +322,7 @@ class DiagnosticsService extends Component
 	{
 		return array_values(array_filter(
 			$this->getDefinitions($filter->kind),
-			fn (CheckDefinition $definition) => !$definition->isDefault() && $definition->filter === ($filter->handle ?? $filter->uid),
+			fn(CheckDefinition $definition): bool => !$definition->isDefault() && $definition->filter === ($filter->handle ?? $filter->uid),
 		));
 	}
 
@@ -338,8 +340,8 @@ class DiagnosticsService extends Component
 		$positions = array_flip(array_keys($this->getDefinitions()));
 		$prefix = $kind->value . '.';
 
-		usort($items, function ($a, $b) use ($describe, $positions, $prefix) {
-			$order = function ($item) use ($describe, $positions, $prefix) {
+		usort($items, function ($a, $b) use ($describe, $positions, $prefix): int {
+			$order = function ($item) use ($describe, $positions, $prefix): array {
 				[$key, $passed, $severity] = $describe($item);
 
 				return [$passed, $passed ? 0 : $severity->rank(), !str_starts_with($key, $prefix), $positions[$key] ?? PHP_INT_MAX];
@@ -374,7 +376,7 @@ class DiagnosticsService extends Component
 	{
 		$query = $this->getFailingQuery($definition);
 
-		if ($query === null) {
+		if (!$query instanceof ElementQuery) {
 			$this->failing[$definition->getKey()] ??= array_flip($this->getMatchingIds($definition));
 
 			return count($this->failing[$definition->getKey()]);
@@ -385,10 +387,10 @@ class DiagnosticsService extends Component
 
 		if (!isset($this->counts[$key])) {
 			$queries = Hub::getInstance()->queries;
-			$this->counts[$key] = Aggregator::index($queries->count($query, $groups), array_keys($groups), fn (?int $sum, array $row) => ($sum ?? 0) + (int)$row['total']);
+			$this->counts[$key] = Aggregator::index($queries->count($query, $groups), array_keys($groups), fn(?int $sum, array $row): int => ($sum ?? 0) + (int) $row['total']);
 		}
 
-		return $this->counts[$key][Aggregator::key(array_map(fn (string $alias) => $criteria[$alias] ?? null, array_keys($groups)))] ?? 0;
+		return $this->counts[$key][Aggregator::key(array_map(fn(string $alias) => $criteria[$alias] ?? null, array_keys($groups)))] ?? 0;
 	}
 
 	/**
@@ -410,7 +412,7 @@ class DiagnosticsService extends Component
 		$query = $this->getFailingQuery($definition);
 		$columns = self::GROUPS[$definition->kind->value] ?? [];
 
-		if ($query === null || isset($this->counts[$this->countsKey($definition)])) {
+		if (!$query instanceof ElementQuery || isset($this->counts[$this->countsKey($definition)])) {
 			return $this->countFailing($definition, $criteria) > 0;
 		}
 
@@ -462,7 +464,7 @@ class DiagnosticsService extends Component
 	{
 		$filter = $definition->getFilter();
 
-		return $filter !== null ? Hub::getInstance()->listFilters->createListFilter($definition->kind, $filter->getListParams()) : null;
+		return $filter instanceof SavedFilter ? Hub::getInstance()->listFilters->createListFilter($definition->kind, $filter->getListParams()) : null;
 	}
 
 	/**
@@ -494,7 +496,7 @@ class DiagnosticsService extends Component
 
 		if ($definition->id === null) {
 			$definition->uid ??= StringHelper::UUID();
-			$definition->sortOrder = (int)(new Query())->from(self::TABLE_CHECKS)->where(['kind' => $definition->kind->value])->max('[[sortOrder]]') + 1;
+			$definition->sortOrder = (int) (new Query())->from(self::TABLE_CHECKS)->where(['kind' => $definition->kind->value])->max('[[sortOrder]]') + 1;
 			$db->createCommand()->insert(self::TABLE_CHECKS, [
 				...$columns,
 				'kind' => $definition->kind->value,
@@ -502,7 +504,7 @@ class DiagnosticsService extends Component
 				'sortOrder' => $definition->sortOrder,
 				'uid' => $definition->uid,
 			])->execute();
-			$definition->id = (int)$db->getLastInsertID(self::TABLE_CHECKS);
+			$definition->id = (int) $db->getLastInsertID(self::TABLE_CHECKS);
 		} else {
 			$db->createCommand()->update(self::TABLE_CHECKS, $columns, ['id' => $definition->id])->execute();
 		}
@@ -533,7 +535,7 @@ class DiagnosticsService extends Component
 		$command = Craft::$app->getDb()->createCommand();
 
 		foreach (array_values($ids) as $order => $id) {
-			$command->update(self::TABLE_CHECKS, ['sortOrder' => $order + 1], ['id' => (int)$id], updateTimestamp: false)->execute();
+			$command->update(self::TABLE_CHECKS, ['sortOrder' => $order + 1], ['id' => (int) $id], updateTimestamp: false)->execute();
 		}
 
 		$this->definitions = null;

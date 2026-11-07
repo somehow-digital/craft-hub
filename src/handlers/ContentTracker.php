@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers;
 
 use craft\base\ElementInterface;
@@ -22,9 +24,9 @@ class ContentTracker
 {
 	public function register(): void
 	{
-		Event::on(Elements::class, Elements::EVENT_AFTER_SAVE_ELEMENT, fn (ElementEvent $event) => $this->elementSaved($event));
-		Event::on(Elements::class, Elements::EVENT_AFTER_PROPAGATE_ELEMENT, fn (MultiElementActionEvent $event) => $this->elementPropagated($event));
-		Event::on(Elements::class, Elements::EVENT_AFTER_DELETE_ELEMENT, fn (ElementEvent $event) => $this->forgetWork($event->element));
+		Event::on(Elements::class, Elements::EVENT_AFTER_SAVE_ELEMENT, fn(ElementEvent $event) => $this->elementSaved($event));
+		Event::on(Elements::class, Elements::EVENT_AFTER_PROPAGATE_ELEMENT, fn(MultiElementActionEvent $event) => $this->elementPropagated($event));
+		Event::on(Elements::class, Elements::EVENT_AFTER_DELETE_ELEMENT, fn(ElementEvent $event) => $this->forgetWork($event->element));
 	}
 
 	private function elementSaved(ElementEvent $event): void

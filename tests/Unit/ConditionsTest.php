@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\base\conditions\ConditionRuleInterface;
 use craft\models\Section;
 use SomehowDigital\Craft\Hub\conditions\EntryTypeCondition;
@@ -33,11 +35,11 @@ use SomehowDigital\Craft\Hub\conditions\SectionCondition;
 use SomehowDigital\Craft\Hub\conditions\VolumeCondition;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
 
-it('offers the rules that apply to each kind of item', function (string $class, array $rules) {
+it('offers the rules that apply to each kind of item', function (string $class, array $rules): void {
 	$selectable = (new $class())->getSelectableConditionRules();
 
-	expect(array_map(fn (ConditionRuleInterface $rule) => $rule::class, array_values($selectable)))->toBe($rules)
-		->and(array_map(fn (ConditionRuleInterface $rule) => $rule->getLabel(), $selectable))->each->not->toBeEmpty();
+	expect(array_map(fn(ConditionRuleInterface $rule): string => $rule::class, array_values($selectable)))->toBe($rules)
+		->and(array_map(fn(ConditionRuleInterface $rule): string => $rule->getLabel(), $selectable))->each->not->toBeEmpty();
 })->with([
 	'sections' => [SectionCondition::class, [
 		NameConditionRule::class,
@@ -89,7 +91,7 @@ it('offers the rules that apply to each kind of item', function (string $class, 
 	]],
 ]);
 
-it('matches an item matching each rule', function () {
+it('matches an item matching each rule', function (): void {
 	$condition = new SectionCondition();
 	$condition->setConditionRules([
 		['class' => HandleConditionRule::class, 'operator' => '=', 'value' => 'news'],
@@ -98,6 +100,7 @@ it('matches an item matching each rule', function () {
 
 	$info = new SectionInfo($this->section(1, 'news'));
 	$info->hasUrls = true;
+
 	$other = new SectionInfo($this->section(2, 'news-archive', Section::TYPE_CHANNEL));
 
 	expect($condition->matchInfo($info))->toBeTrue()

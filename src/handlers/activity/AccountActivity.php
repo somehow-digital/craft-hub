@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers\activity;
 
 use Craft;
@@ -51,26 +53,26 @@ class AccountActivity extends ActivitySubscriber
 
 	public function register(): void
 	{
-		Event::on(WebUser::class, WebUser::EVENT_AFTER_LOGIN, fn (WebUserEvent $event) => $this->signedIn($event));
-		Event::on(WebUser::class, WebUser::EVENT_BEFORE_LOGOUT, fn (WebUserEvent $event) => $this->signedOut($event));
-		Event::on(UsersController::class, UsersController::EVENT_LOGIN_FAILURE, fn (LoginFailureEvent $event) => $this->signInFailed($event));
+		Event::on(WebUser::class, WebUser::EVENT_AFTER_LOGIN, fn(WebUserEvent $event) => $this->signedIn($event));
+		Event::on(WebUser::class, WebUser::EVENT_BEFORE_LOGOUT, fn(WebUserEvent $event) => $this->signedOut($event));
+		Event::on(UsersController::class, UsersController::EVENT_LOGIN_FAILURE, fn(LoginFailureEvent $event) => $this->signInFailed($event));
 
 		foreach (self::USER_EVENTS as $name => $action) {
-			Event::on(Users::class, $name, fn (UserEvent $event) => $this->user($action, $event->user));
+			Event::on(Users::class, $name, fn(UserEvent $event) => $this->user($action, $event->user));
 		}
 
-		Event::on(Users::class, Users::EVENT_AFTER_VERIFY_EMAIL, fn (UserEvent $event) => $this->user(ActivityAction::EmailVerified, $event->user, $event->user));
-		Event::on(Mailer::class, BaseMailer::EVENT_AFTER_SEND, fn (MailEvent $event) => $this->mailSent($event));
+		Event::on(Users::class, Users::EVENT_AFTER_VERIFY_EMAIL, fn(UserEvent $event) => $this->user(ActivityAction::EmailVerified, $event->user, $event->user));
+		Event::on(Mailer::class, BaseMailer::EVENT_AFTER_SEND, fn(MailEvent $event) => $this->mailSent($event));
 
-		Event::on(Users::class, Users::EVENT_AFTER_ASSIGN_USER_TO_GROUPS, fn (UserGroupsAssignEvent $event) => $this->groupsAssigned($event));
-		Event::on(UsersController::class, UsersController::EVENT_BEFORE_ASSIGN_GROUPS_AND_PERMISSIONS, fn (UserEvent $event) => $this->rememberPermissions($event));
-		Event::on(UserPermissions::class, UserPermissions::EVENT_AFTER_SAVE_USER_PERMISSIONS, fn (UserPermissionsEvent $event) => $this->permissionsSaved($event));
+		Event::on(Users::class, Users::EVENT_AFTER_ASSIGN_USER_TO_GROUPS, fn(UserGroupsAssignEvent $event) => $this->groupsAssigned($event));
+		Event::on(UsersController::class, UsersController::EVENT_BEFORE_ASSIGN_GROUPS_AND_PERMISSIONS, fn(UserEvent $event) => $this->rememberPermissions($event));
+		Event::on(UserPermissions::class, UserPermissions::EVENT_AFTER_SAVE_USER_PERMISSIONS, fn(UserPermissionsEvent $event) => $this->permissionsSaved($event));
 
-		Event::on(AuthenticatorRecord::class, BaseActiveRecord::EVENT_AFTER_INSERT, fn (AfterSaveEvent $event) => $this->authenticatorSaved($event));
-		Event::on(AuthenticatorRecord::class, BaseActiveRecord::EVENT_AFTER_UPDATE, fn (AfterSaveEvent $event) => $this->authenticatorSaved($event));
-		Event::on(WebAuthnRecord::class, BaseActiveRecord::EVENT_AFTER_INSERT, fn (Event $event) => $this->passkey(ActivityAction::AuthAdded, $event));
-		Event::on(WebAuthnRecord::class, BaseActiveRecord::EVENT_AFTER_DELETE, fn (Event $event) => $this->passkey(ActivityAction::AuthRemoved, $event));
-		Event::on(AuthController::class, Controller::EVENT_AFTER_ACTION, fn (ActionEvent $event) => $this->authAction($event));
+		Event::on(AuthenticatorRecord::class, BaseActiveRecord::EVENT_AFTER_INSERT, fn(AfterSaveEvent $event) => $this->authenticatorSaved($event));
+		Event::on(AuthenticatorRecord::class, BaseActiveRecord::EVENT_AFTER_UPDATE, fn(AfterSaveEvent $event) => $this->authenticatorSaved($event));
+		Event::on(WebAuthnRecord::class, BaseActiveRecord::EVENT_AFTER_INSERT, fn(Event $event) => $this->passkey(ActivityAction::AuthAdded, $event));
+		Event::on(WebAuthnRecord::class, BaseActiveRecord::EVENT_AFTER_DELETE, fn(Event $event) => $this->passkey(ActivityAction::AuthRemoved, $event));
+		Event::on(AuthController::class, Controller::EVENT_AFTER_ACTION, fn(ActionEvent $event) => $this->authAction($event));
 	}
 
 	/**
@@ -108,7 +110,7 @@ class AccountActivity extends ActivitySubscriber
 	 */
 	private function signInFailed(LoginFailureEvent $event): void
 	{
-		if ($event->user === null && !Craft::$app->getCache()->add('hub:signInFailed:' . Craft::$app->getRequest()->getUserIP(), true, 60)) {
+		if (!$event->user instanceof User && !Craft::$app->getCache()->add('hub:signInFailed:' . Craft::$app->getRequest()->getUserIP(), true, 60)) {
 			return;
 		}
 
@@ -151,7 +153,7 @@ class AccountActivity extends ActivitySubscriber
 	private function groupsAssigned(UserGroupsAssignEvent $event): void
 	{
 		$groups = Craft::$app->getUserGroups();
-		$names = fn (array $ids) => array_values(array_filter(array_map(fn ($id) => $groups->getGroupById((int)$id)?->name, $ids)));
+		$names = fn(array $ids): array => array_values(array_filter(array_map(fn($id) => $groups->getGroupById((int) $id)?->name, $ids)));
 
 		$this->activity()->record(
 			ActivityAction::GroupsChanged,
@@ -189,7 +191,7 @@ class AccountActivity extends ActivitySubscriber
 		$record = $event->sender;
 
 		if ($record instanceof AuthenticatorRecord && ($event->name === BaseActiveRecord::EVENT_AFTER_INSERT || array_key_exists('auth2faSecret', $event->changedAttributes))) {
-			$this->auth(ActivityAction::AuthAdded, (int)$record->userId, TOTP::displayName());
+			$this->auth(ActivityAction::AuthAdded, (int) $record->userId, TOTP::displayName());
 		}
 	}
 
@@ -198,7 +200,7 @@ class AccountActivity extends ActivitySubscriber
 		$record = $event->sender;
 
 		if ($record instanceof WebAuthnRecord) {
-			$this->auth($action, (int)$record->userId, Craft::t('hub', 'Passkey'), $record->credentialName);
+			$this->auth($action, (int) $record->userId, Craft::t('hub', 'Passkey'), $record->credentialName);
 		}
 	}
 
@@ -217,10 +219,10 @@ class AccountActivity extends ActivitySubscriber
 			$method = Craft::$app->getRequest()->getBodyParam('method');
 
 			if (is_string($method) && is_subclass_of($method, AuthMethodInterface::class)) {
-				$this->auth(ActivityAction::AuthRemoved, (int)$user->id, $method::displayName());
+				$this->auth(ActivityAction::AuthRemoved, (int) $user->id, $method::displayName());
 			}
 		} elseif ($event->action->id === 'generate-recovery-codes') {
-			$this->auth(ActivityAction::AuthAdded, (int)$user->id, RecoveryCodes::displayName());
+			$this->auth(ActivityAction::AuthAdded, (int) $user->id, RecoveryCodes::displayName());
 		}
 	}
 

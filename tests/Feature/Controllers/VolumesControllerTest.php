@@ -1,26 +1,28 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Asset;
 use craft\fields\Assets as AssetsField;
 use SomehowDigital\Craft\Hub\controllers\VolumesController;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 use yii\web\NotFoundHttpException;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->volume(1, 'images', name: 'Images');
 	$this->volume(2, 'documents', hasUrls: false, name: 'Documents');
 	$this->field(AssetsField::class, 1, 'gallery', ['sources' => '*', 'name' => 'Gallery']);
 
-	$this->db()->respond('{{hubAssetRows}}', fn (string $sql) => str_contains($sql, 'GROUP BY `volumeId`, `kind`') ? [
+	$this->db()->respond('{{hubAssetRows}}', fn(string $sql): array => str_contains($sql, 'GROUP BY `volumeId`, `kind`') ? [
 		['volumeId' => 1, 'kind' => 'image', 'total' => 4, 'used' => 2, 'images' => 4, 'missingAlt' => 1, 'size' => 4000, 'unusedSize' => 0, 'lastUploaded' => '2024-02-01 00:00:00'],
 		['volumeId' => 1, 'kind' => 'pdf', 'total' => 1, 'used' => 1, 'images' => 0, 'missingAlt' => 0, 'size' => 1000, 'unusedSize' => 0, 'lastUploaded' => '2024-01-01 00:00:00'],
 	] : []);
-	$this->db()->respond('FROM {{%relations}} {{relations}}', fn (string $sql) => str_contains($sql, 'GROUP BY `relations`.`fieldId`') ? [
+	$this->db()->respond('FROM {{%relations}} {{relations}}', fn(string $sql): array => str_contains($sql, 'GROUP BY `relations`.`fieldId`') ? [
 		['fieldId' => 1, 'sectionId' => null, 'volumeId' => 1, 'references' => 5, 'sources' => 2, 'targets' => 3],
 	] : [['elementId' => 1, 'references' => 2]]);
 });
 
-it('lists the volumes', function () {
+it('lists the volumes', function (): void {
 	$response = $this->runAction(VolumesController::class, 'index', query: ['kind' => 'image', 'urls' => 'yes', 'sizeMin' => '0', 'uploadedFrom' => '2024-01-01', 'uploadedTo' => 'yesterday']);
 	$variables = $response->variables;
 
@@ -36,7 +38,7 @@ it('lists the volumes', function () {
 		->and($variables)->not->toHaveKey('summary');
 });
 
-it('summarizes the volumes on their statistics tab', function () {
+it('summarizes the volumes on their statistics tab', function (): void {
 	$cards = loadCards($this->runAction(VolumesController::class, 'statistics')->variables['cards']);
 
 	expect($cards[0]['segments'][1]['value'])->toBe(1)
@@ -47,7 +49,7 @@ it('summarizes the volumes on their statistics tab', function () {
 		->and($cards[3]['segments'][1]['value'])->toBe(1);
 });
 
-it('has no statistics tab while statistics are disabled', function () {
+it('has no statistics tab while statistics are disabled', function (): void {
 	$this->hub()->getSettings()->enableStatistics = false;
 
 	try {
@@ -57,7 +59,7 @@ it('has no statistics tab while statistics are disabled', function () {
 	}
 })->throws(NotFoundHttpException::class);
 
-it('tells the templates whether statistics are enabled', function () {
+it('tells the templates whether statistics are enabled', function (): void {
 	$this->hub()->getSettings()->enableStatistics = false;
 
 	try {
@@ -70,7 +72,7 @@ it('tells the templates whether statistics are enabled', function () {
 		->and($this->runAction(VolumesController::class, 'index')->variables['statisticsEnabled'])->toBeTrue();
 });
 
-it('shows a volume', function () {
+it('shows a volume', function (): void {
 	$response = $this->runAction(VolumesController::class, 'view', ['id' => 1]);
 	$variables = $response->variables;
 
@@ -80,7 +82,7 @@ it('shows a volume', function () {
 		->and($variables)->not->toHaveKeys(['summary', 'assets', 'reviewList']);
 });
 
-it('summarizes a volume on its statistics tab', function () {
+it('summarizes a volume on its statistics tab', function (): void {
 	$variables = $this->runAction(VolumesController::class, 'view', ['id' => 1, 'tab' => 'statistics'])->variables;
 	[$assets, $kinds, $alt, $references] = loadCards($variables['summary']);
 
@@ -94,14 +96,14 @@ it('summarizes a volume on its statistics tab', function () {
 		->and($variables)->not->toHaveKeys(['assets', 'reviewList']);
 });
 
-it('remembers the filters of the assets tab', function () {
+it('remembers the filters of the assets tab', function (): void {
 	$this->runAction(VolumesController::class, 'view', ['id' => 1, 'tab' => 'assets'], ['q' => 'news']);
 	$this->runAction(VolumesController::class, 'view', ['id' => 1, 'tab' => 'assets']);
 
 	expect(Craft::$app->getResponse()->getHeaders()->get('Location'))->toContain('hub/structure/volumes/1/assets&q=news');
 });
 
-it('lists the assets of a volume on a tab of its own', function () {
+it('lists the assets of a volume on a tab of its own', function (): void {
 	$asset = new Asset(['id' => 1, 'siteId' => 1, 'kind' => 'image', 'filename' => 'a.jpg', 'size' => 10]);
 	ElementQueries::respond(Asset::class, [$asset]);
 
@@ -116,13 +118,13 @@ it('lists the assets of a volume on a tab of its own', function () {
 		->and($variables)->not->toHaveKeys(['summary', 'reviewList']);
 });
 
-it('shows the checks of volumes on their diagnostics tab', function () {
+it('shows the checks of volumes on their diagnostics tab', function (): void {
 	$variables = $this->runAction(VolumesController::class, 'view', ['id' => 2, 'tab' => 'diagnostics'])->variables;
 
-	expect(array_map(fn ($check) => $check->key, $variables['checks']))->toContain('volumes.empty', 'assets.unused')
+	expect(array_map(fn($check) => $check->key, $variables['checks']))->toContain('volumes.empty', 'assets.unused')
 		->and($variables)->not->toHaveKeys(['summary', 'reviewList']);
 });
 
-it('fails for volumes that do not exist', function () {
+it('fails for volumes that do not exist', function (): void {
 	$this->runAction(VolumesController::class, 'view', ['id' => 99]);
 })->throws(NotFoundHttpException::class);

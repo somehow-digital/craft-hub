@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
@@ -28,9 +30,9 @@ class BulkController extends BaseController
 
 		$request = Craft::$app->getRequest();
 		$bulk = Hub::getInstance()->bulk;
-		$list = (string)$request->getRequiredBodyParam('list');
+		$list = (string) $request->getRequiredBodyParam('list');
 		$path = $this->requirePostedListPath();
-		$action = (string)$request->getRequiredBodyParam('bulkAction');
+		$action = (string) $request->getRequiredBodyParam('bulkAction');
 		$actions = $bulk->getActions($list);
 
 		if (!isset($actions[$action])) {
@@ -38,7 +40,7 @@ class BulkController extends BaseController
 		}
 
 		// A single item, picked from its context menu, in place of the selection.
-		$item = (int)$request->getBodyParam('item');
+		$item = (int) $request->getBodyParam('item');
 		$this->requireSelectable($list, $item);
 		$selected = Hub::getInstance()->selection->getSelection($list, $path);
 		$ids = $item > 0 ? [$item] : $selected;
@@ -86,17 +88,17 @@ class BulkController extends BaseController
 
 		$request = Craft::$app->getRequest();
 		$hub = Hub::getInstance();
-		$list = (string)$request->getRequiredBodyParam('list');
-		$action = (string)$request->getBodyParam('bulkAction', BulkService::ACTION_DELETE);
+		$list = (string) $request->getRequiredBodyParam('list');
+		$action = (string) $request->getBodyParam('bulkAction', BulkService::ACTION_DELETE);
 
 		if (!($hub->bulk->getActions($list)[$action]['preview'] ?? false)) {
 			throw new BadRequestHttpException('Unknown action.');
 		}
 
-		$item = (int)$request->getBodyParam('item');
+		$item = (int) $request->getBodyParam('item');
 		$this->requireSelectable($list, $item);
 		$ids = $item > 0 ? [$item] : $hub->selection->getSelection($list, $this->requirePostedListPath());
-		$page = (int)$request->getBodyParam('page', 1);
+		$page = (int) $request->getBodyParam('page', 1);
 		$preview = $hub->bulk->preview($list, $action, $ids, $page);
 
 		if ($preview === null) {
@@ -119,7 +121,7 @@ class BulkController extends BaseController
 
 		$request = Craft::$app->getRequest();
 		$bulk = Hub::getInstance()->bulk;
-		$list = (string)$request->getRequiredBodyParam('list');
+		$list = (string) $request->getRequiredBodyParam('list');
 		$path = $this->requirePostedListPath();
 
 		// Lists without actions have nothing to select.

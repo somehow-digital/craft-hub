@@ -54,7 +54,7 @@
 						<form method="post" accept-charset="UTF-8">
 							{{ actionInput('hub/maintainers/save') }}
 							{{ csrfInput() }}
-							{{ redirectInput(url(craft.app.request.pathInfo, { hubSite: hubSite })) }}
+							{{ redirectInput(url(craft.app.request.pathInfo, {hubSite: hubSite})) }}
 							{{ hiddenInput('list', list) }}
 							{{ hiddenInput('id', item.id) }}
 
@@ -72,7 +72,7 @@
 								{{ forms.checkboxGroupField({
 									label: 'User Groups'|t('app'),
 									name: 'groups',
-									options: groups|map(group => { label: group.name|t('site'), value: group.id }),
+									options: groups|map(group => {label: group.name|t('site'), value: group.id}),
 									values: maintainers.groups|column('id'),
 								}) }}
 							{% endif %}

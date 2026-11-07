@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Closure;
@@ -76,7 +78,7 @@ class StatisticsService extends Component
 			return $this->entryRows[$key];
 		}
 
-		if ($this->snapshot !== null) {
+		if ($this->snapshot instanceof Closure) {
 			return $this->entryRows[$key] = $this->snapshotEntryRows($siteIds, $nested);
 		}
 
@@ -104,7 +106,7 @@ class StatisticsService extends Component
 				'postDate' => 'entries.postDate',
 				'expiryDate' => 'entries.expiryDate',
 				'live' => new Expression('CASE WHEN [[elements.draftId]] IS NULL THEN 1 ELSE 0 END'),
-				'enabled' => new Expression("CASE WHEN $isEnabled THEN 1 ELSE 0 END"),
+				'enabled' => new Expression("CASE WHEN {$isEnabled} THEN 1 ELSE 0 END"),
 				'draft' => new Expression('CASE WHEN ' . self::IS_DRAFT . ' THEN 1 ELSE 0 END'),
 				'lastEdited' => new Expression(self::LAST_EDITED),
 			])
@@ -131,17 +133,17 @@ class StatisticsService extends Component
 
 		foreach ($results as $result) {
 			$stats = new EntryStatistics();
-			$stats->total = (int)$result['total'];
-			$stats->enabled = (int)$result['enabled'];
-			$stats->pending = (int)$result['pending'];
-			$stats->expired = (int)$result['expired'];
-			$stats->drafts = (int)$result['drafts'];
+			$stats->total = (int) $result['total'];
+			$stats->enabled = (int) $result['enabled'];
+			$stats->pending = (int) $result['pending'];
+			$stats->expired = (int) $result['expired'];
+			$stats->drafts = (int) $result['drafts'];
 			$stats->lastUpdated = $result['lastUpdated'] ? (DateTimeHelper::toDateTime($result['lastUpdated']) ?: null) : null;
 
 			$rows[] = [
-				'sectionId' => $result['sectionId'] !== null ? (int)$result['sectionId'] : null,
-				'typeId' => (int)$result['typeId'],
-				'fieldId' => $result['fieldId'] !== null ? (int)$result['fieldId'] : null,
+				'sectionId' => $result['sectionId'] !== null ? (int) $result['sectionId'] : null,
+				'typeId' => (int) $result['typeId'],
+				'fieldId' => $result['fieldId'] !== null ? (int) $result['fieldId'] : null,
 				'stats' => $stats,
 			];
 		}
@@ -161,7 +163,7 @@ class StatisticsService extends Component
 			return $this->referenceRows[$key];
 		}
 
-		if ($this->snapshot !== null) {
+		if ($this->snapshot instanceof Closure) {
 			return $this->referenceRows[$key] = $this->snapshotReferenceRows($siteIds);
 		}
 
@@ -178,14 +180,14 @@ class StatisticsService extends Component
 
 		foreach ($results as $result) {
 			$stats = new ReferenceStatistics();
-			$stats->references = (int)$result['references'];
-			$stats->sources = (int)$result['sources'];
-			$stats->targets = (int)$result['targets'];
+			$stats->references = (int) $result['references'];
+			$stats->sources = (int) $result['sources'];
+			$stats->targets = (int) $result['targets'];
 
 			$rows[] = [
-				'fieldId' => (int)$result['fieldId'],
-				'sectionId' => $result['sectionId'] !== null ? (int)$result['sectionId'] : null,
-				'volumeId' => $result['volumeId'] !== null ? (int)$result['volumeId'] : null,
+				'fieldId' => (int) $result['fieldId'],
+				'sectionId' => $result['sectionId'] !== null ? (int) $result['sectionId'] : null,
+				'volumeId' => $result['volumeId'] !== null ? (int) $result['volumeId'] : null,
 				'stats' => $stats,
 			];
 		}
@@ -203,10 +205,10 @@ class StatisticsService extends Component
 		// Entries of a section are section entries, and those of a field are nested ones, so only those are read.
 		$nested = $sectionId !== null ? false : ($fieldId !== null ? true : null);
 
-		$sums = $this->entrySums[$this->cacheKey($siteIds) . ':' . var_export($nested, true)] ??= Aggregator::index(
+		$sums = $this->entrySums[$this->cacheKey($siteIds) . ':' . json_encode($nested, JSON_THROW_ON_ERROR)] ??= Aggregator::index(
 			$this->getEntryRows($siteIds, $nested),
 			['sectionId', 'typeId', 'fieldId'],
-			fn (?EntryStatistics $sum, array $row) => ($sum ?? new EntryStatistics())->add($row['stats']),
+			fn(?EntryStatistics $sum, array $row): EntryStatistics => ($sum ?? new EntryStatistics())->add($row['stats']),
 		);
 
 		$sum = $sums[Aggregator::key([$sectionId, $typeId, $fieldId])] ?? null;
@@ -224,7 +226,7 @@ class StatisticsService extends Component
 		$sums = $this->referenceSums[$this->cacheKey($siteIds)] ??= Aggregator::index(
 			$this->getReferenceRows($siteIds),
 			['fieldId', 'sectionId', 'volumeId'],
-			fn (?ReferenceStatistics $sum, array $row) => ($sum ?? new ReferenceStatistics())->add($row['stats']),
+			fn(?ReferenceStatistics $sum, array $row): ReferenceStatistics => ($sum ?? new ReferenceStatistics())->add($row['stats']),
 		);
 
 		$sum = $sums[Aggregator::key([$fieldId, $sectionId, $volumeId])] ?? null;
@@ -246,7 +248,7 @@ class StatisticsService extends Component
 			return $this->assetRows[$key];
 		}
 
-		if ($this->snapshot !== null) {
+		if ($this->snapshot instanceof Closure) {
 			return $this->assetRows[$key] = $this->snapshotAssetRows($siteIds);
 		}
 
@@ -302,9 +304,9 @@ class StatisticsService extends Component
 			->select([
 				'volumeId' => 'assets.volumeId',
 				'kind' => 'assets.kind',
-				'used' => new Expression("CASE WHEN $isUsed THEN 1 ELSE 0 END"),
-				'image' => new Expression("CASE WHEN $isImage THEN 1 ELSE 0 END"),
-				'missingAlt' => new Expression("CASE WHEN $isImage AND COALESCE([[assets.alt]], '') = '' AND NOT $hasSiteAlt THEN 1 ELSE 0 END"),
+				'used' => new Expression("CASE WHEN {$isUsed} THEN 1 ELSE 0 END"),
+				'image' => new Expression("CASE WHEN {$isImage} THEN 1 ELSE 0 END"),
+				'missingAlt' => new Expression("CASE WHEN {$isImage} AND COALESCE([[assets.alt]], '') = '' AND NOT {$hasSiteAlt} THEN 1 ELSE 0 END"),
 				'size' => new Expression('COALESCE([[assets.size]], 0)'),
 				'dateCreated' => 'elements.dateCreated',
 			])
@@ -330,17 +332,17 @@ class StatisticsService extends Component
 
 		foreach ($results as $result) {
 			$stats = new AssetStatistics();
-			$stats->total = (int)$result['total'];
-			$stats->used = (int)$result['used'];
-			$stats->images = (int)$result['images'];
-			$stats->missingAlt = (int)$result['missingAlt'];
-			$stats->size = (int)$result['size'];
-			$stats->unusedSize = (int)$result['unusedSize'];
+			$stats->total = (int) $result['total'];
+			$stats->used = (int) $result['used'];
+			$stats->images = (int) $result['images'];
+			$stats->missingAlt = (int) $result['missingAlt'];
+			$stats->size = (int) $result['size'];
+			$stats->unusedSize = (int) $result['unusedSize'];
 			$stats->lastUploaded = $result['lastUploaded'] ? (DateTimeHelper::toDateTime($result['lastUploaded']) ?: null) : null;
 
 			$rows[] = [
-				'volumeId' => (int)$result['volumeId'],
-				'kind' => (string)$result['kind'],
+				'volumeId' => (int) $result['volumeId'],
+				'kind' => (string) $result['kind'],
 				'stats' => $stats,
 			];
 		}
@@ -363,12 +365,13 @@ class StatisticsService extends Component
 			foreach ($this->assetRows[$key] as $row) {
 				$totals[$row['kind']] = ($totals[$row['kind']] ?? 0) + $row['stats']->total;
 			}
+
 			arsort($totals);
 
-			return array_map('strval', array_keys($totals));
+			return array_map(strval(...), array_keys($totals));
 		}
 
-		return $this->assetKinds[$key] ??= array_map('strval', $this->assetQuery()
+		return $this->assetKinds[$key] ??= array_map(strval(...), $this->assetQuery()
 			->select(['assets.kind'])
 			->andWhere(['exists', (new Query())
 				->from(['elements_sites' => Table::ELEMENTS_SITES])
@@ -389,7 +392,7 @@ class StatisticsService extends Component
 		$sums = $this->assetSums[$this->cacheKey($siteIds)] ??= Aggregator::index(
 			$this->getAssetRows($siteIds),
 			['volumeId', 'kind'],
-			fn (?AssetStatistics $sum, array $row) => ($sum ?? new AssetStatistics())->add($row['stats']),
+			fn(?AssetStatistics $sum, array $row): AssetStatistics => ($sum ?? new AssetStatistics())->add($row['stats']),
 		);
 
 		$sum = $sums[Aggregator::key([$volumeId, $kind])] ?? null;
@@ -429,11 +432,11 @@ class StatisticsService extends Component
 			'typeId' => 'entries.typeId',
 			'fieldId' => 'entries.fieldId',
 			'sites' => new Expression(sprintf('(%s)', $this->siteList(false))),
-			'enabledSites' => new Expression(sprintf("CASE WHEN $isEnabled THEN (%s) END", $this->siteList(true))),
+			'enabledSites' => new Expression(sprintf("CASE WHEN {$isEnabled} THEN (%s) END", $this->siteList(true))),
 			'total' => new Expression('CASE WHEN [[elements.draftId]] IS NULL THEN 1 ELSE 0 END'),
-			'enabled' => new Expression("CASE WHEN $isEnabled THEN 1 ELSE 0 END"),
-			'pending' => new Expression("CASE WHEN $isEnabled AND [[entries.postDate]] > :now THEN 1 ELSE 0 END", [':now' => $now]),
-			'expired' => new Expression("CASE WHEN $isEnabled AND [[entries.expiryDate]] <= :now THEN 1 ELSE 0 END", [':now' => $now]),
+			'enabled' => new Expression("CASE WHEN {$isEnabled} THEN 1 ELSE 0 END"),
+			'pending' => new Expression("CASE WHEN {$isEnabled} AND [[entries.postDate]] > :now THEN 1 ELSE 0 END", [':now' => $now]),
+			'expired' => new Expression("CASE WHEN {$isEnabled} AND [[entries.expiryDate]] <= :now THEN 1 ELSE 0 END", [':now' => $now]),
 			'drafts' => new Expression('CASE WHEN ' . self::IS_DRAFT . ' THEN 1 ELSE 0 END'),
 			'lastUpdated' => new Expression('CASE WHEN [[elements.draftId]] IS NULL THEN ' . self::LAST_EDITED . ' END'),
 		]);
@@ -457,17 +460,17 @@ class StatisticsService extends Component
 			->groupBy(['sectionId', 'typeId', 'fieldId', 'sites', 'enabledSites'])
 			->all();
 
-		return array_map(fn (array $result) => [
-			'sectionId' => $result['sectionId'] !== null ? (int)$result['sectionId'] : null,
-			'typeId' => (int)$result['typeId'],
-			'fieldId' => $result['fieldId'] !== null ? (int)$result['fieldId'] : null,
-			'sites' => (string)SiteSet::format(SiteSet::parse($result['sites'])),
+		return array_map(fn(array $result): array => [
+			'sectionId' => $result['sectionId'] !== null ? (int) $result['sectionId'] : null,
+			'typeId' => (int) $result['typeId'],
+			'fieldId' => $result['fieldId'] !== null ? (int) $result['fieldId'] : null,
+			'sites' => (string) SiteSet::format(SiteSet::parse($result['sites'])),
 			'enabledSites' => SiteSet::format(SiteSet::parse($result['enabledSites'])),
-			'total' => (int)$result['total'],
-			'enabled' => (int)$result['enabled'],
-			'pending' => (int)$result['pending'],
-			'expired' => (int)$result['expired'],
-			'drafts' => (int)$result['drafts'],
+			'total' => (int) $result['total'],
+			'enabled' => (int) $result['enabled'],
+			'pending' => (int) $result['pending'],
+			'expired' => (int) $result['expired'],
+			'drafts' => (int) $result['drafts'],
 			'lastUpdated' => $result['lastUpdated'] ?: null,
 		], $results);
 	}
@@ -547,18 +550,18 @@ class StatisticsService extends Component
 
 		foreach ($results as $result) {
 			$row = [
-				'volumeId' => (int)$result['volumeId'],
-				'kind' => (string)$result['kind'],
-				'sites' => (string)SiteSet::format(SiteSet::parse($result['sites'])),
+				'volumeId' => (int) $result['volumeId'],
+				'kind' => (string) $result['kind'],
+				'sites' => (string) SiteSet::format(SiteSet::parse($result['sites'])),
 				'usedSites' => SiteSet::union($result['usedSites'], $result['taggedSites']),
 				'altSites' => $result['kind'] === Asset::KIND_IMAGE ? SiteSet::format(SiteSet::parse($result['altSites'])) : null,
 			];
-			$key = implode('|', array_map(fn ($value) => (string)$value, $row));
+			$key = implode('|', array_map(fn(int|string|null $value): string => (string) $value, $row));
 			$lastUploaded = $result['lastUploaded'] ?: null;
 
 			$rows[$key] ??= [...$row, 'total' => 0, 'size' => 0, 'lastUploaded' => null];
-			$rows[$key]['total'] += (int)$result['total'];
-			$rows[$key]['size'] += (int)$result['size'];
+			$rows[$key]['total'] += (int) $result['total'];
+			$rows[$key]['size'] += (int) $result['size'];
 			$rows[$key]['lastUploaded'] = max($rows[$key]['lastUploaded'], $lastUploaded);
 		}
 
@@ -578,14 +581,14 @@ class StatisticsService extends Component
 			->groupBy(['relations.fieldId', 'targets.sectionId', 'targetAssets.volumeId', 'relations.sourceSiteId'])
 			->all();
 
-		return array_map(fn (array $result) => [
-			'fieldId' => (int)$result['fieldId'],
-			'sectionId' => $result['sectionId'] !== null ? (int)$result['sectionId'] : null,
-			'volumeId' => $result['volumeId'] !== null ? (int)$result['volumeId'] : null,
-			'siteId' => $result['siteId'] !== null ? (int)$result['siteId'] : null,
-			'references' => (int)$result['references'],
-			'sources' => (int)$result['sources'],
-			'targets' => (int)$result['targets'],
+		return array_map(fn(array $result): array => [
+			'fieldId' => (int) $result['fieldId'],
+			'sectionId' => $result['sectionId'] !== null ? (int) $result['sectionId'] : null,
+			'volumeId' => $result['volumeId'] !== null ? (int) $result['volumeId'] : null,
+			'siteId' => $result['siteId'] !== null ? (int) $result['siteId'] : null,
+			'references' => (int) $result['references'],
+			'sources' => (int) $result['sources'],
+			'targets' => (int) $result['targets'],
 		], $results);
 	}
 
@@ -692,10 +695,10 @@ class StatisticsService extends Component
 
 		if (Craft::$app->getDb()->getIsPgsql()) {
 			// PostgreSQL sorts distinct values by the aggregated expression only.
-			return "STRING_AGG({$distinct}CAST($column AS VARCHAR), ',' ORDER BY CAST($column AS VARCHAR))";
+			return "STRING_AGG({$distinct}CAST({$column} AS VARCHAR), ',' ORDER BY CAST({$column} AS VARCHAR))";
 		}
 
-		return "GROUP_CONCAT({$distinct}$column ORDER BY $column SEPARATOR ',')";
+		return "GROUP_CONCAT({$distinct}$column ORDER BY {$column} SEPARATOR ',')";
 	}
 
 	/**
@@ -709,25 +712,25 @@ class StatisticsService extends Component
 		$rows = [];
 
 		foreach (($this->snapshot)('entries') as $row) {
-			$sectionId = $row['sectionId'] !== null ? (int)$row['sectionId'] : null;
+			$sectionId = $row['sectionId'] !== null ? (int) $row['sectionId'] : null;
 
 			if (($sectionId === null) !== $nested || !SiteSet::matches($row['sites'], $siteIds)) {
 				continue;
 			}
 
 			$stats = new EntryStatistics();
-			$stats->total = (int)$row['total'];
-			$stats->drafts = (int)$row['drafts'];
+			$stats->total = (int) $row['total'];
+			$stats->drafts = (int) $row['drafts'];
 			$stats->lastUpdated = $row['lastUpdated'] ? (DateTimeHelper::toDateTime($row['lastUpdated']) ?: null) : null;
 
 			// Entries are enabled on the sites when they're enabled on any of them.
 			if (SiteSet::matches($row['enabledSites'], $siteIds)) {
-				$stats->enabled = (int)$row['enabled'];
-				$stats->pending = (int)$row['pending'];
-				$stats->expired = (int)$row['expired'];
+				$stats->enabled = (int) $row['enabled'];
+				$stats->pending = (int) $row['pending'];
+				$stats->expired = (int) $row['expired'];
 			}
 
-			$criteria = [$sectionId, (int)$row['typeId'], $row['fieldId'] !== null ? (int)$row['fieldId'] : null];
+			$criteria = [$sectionId, (int) $row['typeId'], $row['fieldId'] !== null ? (int) $row['fieldId'] : null];
 			$rows[Aggregator::key($criteria)] ??= [
 				'sectionId' => $criteria[0],
 				'typeId' => $criteria[1],
@@ -759,16 +762,16 @@ class StatisticsService extends Component
 			$isImage = $row['kind'] === Asset::KIND_IMAGE;
 
 			$stats = new AssetStatistics();
-			$stats->total = (int)$row['total'];
+			$stats->total = (int) $row['total'];
 			$stats->used = $used ? $stats->total : 0;
 			$stats->images = $isImage ? $stats->total : 0;
 			$stats->missingAlt = $isImage && !SiteSet::matches($row['altSites'], $siteIds) ? $stats->total : 0;
-			$stats->size = (int)$row['size'];
+			$stats->size = (int) $row['size'];
 			$stats->unusedSize = $used ? 0 : $stats->size;
 			$stats->lastUploaded = $row['lastUploaded'] ? (DateTimeHelper::toDateTime($row['lastUploaded']) ?: null) : null;
 
-			$key = Aggregator::key([(int)$row['volumeId'], (string)$row['kind']]);
-			$rows[$key] ??= ['volumeId' => (int)$row['volumeId'], 'kind' => (string)$row['kind'], 'stats' => new AssetStatistics()];
+			$key = Aggregator::key([(int) $row['volumeId'], (string) $row['kind']]);
+			$rows[$key] ??= ['volumeId' => (int) $row['volumeId'], 'kind' => (string) $row['kind'], 'stats' => new AssetStatistics()];
 			$rows[$key]['stats']->add($stats);
 		}
 
@@ -787,19 +790,19 @@ class StatisticsService extends Component
 		$rows = [];
 
 		foreach (($this->snapshot)('references') as $row) {
-			if ($row['siteId'] !== null && !in_array((int)$row['siteId'], $siteIds, false)) {
+			if ($row['siteId'] !== null && !in_array((int) $row['siteId'], $siteIds, false)) {
 				continue;
 			}
 
 			$stats = new ReferenceStatistics();
-			$stats->references = (int)$row['references'];
-			$stats->sources = (int)$row['sources'];
-			$stats->targets = (int)$row['targets'];
+			$stats->references = (int) $row['references'];
+			$stats->sources = (int) $row['sources'];
+			$stats->targets = (int) $row['targets'];
 
 			$criteria = [
-				(int)$row['fieldId'],
-				$row['sectionId'] !== null ? (int)$row['sectionId'] : null,
-				$row['volumeId'] !== null ? (int)$row['volumeId'] : null,
+				(int) $row['fieldId'],
+				$row['sectionId'] !== null ? (int) $row['sectionId'] : null,
+				$row['volumeId'] !== null ? (int) $row['volumeId'] : null,
 			];
 			$rows[Aggregator::key($criteria)] ??= [
 				'fieldId' => $criteria[0],

@@ -17,47 +17,47 @@
 {% set docTitle = title ~ ' - ' ~ 'Hub'|t('hub') %}
 {% set selectedSubnavItem = 'activity' %}
 {% set crumbs = [
-	{ label: 'Hub'|t('hub'), url: url('hub/manage') },
-	{ label: title, url: url(list.listPath), current: not list.batch },
+	{label: 'Hub'|t('hub'), url: url('hub/manage')},
+	{label: title, url: url(list.listPath), current: not list.batch},
 ] %}
 {% if list.batch %}
-	{% set crumbs = crumbs|merge([{ label: list.batch.title, url: url(list.listPath, { batch: list.batch.id }), current: true }]) %}
+	{% set crumbs = crumbs|merge([{label: list.batch.title, url: url(list.listPath, {batch: list.batch.id}), current: true}]) %}
 {% endif %}
 
 {% set actionOptions = {} %}
 {% for action in list.actions %}
-	{% set actionOptions = actionOptions|merge({ (action.value): { label: action.label(), icon: action.icon(), color: action.color() } }) %}
+	{% set actionOptions = actionOptions|merge({(action.value): {label: action.label(), icon: action.icon(), color: action.color()}}) %}
 {% endfor %}
 
 {% set typeOptions = {} %}
 {% for subject in list.subjects %}
-	{% set typeOptions = typeOptions|merge({ (subject.value): { label: subject.label(), icon: subject.icon(), color: subject.color() } }) %}
+	{% set typeOptions = typeOptions|merge({(subject.value): {label: subject.label(), icon: subject.icon(), color: subject.color()}}) %}
 {% endfor %}
 
 {% block content %}
 	<p class="hub-activity-summary">
 		{% if list.batch %}
-			{{ 'What was done by “{name}” ({action}), {date}.'|t('hub', { name: list.batch.title, action: list.batch.action.label(), date: list.batch.dateCreated|datetime('short') }) }}
+			{{ 'What was done by “{name}” ({action}), {date}.'|t('hub', {name: list.batch.title, action: list.batch.action.label(), date: list.batch.dateCreated|datetime('short')}) }}
 			<a href="{{ url(list.listPath) }}">{{ 'Show all activity'|t('hub') }}</a>
 		{% elseif list.filter.item %}
 			{{ 'What was done to a single item.'|t('hub') }}
 			<a href="{{ url(list.listPath) }}">{{ 'Show all activity'|t('hub') }}</a>
 		{% else %}
 			{{ list.retentionDays
-				? 'What users did, as Craft tells it, kept for {days, plural, =1{one day} other{# days}}.'|t('hub', { days: list.retentionDays })
+				? 'What users did, as Craft tells it, kept for {days, plural, =1{one day} other{# days}}.'|t('hub', {days: list.retentionDays})
 				: 'What users did, as Craft tells it, kept forever.'|t('hub') }}
 		{% endif %}
 	</p>
 
-	{% embed 'hub/_components/panel' with { list: list, actionOptions: actionOptions, typeOptions: typeOptions } only %}
+	{% embed 'hub/_components/panel' with {list: list, actionOptions: actionOptions, typeOptions: typeOptions} only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			<form method="get" class="hub-filters" action="{{ url(list.listPath) }}" data-hub-submit>
 				{{ hub.search('Search by name or IP address'|t('hub'), list.filter.search) }}
 				{{ hub.dropdown('Action'|t('hub'), 'bolt', hub.choices('event', actionOptions, list.filter.actions)) }}
 				{{ hub.dropdown('Type'|t('app'), 'shapes', hub.choices('type', typeOptions, list.filter.subjects)) }}
-				{{ hub.dropdown('User'|t('app'), 'user', hub.choices('user', list.userOptions, list.filter.users, { lazy: list.optionsUrls.user })) }}
-				{{ hub.dropdown('Date'|t('app'), 'calendar', hub.range('date', 'Date'|t('app'), list.filter.dateFrom, list.filter.dateTo, { type: 'date' })) }}
+				{{ hub.dropdown('User'|t('app'), 'user', hub.choices('user', list.userOptions, list.filter.users, {lazy: list.optionsUrls.user})) }}
+				{{ hub.dropdown('Date'|t('app'), 'calendar', hub.range('date', 'Date'|t('app'), list.filter.dateFrom, list.filter.dateTo, {type: 'date'})) }}
 				{{ hub.addFilter() }}
 				{{ hiddenInput('sort', list.sort) }}
 				{{ hiddenInput('dir', list.dir) }}
@@ -67,7 +67,7 @@
 			</form>
 
 			{% if list.activities|length %}
-				{% embed 'hub/_components/bulk' with { list: list|merge({ bulkActions: [] }), bulkList: 'activity' } only %}
+				{% embed 'hub/_components/bulk' with {list: list|merge({bulkActions: []}), bulkList: 'activity'} only %}
 					{% block table %}
 						{% import 'hub/_components/macros' as hub %}
 						<div class="hub-table">
@@ -93,18 +93,18 @@
 												</td>
 											</tr>
 										{% endif %}
-										{% include 'hub/_components/activity-row' with { batched: false, activity: activity, listPath: list.listPath, columns: list.columns } only %}
+										{{ include('hub/_components/activity-row', {batched: false, activity: activity, listPath: list.listPath, columns: list.columns}, false) }}
 									{% endfor %}
 								</tbody>
 							</table>
 						</div>
 					{% endblock %}
 					{% block footer %}
-						{% include '_includes/pagination' with {
+						{{ include('_includes/pagination', {
 							pageInfo: list.pageInfo,
 							itemLabel: 'activity'|t('hub'),
 							itemsLabel: 'activities'|t('hub'),
-						} only %}
+						}, false) }}
 					{% endblock %}
 				{% endembed %}
 			{% else %}

@@ -1,9 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\statistics;
 
 use Craft;
-use craft\models\Volume;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\AssetStatistics;
 use SomehowDigital\Craft\Hub\models\Snapshot;
@@ -23,37 +24,37 @@ final class VolumesSummary extends Summary
 	{
 		$path = 'hub/structure/volumes';
 		$siteIds = Hub::getInstance()->siteScope->getSiteIds();
-		$volumes = fn () => Hub::getInstance()->volumes->getVolumes();
+		$volumes = fn() => Hub::getInstance()->volumes->getVolumes();
 
 		return [
-			$this->lazyCard(Craft::t('app', 'Volumes'), 'folder-open', function () use ($volumes, $path) {
+			$this->lazyCard(Craft::t('app', 'Volumes'), 'folder-open', function () use ($volumes, $path): array {
 				$card = $this->volumesCard(
 					count($volumes()),
-					count(array_filter($volumes(), fn (VolumeInfo $info) => $info->isEmpty())),
-					count(array_filter($volumes(), fn (VolumeInfo $info) => $info->hasUrls)),
+					count(array_filter($volumes(), fn(VolumeInfo $info): bool => $info->isEmpty())),
+					count(array_filter($volumes(), fn(VolumeInfo $info): bool => $info->hasUrls)),
 				);
 				$card['table'] = $this->table(Craft::t('app', 'Volume'), Craft::t('app', 'Assets'), [
 					...$this->assetColumns(),
 					['label' => Craft::t('hub', 'References'), 'type' => 'number'],
-				], array_map(fn (VolumeInfo $info) => [
+				], array_map(fn(VolumeInfo $info): array => [
 					'label' => Craft::t('site', $info->volume->name),
-					'url' => $this->hubUrl("$path/{$info->volume->id}"),
+					'url' => $this->hubUrl("{$path}/{$info->volume->id}"),
 					'color' => 'amber',
 					'value' => $info->stats->total,
 					'cells' => [...$this->assetCells([$info->stats])[0], $info->references->references],
 				], $volumes()));
 
 				return $card;
-			}, fn (Snapshot $snapshot) => $this->volumesCard(
+			}, fn(Snapshot $snapshot): array => $this->volumesCard(
 				count($snapshot->getVolumes()),
-				count(array_filter(array_keys($snapshot->getVolumes()), fn (int $id) => $snapshot->statistics->sumAssets($siteIds, $id)->total === 0)),
-				count(array_filter($snapshot->getVolumes(), fn (array $volume) => (bool)$volume['hasUrls'])),
+				count(array_filter(array_keys($snapshot->getVolumes()), fn(int $id): bool => $snapshot->statistics->sumAssets($siteIds, $id)->total === 0)),
+				count(array_filter($snapshot->getVolumes(), fn(array $volume): bool => (bool) $volume['hasUrls'])),
 			)),
-			$this->lazyCard(Craft::t('app', 'Assets'), 'image', fn () => $this->assetsCard($this->assetTotals(), Craft::t('hub', '{references, number} references from Assets and Link fields', [
-				'references' => array_sum(array_map(fn (VolumeInfo $info) => $info->references->references, $volumes())),
+			$this->lazyCard(Craft::t('app', 'Assets'), 'image', fn(): array => $this->assetsCard($this->assetTotals(), Craft::t('hub', '{references, number} references from Assets and Link fields', [
+				'references' => array_sum(array_map(fn(VolumeInfo $info): int => $info->references->references, $volumes())),
 			])), $this->assetsHistory()),
 			$this->fileKindsCard($path),
-			$this->lazyCard(Craft::t('app', 'Alternative Text'), 'universal-access', fn () => $this->altCard($this->assetTotals(), $this->volumeStats($volumes())), $this->assetsHistory(card: fn (AssetStatistics $stats) => $this->altCard($stats))),
+			$this->lazyCard(Craft::t('app', 'Alternative Text'), 'universal-access', fn(): array => $this->altCard($this->assetTotals(), $this->volumeStats($volumes())), $this->assetsHistory(card: fn(AssetStatistics $stats): array => $this->altCard($stats))),
 		];
 	}
 
@@ -65,8 +66,8 @@ final class VolumesSummary extends Summary
 		$id = $info->volume->id;
 
 		return [
-			$this->lazyCard(Craft::t('app', 'Assets'), 'image', fn () => $this->assetsCard($info->stats), $this->assetsHistory($id)),
-			$this->lazyCard(Craft::t('hub', 'Types'), 'file', function () use ($info) {
+			$this->lazyCard(Craft::t('app', 'Assets'), 'image', fn(): array => $this->assetsCard($info->stats), $this->assetsHistory($id)),
+			$this->lazyCard(Craft::t('hub', 'Types'), 'file', function () use ($info): array {
 				$fileKinds = Hub::getInstance()->volumes->getFileKinds();
 				$kinds = [];
 				$stats = [];
@@ -77,8 +78,8 @@ final class VolumesSummary extends Summary
 
 				return $this->withColumns($this->topCard(Craft::t('hub', 'Types'), 'file', $kinds), Craft::t('app', 'Assets'), $this->assetColumns(), $this->assetCells($stats));
 			}, $this->fileKindsHistory($id)),
-			$this->lazyCard(Craft::t('app', 'Alternative Text'), 'universal-access', fn () => $this->altCard($info->stats), $this->assetsHistory($id, fn (AssetStatistics $stats) => $this->altCard($stats))),
-			$this->lazyCard(Craft::t('hub', 'References'), 'link', function () use ($info, $id) {
+			$this->lazyCard(Craft::t('app', 'Alternative Text'), 'universal-access', fn(): array => $this->altCard($info->stats), $this->assetsHistory($id, fn(AssetStatistics $stats): array => $this->altCard($stats))),
+			$this->lazyCard(Craft::t('hub', 'References'), 'link', function () use ($info, $id): array {
 				$statistics = Hub::getInstance()->statistics;
 				$siteIds = Hub::getInstance()->siteScope->getSiteIds();
 				$counts = [];
@@ -93,13 +94,14 @@ final class VolumesSummary extends Summary
 				]);
 
 				return $card;
-			}, fn (Snapshot $snapshot) => $this->labeledTopHistory($this->fieldLabels(), $this->byId(
+			}, fn(Snapshot $snapshot): array => $this->labeledTopHistory($this->fieldLabels(), $this->byId(
 				$snapshot->getVolumes()[$id]['fields'] ?? [],
-				fn (int $fieldId) => $snapshot->statistics->sumReferences(Hub::getInstance()->siteScope->getSiteIds(), $fieldId, volumeId: $id)->references,
+				fn(int $fieldId): int => $snapshot->statistics->sumReferences(Hub::getInstance()->siteScope->getSiteIds(), $fieldId, volumeId: $id)->references,
 			), true)),
-			$this->lazyCard(Craft::t('hub', 'Uploaders'), 'user', fn () => $this->peopleCard(Craft::t('hub', 'Uploaders'), 'user', Hub::getInstance()->files->getUploaders($id), 'uploader', "hub/structure/volumes/$id/assets", Craft::t('app', 'Assets'))),
+			$this->lazyCard(Craft::t('hub', 'Uploaders'), 'user', fn(): array => $this->peopleCard(Craft::t('hub', 'Uploaders'), 'user', Hub::getInstance()->files->getUploaders($id), 'uploader', "hub/structure/volumes/{$id}/assets", Craft::t('app', 'Assets'))),
 		];
 	}
+
 	/**
 	 * Summary card for volumes, split by whether they hold assets.
 	 *

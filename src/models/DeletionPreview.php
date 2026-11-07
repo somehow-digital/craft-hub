@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\ElementInterface;
@@ -57,7 +59,7 @@ class DeletionPreview
 		[$this->pageInfo, $shown] = (new Paginator($this->page))->items($models);
 		$this->total = count($models);
 		$this->page = $this->pageInfo->currentPage;
-		$this->items = array_map(fn ($model) => new DeletionItem($model), array_values($shown));
+		$this->items = array_map(fn(ElementInterface|Section|EntryType|FieldInterface|Volume|UserGroup $model): DeletionItem => new DeletionItem($model), array_values($shown));
 		$this->label = $label;
 		$this->icon = $icon;
 	}
@@ -69,7 +71,7 @@ class DeletionPreview
 	 */
 	public function getItemIds(): array
 	{
-		return array_map(fn (DeletionItem $item) => $item->getId(), $this->items);
+		return array_map(fn(DeletionItem $item): int => $item->getId(), $this->items);
 	}
 
 	/**

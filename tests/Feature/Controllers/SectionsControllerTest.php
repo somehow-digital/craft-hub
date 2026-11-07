@@ -1,6 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Entry;
+use craft\elements\User;
+use craft\web\TemplateResponseBehavior;
 use craft\web\View;
 use SomehowDigital\Craft\Hub\controllers\SectionsController;
 use SomehowDigital\Craft\Hub\enums\Page;
@@ -9,15 +13,18 @@ use SomehowDigital\Craft\Hub\models\Snapshot;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use SomehowDigital\Craft\Hub\services\SnapshotService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
+use yii\base\ActionEvent;
+use yii\base\Controller;
+use yii\base\Event;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 });
 
-it('lists the sections', function () {
+it('lists the sections', function (): void {
 	$response = $this->runAction(SectionsController::class, 'index');
 	$variables = $response->variables;
 
@@ -35,7 +42,7 @@ it('lists the sections', function () {
 		->and($variables['hubSite'])->toBeNull();
 });
 
-it('summarizes the sections on their statistics tab, loading the cards as they are opened', function () {
+it('summarizes the sections on their statistics tab, loading the cards as they are opened', function (): void {
 	$response = $this->runAction(SectionsController::class, 'statistics');
 
 	expect($response->template)->toBe('hub/pages/statistics')
@@ -43,7 +50,7 @@ it('summarizes the sections on their statistics tab, loading the cards as they a
 		->and($response->variables['cards'][0])->not->toHaveKey('total');
 });
 
-it('loads a card of the statistics tab alone', function () {
+it('loads a card of the statistics tab alone', function (): void {
 	$response = $this->runAction(SectionsController::class, 'statistics', query: ['card' => 'types']);
 
 	expect($response->template)->toBe('hub/_components/statistics-card')
@@ -51,18 +58,18 @@ it('loads a card of the statistics tab alone', function () {
 		->and($response->variables['card']['total'])->toBe(4);
 });
 
-it('loads a card with its chart over the snapshots of the range asked for', function () {
+it('loads a card with its chart over the snapshots of the range asked for', function (): void {
 	$this->mockComponent('hub.snapshots', SnapshotService::class)
 		->shouldReceive('chart')->once()
-		->with(Mockery::type(Closure::class), Mockery::on(fn (array $card) => $card['key'] === 'types' && $card['total'] === 4), 90)
-		->andReturnUsing(fn (Closure $history) => $history(new Snapshot(1, new DateTime(), fn (string $part) => $part === 'metrics' ? ['sections' => [['type' => 'channel'], ['type' => 'single'], ['type' => 'channel']]] : [])));
+		->with(Mockery::type(Closure::class), Mockery::on(fn(array $card): bool => $card['key'] === 'types' && $card['total'] === 4), 90)
+		->andReturnUsing(fn(Closure $history) => $history(new Snapshot(1, new DateTime(), fn(string $part): array => $part === 'metrics' ? ['sections' => [['type' => 'channel'], ['type' => 'single'], ['type' => 'channel']]] : [])));
 
 	$response = $this->runAction(SectionsController::class, 'statistics', query: ['card' => 'types', 'range' => '90']);
 
 	expect($response->variables['card']['chart']['total'])->toBe(3);
 });
 
-it('renders the chart of a card in its body, with the change in its header', function () {
+it('renders the chart of a card in its body, with the change in its header', function (): void {
 	$html = Craft::$app->getView()->renderTemplate('hub/_components/statistics-card', ['card' => [
 		'key' => 'entries',
 		'label' => 'Entries',
@@ -93,7 +100,7 @@ it('renders the chart of a card in its body, with the change in its header', fun
 		->and($html)->toContain('<td class="hub-statistics__number">–</td>');
 });
 
-it('loads a card without a chart when it has no history', function () {
+it('loads a card without a chart when it has no history', function (): void {
 	$this->mockComponent('hub.snapshots', SnapshotService::class)->shouldNotReceive('chart');
 
 	$response = $this->runAction(SectionsController::class, 'view', ['id' => 2, 'tab' => 'statistics'], ['card' => 'authors']);
@@ -101,7 +108,7 @@ it('loads a card without a chart when it has no history', function () {
 	expect($response->variables['card'])->not->toHaveKey('chart');
 });
 
-it('counts the segments of a card in a snapshot by how the sections were set up then', function (string $card, array $expected) {
+it('counts the segments of a card in a snapshot by how the sections were set up then', function (string $card, array $expected): void {
 	$metrics = ['sections' => [
 		1 => ['type' => 'channel', 'entryTypes' => [], 'fields' => []],
 		2 => ['type' => 'channel', 'entryTypes' => [], 'fields' => []],
@@ -111,7 +118,7 @@ it('counts the segments of a card in a snapshot by how the sections were set up 
 
 	$this->mockComponent('hub.snapshots', SnapshotService::class)
 		->shouldReceive('chart')->once()
-		->andReturnUsing(fn (Closure $history) => $history(new Snapshot(1, new DateTime('2026-10-20'), fn (string $part) => ['metrics' => $metrics, 'entries' => $entries][$part] ?? [])));
+		->andReturnUsing(fn(Closure $history) => $history(new Snapshot(1, new DateTime('2026-10-20'), fn(string $part): array => ['metrics' => $metrics, 'entries' => $entries][$part] ?? [])));
 
 	$response = $this->runAction(SectionsController::class, 'statistics', query: ['card' => $card]);
 	$segments = array_column($response->variables['card']['chart']['segments'], 'value', 'label');
@@ -124,11 +131,11 @@ it('counts the segments of a card in a snapshot by how the sections were set up 
 	['activity', ['Recently edited' => 1, 'Stale' => 0, 'No entries' => 2]],
 ]);
 
-it('has no card of the statistics tab by an unknown key', function () {
+it('has no card of the statistics tab by an unknown key', function (): void {
 	$this->runAction(SectionsController::class, 'statistics', query: ['card' => 'unknown']);
 })->throws(NotFoundHttpException::class);
 
-it('loads a card of a section\'s statistics tab alone', function () {
+it("loads a card of a section's statistics tab alone", function (): void {
 	$response = $this->runAction(SectionsController::class, 'view', ['id' => 2, 'tab' => 'statistics'], ['card' => 'entries']);
 
 	expect($response->template)->toBe('hub/_components/statistics-card')
@@ -136,7 +143,7 @@ it('loads a card of a section\'s statistics tab alone', function () {
 		->and($response->variables)->not->toHaveKey('checks');
 });
 
-it('filters and sorts the sections by the query params', function () {
+it('filters and sorts the sections by the query params', function (): void {
 	$variables = $this->runAction(SectionsController::class, 'index', query: [
 		'q' => ' new ',
 		'type' => 'channel,unknown',
@@ -163,7 +170,7 @@ it('filters and sorts the sections by the query params', function () {
 		->and($variables['list']['sortHeaders']['name']['url'])->not->toContain('sort=');
 });
 
-it('ignores unknown sort columns and directions', function () {
+it('ignores unknown sort columns and directions', function (): void {
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['sort' => 'bogus', 'dir' => 'sideways'])->variables;
 
 	expect($variables['list']['sort'])->toBeNull()
@@ -172,7 +179,7 @@ it('ignores unknown sort columns and directions', function () {
 		->and($variables['list']['sortHeaders']['name']['url'])->toContain('dir=desc');
 });
 
-it('shows a section', function () {
+it('shows a section', function (): void {
 	$response = $this->runAction(SectionsController::class, 'view', ['id' => 2]);
 	$variables = $response->variables;
 
@@ -183,7 +190,7 @@ it('shows a section', function () {
 		->and($variables)->not->toHaveKeys(['summary', 'entries', 'reviewList']);
 });
 
-it('summarizes a section on its statistics tab', function () {
+it('summarizes a section on its statistics tab', function (): void {
 	$variables = $this->runAction(SectionsController::class, 'view', ['id' => 2, 'tab' => 'statistics'], ['hubSite' => 'en'])->variables;
 	[$entries, $entryTypes, $references, $authors] = loadCards($variables['summary']);
 
@@ -203,18 +210,18 @@ it('summarizes a section on its statistics tab', function () {
 		->and($variables)->not->toHaveKeys(['entries', 'reviewList']);
 });
 
-it('notes no entry types without entries in a section', function () {
+it('notes no entry types without entries in a section', function (): void {
 	expect(loadCards($this->runAction(SectionsController::class, 'view', ['id' => 1, 'tab' => 'statistics'])->variables['summary'])[1])->not->toHaveKey('note');
 });
 
-it('remembers the filters of the entries tab', function () {
+it('remembers the filters of the entries tab', function (): void {
 	$this->runAction(SectionsController::class, 'view', ['id' => 2, 'tab' => 'entries'], ['q' => 'news']);
 	$this->runAction(SectionsController::class, 'view', ['id' => 2, 'tab' => 'entries']);
 
 	expect(Craft::$app->getResponse()->getHeaders()->get('Location'))->toContain('hub/structure/sections/2/entries&q=news');
 });
 
-it('lists the entries of a section on a tab of its own', function () {
+it('lists the entries of a section on a tab of its own', function (): void {
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1, 'siteId' => 1, 'title' => 'News', 'sectionId' => 1, 'typeId' => 10])]);
 
 	$variables = $this->runAction(SectionsController::class, 'view', ['id' => 2, 'tab' => 'entries'], query: ['field' => 'blocks'])->variables;
@@ -231,15 +238,15 @@ it('lists the entries of a section on a tab of its own', function () {
 		->and($variables)->not->toHaveKeys(['summary', 'reviewList']);
 });
 
-it('shows the checks of a section on its diagnostics tab', function () {
+it('shows the checks of a section on its diagnostics tab', function (): void {
 	$variables = $this->runAction(SectionsController::class, 'view', ['id' => 2, 'tab' => 'diagnostics'])->variables;
 
 	expect($variables['selectedTab'])->toBe('diagnostics')
-		->and(array_map(fn ($check) => $check->key, $variables['checks']))->toContain('sections.empty', 'entries.drafts')
+		->and(array_map(fn($check) => $check->key, $variables['checks']))->toContain('sections.empty', 'entries.drafts')
 		->and($variables)->not->toHaveKeys(['summary', 'entries', 'reviewList']);
 });
 
-it('fails for the statistics tab while statistics are disabled', function () {
+it('fails for the statistics tab while statistics are disabled', function (): void {
 	$this->hub()->getSettings()->enableStatistics = false;
 
 	try {
@@ -249,15 +256,15 @@ it('fails for the statistics tab while statistics are disabled', function () {
 	}
 })->throws(NotFoundHttpException::class);
 
-it('fails for tabs that sections do not have', function () {
+it('fails for tabs that sections do not have', function (): void {
 	$this->runAction(SectionsController::class, 'view', ['id' => 1, 'tab' => 'assets']);
 })->throws(NotFoundHttpException::class);
 
-it('fails for sections that do not exist', function () {
+it('fails for sections that do not exist', function (): void {
 	$this->runAction(SectionsController::class, 'view', ['id' => 99]);
 })->throws(NotFoundHttpException::class);
 
-it('requires access to Hub', function () {
+it('requires access to Hub', function (): void {
 	$this->actingAs(permissions: []);
 
 	$this->runAction(SectionsController::class, 'index');
@@ -266,21 +273,21 @@ it('requires access to Hub', function () {
 	'without the sections' => [[Hub::PERMISSION_ACCESS_STRUCTURE, Page::Fields->viewPermission()]],
 ])->throws(ForbiddenHttpException::class);
 
-it('requires a CP request', function () {
+it('requires a CP request', function (): void {
 	$controller = new SectionsController('sections', $this->hub());
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new craft\elements\User(['id' => 1]));
+	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 1]));
 	$this->request(cp: false);
 
 	$controller->runAction('index');
 })->throws(BadRequestHttpException::class);
 
-it('keeps the selected sites', function () {
+it('keeps the selected sites', function (): void {
 	$this->site(2, 'de');
 
 	expect(loadCards($this->runAction(SectionsController::class, 'statistics', query: [Hub::SITE_PARAM => 'de'])->variables['cards'])[0]['url'])->toContain('hubSite=de');
 });
 
-it('sorts against the natural direction', function () {
+it('sorts against the natural direction', function (): void {
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['dir' => 'desc'])->variables;
 
 	expect(array_keys($variables['list']['sections']))->toBe([3, 2, 1, 4])
@@ -288,20 +295,20 @@ it('sorts against the natural direction', function () {
 		->and($variables['list']['dir'])->toBe('desc');
 });
 
-it('runs no action that a handler cancels', function () {
-	yii\base\Event::on(SectionsController::class, yii\base\Controller::EVENT_BEFORE_ACTION, fn (yii\base\ActionEvent $event) => $event->isValid = false);
-	Craft::$app->getResponse()->detachBehavior(craft\web\TemplateResponseBehavior::NAME);
+it('runs no action that a handler cancels', function (): void {
+	Event::on(SectionsController::class, Controller::EVENT_BEFORE_ACTION, fn(ActionEvent $event): false => $event->isValid = false);
+	Craft::$app->getResponse()->detachBehavior(TemplateResponseBehavior::NAME);
 
 	$controller = new SectionsController('sections', $this->hub());
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new craft\elements\User(['id' => 1]));
+	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 1]));
 	$this->request();
 
 	expect($controller->runAction('index'))->toBeNull()
-		->and(Craft::$app->getResponse()->getBehavior(craft\web\TemplateResponseBehavior::NAME))->toBeNull();
+		->and(Craft::$app->getResponse()->getBehavior(TemplateResponseBehavior::NAME))->toBeNull();
 });
 
-it('sorts by a column in its natural direction, then reversed, then resets the sorting', function () {
-	$headers = fn (array $query) => $this->runAction(SectionsController::class, 'index', query: $query)->variables['list']['sortHeaders'];
+it('sorts by a column in its natural direction, then reversed, then resets the sorting', function (): void {
+	$headers = fn(array $query) => $this->runAction(SectionsController::class, 'index', query: $query)->variables['list']['sortHeaders'];
 
 	expect($headers([])['entries']['url'])->toContain('sort=entries')->not->toContain('dir=')
 		->and($headers(['sort' => 'entries'])['entries']['url'])->toContain('sort=entries&dir=asc')
@@ -309,8 +316,8 @@ it('sorts by a column in its natural direction, then reversed, then resets the s
 		->and($headers(['sort' => 'entries', 'dir' => 'asc', 'q' => 'news'])['entries']['url'])->toContain('q=news')->not->toContain('sort=');
 });
 
-it('reverses the default sort and back', function () {
-	$headers = fn (array $query) => $this->runAction(SectionsController::class, 'index', query: $query)->variables['list']['sortHeaders'];
+it('reverses the default sort and back', function (): void {
+	$headers = fn(array $query) => $this->runAction(SectionsController::class, 'index', query: $query)->variables['list']['sortHeaders'];
 
 	expect($headers([])['name']['url'])->toContain('dir=desc')
 		->and($headers(['dir' => 'desc'])['name']['url'])->toContain('sort=name')->not->toContain('dir=')
@@ -318,7 +325,7 @@ it('reverses the default sort and back', function () {
 		->and($headers(['dir' => 'desc', 'type' => 'channel'])['name']['url'])->not->toContain('sort=');
 });
 
-it('leaves out the data of hidden columns', function () {
+it('leaves out the data of hidden columns', function (): void {
 	$this->preferences[1] = [ColumnService::PREFERENCE => [ColumnService::LIST_SECTIONS => ['order' => [], 'hidden' => ['updated']]]];
 
 	$variables = $this->runAction(SectionsController::class, 'index')->variables;
@@ -327,7 +334,7 @@ it('leaves out the data of hidden columns', function () {
 		->and($variables['list']['sections'])->not->toBeEmpty();
 });
 
-it('lists only the selected sections while reviewing them, whatever the filters', function () {
+it('lists only the selected sections while reviewing them, whatever the filters', function (): void {
 	$this->session['hub:bulk:selection:sections:hub/structure/sections'] = [1, 3, 99];
 
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['selection' => '1', 'type' => 'structure'])->variables;
@@ -342,7 +349,7 @@ it('lists only the selected sections while reviewing them, whatever the filters'
 		->and($this->session)->not->toHaveKey('hub:bulk:filter:sections:hub/structure/sections');
 });
 
-it('counts the selected sections the filters leave out, keeping the filters to select all matching ones', function () {
+it('counts the selected sections the filters leave out, keeping the filters to select all matching ones', function (): void {
 	$this->session['hub:bulk:selection:sections:hub/structure/sections'] = [1, 2];
 
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['type' => 'channel'])->variables;
@@ -356,7 +363,7 @@ it('counts the selected sections the filters leave out, keeping the filters to s
 		->and($this->session['hub:bulk:filter:sections:hub/structure/sections']->types)->toBe(['channel']);
 });
 
-it('offers no selection to users who may not label sections', function () {
+it('offers no selection to users who may not label sections', function (): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_STRUCTURE, Page::Sections->viewPermission(), Page::Sections->bulkEditPermission()]);
 
 	$variables = $this->runAction(SectionsController::class, 'index', query: ['selection' => '1'])->variables;
@@ -366,7 +373,7 @@ it('offers no selection to users who may not label sections', function () {
 		->and(array_keys($variables['list']['sections']))->toBe([4, 1, 2, 3]);
 });
 
-it('requires the permissions to access the structure and view the sections', function (array $permissions) {
+it('requires the permissions to access the structure and view the sections', function (array $permissions): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', ...$permissions]);
 
 	$this->runAction(SectionsController::class, 'index');
@@ -375,7 +382,7 @@ it('requires the permissions to access the structure and view the sections', fun
 	'without the sections' => [[Hub::PERMISSION_ACCESS_STRUCTURE, Page::Fields->viewPermission()]],
 ])->throws(ForbiddenHttpException::class);
 
-it('requires the permission to view the entries for the entries tab', function () {
+it('requires the permission to view the entries for the entries tab', function (): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_STRUCTURE, Page::Sections->viewPermission()]);
 
 	$this->runAction(SectionsController::class, 'view', ['id' => 1, 'tab' => 'entries']);

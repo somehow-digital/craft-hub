@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\Model;
@@ -57,7 +59,7 @@ class Label extends Model
 			[['name'], 'required'],
 			[['name', 'icon'], 'string', 'max' => 255],
 			[['icon'], 'match', 'pattern' => self::ICON_PATTERN],
-			[['color'], 'in', 'range' => array_map(fn (Color $color) => $color->value, Color::cases())],
+			[['color'], 'in', 'range' => array_map(fn(Color $color) => $color->value, Color::cases())],
 		];
 	}
 }

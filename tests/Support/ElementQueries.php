@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\Tests\Support;
 
 use craft\elements\db\ElementQuery;
@@ -69,6 +71,6 @@ final class ElementQueries
 	 */
 	public static function executed(string $elementType): array
 	{
-		return array_values(array_filter(self::$executed, fn (ElementQuery $query) => $query->elementType === $elementType));
+		return array_values(array_filter(self::$executed, fn(ElementQuery $query): bool => $query->elementType === $elementType));
 	}
 }

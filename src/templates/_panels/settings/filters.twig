@@ -18,7 +18,7 @@
 } only %}
 	{% block actions %}
 		<span class="hub-checks-settings__disabled hub-muted{% if not disabled %} hidden{% endif %}" data-hub-filters-disabled>
-			{{- '{count} disabled'|t('hub', { count: disabled|number }) -}}
+			{{- '{count} disabled'|t('hub', {count: disabled|number}) -}}
 		</span>
 		<span class="hub-pill" data-hub-filters-count>{{ filters|length|number }}</span>
 		<a class="btn small add icon" href="{{ url('hub/manage/settings/filters/new/' ~ kind.value) }}">{{ 'New filter'|t('hub') }}</a>
@@ -27,8 +27,8 @@
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{{ hub.emptyState('filter', 'No filters exist yet.'|t('hub'), 'Filters are offered in the filter bar of the list, to show the items matching them in one go.'|t('hub'),
-			tag('a', { href: url('hub/manage/settings/filters/new/' ~ kind.value), class: 'btn add icon', text: 'New filter'|t('hub') }),
-			{ id: 'hub-filters-empty-' ~ kind.value, hidden: filters|length > 0 }) }}
+			tag('a', {href: url('hub/manage/settings/filters/new/' ~ kind.value), class: 'btn add icon', text: 'New filter'|t('hub')}),
+			{id: 'hub-filters-empty-' ~ kind.value, hidden: filters|length > 0}) }}
 		<div class="hub-table">
 			<table class="data fullwidth hub-checks-table{% if not filters|length %} hidden{% endif %}" id="hub-filters-table-{{ kind.value }}">
 				<thead>

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -12,8 +14,10 @@ use SomehowDigital\Craft\Hub\Hub;
  */
 class SetSuspended extends BulkAction
 {
-	public function __construct(string $list, private readonly bool $suspended)
-	{
+	public function __construct(
+		string $list,
+		private readonly bool $suspended
+	) {
 		parent::__construct($list);
 	}
 
@@ -34,7 +38,7 @@ class SetSuspended extends BulkAction
 		$service = Craft::$app->getUsers();
 		$current = Craft::$app->getUser()->getIdentity();
 
-		return $this->succeeded($this->hub()->bulk->getElementsOf($this->list, $ids, User::class), function (User $user) use ($service, $current) {
+		return $this->succeeded($this->hub()->bulk->getElementsOf($this->list, $ids, User::class), function (User $user) use ($service, $current): bool {
 			if ($current === null || $user->id === $current->id || !$service->canSuspend($current, $user)) {
 				return false;
 			}

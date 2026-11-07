@@ -9,6 +9,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   tests:
     name: PHP ${{ matrix.php }}
@@ -20,23 +23,20 @@ jobs:
         php: ['8.3', '8.4', '8.5']
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ matrix.php }}
           extensions: intl, pdo_sqlite
-          coverage: ${{ matrix.php == '8.5' && 'xdebug' || 'none' }}
+          coverage: none
 
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
         with:
           # composer.lock pins packages requiring PHP >= 8.4, so resolve fresh on 8.3
           dependency-versions: ${{ matrix.php == '8.3' && 'highest' || 'locked' }}
 
       - name: Run tests
-        if: matrix.php != '8.5'
         run: composer test
-
-      - name: Run tests with coverage
-        if: matrix.php == '8.5'
-        run: composer test-coverage

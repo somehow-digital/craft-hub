@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\fields\Matrix;
 use craft\fields\PlainText;
 use SomehowDigital\Craft\Hub\controllers\FieldsController;
@@ -7,11 +9,11 @@ use SomehowDigital\Craft\Hub\models\Snapshot;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use yii\web\NotFoundHttpException;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 });
 
-it('lists the fields', function () {
+it('lists the fields', function (): void {
 	$response = $this->runAction(FieldsController::class, 'index', query: ['type' => 'assets,bogus', 'owner' => 'entry type', 'sort' => 'layouts', 'dir' => 'asc']);
 	$variables = $response->variables;
 
@@ -30,7 +32,7 @@ it('lists the fields', function () {
 		->and($variables)->not->toHaveKey('summary');
 });
 
-it('summarizes the fields on their statistics tab', function () {
+it('summarizes the fields on their statistics tab', function (): void {
 	$cards = loadCards($this->runAction(FieldsController::class, 'statistics')->variables['cards']);
 
 	expect($cards)->toHaveCount(4)
@@ -38,7 +40,7 @@ it('summarizes the fields on their statistics tab', function () {
 		->and($cards[3]['total'])->toBe(10);
 });
 
-it('filters the fields by their usage and layouts', function () {
+it('filters the fields by their usage and layouts', function (): void {
 	$variables = $this->runAction(FieldsController::class, 'index', query: ['unused' => '1', 'empty' => '1', 'layoutsMin' => '0', 'layoutsMax' => '9'])->variables;
 
 	expect($variables['list']['filter']->unused)->toBeTrue()
@@ -47,7 +49,7 @@ it('filters the fields by their usage and layouts', function () {
 		->and($variables['list']['fields'])->toBe([]);
 });
 
-it('shows nested entry fields', function () {
+it('shows nested entry fields', function (): void {
 	$response = $this->runAction(FieldsController::class, 'view', ['id' => 2]);
 	$summary = loadCards($this->runAction(FieldsController::class, 'view', ['id' => 2, 'tab' => 'statistics'])->variables['summary']);
 
@@ -59,14 +61,14 @@ it('shows nested entry fields', function () {
 		->and(array_column($summary[2]['segments'], 'value'))->toBe([1, 0]);
 });
 
-it('remembers the filters of the entries tab', function () {
+it('remembers the filters of the entries tab', function (): void {
 	$this->runAction(FieldsController::class, 'view', ['id' => 2, 'tab' => 'entries'], ['q' => 'news']);
 	$this->runAction(FieldsController::class, 'view', ['id' => 2, 'tab' => 'entries']);
 
 	expect(Craft::$app->getResponse()->getHeaders()->get('Location'))->toContain('hub/structure/fields/2/entries&q=news');
 });
 
-it('lists the entries of nested entry fields on a tab of their own', function () {
+it('lists the entries of nested entry fields on a tab of their own', function (): void {
 	$variables = $this->runAction(FieldsController::class, 'view', ['id' => 2, 'tab' => 'entries'], query: ['section' => 'news'])->variables;
 
 	expect($variables['selectedTab'])->toBe('entries')
@@ -76,16 +78,16 @@ it('lists the entries of nested entry fields on a tab of their own', function ()
 		->and($variables['list']['listPath'])->toBe('hub/structure/fields/2/entries')
 		->and($variables['list']['filter']->fields)->toBe(['blocks'])
 		->and($variables['list']['sections'])->toBe([])
-		->and(array_map(fn ($info) => $info->entryType->handle, array_values($variables['list']['entryTypes'])))->toBe(['block'])
+		->and(array_map(fn($info) => $info->entryType->handle, array_values($variables['list']['entryTypes'])))->toBe(['block'])
 		->and(array_column($variables['list']['columns'], 'key'))->not->toContain('origin')
 		->and($variables)->not->toHaveKey('summary');
 });
 
-it('fails for the entries tab of fields without nested entries', function () {
+it('fails for the entries tab of fields without nested entries', function (): void {
 	$this->runAction(FieldsController::class, 'view', ['id' => 1, 'tab' => 'entries']);
 })->throws(NotFoundHttpException::class);
 
-it('shows relational fields', function () {
+it('shows relational fields', function (): void {
 	$summary = loadCards($this->runAction(FieldsController::class, 'view', ['id' => 3, 'tab' => 'statistics'])->variables['summary']);
 
 	expect($summary)->toHaveCount(2)
@@ -93,7 +95,7 @@ it('shows relational fields', function () {
 		->and($summary[1]['note'])->toBe('2 source elements · 3 referenced elements');
 });
 
-it('shows plain fields', function () {
+it('shows plain fields', function (): void {
 	$summary = loadCards($this->runAction(FieldsController::class, 'view', ['id' => 1, 'tab' => 'statistics'])->variables['summary']);
 
 	expect($summary)->toHaveCount(1)
@@ -101,11 +103,11 @@ it('shows plain fields', function () {
 		->and($summary[0]['note'])->toBe('6 instances');
 });
 
-it('fails for fields that do not exist', function () {
+it('fails for fields that do not exist', function (): void {
 	$this->runAction(FieldsController::class, 'view', ['id' => 99]);
 })->throws(NotFoundHttpException::class);
 
-it('leaves out the data of hidden columns', function () {
+it('leaves out the data of hidden columns', function (): void {
 	$this->preferences[1] = [ColumnService::PREFERENCE => [ColumnService::LIST_FIELDS => ['order' => [], 'hidden' => ['data']]]];
 
 	$variables = $this->runAction(FieldsController::class, 'index')->variables;
@@ -114,7 +116,7 @@ it('leaves out the data of hidden columns', function () {
 		->and($variables['list']['fields'])->not->toBeEmpty();
 });
 
-it('counts the fields in a snapshot by whether they were placed and held data then', function () {
+it('counts the fields in a snapshot by whether they were placed and held data then', function (): void {
 	$metrics = ['fields' => [
 		1 => ['type' => PlainText::class, 'kind' => 'plain', 'entryTypes' => [], 'owners' => ['Entry Type' => 1]],
 		2 => ['type' => Matrix::class, 'kind' => 'nested', 'entryTypes' => [10], 'owners' => ['Entry Type' => 2]],
@@ -122,10 +124,10 @@ it('counts the fields in a snapshot by whether they were placed and held data th
 		4 => ['type' => PlainText::class, 'kind' => 'plain', 'entryTypes' => [], 'owners' => []],
 	]];
 	$entries = [['sectionId' => null, 'typeId' => '10', 'fieldId' => '2', 'sites' => '1', 'enabledSites' => '1', 'total' => '2', 'enabled' => '2', 'pending' => '0', 'expired' => '0', 'drafts' => '0', 'lastUpdated' => null]];
-	$snapshot = new Snapshot(1, new DateTime('2026-10-20'), fn (string $part) => ['metrics' => $metrics, 'entries' => $entries][$part] ?? []);
+	$snapshot = new Snapshot(1, new DateTime('2026-10-20'), fn(string $part): array => ['metrics' => $metrics, 'entries' => $entries][$part] ?? []);
 
 	$cards = array_column($this->runAction(FieldsController::class, 'statistics')->variables['cards'], 'history', 'key');
-	$segments = fn (array $card) => array_column($card['segments'], 'value', 'label');
+	$segments = fn(array $card): array => array_column($card['segments'], 'value', 'label');
 
 	expect($cards['fields']($snapshot)['total'])->toBe(4)
 		->and($segments($cards['fields']($snapshot)))->toBe(['In use' => 2, 'Empty' => 1, 'Unused' => 1])

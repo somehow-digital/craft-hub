@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\db\Query;
 use craft\elements\db\ElementQuery;
 use SomehowDigital\Craft\Hub\Tests\TestCase;
@@ -42,7 +44,7 @@ function conditions(ElementQuery $query): array
 function thresholdRow(string $kind, string $handle, int $threshold): array
 {
 	return [
-		'id' => crc32("$kind.$handle"),
+		'id' => crc32("{$kind}.{$handle}"),
 		'kind' => $kind,
 		'handle' => $handle,
 		'userId' => null,
@@ -54,7 +56,7 @@ function thresholdRow(string $kind, string $handle, int $threshold): array
 		'threshold' => $threshold,
 		'enabled' => 1,
 		'sortOrder' => 1,
-		'uid' => "$kind.$handle",
+		'uid' => "{$kind}.{$handle}",
 	];
 }
 
@@ -66,5 +68,5 @@ function thresholdRow(string $kind, string $handle, int $threshold): array
  */
 function loadCards(array $cards): array
 {
-	return array_map(fn (array $card) => [...$card, ...$card['load']()], $cards);
+	return array_map(fn(array $card): array => [...$card, ...$card['load']()], $cards);
 }

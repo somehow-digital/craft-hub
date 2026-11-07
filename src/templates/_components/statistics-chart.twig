@@ -15,14 +15,14 @@
 	0: 'All'|t('app'),
 } %}
 
-<div class="hub-chart" data-hub-chart="{{ { dates: chart.dates, series: chart.series }|json_encode }}" data-hub-chart-key="{{ key }}">
+<div class="hub-chart" data-hub-chart="{{ {dates: chart.dates, series: chart.series}|json_encode }}" data-hub-chart-key="{{ key }}">
 	<div class="hub-chart__toolbar">
 		<div class="hub-chart__controls">
 			{% if chart.ranges|length > 1 %}
 				<div class="hub-chart__ranges" role="group" aria-label="{{ 'Range'|t('hub') }}">
 					{% for range in chart.ranges %}
 						<button type="button" class="hub-chart__range" aria-pressed="{{ range == chart.range ? 'true' : 'false' }}"
-							data-hub-chart-range="{{ url(request.pathInfo, request.queryParamsWithoutPath|merge({ card: key, range: range })) }}">
+							data-hub-chart-range="{{ url(request.pathInfo, request.queryParamsWithoutPath|merge({card: key, range: range})) }}">
 							{{- labels[range] ?? range -}}
 						</button>
 					{% endfor %}

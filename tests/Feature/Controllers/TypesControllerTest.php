@@ -1,14 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
+use craft\fields\PlainText;
 use SomehowDigital\Craft\Hub\controllers\TypesController;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use yii\web\NotFoundHttpException;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 });
 
-it('lists the entry types', function () {
+it('lists the entry types', function (): void {
 	$response = $this->runAction(TypesController::class, 'index', query: ['kind' => 'section,bogus', 'entriesMin' => '1', 'sort' => 'entries']);
 	$variables = $response->variables;
 
@@ -23,7 +26,7 @@ it('lists the entry types', function () {
 		->and($variables)->not->toHaveKey('summary');
 });
 
-it('summarizes the entry types on their statistics tab', function () {
+it('summarizes the entry types on their statistics tab', function (): void {
 	$response = $this->runAction(TypesController::class, 'statistics');
 
 	expect($response->template)->toBe('hub/pages/statistics')
@@ -31,7 +34,7 @@ it('summarizes the entry types on their statistics tab', function () {
 		->and(loadCards($response->variables['cards'])[0]['segments'][2]['value'])->toBe(1);
 });
 
-it('shows an entry type with entries in sections', function () {
+it('shows an entry type with entries in sections', function (): void {
 	$response = $this->runAction(TypesController::class, 'view', ['id' => 10]);
 	$variables = $response->variables;
 
@@ -41,7 +44,7 @@ it('shows an entry type with entries in sections', function () {
 		->and($variables)->not->toHaveKeys(['summary', 'entries', 'reviewList']);
 });
 
-it('summarizes an entry type on its statistics tab', function () {
+it('summarizes an entry type on its statistics tab', function (): void {
 	$variables = $this->runAction(TypesController::class, 'view', ['id' => 10, 'tab' => 'statistics'])->variables;
 	[$entries, $relations, $fields] = loadCards($variables['summary']);
 
@@ -52,14 +55,14 @@ it('summarizes an entry type on its statistics tab', function () {
 		->and($variables)->not->toHaveKeys(['entries', 'reviewList']);
 });
 
-it('remembers the filters of the entries tab', function () {
+it('remembers the filters of the entries tab', function (): void {
 	$this->runAction(TypesController::class, 'view', ['id' => 10, 'tab' => 'entries'], ['q' => 'news']);
 	$this->runAction(TypesController::class, 'view', ['id' => 10, 'tab' => 'entries']);
 
 	expect(Craft::$app->getResponse()->getHeaders()->get('Location'))->toContain('hub/structure/entry-types/10/entries&q=news');
 });
 
-it('lists the entries of an entry type on a tab of its own', function () {
+it('lists the entries of an entry type on a tab of its own', function (): void {
 	$variables = $this->runAction(TypesController::class, 'view', ['id' => 10, 'tab' => 'entries'])->variables;
 
 	expect($variables['selectedTab'])->toBe('entries')
@@ -69,19 +72,19 @@ it('lists the entries of an entry type on a tab of its own', function () {
 		->and($variables)->not->toHaveKey('summary');
 });
 
-it('shows the checks of an entry type on its diagnostics tab', function () {
+it('shows the checks of an entry type on its diagnostics tab', function (): void {
 	$variables = $this->runAction(TypesController::class, 'view', ['id' => 10, 'tab' => 'diagnostics'])->variables;
 
-	expect(array_map(fn ($check) => $check->key, $variables['checks']))->toContain('entryTypes.unused', 'entries.drafts')
+	expect(array_map(fn($check) => $check->key, $variables['checks']))->toContain('entryTypes.unused', 'entries.drafts')
 		->and($variables)->not->toHaveKeys(['summary', 'reviewList']);
 });
 
-it('shows nested entry types without an entries list', function () {
+it('shows nested entry types without an entries list', function (): void {
 	expect($this->runAction(TypesController::class, 'view', ['id' => 12])->variables)->not->toHaveKey('entries')
 		->and(loadCards($this->runAction(TypesController::class, 'view', ['id' => 12, 'tab' => 'statistics'])->variables['summary'])[1]['segments'][1]['value'])->toBe(1);
 });
 
-it('lists the nested entries of an entry type on a tab of its own', function () {
+it('lists the nested entries of an entry type on a tab of its own', function (): void {
 	$variables = $this->runAction(TypesController::class, 'view', ['id' => 12, 'tab' => 'entries'])->variables;
 
 	expect($variables['list']['listFixed'])->toBe('type')
@@ -90,30 +93,30 @@ it('lists the nested entries of an entry type on a tab of its own', function () 
 		->and(array_column($variables['list']['columns'], 'key'))->toContain('origin', 'owner');
 });
 
-it('counts the flagged nested entries of nested entry types on their diagnostics tab', function () {
+it('counts the flagged nested entries of nested entry types on their diagnostics tab', function (): void {
 	$variables = $this->runAction(TypesController::class, 'view', ['id' => 12, 'tab' => 'diagnostics'])->variables;
 
-	expect(array_map(fn ($check) => $check->key, $variables['checks']))->toContain('entries.stale');
+	expect(array_map(fn($check) => $check->key, $variables['checks']))->toContain('entries.stale');
 });
 
-it('fails for the entries tab of unused entry types', function () {
+it('fails for the entries tab of unused entry types', function (): void {
 	$this->runAction(TypesController::class, 'view', ['id' => 13, 'tab' => 'entries']);
 })->throws(NotFoundHttpException::class);
 
-it('counts fields that are not among all fields as plain fields', function () {
+it('counts fields that are not among all fields as plain fields', function (): void {
 	$this->entryTypes[13]->getFieldLayout()->setTabs([]);
-	$stray = $this->field(craft\fields\PlainText::class, 50, 'stray');
+	$stray = $this->field(PlainText::class, 50, 'stray');
 	unset($this->fields[50]);
 	$this->entryType(13, 'orphan', [$stray]);
 
 	expect(array_column(loadCards($this->runAction(TypesController::class, 'view', ['id' => 13, 'tab' => 'statistics'])->variables['summary'])[2]['segments'], 'value', 'label'))->toBe(['Nested entries' => 0, 'References' => 0, 'Plain values' => 1]);
 });
 
-it('fails for entry types that do not exist', function () {
+it('fails for entry types that do not exist', function (): void {
 	$this->runAction(TypesController::class, 'view', ['id' => 99]);
 })->throws(NotFoundHttpException::class);
 
-it('leaves out the data of hidden columns', function () {
+it('leaves out the data of hidden columns', function (): void {
 	$this->preferences[1] = [ColumnService::PREFERENCE => [ColumnService::LIST_ENTRY_TYPES => ['order' => [], 'hidden' => ['updated']]]];
 
 	$variables = $this->runAction(TypesController::class, 'index')->variables;

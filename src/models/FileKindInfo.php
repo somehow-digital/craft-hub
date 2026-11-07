@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\elements\Asset;
@@ -16,8 +18,9 @@ class FileKindInfo
 
 	public AssetStatistics $stats;
 
-	public function __construct(public string $kind)
-	{
+	public function __construct(
+		public string $kind
+	) {
 		$this->stats = new AssetStatistics();
 	}
 

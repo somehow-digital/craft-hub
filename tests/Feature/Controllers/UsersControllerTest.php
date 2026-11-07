@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Asset;
 use craft\elements\db\UserQuery;
 use craft\elements\Entry;
@@ -15,13 +17,13 @@ use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->userGroup(1, 'editors', ['accessCp']);
 
 	// The lists of single users, not the subqueries of the counts.
-	$this->db()->respond('{{%entries_authors}}', fn (string $sql) => str_starts_with($sql, 'SELECT `hubAuthors`.`authorId`') ? [['authorId' => '3', 'count' => '5']] : []);
-	$this->db()->respond('{{%authenticator}}', fn (string $sql) => str_starts_with($sql, 'SELECT `userId`') ? [['userId' => '4']] : []);
-	$this->db()->respond('FROM {{%users}} {{users}}', fn (string $sql) => str_contains($sql, 'JOIN `usergroups_users`')
+	$this->db()->respond('{{%entries_authors}}', fn(string $sql): array => str_starts_with($sql, 'SELECT `hubAuthors`.`authorId`') ? [['authorId' => '3', 'count' => '5']] : []);
+	$this->db()->respond('{{%authenticator}}', fn(string $sql): array => str_starts_with($sql, 'SELECT `userId`') ? [['userId' => '4']] : []);
+	$this->db()->respond('FROM {{%users}} {{users}}', fn(string $sql): array => str_contains($sql, 'JOIN `usergroups_users`')
 		? [['groupId' => '1', 'count' => '2']]
 		: [[
 			'total' => '6', 'active' => '4', 'pending' => '1', 'suspended' => '0', 'locked' => '1', 'inactive' => '1', 'admins' => '1',
@@ -37,7 +39,7 @@ beforeEach(function () {
  */
 function checkHeadings(array $checks, bool $failed = true): array
 {
-	return array_values(array_map(fn (Check $check) => $check->heading, array_filter($checks, fn (Check $check) => !$failed || !$check->passed)));
+	return array_values(array_map(fn(Check $check): string => $check->heading, array_filter($checks, fn(Check $check): bool => !$failed || !$check->passed)));
 }
 
 /**
@@ -47,17 +49,17 @@ function checkHeadings(array $checks, bool $failed = true): array
  */
 function listedUsers(int ...$ids): array
 {
-	return array_map(fn (int $id) => new User([
+	return array_map(fn(int $id): User => new User([
 		'id' => $id,
 		'siteId' => 1,
-		'username' => "user$id",
+		'username' => "user{$id}",
 		'active' => true,
 		'admin' => $id === max($ids),
 		'lastLoginDate' => new DateTime('-1 day'),
 	]), $ids);
 }
 
-it('lists the users', function () {
+it('lists the users', function (): void {
 	$users = listedUsers(3, 4);
 	ElementQueries::respond(User::class, $users);
 
@@ -81,7 +83,7 @@ it('lists the users', function () {
 		->and($query->withGroups)->toBeTrue();
 });
 
-it('reads the filters of the users list', function () {
+it('reads the filters of the users list', function (): void {
 	$filter = $this->runAction(UsersController::class, 'index', query: [
 		'q' => ' jane ',
 		'group' => 'editors,none,bogus',
@@ -113,7 +115,7 @@ it('reads the filters of the users list', function () {
 		->and($filter->assetsMax)->toBe(10);
 });
 
-it('offers neither groups nor their column without any groups', function () {
+it('offers neither groups nor their column without any groups', function (): void {
 	$this->userGroups = [];
 	ElementQueries::respond(User::class, listedUsers(3));
 
@@ -124,7 +126,7 @@ it('offers neither groups nor their column without any groups', function () {
 		->and(ElementQueries::executed(User::class)[0]->withGroups)->toBeFalse();
 });
 
-it('leaves out the data of hidden columns', function () {
+it('leaves out the data of hidden columns', function (): void {
 	$this->preferences[1] = [ColumnService::PREFERENCE => [ColumnService::LIST_USERS => ['order' => [], 'hidden' => ['entries', 'assets', 'twoFactor', 'groups']]]];
 	$users = Mockery::mock(UserService::class)->makePartial();
 	$users->shouldNotReceive('getEntryCounts', 'getAssetCounts', 'getTwoFactor');
@@ -139,7 +141,7 @@ it('leaves out the data of hidden columns', function () {
 		->and(ElementQueries::executed(User::class)[0]->withGroups)->toBeFalse();
 });
 
-it('summarizes the users', function () {
+it('summarizes the users', function (): void {
 	$cards = loadCards($this->runAction(UsersController::class, 'statistics')->variables['cards']);
 	[$users, $groups, $logins, $twoFactor] = $cards;
 
@@ -159,7 +161,7 @@ it('summarizes the users', function () {
 		->and($twoFactor['segments'][1]['url'])->toContain('twoFactor=without');
 });
 
-it('summarizes the users without groups', function () {
+it('summarizes the users without groups', function (): void {
 	$this->userGroups = [];
 
 	$labels = array_column(loadCards($this->runAction(UsersController::class, 'statistics')->variables['cards']), 'label');
@@ -167,8 +169,8 @@ it('summarizes the users without groups', function () {
 	expect($labels)->toBe(['Users', 'Sign-ins', 'Two-step verification']);
 });
 
-it('lists the users to do, the ones to do first, regardless of the selected sites', function () {
-	$this->db()->respondToCounts(fn (UserQuery $query) => [['total' => $query->status === [User::STATUS_PENDING] ? 2 : 0]]);
+it('lists the users to do, the ones to do first, regardless of the selected sites', function (): void {
+	$this->db()->respondToCounts(fn(UserQuery $query): array => [['total' => $query->status === [User::STATUS_PENDING] ? 2 : 0]]);
 
 	$variables = $this->runAction(UsersController::class, 'diagnostics')->variables;
 
@@ -186,9 +188,9 @@ it('lists the users to do, the ones to do first, regardless of the selected site
 		->and($variables['siteScoped'])->toBeFalse();
 });
 
-it('shows a user', function () {
+it('shows a user', function (): void {
 	[$user] = listedUsers(3);
-	ElementQueries::respond(User::class, fn (UserQuery $query) => $query->id === 3 ? [$user] : []);
+	ElementQueries::respond(User::class, fn(UserQuery $query): array => $query->id === 3 ? [$user] : []);
 
 	$response = $this->runAction(UsersController::class, 'view', ['id' => 3]);
 	$variables = $response->variables;
@@ -207,7 +209,7 @@ it('shows a user', function () {
 		->and($variables)->not->toHaveKeys(['entries', 'assets']);
 });
 
-it('does not list the permissions of admins', function () {
+it('does not list the permissions of admins', function (): void {
 	$user = new User(['id' => 3, 'siteId' => 1, 'admin' => true]);
 	ElementQueries::respond(User::class, [$user]);
 	$users = Mockery::mock(UserService::class)->makePartial();
@@ -220,9 +222,9 @@ it('does not list the permissions of admins', function () {
 		->and($this->runAction(UsersController::class, 'view', ['id' => 3], ['panel' => 'permissions'])->variables['permissions'])->toBe([]);
 });
 
-it('loads a panel of a user alone, with what it lists', function (string $panel, string $template, string $variable) {
+it('loads a panel of a user alone, with what it lists', function (string $panel, string $template, string $variable): void {
 	[$user] = listedUsers(3);
-	ElementQueries::respond(User::class, fn (UserQuery $query) => $query->id === 3 ? [$user] : []);
+	ElementQueries::respond(User::class, fn(UserQuery $query): array => $query->id === 3 ? [$user] : []);
 
 	$response = $this->runAction(UsersController::class, 'view', ['id' => 3], ['panel' => $panel]);
 
@@ -238,17 +240,17 @@ it('loads a panel of a user alone, with what it lists', function (string $panel,
 	['activity', 'hub/_panels/activity', 'subject'],
 ]);
 
-it('remembers the filters of the list tabs', function (string $tab) {
+it('remembers the filters of the list tabs', function (string $tab): void {
 	[$user] = listedUsers(3);
 	ElementQueries::respond(User::class, [$user]);
 
 	$this->runAction(UsersController::class, 'view', ['id' => 3, 'tab' => $tab], ['q' => 'news']);
 	$this->runAction(UsersController::class, 'view', ['id' => 3, 'tab' => $tab]);
 
-	expect(Craft::$app->getResponse()->getHeaders()->get('Location'))->toContain("hub/data/users/3/$tab&q=news");
+	expect(Craft::$app->getResponse()->getHeaders()->get('Location'))->toContain("hub/data/users/3/{$tab}&q=news");
 })->with(['entries', 'assets']);
 
-it('lists the entries of a user on a tab of their own', function () {
+it('lists the entries of a user on a tab of their own', function (): void {
 	[$user] = listedUsers(3);
 	ElementQueries::respond(User::class, [$user]);
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1, 'siteId' => 1, 'title' => 'News', 'sectionId' => 1, 'typeId' => 10])]);
@@ -265,7 +267,7 @@ it('lists the entries of a user on a tab of their own', function () {
 		->and($variables)->not->toHaveKeys(['permissions', 'references', 'assets']);
 });
 
-it('lists the files a user uploaded on a tab of their own', function () {
+it('lists the files a user uploaded on a tab of their own', function (): void {
 	[$user] = listedUsers(3);
 	ElementQueries::respond(User::class, [$user]);
 	$asset = new Asset(['id' => 1, 'siteId' => 1, 'kind' => 'image', 'filename' => 'a.jpg', 'size' => 10]);
@@ -282,17 +284,17 @@ it('lists the files a user uploaded on a tab of their own', function () {
 		->and($variables)->not->toHaveKeys(['permissions', 'references', 'entries']);
 });
 
-it('fails for tabs that users do not have', function () {
+it('fails for tabs that users do not have', function (): void {
 	ElementQueries::respond(User::class, listedUsers(3));
 
 	$this->runAction(UsersController::class, 'view', ['id' => 3, 'tab' => 'transforms']);
 })->throws(NotFoundHttpException::class);
 
-it('fails for users that do not exist', function () {
+it('fails for users that do not exist', function (): void {
 	$this->runAction(UsersController::class, 'view', ['id' => 99]);
 })->throws(NotFoundHttpException::class);
 
-it('lists the user groups on a tab of their own', function () {
+it('lists the user groups on a tab of their own', function (): void {
 	$response = $this->runAction(UsersController::class, 'groups');
 	$variables = $response->variables;
 
@@ -310,14 +312,14 @@ it('lists the user groups on a tab of their own', function () {
 		->and($this->runAction(UsersController::class, 'diagnostics')->variables['extraTabs'])->toBe(['groups' => 'Groups']);
 });
 
-it('offers no groups tab without groups', function () {
+it('offers no groups tab without groups', function (): void {
 	$this->userGroups = [];
 
 	expect($this->runAction(UsersController::class, 'index')->variables['extraTabs'])->toBe([])
-		->and(fn () => $this->runAction(UsersController::class, 'groups'))->toThrow(NotFoundHttpException::class);
+		->and(fn() => $this->runAction(UsersController::class, 'groups'))->toThrow(NotFoundHttpException::class);
 });
 
-it('filters the user groups', function () {
+it('filters the user groups', function (): void {
 	$this->userGroup(2, 'guests');
 
 	$variables = $this->runAction(UsersController::class, 'groups', [], ['empty' => '1', 'twoFactor' => 'optional', 'usersMin' => 'x', 'sort' => 'users'])->variables;
@@ -329,7 +331,7 @@ it('filters the user groups', function () {
 		->and($variables['list']['sort'])->toBe('users');
 });
 
-it('shows a user group', function () {
+it('shows a user group', function (): void {
 	$group = $this->userGroups[1];
 
 	$response = $this->runAction(UsersController::class, 'group', ['id' => 1]);
@@ -348,7 +350,7 @@ it('shows a user group', function () {
 		->and(array_column($panel->variables['permissions'][0]['permissions'], 'name'))->toBe(['accesscp']);
 });
 
-it('lists the users of a user group on a tab of their own', function () {
+it('lists the users of a user group on a tab of their own', function (): void {
 	$users = listedUsers(3, 4);
 	ElementQueries::respond(User::class, $users);
 
@@ -364,15 +366,15 @@ it('lists the users of a user group on a tab of their own', function () {
 		->and($variables)->not->toHaveKeys(['permissions', 'maintained']);
 });
 
-it('fails for tabs that user groups do not have', function () {
+it('fails for tabs that user groups do not have', function (): void {
 	$this->runAction(UsersController::class, 'group', ['id' => 1, 'tab' => 'diagnostics']);
 })->throws(NotFoundHttpException::class);
 
-it('fails for user groups that do not exist', function () {
+it('fails for user groups that do not exist', function (): void {
 	$this->runAction(UsersController::class, 'group', ['id' => 99]);
 })->throws(NotFoundHttpException::class);
 
-it('requires the permission to view the users', function () {
+it('requires the permission to view the users', function (): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Users->labelPermission(), Hub::PERMISSION_ACCESS_STRUCTURE, Page::Sections->viewPermission()]);
 
 	$this->runAction(UsersController::class, 'index');

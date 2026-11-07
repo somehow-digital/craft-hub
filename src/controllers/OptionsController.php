@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
@@ -66,7 +68,7 @@ class OptionsController extends BaseController
 	 */
 	private function extensionOptions(?int $volume): array
 	{
-		$extensions = array_map('strval', array_keys(Hub::getInstance()->files->getExtensions($volume)));
+		$extensions = array_map(strval(...), array_keys(Hub::getInstance()->files->getExtensions($volume)));
 
 		return array_combine($extensions, $extensions);
 	}
@@ -76,6 +78,6 @@ class OptionsController extends BaseController
 	 */
 	private function scope(string $name): ?int
 	{
-		return (int)Craft::$app->getRequest()->getQueryParam($name) ?: null;
+		return (int) Craft::$app->getRequest()->getQueryParam($name) ?: null;
 	}
 }

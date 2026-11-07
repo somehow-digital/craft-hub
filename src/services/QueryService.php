@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -74,25 +76,25 @@ class QueryService extends Component
 
 			foreach ($tables as $alias => $table) {
 				$table instanceof Query
-					? $source->leftJoin([$alias => $table], "[[$alias.id]] = [[elements.id]]")
-					: $source->innerJoin([$alias => $table], "[[$alias.id]] = [[elements.id]]");
+					? $source->leftJoin([$alias => $table], "[[{$alias}.id]] = [[elements.id]]")
+					: $source->innerJoin([$alias => $table], "[[{$alias}.id]] = [[elements.id]]");
 			}
 
-			$columns = array_map(fn (string $alias) => "[[hubIds.$alias]]", array_combine($aliases, $aliases));
+			$columns = array_map(fn(string $alias): string => "[[hubIds.{$alias}]]", array_combine($aliases, $aliases));
 			$id = '[[hubIds.hubId]]';
 		} else {
-			$rows->select([...$groups, 'hubId' => 'elements.id', ...array_map(fn (string $sql) => new Expression($sql), $values)]);
+			$rows->select([...$groups, 'hubId' => 'elements.id', ...array_map(fn(string $sql): Expression => new Expression($sql), $values)]);
 			$source = (new Query())->from(['hubRows' => $rows]);
-			$columns = array_map(fn (string $alias) => "[[$alias]]", array_combine($aliases, $aliases));
-			$values = array_map(fn (string $alias) => "[[$alias]]", array_combine(array_keys($values), array_keys($values)));
+			$columns = array_map(fn(string $alias): string => "[[{$alias}]]", array_combine($aliases, $aliases));
+			$values = array_map(fn(string $alias): string => "[[{$alias}]]", array_combine(array_keys($values), array_keys($values)));
 			$id = '[[hubId]]';
 		}
 
 		// A row for each element, with whether it matches each condition and value on any of its sites.
-		$elements = $source->select(array_map(fn (string $column) => new Expression($column), $columns));
+		$elements = $source->select(array_map(fn(string $column): Expression => new Expression($column), $columns));
 
 		if (!$single) {
-			$elements->groupBy(array_map(fn (string $column) => new Expression($column), [$id, ...array_values($columns)]));
+			$elements->groupBy(array_map(fn(string $column): Expression => new Expression($column), [$id, ...array_values($columns)]));
 		} elseif (Craft::$app->getDb()->getIsPgsql()) {
 			// PostgreSQL pulls a subquery without grouping up into the counts, evaluating the value of each condition
 			// again for each aggregate referring to it; an offset keeps it apart. MySQL keeps subqueries apart
@@ -100,7 +102,7 @@ class QueryService extends Component
 			$elements->offset(new Expression('0'));
 		}
 
-		$aggregate = fn (string $function, string $sql) => new Expression($single ? $sql : "$function($sql)");
+		$aggregate = fn(string $function, string $sql): Expression => new Expression($single ? $sql : "{$function}({$sql})");
 
 		$counts = (new Query())
 			->select([...$aliases, 'total' => new Expression('COUNT(*)')])
@@ -115,7 +117,7 @@ class QueryService extends Component
 			$elements->addSelect([$alias => $aggregate('BIT_OR', $values[$alias])]);
 
 			foreach (array_keys($caseValues) as $bit => $value) {
-				$counts->addSelect(["{$alias}_$value" => new Expression(sprintf('SUM(CASE WHEN ([[%s]] & %d) <> 0 THEN 1 ELSE 0 END)', $alias, 1 << $bit))]);
+				$counts->addSelect(["{$alias}_{$value}" => new Expression(sprintf('SUM(CASE WHEN ([[%s]] & %d) <> 0 THEN 1 ELSE 0 END)', $alias, 1 << $bit))]);
 			}
 		}
 
@@ -131,7 +133,7 @@ class QueryService extends Component
 	 */
 	public function total(ElementQuery $query): int
 	{
-		return (int)($this->count($query, [])[0]['total'] ?? 0);
+		return (int) ($this->count($query, [])[0]['total'] ?? 0);
 	}
 
 	/**
@@ -198,7 +200,7 @@ class QueryService extends Component
 			}
 		}
 
-		return array_values(array_filter(array_map(fn (int $id) => $elements[$id] ?? null, array_keys($sites))));
+		return array_values(array_filter(array_map(fn(int $id) => $elements[$id] ?? null, array_keys($sites))));
 	}
 
 	/**
@@ -220,7 +222,7 @@ class QueryService extends Component
 		}
 
 		$orderBy = $query->orderBy ?? [];
-		[$rows, $single] = $this->elementRows($query, array_map('strval', array_keys($orderBy)));
+		[$rows, $single] = $this->elementRows($query, array_map(strval(...), array_keys($orderBy)));
 
 		if (!$single) {
 			return $this->rankedPageSites($query, $rows, $orderBy, $offset, $limit);
@@ -229,9 +231,9 @@ class QueryService extends Component
 		$ids = $total !== null && $offset + $limit >= $total
 			? $this->sortedPageIds($rows, $orderBy, $offset, $limit)
 			: $rows->select(['hubId' => 'elements.id'])->orderBy($orderBy ?: ['elements.id' => SORT_ASC])->offset($offset)->limit($limit)->column();
-		$siteId = $this->isSingleSite($query) ? (int)(is_array($query->siteId) ? reset($query->siteId) : $query->siteId) : null;
+		$siteId = $this->isSingleSite($query) ? (int) (is_array($query->siteId) ? reset($query->siteId) : $query->siteId) : null;
 
-		return array_fill_keys(array_map('intval', $ids), $siteId);
+		return array_fill_keys(array_map(intval(...), $ids), $siteId);
 	}
 
 	/**
@@ -285,7 +287,7 @@ class QueryService extends Component
 		$sites = [];
 
 		foreach ($rows as $row) {
-			$sites[(int)$row['hubId']] = (int)$row['hubSiteId'];
+			$sites[(int) $row['hubId']] = (int) $row['hubSiteId'];
 		}
 
 		return $sites;
@@ -303,8 +305,8 @@ class QueryService extends Component
 		$sort = [];
 
 		foreach (array_keys($orderBy) as $i => $column) {
-			$select["hubSort$i"] = (string)$column;
-			$sort["hubSort$i"] = $orderBy[$column];
+			$select["hubSort{$i}"] = (string) $column;
+			$sort["hubSort{$i}"] = $orderBy[$column];
 		}
 
 		return [$select, $sort];
@@ -341,7 +343,8 @@ class QueryService extends Component
 		$found = 0;
 		$elementRows = clone $rows;
 		$elementRows->where = $this->matchSites($elementRows->where, $found);
-		$joins = array_filter($elementRows->join ?? [], fn (array $join) => !is_array($join[1]) || array_keys($join[1]) !== ['elements_sites']);
+
+		$joins = array_filter($elementRows->join ?? [], fn(array $join): bool => !is_array($join[1]) || array_keys($join[1]) !== ['elements_sites']);
 
 		// Only the join and the condition of the sites Craft adds are replaced.
 		if ($found !== 1 || count($joins) !== count($elementRows->join ?? []) - 1) {
@@ -394,7 +397,7 @@ class QueryService extends Component
 	 */
 	private function onSitesCondition(mixed $siteIds): array
 	{
-		if (Hub::getInstance()->siteScope->coversAllSites(array_map('intval', (array)$siteIds))) {
+		if (Hub::getInstance()->siteScope->coversAllSites(array_map(intval(...), (array) $siteIds))) {
 			return ['and'];
 		}
 
@@ -421,7 +424,7 @@ class QueryService extends Component
 		$preferSites = [];
 
 		foreach ($query->preferSites ?: [$sites->getCurrentSite()->id] as $site) {
-			$id = is_numeric($site) ? (int)$site : $sites->getSiteByHandle((string)$site)?->id;
+			$id = is_numeric($site) ? (int) $site : $sites->getSiteByHandle((string) $site)?->id;
 
 			if ($id !== null) {
 				$preferSites[] = $id;
@@ -449,13 +452,13 @@ class QueryService extends Component
 
 		foreach (array_values($values) as $bit => $condition) {
 			if ($condition === null) {
-				$else = (string)(1 << $bit);
+				$else = (string) (1 << $bit);
 			} else {
 				$sql .= sprintf(' WHEN %s THEN %d', $this->sql($condition), 1 << $bit);
 			}
 		}
 
-		return "$sql ELSE $else END";
+		return "{$sql} ELSE {$else} END";
 	}
 
 	/**

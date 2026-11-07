@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -12,6 +14,7 @@ use craft\elements\User;
 use craft\fields\Entries as EntriesField;
 use craft\fields\Link as LinkField;
 use craft\fields\linktypes\BaseElementLinkType;
+use craft\fields\linktypes\BaseLinkType;
 use craft\fields\linktypes\Entry as EntryLinkType;
 use craft\fields\Matrix;
 use craft\helpers\Component as ComponentHelper;
@@ -97,7 +100,7 @@ class StructureService extends Component
 		$entriesService = Craft::$app->getEntries();
 		$fieldsService = Craft::$app->getFields();
 		$statistics = Hub::getInstance()->statistics;
-		$siteUids = array_filter(array_map(fn (int $id) => Craft::$app->getSites()->getSiteById($id, true)?->uid, $siteIds));
+		$siteUids = array_filter(array_map(fn(int $id) => Craft::$app->getSites()->getSiteById($id, true)?->uid, $siteIds));
 
 		/** @var array<int,SectionInfo> $sections */
 		$sections = [];
@@ -124,8 +127,8 @@ class StructureService extends Component
 		foreach ($entriesService->getAllSections() as $section) {
 			$info = new SectionInfo($section);
 			$siteSettings = array_intersect_key($section->getSiteSettings(), array_flip($siteIds));
-			$info->hasUrls = array_filter($siteSettings, fn ($settings) => $settings->hasUrls) !== [];
-			$info->lazy('stats', fn () => $statistics->sumEntries($siteIds, sectionId: $section->id));
+			$info->hasUrls = array_filter($siteSettings, fn($settings) => $settings->hasUrls) !== [];
+			$info->lazy('stats', fn() => $statistics->sumEntries($siteIds, sectionId: $section->id));
 
 			foreach ($section->getEntryTypes() as $entryType) {
 				$info->entryTypes[] = $entryType;
@@ -154,9 +157,9 @@ class StructureService extends Component
 				$fieldInfo = $fields[$field->id];
 				$fieldInfo->hasUrls = $field instanceof Matrix && array_filter(
 					array_intersect_key($field->siteSettings, array_flip($siteUids)),
-					fn (array $settings) => !empty($settings['uriFormat']),
+					fn(array $settings): bool => !empty($settings['uriFormat']),
 				) !== [];
-				$fieldInfo->lazy('stats', fn () => $statistics->sumEntries($siteIds, fieldId: $field->id));
+				$fieldInfo->lazy('stats', fn() => $statistics->sumEntries($siteIds, fieldId: $field->id));
 
 				foreach ($field->getFieldLayoutProviders() as $provider) {
 					if (!$provider instanceof EntryType || !isset($entryTypes[$provider->id])) {
@@ -221,9 +224,9 @@ class StructureService extends Component
 		}
 
 		foreach ($sectionReferenceFieldIds as $sectionId => $fieldIds) {
-			$sections[$sectionId]->lazy('references', fn () => array_reduce(
+			$sections[$sectionId]->lazy('references', fn(): ReferenceStatistics => array_reduce(
 				$fieldIds,
-				fn (ReferenceStatistics $sum, int $fieldId) => $sum->add($statistics->sumReferences($siteIds, $fieldId, $sectionId)),
+				fn(ReferenceStatistics $sum, int $fieldId): ReferenceStatistics => $sum->add($statistics->sumReferences($siteIds, $fieldId, $sectionId)),
 				new ReferenceStatistics(),
 			));
 		}
@@ -233,14 +236,14 @@ class StructureService extends Component
 
 		foreach ($fields as $fieldInfo) {
 			$field = $fieldInfo->field;
-			$isRelational = in_array(get_class($field), $relationalTypes, true) || ($field instanceof LinkField && array_filter(
+			$isRelational = in_array($field::class, $relationalTypes, true) || ($field instanceof LinkField && array_filter(
 				$field->getLinkTypes(),
-				fn ($linkType) => $linkType instanceof BaseElementLinkType,
+				fn(BaseLinkType $linkType): bool => $linkType instanceof BaseElementLinkType,
 			) !== []);
 
 			if ($isRelational) {
 				$fieldInfo->isRelational = true;
-				$fieldInfo->lazy('references', fn () => $statistics->sumReferences($siteIds, $field->id));
+				$fieldInfo->lazy('references', fn() => $statistics->sumReferences($siteIds, $field->id));
 			}
 		}
 
@@ -272,8 +275,8 @@ class StructureService extends Component
 
 		// Entry type stats and classification
 		foreach ($entryTypes as $info) {
-			$info->lazy('stats', fn () => $statistics->sumEntries($siteIds, typeId: $info->entryType->id));
-			$info->lazy('kinds', fn () => Classifier::entryTypeKinds(
+			$info->lazy('stats', fn() => $statistics->sumEntries($siteIds, typeId: $info->entryType->id));
+			$info->lazy('kinds', fn(): array => Classifier::entryTypeKinds(
 				count($info->sections),
 				count($info->nestedFields),
 				count($info->referenceFields),
@@ -284,9 +287,9 @@ class StructureService extends Component
 		}
 
 		return [
-			'sections' => $this->sortByLabel($sections, fn (SectionInfo $info) => $info->section->name),
-			'entryTypes' => $this->sortByLabel($entryTypes, fn (EntryTypeInfo $info) => $info->entryType->name),
-			'fields' => $this->sortByLabel($fields, fn (FieldInfo $info) => $info->field->name),
+			'sections' => $this->sortByLabel($sections, fn(SectionInfo $info): ?string => $info->section->name),
+			'entryTypes' => $this->sortByLabel($entryTypes, fn(EntryTypeInfo $info): ?string => $info->entryType->name),
+			'fields' => $this->sortByLabel($fields, fn(FieldInfo $info): ?string => $info->field->name),
 		];
 	}
 
@@ -361,7 +364,7 @@ class StructureService extends Component
 	 */
 	private function sortByLabel(array $items, callable $label): array
 	{
-		uasort($items, fn ($a, $b) => strnatcasecmp($label($a), $label($b)));
+		uasort($items, fn($a, $b): int => strnatcasecmp($label($a), $label($b)));
 
 		return $items;
 	}

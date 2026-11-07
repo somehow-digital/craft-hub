@@ -23,9 +23,9 @@
 
 {% set docTitle = title ~ ' - ' ~ tabLabel ~ ' - ' ~ 'Settings'|t('app') %}
 {% set crumbs = [
-	{ label: 'Hub'|t('hub'), url: url('hub/manage') },
-	{ label: 'Settings'|t('app'), url: url('hub/manage/settings') },
-	{ label: tabLabel, url: url('hub/manage/settings/' ~ tab) },
+	{label: 'Hub'|t('hub'), url: url('hub/manage')},
+	{label: 'Settings'|t('app'), url: url('hub/manage/settings')},
+	{label: tabLabel, url: url('hub/manage/settings/' ~ tab)},
 ] %}
 
 {% block pageTitle %}

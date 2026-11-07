@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\Tests\Support;
 
 use craft\base\ElementInterface;
@@ -39,7 +41,7 @@ class FakeCommand extends Command
 		}
 
 		return match ($method) {
-			'fetchAll' => $fetchMode === PDO::FETCH_COLUMN ? array_map(fn ($row) => is_array($row) ? reset($row) : $row, $rows) : $rows,
+			'fetchAll' => $fetchMode === PDO::FETCH_COLUMN ? array_map(fn($row) => is_array($row) ? reset($row) : $row, $rows) : $rows,
 			'fetch' => $rows[0] ?? false,
 			'fetchColumn' => isset($rows[0]) ? (is_array($rows[0]) ? reset($rows[0]) : $rows[0]) : false,
 			default => null,
@@ -64,11 +66,11 @@ class FakeCommand extends Command
 	 */
 	private function elementRows(ElementQuery $query, array $elements): array
 	{
-		$query->on(ElementQuery::EVENT_BEFORE_POPULATE_ELEMENT, function (PopulateElementEvent $event) use ($elements) {
+		$query->on(ElementQuery::EVENT_BEFORE_POPULATE_ELEMENT, function (PopulateElementEvent $event) use ($elements): void {
 			$event->element = $elements[$event->row['fakeIndex']];
 		});
 
-		return array_map(fn (ElementInterface $element, int $index) => [
+		return array_map(fn(ElementInterface $element, int $index): array => [
 			'id' => $element->id,
 			'siteId' => $element->siteId,
 			'fakeIndex' => $index,

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
@@ -109,6 +111,6 @@ class AccessService extends Component
 	 */
 	public function canViewPageOf(mixed $item): bool
 	{
-		return ($page = Page::fromItem($item)) !== null && $this->canView($page);
+		return ($page = Page::fromItem($item)) instanceof Page && $this->canView($page);
 	}
 }

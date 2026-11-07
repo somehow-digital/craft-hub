@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use DateTime;
@@ -26,6 +28,7 @@ class ActivityFilter
 
 	/** days of the activities, both days included */
 	public ?DateTime $dateFrom = null;
+
 	public ?DateTime $dateTo = null;
 
 	/** ID of a subject, to list the activities of one item; only applies along with the single kind of subject it's of */

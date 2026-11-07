@@ -1,13 +1,50 @@
 includes:
+	- vendor/phpstan/phpstan/conf/bleedingEdge.neon
 	- vendor/craftcms/phpstan/phpstan.neon
+	- vendor/pestphp/pest/extension.neon
+	- vendor/pestphp/pest/phpstan-pest-extension.neon
+	- vendor/phpstan/phpstan-strict-rules/rules.neon
+	- vendor/phpstan/phpstan-deprecation-rules/rules.neon
+	- vendor/shipmonk/phpstan-rules/rules.neon
+	- vendor/tomasvotruba/cognitive-complexity/config/extension.neon
+	# The errors that the code had when the rules were introduced, which are to be fixed rather than added to.
+	- phpstan-baseline.neon
 
 parameters:
-	level: 6
+	level: 10
+	# Analyses for the range of versions that the plugin supports, not just the one that runs the analysis.
+	phpVersion:
+		min: 80200
+		max: 80599
+	reportUnmatchedIgnoredErrors: true
+	checkUninitializedProperties: true
+	checkTooWideReturnTypesInProtectedAndPublicMethods: true
 	ignoreErrors:
 		# Craft's queries are generic by their rows, which Hub's own code doesn't depend on.
 		- identifier: missingType.generics
+		# Pest marks the classes behind its functions as internal, though tests call their methods throughout.
+		-
+			identifier: method.internalClass
+			message: '#internal class Pest\\#'
+			path: tests
+		# Pest marks its presets and architecture expectations as internal, though architecture tests use and narrow them.
+		-
+			identifier: new.internalClass
+			message: '#internal class Pest\\Preset\.#'
+			path: tests/Arch
+		-
+			identifier: method.internalInterface
+			message: '#internal interface Pest\\Arch\\Contracts\\ArchExpectation#'
+			path: tests/Arch
+		-
+			identifier: classConstant.internalClass
+			message: '#internal class Pest\\Mixins\\Expectation#'
+			path: tests/PHPStan/PestExpectationReturnTypeExtension.php
 	paths:
 		- src
+		- tests
+	bootstrapFiles:
+		- tests/PHPStan/bootstrap.php
 	earlyTerminatingMethodCalls:
 		Craft:
 			- dd
@@ -15,3 +52,26 @@ parameters:
 			- end
 		yii\base\ErrorHandler:
 			- convertExceptionToError
+	shipmonkRules:
+		# Craft and Yii set models, events and console options through their public properties.
+		enforceReadonlyPublicProperty:
+			enabled: false
+		# Yii declares its exceptions as checked ones, which callbacks throw throughout Craft.
+		forbidCheckedExceptionInCallable:
+			enabled: false
+
+services:
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\PestClosureThisExtension
+		tags:
+			- phpstan.functionParameterClosureThisExtension
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\PestExpectationReturnTypeExtension
+		arguments: [Pest\Expectation]
+		tags:
+			- phpstan.broker.dynamicMethodReturnTypeExtension
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\PestExpectationReturnTypeExtension
+		arguments: [Pest\Expectations\OppositeExpectation]
+		tags:
+			- phpstan.broker.dynamicMethodReturnTypeExtension

@@ -1,8 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
+use craft\base\ElementContainerFieldInterface;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
 use craft\base\NestedElementInterface;
@@ -56,7 +59,7 @@ class ReferenceService extends Component
 
 		$photos = $entry instanceof Asset ? $this->photoRows($id) : [];
 
-		return $this->collect([...$relations->all(), ...$tags->all(), ...$photos], $entry->siteId, fn (ElementInterface $root) => $root->id === $id);
+		return $this->collect([...$relations->all(), ...$tags->all(), ...$photos], $entry->siteId, fn(ElementInterface $root): bool => $root->id === $id);
 	}
 
 	/**
@@ -83,12 +86,12 @@ class ReferenceService extends Component
 
 		$byTarget = [];
 		foreach ($rows as $row) {
-			$byTarget[(int)$row['targetId']][] = $row;
+			$byTarget[(int) $row['targetId']][] = $row;
 		}
 
 		$references = [];
 		foreach ($byTarget as $id => $targetRows) {
-			$references[$id] = $this->collect($targetRows, $siteId, fn (ElementInterface $root) => $root->id === $id || $excluded($root), $sources);
+			$references[$id] = $this->collect($targetRows, $siteId, fn(ElementInterface $root): bool => $root->id === $id || $excluded($root), $sources);
 		}
 
 		return $references;
@@ -103,7 +106,7 @@ class ReferenceService extends Component
 	 */
 	public function getReferenced(ElementInterface $element): array
 	{
-		$id = (int)$element->getCanonicalId();
+		$id = (int) $element->getCanonicalId();
 		$paths = $this->nestedPaths($id);
 		$rows = $this->targetRows(array_keys($paths));
 
@@ -111,18 +114,18 @@ class ReferenceService extends Component
 			$rows[] = ['id' => $element->photoId, 'type' => Asset::class, 'fieldId' => null, 'sourceId' => $id];
 		}
 
-		$targets = $this->loadElements($rows, (int)($element->siteId ?? Craft::$app->getSites()->getPrimarySite()->id));
+		$targets = $this->loadElements($rows, (int) ($element->siteId ?? Craft::$app->getSites()->getPrimarySite()->id));
 		$references = [];
 
 		foreach ($rows as $row) {
-			$target = $targets[(int)$row['id']] ?? null;
+			$target = $targets[(int) $row['id']] ?? null;
 
 			if ($target === null || isset($paths[$target->id]) || !Craft::$app->getElements()->canView($target)) {
 				continue;
 			}
 
-			$field = $row['fieldId'] !== null ? Craft::$app->getFields()->getFieldById((int)$row['fieldId']) : null;
-			$names = [...$paths[(int)$row['sourceId']], $this->pathName($field, $row['fieldId'] !== null)];
+			$field = $row['fieldId'] !== null ? Craft::$app->getFields()->getFieldById((int) $row['fieldId']) : null;
+			$names = [...$paths[(int) $row['sourceId']], $this->pathName($field, $row['fieldId'] !== null)];
 
 			$references[$target->id] ??= new EntryReference($target);
 			$references[$target->id]->addPath(implode(' → ', $names), $field);
@@ -136,7 +139,7 @@ class ReferenceService extends Component
 	 */
 	public function countReferences(ElementInterface $element): int
 	{
-		$id = (int)$element->getCanonicalId();
+		$id = (int) $element->getCanonicalId();
 
 		return $this->getReferenceCounts([$id])[$id] ?? 0;
 	}
@@ -147,9 +150,9 @@ class ReferenceService extends Component
 	 */
 	public function countReferenced(ElementInterface $element): int
 	{
-		$id = (int)$element->getCanonicalId();
+		$id = (int) $element->getCanonicalId();
 		$paths = $this->nestedPaths($id);
-		$rows = array_filter($this->targetRows(array_keys($paths)), fn (array $row) => !isset($paths[(int)$row['id']]));
+		$rows = array_filter($this->targetRows(array_keys($paths)), fn(array $row): bool => !isset($paths[(int) $row['id']]));
 
 		return count($rows) + ($element instanceof User && $element->photoId !== null ? 1 : 0);
 	}
@@ -224,7 +227,7 @@ class ReferenceService extends Component
 
 		$counts = [];
 		foreach ([...$rows, ...$tags, ...$photos] as $row) {
-			$counts[(int)$row['elementId']] = ($counts[(int)$row['elementId']] ?? 0) + (int)$row['references'];
+			$counts[(int) $row['elementId']] = ($counts[(int) $row['elementId']] ?? 0) + (int) $row['references'];
 		}
 
 		return $counts;
@@ -240,7 +243,7 @@ class ReferenceService extends Component
 		return (new Query())
 			->from(['hubUsers' => Table::USERS])
 			->innerJoin(['hubUserElements' => Table::ELEMENTS], '[[hubUserElements.id]] = [[hubUsers.id]]')
-			->where("[[hubUsers.photoId]] = $assetId")
+			->where("[[hubUsers.photoId]] = {$assetId}")
 			->andWhere(['hubUserElements.dateDeleted' => null]);
 	}
 
@@ -293,28 +296,28 @@ class ReferenceService extends Component
 		$references = [];
 
 		foreach ($rows as $row) {
-			$sourceId = (int)$row['elementId'];
-			$siteId = (int)$row['siteId'];
+			$sourceId = (int) $row['elementId'];
+			$siteId = (int) $row['siteId'];
 
-			foreach ($this->findTags($row['content'], $row['fieldLayoutId'] !== null ? (int)$row['fieldLayoutId'] : null) as [$fieldId, $targetId]) {
+			foreach ($this->findTags($row['content'], $row['fieldLayoutId'] !== null ? (int) $row['fieldLayoutId'] : null) as [$fieldId, $targetId]) {
 				if ($targetId !== $sourceId) {
-					$references["$sourceId:$siteId:$fieldId:$targetId"] = [$sourceId, $siteId, $fieldId, $targetId];
+					$references["{$sourceId}:{$siteId}:{$fieldId}:{$targetId}"] = [$sourceId, $siteId, $fieldId, $targetId];
 				}
 			}
 		}
 
 		$targetIds = array_values(array_unique(array_column($references, 3)));
-		$existing = $targetIds === [] ? [] : array_flip(array_map('intval', (new Query())
+		$existing = $targetIds === [] ? [] : array_flip(array_map(intval(...), (new Query())
 			->select(['id'])
 			->from([Table::ELEMENTS])
 			->where(['id' => $targetIds])
 			->column()));
 
-		$values = array_values(array_filter($references, fn (array $reference) => isset($existing[$reference[3]])));
+		$values = array_values(array_filter($references, fn(array $reference): bool => isset($existing[$reference[3]])));
 
 		$db = Craft::$app->getDb();
 
-		$db->transaction(function () use ($db, $elementIds, $values) {
+		$db->transaction(function () use ($db, $elementIds, $values): void {
 			$db->createCommand()->delete(self::TABLE, ['sourceId' => $elementIds])->execute();
 
 			if ($values !== []) {
@@ -354,10 +357,10 @@ class ReferenceService extends Component
 		$tags = [];
 
 		foreach ($content as $uid => $value) {
-			$field = $this->contentField($layout, (string)$uid);
+			$field = $this->contentField($layout, (string) $uid);
 			$text = is_string($value) ? $value : Json::encode($value);
 
-			if ($field === null || $field instanceof RelationalFieldInterface || !str_contains($text, '{')) {
+			if (!$field instanceof FieldInterface || $field instanceof RelationalFieldInterface || !str_contains($text, '{')) {
 				continue;
 			}
 
@@ -365,7 +368,7 @@ class ReferenceService extends Component
 
 			foreach ($matches as $match) {
 				if (ctype_digit($match['ref']) && $elements->getElementTypeByRefHandle($match['elementType']) !== null) {
-					$tags[] = [(int)$field->id, (int)$match['ref']];
+					$tags[] = [(int) $field->id, (int) $match['ref']];
 				}
 			}
 		}
@@ -422,7 +425,7 @@ class ReferenceService extends Component
 	{
 		$ids = self::photosQuery(':assetId')->select(['hubUsers.id'])->addParams([':assetId' => $assetId])->column();
 
-		return array_map(fn ($id) => ['id' => (int)$id, 'type' => User::class, 'fieldId' => null], $ids);
+		return array_map(fn($id): array => ['id' => (int) $id, 'type' => User::class, 'fieldId' => null], $ids);
 	}
 
 	/**
@@ -435,7 +438,7 @@ class ReferenceService extends Component
 	{
 		$rows = self::photoIdsQuery()->addSelect(['hubUsers.id'])->andWhere(['hubUsers.photoId' => $assetIds])->all();
 
-		return array_map(fn (array $row) => ['id' => (int)$row['id'], 'type' => User::class, 'fieldId' => null, 'targetId' => (int)$row['photoId']], $rows);
+		return array_map(fn(array $row): array => ['id' => (int) $row['id'], 'type' => User::class, 'fieldId' => null, 'targetId' => (int) $row['photoId']], $rows);
 	}
 
 	/**
@@ -466,12 +469,12 @@ class ReferenceService extends Component
 			$owners = [];
 
 			foreach ($rows as $row) {
-				$nestedId = (int)$row['id'];
+				$nestedId = (int) $row['id'];
 
 				// An entry can be owned by several elements, and is only followed once.
 				if (!isset($paths[$nestedId])) {
-					$field = $row['fieldId'] !== null ? Craft::$app->getFields()->getFieldById((int)$row['fieldId']) : null;
-					$paths[$nestedId] = [...$paths[(int)$row['ownerId']], $this->pathName($field)];
+					$field = $row['fieldId'] !== null ? Craft::$app->getFields()->getFieldById((int) $row['fieldId']) : null;
+					$paths[$nestedId] = [...$paths[(int) $row['ownerId']], $this->pathName($field)];
 					$owners[] = $nestedId;
 				}
 			}
@@ -518,7 +521,7 @@ class ReferenceService extends Component
 	private function pathName(?FieldInterface $field, bool $hasField = true): string
 	{
 		return match (true) {
-			$field !== null => Craft::t('site', (string)$field->name),
+			$field instanceof FieldInterface => Craft::t('site', (string) $field->name),
 			$hasField => Craft::t('hub', 'Unknown field'),
 			default => Craft::t('hub', 'User photo'),
 		};
@@ -556,7 +559,7 @@ class ReferenceService extends Component
 		$references = [];
 
 		foreach ($rows as $row) {
-			$source = $sources[(int)$row['id']] ?? null;
+			$source = $sources[(int) $row['id']] ?? null;
 
 			if ($source === null) {
 				continue;
@@ -565,11 +568,11 @@ class ReferenceService extends Component
 			$path = [];
 			$root = $this->resolveRoot($source, $path);
 
-			if ($root === null || $excluded($root) || !Craft::$app->getElements()->canView($root)) {
+			if (!$root instanceof ElementInterface || $excluded($root) || !Craft::$app->getElements()->canView($root)) {
 				continue;
 			}
 
-			$fieldId = $row['fieldId'] !== null ? (int)$row['fieldId'] : null;
+			$fieldId = $row['fieldId'] !== null ? (int) $row['fieldId'] : null;
 			$field = $fieldId !== null ? $source->getFieldLayout()?->getFieldById($fieldId) ?? Craft::$app->getFields()->getFieldById($fieldId) : null;
 			$path[] = $this->pathName($field, $fieldId !== null);
 
@@ -586,7 +589,7 @@ class ReferenceService extends Component
 	 */
 	private function sorted(array $references): array
 	{
-		usort($references, fn (EntryReference $a, EntryReference $b) => strnatcasecmp((string)$a->element, (string)$b->element));
+		usort($references, fn(EntryReference $a, EntryReference $b): int => strnatcasecmp((string) $a->element, (string) $b->element));
 
 		return $references;
 	}
@@ -603,12 +606,12 @@ class ReferenceService extends Component
 		while ($element instanceof NestedElementInterface && $element->getPrimaryOwnerId() !== null) {
 			$owner = $element->getOwner();
 
-			if ($owner === null || $owner->getIsDraft() || $owner->getIsRevision()) {
+			if (!$owner instanceof ElementInterface || $owner->getIsDraft() || $owner->getIsRevision()) {
 				return null;
 			}
 
 			$field = $element->getField();
-			array_unshift($path, $field !== null ? Craft::t('site', $field->name) : Craft::t('hub', 'Unknown field'));
+			array_unshift($path, $field instanceof ElementContainerFieldInterface ? Craft::t('site', $field->name) : Craft::t('hub', 'Unknown field'));
 			$element = $owner;
 		}
 
@@ -623,7 +626,7 @@ class ReferenceService extends Component
 	{
 		$ids = [];
 		foreach ($rows as $row) {
-			$ids[$row['type']][] = (int)$row['id'];
+			$ids[$row['type']][] = (int) $row['id'];
 		}
 
 		$elements = [];

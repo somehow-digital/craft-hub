@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
@@ -23,7 +25,7 @@ class FileKindConditionRule extends BaseMultiSelectConditionRule implements Info
 
 	protected function options(): array
 	{
-		return array_values(array_map(fn (FileKindInfo $kind) => ['value' => $kind->kind, 'label' => $kind->getLabel()], Hub::getInstance()->volumes->getKinds()));
+		return array_values(array_map(fn(FileKindInfo $kind): array => ['value' => $kind->kind, 'label' => $kind->getLabel()], Hub::getInstance()->volumes->getKinds()));
 	}
 
 	public function matchInfo(SectionInfo|EntryTypeInfo|FieldInfo|VolumeInfo $info): bool

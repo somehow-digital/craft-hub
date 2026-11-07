@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\Tests;
 
 use Closure;
 use Craft;
 use craft\helpers\ArrayHelper;
+use craft\helpers\Cp;
 use craft\helpers\Db;
 use craft\services\Config;
 use craft\web\Application;
@@ -48,7 +51,9 @@ abstract class TestCase extends BaseTestCase
 		Event::offAll();
 		ElementQueries::reset();
 		// Craft's Db helper keeps the connection it first used, which is the app's of an earlier test otherwise.
-		Closure::bind(static fn () => Db::$_db = null, null, Db::class)();
+		Closure::bind(static fn(): null => Db::$_db = null, null, Db::class)();
+		// Craft's CP helper keeps the site that the first request asked for.
+		Closure::bind(static fn(): null => Cp::$_requestedSite = null, null, Cp::class)();
 		Craft::$app = null;
 		Craft::$container = new Container();
 
@@ -66,18 +71,18 @@ abstract class TestCase extends BaseTestCase
 		$configService->appType = 'web';
 		$configService->env = 'test';
 		$configService->configDir = Craft::getAlias('@config');
-		$configService->appDefaultsDir = "$src/config/defaults";
+		$configService->appDefaultsDir = "{$src}/config/defaults";
 
 		$config = ArrayHelper::merge(
 			['vendorPath' => CRAFT_VENDOR_PATH, 'env' => 'test', 'components' => ['config' => $configService]],
-			require "$src/config/app.php",
-			require "$src/config/app.web.php",
+			require "{$src}/config/app.php",
+			require "{$src}/config/app.web.php",
 			[
 				'isInstalled' => false,
 				'components' => [
 					'db' => [
 						'class' => FakeConnection::class,
-						'dsn' => "$driver:host=localhost;dbname=craft",
+						'dsn' => "{$driver}:host=localhost;dbname=craft",
 						'driverName' => $driver,
 					],
 					'log' => ['targets' => []],
@@ -128,7 +133,7 @@ abstract class TestCase extends BaseTestCase
 		$request->setIsCpRequest($cp);
 
 		// The path is resolved when the request is created.
-		(function () use ($path) {
+		(function () use ($path): void {
 			$this->_path = $path;
 			$this->_segments = $path !== '' ? explode('/', $path) : [];
 		})->call($request);

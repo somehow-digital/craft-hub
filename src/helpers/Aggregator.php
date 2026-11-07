@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\helpers;
 
 /**
@@ -51,7 +53,7 @@ final class Aggregator
 	 */
 	public static function key(array $criteria): string
 	{
-		return implode('|', array_map(fn ($value) => $value === null ? '*' : (string)$value, $criteria));
+		return implode('|', array_map(fn(int|string|null $value): string => $value === null ? '*' : (string) $value, $criteria));
 	}
 
 	/**
@@ -64,7 +66,7 @@ final class Aggregator
 		$sum = 0;
 
 		foreach ($rows as $row) {
-			$sum += (int)$row[$column];
+			$sum += (int) $row[$column];
 		}
 
 		return $sum;

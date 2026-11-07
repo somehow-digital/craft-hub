@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Entry;
 use craft\elements\User;
 use SomehowDigital\Craft\Hub\services\EditService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->edits = new EditService();
 	Craft::$app->getUser()->shouldReceive('getId')->andReturn(3)->byDefault();
 
@@ -17,10 +19,10 @@ beforeEach(function () {
 		return $entry;
 	};
 
-	$this->recorded = fn () => $this->db()->queriesMatching('INTO {{%hub_edits}}');
+	$this->recorded = fn() => $this->db()->queriesMatching('INTO {{%hub_edits}}');
 });
 
-it('records the edits people make to entries, with the user making them', function () {
+it('records the edits people make to entries, with the user making them', function (): void {
 	$this->edits->record(($this->entry)(['title']), false);
 	$this->edits->record(($this->entry)([], ['body']), false);
 
@@ -28,19 +30,19 @@ it('records the edits people make to entries, with the user making them', functi
 		->and(($this->recorded)()[0])->toContain('(`elementId`, `userId`, `dateEdited`) VALUES (5, 3, ');
 });
 
-it('records entries people create, whatever changed', function () {
+it('records entries people create, whatever changed', function (): void {
 	$this->edits->record(($this->entry)(), true);
 
 	expect(($this->recorded)())->toHaveCount(1);
 });
 
-it('leaves out saves that only change what Craft sets or the status', function () {
+it('leaves out saves that only change what Craft sets or the status', function (): void {
 	$this->edits->record(($this->entry)(['dateUpdated', 'uri', 'enabled', 'enabledForSite']), false);
 
 	expect(($this->recorded)())->toBe([]);
 });
 
-it('leaves out drafts, revisions, propagated and resaved entries', function (array $config) {
+it('leaves out drafts, revisions, propagated and resaved entries', function (array $config): void {
 	$this->edits->record(($this->entry)(['title'], [], $config), false);
 
 	expect(($this->recorded)())->toBe([]);
@@ -51,22 +53,22 @@ it('leaves out drafts, revisions, propagated and resaved entries', function (arr
 	'resaved' => [['resaving' => true]],
 ]);
 
-it('leaves out saves made without a user', function () {
+it('leaves out saves made without a user', function (): void {
 	Craft::$app->getUser()->shouldReceive('getId')->andReturnNull();
 	$this->edits->record(($this->entry)(['title']), false);
 
 	expect(($this->recorded)())->toBe([]);
 });
 
-it('leaves out saves made on the command line', function () {
+it('leaves out saves made on the command line', function (): void {
 	Craft::$app->getRequest()->setIsConsoleRequest(true);
 	$this->edits->record(($this->entry)(['title']), false);
 
 	expect(($this->recorded)())->toBe([]);
 });
 
-it('leaves out saves made while the queue runs, as whoever triggered it', function () {
-	(function () {
+it('leaves out saves made while the queue runs, as whoever triggered it', function (): void {
+	(function (): void {
 		$this->_checkedRequestType = true;
 		$this->_isActionRequest = true;
 		$this->_actionSegments = ['queue', 'run'];
@@ -77,7 +79,7 @@ it('leaves out saves made while the queue runs, as whoever triggered it', functi
 	expect(($this->recorded)())->toBe([]);
 });
 
-it('reads when entries were last edited, falling back to when they were last updated', function () {
+it('reads when entries were last edited, falling back to when they were last updated', function (): void {
 	$this->db()->respond('FROM {{%hub_edits}}', [['elementId' => 5, 'userId' => 3, 'dateEdited' => '2020-01-01 10:00:00']]);
 	$edited = new Entry(['id' => 5, 'dateUpdated' => new DateTime('2025-01-01')]);
 	$unknown = new Entry(['id' => 6, 'dateUpdated' => new DateTime('2025-02-01')]);
@@ -90,7 +92,7 @@ it('reads when entries were last edited, falling back to when they were last upd
 		->and($this->db()->queriesMatching('FROM {{%hub_edits}}'))->toHaveCount(1);
 });
 
-it('reads when an entry was last edited, and by whom', function () {
+it('reads when an entry was last edited, and by whom', function (): void {
 	$this->db()->respond('FROM {{%hub_edits}}', [['elementId' => 5, 'userId' => 3, 'dateEdited' => '2020-01-01 10:00:00']]);
 	$user = new User(['id' => 3, 'username' => 'editor']);
 	ElementQueries::respond(User::class, [$user]);
@@ -102,7 +104,7 @@ it('reads when an entry was last edited, and by whom', function () {
 		->and(ElementQueries::executed(User::class)[0]->id)->toBe(3);
 });
 
-it('reads the last edit of entries without a record or user as their last update', function () {
+it('reads the last edit of entries without a record or user as their last update', function (): void {
 	$this->db()->respond('FROM {{%hub_edits}}', [['elementId' => 6, 'userId' => null, 'dateEdited' => '2020-01-01 10:00:00']]);
 	$entry = new Entry(['id' => 5, 'dateUpdated' => new DateTime('2025-01-01')]);
 
@@ -110,7 +112,7 @@ it('reads the last edit of entries without a record or user as their last update
 		->and(ElementQueries::executed(User::class))->toBe([]);
 });
 
-it('matches entries by when they were last edited, falling back to when they were last updated', function () {
+it('matches entries by when they were last edited, falling back to when they were last updated', function (): void {
 	$sql = $this->edits->lastEditedSql();
 
 	expect($sql)->toStartWith('COALESCE((SELECT `hubEdits`.`dateEdited`')
@@ -120,7 +122,7 @@ it('matches entries by when they were last edited, falling back to when they wer
 		->and($this->edits->lastEditedCondition(null))->toBeNull();
 });
 
-it('matches entries by the user who last edited them', function () {
+it('matches entries by the user who last edited them', function (): void {
 	[$in, $column, $edited] = $this->edits->editedByCondition([3, 4]);
 
 	expect([$in, $column])->toBe(['in', 'elements.id'])
@@ -128,7 +130,7 @@ it('matches entries by the user who last edited them', function () {
 		->and($edited->createCommand()->getRawSql())->toContain('`hubEditors`.`userId` IN (3, 4)');
 });
 
-it('lists the users who last edited entries, most entries first', function () {
+it('lists the users who last edited entries, most entries first', function (): void {
 	$this->db()->respond('FROM {{%hub_edits}} {{hubEdits}}', [
 		['userId' => '3', 'count' => '5'],
 		// Users that no longer exist are left out.
@@ -136,7 +138,7 @@ it('lists the users who last edited entries, most entries first', function () {
 	]);
 
 	$editor = new User(['id' => 3, 'username' => 'editor']);
-	ElementQueries::respond(User::class, fn () => [3 => $editor]);
+	ElementQueries::respond(User::class, fn(): array => [3 => $editor]);
 
 	expect($this->edits->getEditors(1, 10, 2))->toBe([3 => ['user' => $editor, 'count' => 5]])
 		->and($this->db()->queriesMatching('{{%hub_edits}}')[0])->toContain('`entries`.`sectionId`=1')
@@ -145,12 +147,12 @@ it('lists the users who last edited entries, most entries first', function () {
 		->and(ElementQueries::executed(User::class)[0]->id)->toBe([3, 5]);
 });
 
-it('lists no editors when no entries were edited', function () {
+it('lists no editors when no entries were edited', function (): void {
 	expect($this->edits->getEditors())->toBe([])
 		->and(ElementQueries::executed(User::class))->toBe([]);
 });
 
-it('records the last edits of existing entries from their revisions and tracked changes', function () {
+it('records the last edits of existing entries from their revisions and tracked changes', function (): void {
 	$this->db()->respond('FROM {{%revisions}} {{revisions}}', [
 		['elementId' => 5, 'userId' => 3, 'date' => '2024-03-01 00:00:00'],
 		['elementId' => 5, 'userId' => 4, 'date' => '2024-05-01 00:00:00'],

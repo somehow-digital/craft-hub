@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
@@ -42,8 +44,8 @@ class MoveToSection extends BulkAction
 
 			try {
 				return $service->moveEntryToSection($entry, $section);
-			} catch (Throwable $e) {
-				Craft::warning("Couldn’t move entry $entry->id to section $section->id: {$e->getMessage()}", __METHOD__);
+			} catch (Throwable $throwable) {
+				Craft::warning("Couldn’t move entry {$entry->id} to section {$section->id}: {$throwable->getMessage()}", __METHOD__);
 
 				return false;
 			}
@@ -55,7 +57,7 @@ class MoveToSection extends BulkAction
 		$hubEntries = $this->hub()->entries;
 		$entries = $this->hub()->bulk->getElementsOf($this->list, $ids, Entry::class);
 		$targets = $hubEntries->getSectionTargets($entries);
-		$movable = array_filter($entries, function (Entry $entry) use ($hubEntries, $targets) {
+		$movable = array_filter($entries, function (Entry $entry) use ($hubEntries, $targets): bool {
 			foreach ($targets as $target) {
 				if ($hubEntries->canMoveTo($entry, $target['section'])) {
 					return true;
