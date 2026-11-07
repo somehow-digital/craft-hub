@@ -34,7 +34,7 @@
 		"craftcms/phpstan": "dev-main",
 		"ergebnis/composer-normalize": "^2.56",
 		"mockery/mockery": "^1.6",
-		"pestphp/pest": "^4.0",
+		"pestphp/pest": "^3.0 || ^4.0",
 		"phpstan/phpstan": "^2.1",
 		"phpstan/phpstan-deprecation-rules": "^2.0",
 		"phpstan/phpstan-strict-rules": "^2.0",
