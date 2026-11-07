@@ -48,6 +48,14 @@ class FileService extends Component
 	public const SORT_REFERENCES = 'references';
 	public const SORT_UPLOADED = 'uploaded';
 
+	/** Conditions matching the files of each orientation but square; files without dimensions match none. */
+	private const ORIENTATION_CONDITIONS = [
+		FileFilter::ORIENTATION_LANDSCAPE => '[[assets.width]] > [[assets.height]]',
+		FileFilter::ORIENTATION_PORTRAIT => '[[assets.width]] < [[assets.height]]',
+	];
+
+	private const SQUARE_CONDITION = '[[assets.width]] = [[assets.height]]';
+
 	/**
 	 * Files of all volumes on the counted sites, narrowed by the given filters.
 	 *
@@ -99,7 +107,7 @@ class FileService extends Component
 		}
 
 		if ($filter->orientations !== []) {
-			$query->andWhere(['or', ...array_map($this->orientationCondition(...), $filter->orientations)]);
+			$query->andWhere(['or', ...array_map(fn(string $orientation): string => self::ORIENTATION_CONDITIONS[$orientation] ?? self::SQUARE_CONDITION, $filter->orientations)]);
 		}
 
 		if ($filter->uploaders !== []) {
@@ -635,18 +643,6 @@ class FileService extends Component
 		}
 
 		return ['or', ['assets.volumeId' => $peers], ['assets.volumeId' => $own, 'assets.uploaderId' => (int) $user->getId()]];
-	}
-
-	/**
-	 * Condition matching files of the orientation; files without dimensions match none.
-	 */
-	private function orientationCondition(string $orientation): string
-	{
-		return match ($orientation) {
-			FileFilter::ORIENTATION_LANDSCAPE => '[[assets.width]] > [[assets.height]]',
-			FileFilter::ORIENTATION_PORTRAIT => '[[assets.width]] < [[assets.height]]',
-			default => '[[assets.width]] = [[assets.height]]',
-		};
 	}
 
 	/**

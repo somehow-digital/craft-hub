@@ -12,6 +12,38 @@ pest()->extend(TestCase::class)->in('Unit', 'Feature');
 const GLOBAL_FILTERS = '`userId` IS NULL';
 
 /**
+ * The start of the SQL of the queries that select from a table, to answer or find them by.
+ */
+function sqlFrom(string $table): string
+{
+	return 'FROM ' . $table;
+}
+
+/**
+ * The start of the SQL of the queries that delete from a table.
+ */
+function sqlDeleteFrom(string $table): string
+{
+	return 'DELETE ' . sqlFrom($table);
+}
+
+/**
+ * The start of the SQL of the queries that insert into a table.
+ */
+function sqlInsertInto(string $table): string
+{
+	return 'INSERT INTO ' . $table;
+}
+
+/**
+ * The start of the SQL of the queries that update a table.
+ */
+function sqlUpdate(string $table): string
+{
+	return 'UPDATE ' . $table;
+}
+
+/**
  * The SQL of a query, with its params filled in.
  */
 function rawSql(Query $query): string

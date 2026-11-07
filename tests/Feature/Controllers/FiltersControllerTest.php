@@ -21,11 +21,14 @@ use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
+/** The condition by which queries match the custom filter that the tests answer with. */
+const CUSTOM_FILTER = '`id`=2';
+
 beforeEach(function (): void {
 	$this->createContentModel();
 
 	// Filters offered to everyone have no user; the others are those of user 1.
-	$this->db()->respond('FROM ' . FilterService::TABLE, fn(string $sql): array => str_contains($sql, GLOBAL_FILTERS) ? [
+	$this->db()->respond(sqlFrom(FilterService::TABLE), fn(string $sql): array => str_contains($sql, GLOBAL_FILTERS) ? [
 		['id' => 1, 'kind' => 'sections', 'handle' => 'empty', 'userId' => null, 'name' => null, 'description' => null, 'icon' => null, 'params' => null, 'matchCondition' => null, 'enabled' => 1, 'sortOrder' => 1, 'uid' => 'empty'],
 		[
 			'id' => 2, 'kind' => 'sections', 'handle' => null, 'userId' => null, 'name' => 'Public', 'description' => 'With URLs.', 'icon' => null, 'params' => null,
@@ -112,18 +115,18 @@ it('fails to save a custom filter without a rule', function (): void {
 
 it('saves only the name and whether a predefined filter is enabled', function (): void {
 	($this->post)('save', ['filterId' => 1, 'name' => 'Nothing in it', 'enabled' => '', 'description' => 'Bogus']);
-	$update = $this->db()->queriesMatching('UPDATE {{%hub_filters}}')[0];
+	$update = $this->db()->queriesMatching(sqlUpdate(FilterService::TABLE))[0];
 
 	expect($update)->toContain("`name`='Nothing in it'")->toContain('`enabled`=FALSE')->not->toContain('Bogus');
 });
 
 it('saves the threshold of a predefined filter, or clears it for its default', function (): void {
-	$this->db()->respond('FROM ' . FilterService::TABLE, [thresholdRow('sections', 'stale', 6)]);
+	$this->db()->respond(sqlFrom(FilterService::TABLE), [thresholdRow('sections', 'stale', 6)]);
 	$id = crc32('sections.stale');
 
 	($this->post)('save', ['filterId' => $id, 'threshold' => '3']);
 	($this->post)('save', ['filterId' => $id, 'threshold' => '']);
-	$updates = $this->db()->queriesMatching('UPDATE {{%hub_filters}}');
+	$updates = $this->db()->queriesMatching(sqlUpdate(FilterService::TABLE));
 
 	expect($updates[0])->toContain('`threshold`=3')
 		->and($updates[1])->toContain('`threshold`=NULL');
@@ -132,7 +135,7 @@ it('saves the threshold of a predefined filter, or clears it for its default', f
 it('saves no threshold of filters without one', function (): void {
 	($this->post)('save', ['filterId' => 1, 'threshold' => '3']);
 
-	expect($this->db()->queriesMatching('UPDATE {{%hub_filters}}')[0])->not->toContain('`threshold`=3');
+	expect($this->db()->queriesMatching(sqlUpdate(FilterService::TABLE))[0])->not->toContain('`threshold`=3');
 });
 
 it('deletes no custom filter whose items checks flag', function (): void {
@@ -145,7 +148,7 @@ it('deletes no custom filter whose items checks flag', function (): void {
 
 	expect($response->getStatusCode())->toBe(400)
 		->and($response->data['message'])->toContain('Public')
-		->and($this->db()->queriesMatching('DELETE FROM ' . FilterService::TABLE))->toBe([]);
+		->and($this->db()->queriesMatching(sqlDeleteFrom(FilterService::TABLE)))->toBe([]);
 });
 
 it('saves no filter of an unknown kind', function (): void {
@@ -155,7 +158,7 @@ it('saves no filter of an unknown kind', function (): void {
 it('deletes custom filters, but no predefined ones', function (): void {
 	($this->post)('delete', ['id' => 2]);
 
-	expect($this->db()->queriesMatching('DELETE FROM ' . FilterService::TABLE)[0])->toContain('`id`=2');
+	expect($this->db()->queriesMatching(sqlDeleteFrom(FilterService::TABLE))[0])->toContain(CUSTOM_FILTER);
 
 	($this->post)('delete', ['id' => 1]);
 })->throws(BadRequestHttpException::class);
@@ -163,12 +166,12 @@ it('deletes custom filters, but no predefined ones', function (): void {
 it('toggles and reorders the filters', function (): void {
 	$toggled = ($this->post)('toggle', ['id' => 2, 'enabled' => '0'])->data;
 	($this->post)('reorder', ['ids' => '["2","1"]']);
-	$updates = $this->db()->queriesMatching('UPDATE {{%hub_filters}}');
+	$updates = $this->db()->queriesMatching(sqlUpdate(FilterService::TABLE));
 
 	expect($toggled['enabled'])->toBeFalse()
 		->and($toggled['message'])->toBe('Filter disabled.')
-		->and($updates[0])->toContain('`enabled`=FALSE')->toContain('`id`=2')
-		->and($updates[1])->toContain('`sortOrder`=1')->toContain('`id`=2');
+		->and($updates[0])->toContain('`enabled`=FALSE')->toContain(CUSTOM_FILTER)
+		->and($updates[1])->toContain('`sortOrder`=1')->toContain(CUSTOM_FILTER);
 });
 
 it('only lets users with the permission change the filters', function (string $action): void {
@@ -201,7 +204,7 @@ it('replaces the filters of the own filter of the same name', function (): void 
 	($this->post)('save-own', ['kind' => 'sections', 'name' => 'channels', 'params' => ['type' => 'single']]);
 
 	expect($this->db()->queriesMatching('INSERT INTO {{%hub_filters}}'))->toBe([])
-		->and($this->db()->queriesMatching('UPDATE {{%hub_filters}}')[0])->toContain('{\"type\":\"single\"}')->toContain('`id`=5');
+		->and($this->db()->queriesMatching(sqlUpdate(FilterService::TABLE))[0])->toContain('{\"type\":\"single\"}')->toContain('`id`=5');
 });
 
 it('fails to save an own filter without filters or a name', function (array $body, string $message): void {
@@ -215,15 +218,15 @@ it('fails to save an own filter without filters or a name', function (array $bod
 ]);
 
 it('renames and deletes the own filters of the user only', function (): void {
-	$this->db()->respond('DELETE FROM ' . FilterService::TABLE, 1);
+	$this->db()->respond(sqlDeleteFrom(FilterService::TABLE), 1);
 
 	$renamed = ($this->post)('rename-own', ['kind' => 'sections', 'id' => 5, 'name' => 'All channels'])->data;
 	$deleted = ($this->post)('delete-own', ['kind' => 'sections', 'id' => 5])->data;
 
 	expect($renamed['message'])->toBe('Filter renamed.')
-		->and($this->db()->queriesMatching('UPDATE {{%hub_filters}}')[0])->toContain("'All channels'")
+		->and($this->db()->queriesMatching(sqlUpdate(FilterService::TABLE))[0])->toContain("'All channels'")
 		->and($deleted['message'])->toBe('Filter deleted.')
-		->and($this->db()->queriesMatching('DELETE FROM ' . FilterService::TABLE)[0])->toContain('`id`=5')->toContain('`userId`=1');
+		->and($this->db()->queriesMatching(sqlDeleteFrom(FilterService::TABLE))[0])->toContain('`id`=5')->toContain('`userId`=1');
 });
 
 it('renames no own filter of another kind', function (): void {
@@ -252,7 +255,7 @@ it('ignores unknown custom filters in the list', function (): void {
 });
 
 it('renames no own filter to the name of another one', function (): void {
-	$this->db()->respond('FROM ' . FilterService::TABLE, fn(string $sql): array => str_contains($sql, GLOBAL_FILTERS) ? [] : [
+	$this->db()->respond(sqlFrom(FilterService::TABLE), fn(string $sql): array => str_contains($sql, GLOBAL_FILTERS) ? [] : [
 		['id' => 5, 'kind' => 'sections', 'handle' => null, 'userId' => 1, 'name' => 'Channels', 'description' => null, 'icon' => null, 'params' => Json::encode(['type' => 'channel']), 'matchCondition' => null, 'enabled' => 1, 'sortOrder' => 0, 'uid' => 'channels'],
 		['id' => 6, 'kind' => 'sections', 'handle' => null, 'userId' => 1, 'name' => 'Singles', 'description' => null, 'icon' => null, 'params' => Json::encode(['type' => 'single']), 'matchCondition' => null, 'enabled' => 1, 'sortOrder' => 1, 'uid' => 'singles'],
 	]);
@@ -261,7 +264,7 @@ it('renames no own filter to the name of another one', function (): void {
 
 	expect($response->getStatusCode())->toBe(400)
 		->and($response->data['message'])->toBe('You already have a filter named “Singles”.')
-		->and($this->db()->queriesMatching('UPDATE {{%hub_filters}}'))->toBe([]);
+		->and($this->db()->queriesMatching(sqlUpdate(FilterService::TABLE)))->toBe([]);
 });
 
 it('renames no own filter to a blank name', function (): void {

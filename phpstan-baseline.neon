@@ -2974,7 +2974,7 @@ parameters:
 			path: src/services/FileService.php
 
 		-
-			rawMessage: 'Class cognitive complexity is 82, keep it under 40'
+			rawMessage: 'Class cognitive complexity is 81, keep it under 40'
 			identifier: complexity.classLike
 			count: 1
 			path: src/services/FileService.php
