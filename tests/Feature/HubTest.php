@@ -352,3 +352,19 @@ it('gives the predefined filters and default checks their rows once installed', 
 	expect($this->db()->queriesMatching('INSERT INTO {{%hub_filters}}'))->toHaveCount($filters)
 		->and($this->db()->queriesMatching('INSERT INTO {{%hub_checks}}'))->toHaveCount($checks);
 });
+
+it('shares each service between its component and whoever the container creates it for', function (): void {
+	$hub = $this->hub();
+	$shared = 0;
+
+	foreach (array_keys($hub->getComponents()) as $id) {
+		$component = $hub->get((string) $id);
+
+		if (Craft::$container->hasSingleton($component::class)) {
+			expect(Craft::createObject($component::class))->toBe($component, "{$id} is not shared.");
+			++$shared;
+		}
+	}
+
+	expect($shared)->toBeGreaterThan(20);
+});

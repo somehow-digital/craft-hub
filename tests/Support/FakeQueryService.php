@@ -9,7 +9,6 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\elements\db\ElementQuery;
-use ReflectionClass;
 use SomehowDigital\Craft\Hub\base\ElementQueryRunnerInterface;
 use SomehowDigital\Craft\Hub\services\QueryService;
 use SomehowDigital\Craft\Hub\services\SiteScopeService;
@@ -38,8 +37,7 @@ final readonly class FakeQueryService implements ElementQueryRunnerInterface
 	 */
 	public static function make(?Closure $rows = null, bool $answers = true): QueryService
 	{
-		// Reflection, as the container builds the service with this very method.
-		return (new ReflectionClass(QueryService::class))->newInstance(Craft::createObject(SiteScopeService::class), Craft::$app->getDb(), Craft::$app->getSites(), new self($rows, $answers));
+		return new QueryService(Craft::createObject(SiteScopeService::class), Craft::$app->getDb(), Craft::$app->getSites(), new self($rows, $answers));
 	}
 
 	public function total(ElementQuery $query): ?int

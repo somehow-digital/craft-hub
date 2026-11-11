@@ -210,13 +210,13 @@ deptrac:
     Services: [Conditions, Jobs, Elements, Contracts, Models, Schema, Helpers, Enums, Database, WebContext, CraftServices]
     # Bulk actions are use cases above the services they apply, which know nothing of them. Actions sending a file respond
     # with the response of the request. Statistics, the summary cards of the lists, are use cases above the services too. Conditions are handed what they need by the services running them.
-    Bulk: [Services, Elements, Contracts, Models, Helpers, Enums, Database, WebContext, CraftServices]
+    Bulk: [Services, Elements, Contracts, Models, Helpers, Enums, WebContext, CraftServices]
     # The condition builder of Craft creates the rules, handing them the services that tell their options through the container.
-    Conditions: [Services, Contracts, Models, Helpers, Enums, Database, CraftServices]
+    Conditions: [Services, Contracts, Models, Helpers, Enums, CraftServices]
     Statistics: [Services, Models, Helpers, Enums, CraftServices]
 
     # The infrastructure doesn't know the services.
-    Elements: [Schema, Models, Helpers, Enums, Database, CraftServices]
+    Elements: [Schema, Models, Helpers, Enums, CraftServices]
     # Migrations depend on nothing that changes later.
     Migrations: [Schema, Enums, Database]
     # Asset bundles register their files with the view.

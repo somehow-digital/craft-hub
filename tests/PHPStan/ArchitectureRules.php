@@ -245,10 +245,25 @@ final class ArchitectureRules
 	public function componentsAreNotConstructed(): Rule
 	{
 		return PHPat::rule()
-			->classes(Selector::AllOf(Selector::all(), Selector::Not($this->root())))
+			->classes(Selector::AllOf(Selector::all(), Selector::Not($this->root()), Selector::Not(Selector::inNamespace(self::TESTS))))
 			->shouldNot()->construct()
 			->classes(...array_map($this->layer(...), self::COMPONENTS))
-			->because('The plugin wires the components, which are shared and configurable, rather than whoever uses them constructing their own.');
+			->because('The plugin wires the components, which are shared and configurable, rather than whoever uses them constructing their own; tests build them over fakes.');
+	}
+
+	#[TestRule]
+	public function replaceableComponentsAreUsedByTheirBase(): Rule
+	{
+		return PHPat::rule()
+			->classes($this->plugin())
+			->shouldNot()->dependOn()
+			->classes(
+				Selector::classname('craft\\web\\Session'),
+				Selector::classname('craft\\queue\\Queue'),
+				Selector::inNamespace('craft\\cache'),
+				Selector::inNamespace('craft\\mutex'),
+			)
+			->because('Projects replace the session, queue, cache and mutex of Craft with others, like Redis ones, which are not instances of its classes but of their base, like yii\\web\\Session.');
 	}
 
 	private function plugin(): SelectorInterface

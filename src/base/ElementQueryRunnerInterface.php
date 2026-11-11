@@ -39,7 +39,8 @@ interface ElementQueryRunnerInterface
 	public function page(ElementQuery $query, int $offset, int $limit): ?array;
 
 	/**
-	 * The rows of a query that the counts are built on, a database query; null where they're those of the query itself.
+	 * The rows of a query that the counts are built on, a database query (`craft\db\Query`, named by its interface as
+	 * contracts know nothing of the database); null where they're those of the query itself.
 	 *
 	 * @param ElementQuery<array-key,covariant ElementInterface> $query
 	 */
