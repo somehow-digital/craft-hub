@@ -6,15 +6,32 @@ namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
 use craft\elements\Asset;
+use craft\services\Elements;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\helpers\Paginator;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\enums\Permission;
+use SomehowDigital\Craft\Hub\helpers\Row;
+use SomehowDigital\Craft\Hub\models\Paginator;
+use SomehowDigital\Craft\Hub\services\AccessService;
+use SomehowDigital\Craft\Hub\services\BulkService;
+use SomehowDigital\Craft\Hub\services\FileService;
 
 /**
  * Deletes the generated transforms of files, which Craft generates again when they're next requested, listing them by file.
+ *
+ * @internal
  */
-class DeleteTransforms extends BulkAction
+final class DeleteTransforms extends BaseBulkAction
 {
+	public function __construct(
+		string $list,
+		AccessService $access,
+		private readonly BulkService $bulk,
+		private readonly FileService $files,
+		private readonly Elements $craftElements,
+	) {
+		parent::__construct($list, $access);
+	}
+
 	public function definition(): array
 	{
 		return [
@@ -31,21 +48,24 @@ class DeleteTransforms extends BulkAction
 
 	public function isAvailable(): bool
 	{
-		return $this->hub()->access->canAct(Page::Assets, Hub::PERMISSION_DELETE_TRANSFORMS);
+		return $this->access->canAct(Page::Assets, Permission::DeleteTransforms->value);
 	}
 
+	/**
+	 * @return list<int>
+	 */
 	public function apply(array $ids, array $params): array
 	{
-		$files = $this->hub()->files;
-		$service = Craft::$app->getElements();
-		$assets = $this->hub()->bulk->getElementsOf($this->list, $ids, Asset::class);
+		$files = $this->files;
+		$service = $this->craftElements;
+		$assets = $this->bulk->getElementsOf($this->list, $ids, Asset::class);
 		$transforms = $files->getTransformsOf($assets);
 
 		return $this->succeeded($assets, fn(Asset $asset): bool => $service->canSave($asset)
-			&& $files->deleteTransforms($asset, array_column($transforms[$asset->id] ?? [], 'id')) > 0);
+			&& $files->deleteTransforms($asset, array_map(fn(array $transform): int => Row::int($transform, 'id'), $transforms[(int) $asset->id] ?? [])) > 0);
 	}
 
-	public function preview(array $ids, int $page): ?BulkPreview
+	public function preview(array $ids, int $page): BulkPreview
 	{
 		return $this->previewOf($ids, $page);
 	}
@@ -59,7 +79,7 @@ class DeleteTransforms extends BulkAction
 	 */
 	public function previewOf(array $ids, int $page, ?array $transformIds = null): BulkPreview
 	{
-		[$assets, $transforms] = $this->hub()->files->getDeletableTransforms($ids, $transformIds);
+		[$assets, $transforms] = $this->files->getDeletableTransforms($ids, $transformIds);
 		[$pageInfo, $shown] = (new Paginator($page))->items($assets);
 
 		return new BulkPreview('transforms-preview', count($assets), [

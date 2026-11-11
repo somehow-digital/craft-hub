@@ -8,6 +8,8 @@ use Craft;
 
 /**
  * How urgent a failed check is.
+ *
+ * @internal
  */
 enum Severity: string
 {
@@ -16,7 +18,7 @@ enum Severity: string
 	case Notice = 'notice';
 
 	/**
-	 * @return self[] the most urgent first
+	 * @return list<self> the most urgent first
 	 */
 	public static function sorted(): array
 	{

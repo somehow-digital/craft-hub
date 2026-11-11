@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use craft\elements\Asset;
+use craft\elements\db\ElementQuery;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\fields\Matrix;
@@ -16,31 +17,30 @@ use craft\services\Entries;
 use craft\services\Fields;
 use craft\services\UserGroups;
 use craft\services\Volumes;
+use Mockery\MockInterface;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\services\ActivityService;
+use SomehowDigital\Craft\Hub\enums\Permission;
 use SomehowDigital\Craft\Hub\services\ColumnService;
-use SomehowDigital\Craft\Hub\services\MaintainerService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 
 beforeEach(function (): void {
-	$this->hub()->getSettings()->enableMaintainers = true;
-	$this->maintainers = new MaintainerService();
+	$this->hub()->settings->enableMaintainers = true;
 
 	$this->jane = new User(['id' => 3, 'username' => 'jane']);
 	$this->john = new User(['id' => 4, 'username' => 'john']);
 	$this->editors = new UserGroup(['id' => 7, 'name' => 'Editors']);
 
-	ElementQueries::respond(User::class, fn($query): array => array_filter([$this->jane, $this->john], fn(User $user): bool => in_array($user->id, (array) $query->id, true)));
+	ElementQueries::respond(User::class, fn(ElementQuery $query): array => array_filter([$this->jane, $this->john], fn(User $user): bool => in_array($user->id, listOf($query->id), true)));
 
 	$groups = $this->mockComponent('userGroups', UserGroups::class);
 	$groups->shouldReceive('getGroupById')->andReturnUsing(fn(int $id): ?UserGroup => $id === 7 ? $this->editors : null);
 });
 
 afterEach(function (): void {
-	$this->hub()->getSettings()->enableMaintainers = false;
+	$this->hub()->settings->enableMaintainers = false;
 });
 
 /**
@@ -50,7 +50,7 @@ afterEach(function (): void {
  */
 function maintained(array $rows): void
 {
-	test()->db()->respond(sqlFrom(MaintainerService::TABLE), array_map(fn(array $row): array => [
+	currentTest()->db()->respond(sqlFrom(Tables::MAINTAINERS), array_map(fn(array $row): array => [
 		'list' => $row[0],
 		'itemId' => $row[1],
 		'userId' => $row[2],
@@ -68,7 +68,7 @@ it('reads the maintainers of an item in the order they were set, leaving out tho
 		[ColumnService::LIST_VOLUMES, 1, 3, null],
 	]);
 
-	expect($this->maintainers->getMaintainers(ColumnService::LIST_SECTIONS, 1))->toBe([
+	expect($this->hub()->maintainers->getMaintainers(ColumnService::LIST_SECTIONS, 1))->toBe([
 		'users' => [$this->john, $this->jane],
 		'groups' => [$this->editors],
 	]);
@@ -77,14 +77,15 @@ it('reads the maintainers of an item in the order they were set, leaving out tho
 it('has no maintainers for items without any, and reads them once', function (): void {
 	maintained([[ColumnService::LIST_SECTIONS, 1, null, 7]]);
 
-	expect($this->maintainers->getMaintainers(ColumnService::LIST_FIELDS, 1))->toBe(['users' => [], 'groups' => []])
-		->and($this->maintainers->getMaintainers(ColumnService::LIST_SECTIONS, 2))->toBe(['users' => [], 'groups' => []])
-		->and($this->db()->queriesMatching(sqlFrom(MaintainerService::TABLE)))->toHaveCount(1);
+	expect($this->hub()->maintainers->getMaintainers(ColumnService::LIST_FIELDS, 1))->toBe(['users' => [], 'groups' => []])
+		->and($this->hub()->maintainers->getMaintainers(ColumnService::LIST_SECTIONS, 2))->toBe(['users' => [], 'groups' => []])
+		->and($this->db()->queriesMatching(sqlFrom(Tables::MAINTAINERS)))->toHaveCount(1);
 });
 
 it('finds what an entry in a section is stored in', function (): void {
 	$section = new Section(['id' => 1, 'name' => 'News']);
 	$type = new EntryType(['id' => 2, 'name' => 'Article']);
+	/** @var Entry&MockInterface $entry */
 	$entry = Mockery::mock(Entry::class)->makePartial();
 	$entry->shouldReceive('getSection')->andReturn($section);
 	$entry->shouldReceive('getType')->andReturn($type);
@@ -93,7 +94,7 @@ it('finds what an entry in a section is stored in', function (): void {
 		[ColumnService::LIST_ENTRY_TYPES, 2, null, 7],
 	]);
 
-	$sources = $this->maintainers->getSources($entry);
+	$sources = $this->hub()->maintainers->getSources($entry);
 
 	expect($sources)->toHaveCount(2)
 		->and($sources[0]->item)->toBe($section)
@@ -108,10 +109,12 @@ it('finds what a nested entry is stored in, up to the section of its owner, each
 	$type = new EntryType(['id' => 2, 'name' => 'Block']);
 	$field = new Matrix(['id' => 5, 'name' => 'Blocks']);
 
+	/** @var Entry&MockInterface $owner */
 	$owner = Mockery::mock(Entry::class)->makePartial();
 	$owner->shouldReceive('getSection')->andReturn($section);
 	$owner->shouldReceive('getType')->andReturn($type);
 
+	/** @var Entry&MockInterface $nested */
 	$nested = Mockery::mock(Entry::class)->makePartial();
 	$nested->shouldReceive('getSection')->andReturnNull();
 	$nested->shouldReceive('getField')->andReturn($field);
@@ -124,8 +127,8 @@ it('finds what a nested entry is stored in, up to the section of its owner, each
 		[ColumnService::LIST_FIELDS, 5, 4, null],
 	]);
 
-	expect(array_map(fn($source) => $source->item, $this->maintainers->getSources($nested)))->toBe([$field, $type, $section])
-		->and($this->maintainers->getMaintainersOf($nested))->toBe(['users' => [$this->john, $this->jane], 'groups' => []]);
+	expect(array_map(fn(mixed $source): mixed => at($source, 'item'), $this->hub()->maintainers->getSources($nested)))->toBe([$field, $type, $section])
+		->and($this->hub()->maintainers->getMaintainersOf($nested))->toBe(['users' => [$this->john, $this->jane], 'groups' => []]);
 });
 
 it('finds the volume of an asset, and the fields of its layout on request', function (): void {
@@ -134,6 +137,7 @@ it('finds the volume of an asset, and the fields of its layout on request', func
 	$layout = Mockery::mock(FieldLayout::class);
 	$layout->shouldReceive('getCustomFields')->andReturn([$field]);
 
+	/** @var Asset&MockInterface $asset */
 	$asset = Mockery::mock(Asset::class)->makePartial();
 	$asset->shouldReceive('getVolume')->andReturn($volume);
 	$asset->shouldReceive('getFieldLayout')->andReturn($layout);
@@ -143,22 +147,22 @@ it('finds the volume of an asset, and the fields of its layout on request', func
 		[ColumnService::LIST_FIELDS, 5, null, 7],
 	]);
 
-	expect(array_map(fn($source) => $source->item, $this->maintainers->getSources($asset)))->toBe([$volume])
-		->and(array_map(fn($source) => $source->item, $this->maintainers->getSources($asset, true)))->toBe([$volume, $field]);
+	expect(array_map(fn(mixed $source): mixed => at($source, 'item'), $this->hub()->maintainers->getSources($asset)))->toBe([$volume])
+		->and(array_map(fn(mixed $source): mixed => at($source, 'item'), $this->hub()->maintainers->getSources($asset, true)))->toBe([$volume, $field]);
 });
 
 it('finds no maintainers of other elements, nor of anything while disabled', function (): void {
 	$entry = new Entry(['id' => 5]);
 
-	$this->hub()->getSettings()->enableMaintainers = false;
+	$this->hub()->settings->enableMaintainers = false;
 
-	expect($this->maintainers->getSources($entry))->toBe([])
-		->and($this->maintainers->getMaintainersOf($entry))->toBe(['users' => [], 'groups' => []])
-		->and($this->db()->queriesMatching(MaintainerService::TABLE))->toBe([]);
+	expect($this->hub()->maintainers->getSources($entry))->toBe([])
+		->and($this->hub()->maintainers->getMaintainersOf($entry))->toBe(['users' => [], 'groups' => []])
+		->and($this->db()->queriesMatching(Tables::MAINTAINERS))->toBe([]);
 
-	$this->hub()->getSettings()->enableMaintainers = true;
+	$this->hub()->settings->enableMaintainers = true;
 
-	expect($this->maintainers->getSources(new User(['id' => 3])))->toBe([]);
+	expect($this->hub()->maintainers->getSources(new User(['id' => 3])))->toBe([]);
 });
 
 it('replaces the maintainers of an item, leaving out unknown ones, and records the changes', function (): void {
@@ -167,10 +171,10 @@ it('replaces the maintainers of an item, leaving out unknown ones, and records t
 	$entries->shouldReceive('getSectionById')->with(1)->andReturn($section);
 
 	$rows = [[ColumnService::LIST_SECTIONS, 1, 3, null]];
-	$this->db()->respond(sqlFrom(MaintainerService::TABLE), function () use (&$rows): array {
+	$this->db()->respond(sqlFrom(Tables::MAINTAINERS), function () use (&$rows): array {
 		return array_map(fn(array $row): array => ['list' => $row[0], 'itemId' => $row[1], 'userId' => $row[2], 'groupId' => $row[3]], $rows);
 	});
-	$this->db()->respond(sqlDeleteFrom(MaintainerService::TABLE), function () use (&$rows): int {
+	$this->db()->respond(sqlDeleteFrom(Tables::MAINTAINERS), function () use (&$rows): int {
 		$rows = [
 			[ColumnService::LIST_SECTIONS, 1, 4, null],
 			[ColumnService::LIST_SECTIONS, 1, null, 7],
@@ -179,30 +183,27 @@ it('replaces the maintainers of an item, leaving out unknown ones, and records t
 		return 1;
 	});
 
-	$recorded = [];
-	$this->mockComponent('hub.activity', ActivityService::class)
-		->shouldReceive('record')->andReturnUsing(function (...$args) use (&$recorded): void {
-			$recorded[] = $args;
-		});
+	$this->db()->tables = [Tables::ACTIVITY];
 
-	$this->maintainers->setMaintainers(ColumnService::LIST_SECTIONS, 1, [4, 9, 4], [7, 8]);
+	$this->hub()->maintainers->setMaintainers(ColumnService::LIST_SECTIONS, 1, [4, 9, 4], [7, 8]);
 
-	$insert = $this->db()->queriesMatching(sqlInsertInto(MaintainerService::TABLE))[0];
+	$insert = $this->db()->queriesMatching(sqlInsertInto(Tables::MAINTAINERS))[0];
 
 	expect($insert)->toContain("('sections', 1, 4, NULL)")
 		->and($insert)->toContain("('sections', 1, NULL, 7)")
 		->and($insert)->not->toContain('9')
 		->and($insert)->not->toContain(' 8')
-		->and($recorded)->toBe([[ActivityAction::MaintainersChanged, ActivitySubject::Section, 1, 'News', ['added' => ['john', 'Editors'], 'removed' => ['jane']]]]);
+		->and(array_map(fn(array $row): array => array_slice($row, 0, 5), activities()))->toBe([[ActivityAction::MaintainersChanged, ActivitySubject::Section, 1, 'News', ['added' => ['john', 'Editors'], 'removed' => ['jane']]]]);
 });
 
 it('removes all maintainers of an item, recording nothing if it had none', function (): void {
-	$this->mockComponent('hub.activity', ActivityService::class)->shouldNotReceive('record');
+	$this->db()->tables = [Tables::ACTIVITY];
 
-	$this->maintainers->setMaintainers(ColumnService::LIST_SECTIONS, 1, [], []);
+	$this->hub()->maintainers->setMaintainers(ColumnService::LIST_SECTIONS, 1, [], []);
 
-	expect($this->db()->queriesMatching(sqlDeleteFrom(MaintainerService::TABLE)))->toHaveCount(1)
-		->and($this->db()->queriesMatching(sqlInsertInto(MaintainerService::TABLE)))->toBe([]);
+	expect($this->db()->queriesMatching(sqlDeleteFrom(Tables::MAINTAINERS)))->toHaveCount(1)
+		->and($this->db()->queriesMatching(sqlInsertInto(Tables::MAINTAINERS)))->toBe([])
+		->and(activities())->toBe([]);
 });
 
 it('finds the items of the lists', function (): void {
@@ -217,35 +218,35 @@ it('finds the items of the lists', function (): void {
 	$this->mockComponent('fields', Fields::class)->shouldReceive('getFieldById')->with(3)->andReturn($field);
 	$this->mockComponent('volumes', Volumes::class)->shouldReceive('getVolumeById')->with(4)->andReturn($volume);
 
-	expect($this->maintainers->getItem(ColumnService::LIST_SECTIONS, 1))->toBe($section)
-		->and($this->maintainers->getItem(ColumnService::LIST_ENTRY_TYPES, 2))->toBe($type)
-		->and($this->maintainers->getItem(ColumnService::LIST_FIELDS, 3))->toBe($field)
-		->and($this->maintainers->getItem(ColumnService::LIST_VOLUMES, 4))->toBe($volume)
-		->and($this->maintainers->getItem(ColumnService::LIST_ENTRIES, 5))->toBeNull();
+	expect($this->hub()->maintainers->getItem(ColumnService::LIST_SECTIONS, 1))->toBe($section)
+		->and($this->hub()->maintainers->getItem(ColumnService::LIST_ENTRY_TYPES, 2))->toBe($type)
+		->and($this->hub()->maintainers->getItem(ColumnService::LIST_FIELDS, 3))->toBe($field)
+		->and($this->hub()->maintainers->getItem(ColumnService::LIST_VOLUMES, 4))->toBe($volume)
+		->and($this->hub()->maintainers->getItem(ColumnService::LIST_ENTRIES, 5))->toBeNull();
 });
 
 it('lets users manage the maintainers of the lists whose pages they may view, while enabled', function (): void {
-	$permissions = [Hub::PERMISSION_ACCESS_STRUCTURE, Page::Sections->viewPermission(), Hub::PERMISSION_MANAGE_MAINTAINERS];
-	$this->actingAs(permissions: $permissions);
+	$permissions = [Permission::AccessStructure->value, Page::Sections->viewPermission(), Permission::ManageMaintainers->value];
+	$this->actingAs(permissions: strings($permissions));
 
-	expect($this->maintainers->canManage(ColumnService::LIST_SECTIONS))->toBeTrue()
-		->and($this->maintainers->canManage(ColumnService::LIST_VOLUMES))->toBeFalse()
-		->and($this->maintainers->canManage(ColumnService::LIST_ENTRIES))->toBeFalse();
+	expect($this->hub()->maintainers->canManage(ColumnService::LIST_SECTIONS))->toBeTrue()
+		->and($this->hub()->maintainers->canManage(ColumnService::LIST_VOLUMES))->toBeFalse()
+		->and($this->hub()->maintainers->canManage(ColumnService::LIST_ENTRIES))->toBeFalse();
 
-	$this->actingAs(permissions: [Hub::PERMISSION_ACCESS_STRUCTURE, Page::Sections->viewPermission()]);
+	$this->actingAs(permissions: [Permission::AccessStructure->value, Page::Sections->viewPermission()]);
 
-	expect($this->maintainers->canManage(ColumnService::LIST_SECTIONS))->toBeFalse();
+	expect($this->hub()->maintainers->canManage(ColumnService::LIST_SECTIONS))->toBeFalse();
 
-	$this->actingAs(permissions: $permissions);
-	$this->hub()->getSettings()->enableMaintainers = false;
+	$this->actingAs(permissions: strings($permissions));
+	$this->hub()->settings->enableMaintainers = false;
 
-	expect($this->maintainers->canManage(ColumnService::LIST_SECTIONS))->toBeFalse();
+	expect($this->hub()->maintainers->canManage(ColumnService::LIST_SECTIONS))->toBeFalse();
 });
 
 it('removes the maintainers of items no longer there, per list', function (): void {
-	$this->maintainers->deleteOrphans();
+	$this->hub()->maintainers->deleteOrphans();
 
-	$deleted = $this->db()->queriesMatching(sqlDeleteFrom(MaintainerService::TABLE));
+	$deleted = $this->db()->queriesMatching(sqlDeleteFrom(Tables::MAINTAINERS));
 
 	expect($deleted)->toHaveCount(4)
 		->and($deleted[0])->toContain("'sections'")
@@ -256,7 +257,7 @@ it('tells what a user maintains, themselves or through their groups', function (
 	$group = new UserGroup(['id' => 7, 'name' => 'Editors']);
 	$section = new Section(['id' => 1, 'name' => 'News']);
 	$field = new PlainText(['id' => 2, 'name' => 'Body']);
-	$this->db()->respond(sqlFrom(MaintainerService::TABLE), [
+	$this->db()->respond(sqlFrom(Tables::MAINTAINERS), [
 		['list' => ColumnService::LIST_SECTIONS, 'itemId' => 1, 'userId' => 3, 'groupId' => null],
 		['list' => ColumnService::LIST_FIELDS, 'itemId' => 2, 'userId' => null, 'groupId' => 7],
 		['list' => ColumnService::LIST_FIELDS, 'itemId' => 9, 'userId' => 3, 'groupId' => null],
@@ -267,11 +268,12 @@ it('tells what a user maintains, themselves or through their groups', function (
 	$fields->shouldReceive('getFieldById')->with(2)->andReturn($field);
 	$fields->shouldReceive('getFieldById')->with(9)->andReturnNull();
 	$this->mockComponent('userGroups', UserGroups::class)->shouldReceive('getGroupById')->with(7)->andReturn($group);
+	/** @var User&MockInterface $user */
 	$user = Mockery::mock(User::class)->makePartial();
 	$user->id = 3;
 	$user->shouldReceive('getGroups')->andReturn([$group]);
 
-	$maintained = $this->maintainers->getMaintainedBy($user);
+	$maintained = $this->hub()->maintainers->getMaintainedBy($user);
 
 	expect($maintained)->toHaveCount(2)
 		->and($maintained[0]->item)->toBe($section)
@@ -285,7 +287,7 @@ it('tells what a user maintains, themselves or through their groups', function (
 it('tells what a user group maintains', function (): void {
 	$group = new UserGroup(['id' => 7, 'name' => 'Editors']);
 	$field = new PlainText(['id' => 2, 'name' => 'Body']);
-	$this->db()->respond(sqlFrom(MaintainerService::TABLE), [
+	$this->db()->respond(sqlFrom(Tables::MAINTAINERS), [
 		['list' => ColumnService::LIST_SECTIONS, 'itemId' => 1, 'userId' => 3, 'groupId' => null],
 		['list' => ColumnService::LIST_FIELDS, 'itemId' => 2, 'userId' => null, 'groupId' => 7],
 		['list' => ColumnService::LIST_FIELDS, 'itemId' => 9, 'userId' => null, 'groupId' => 7],
@@ -295,7 +297,7 @@ it('tells what a user group maintains', function (): void {
 	$fields->shouldReceive('getFieldById')->with(2)->andReturn($field);
 	$fields->shouldReceive('getFieldById')->with(9)->andReturnNull();
 
-	$maintained = $this->maintainers->getMaintainedByGroup($group);
+	$maintained = $this->hub()->maintainers->getMaintainedByGroup($group);
 
 	expect($maintained)->toHaveCount(1)
 		->and($maintained[0]->item)->toBe($field)
@@ -304,16 +306,17 @@ it('tells what a user group maintains', function (): void {
 });
 
 it('tells of nothing maintained while maintainers are disabled', function (): void {
-	$this->hub()->getSettings()->enableMaintainers = false;
+	$this->hub()->settings->enableMaintainers = false;
 
-	expect($this->maintainers->getMaintainedBy(new User(['id' => 3])))->toBe([])
-		->and($this->maintainers->getMaintainedByGroup(new UserGroup(['id' => 3])))->toBe([]);
+	expect($this->hub()->maintainers->getMaintainedBy(new User(['id' => 3])))->toBe([])
+		->and($this->hub()->maintainers->getMaintainedByGroup(new UserGroup(['id' => 3])))->toBe([]);
 });
 
 it('does not look up what elements are stored in while nothing is maintained', function (): void {
 	maintained([]);
+	/** @var Entry&MockInterface $entry */
 	$entry = Mockery::mock(Entry::class)->makePartial();
 	$entry->shouldNotReceive('getSection');
 
-	expect($this->maintainers->getSources($entry))->toBe([]);
+	expect($this->hub()->maintainers->getSources($entry))->toBe([]);
 });

@@ -8,8 +8,10 @@ use Closure;
 use Craft;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Severity;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\Check;
+use SomehowDigital\Craft\Hub\models\FilterParams;
 use SomehowDigital\Craft\Hub\services\WorkService;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
@@ -18,8 +20,10 @@ use yii\web\Response;
 
 /**
  * The tabs of the "My Work" page, below the "Hub" navigation item, snoozing what they list.
+ *
+ * @internal
  */
-class WorkController extends BaseController
+final class WorkController extends BaseController
 {
 	public function beforeAction($action): bool
 	{
@@ -93,7 +97,7 @@ class WorkController extends BaseController
 	 * Tabs of the page, by their ID: the overview, the diagnostics and the user's items as a whole. Those the user may not
 	 * view or that can't hold anything are left out.
 	 *
-	 * @param array<string,array{label:string,url:string,count:int|null}> $sections see WorkService::getSections()
+	 * @param array<string,array{label:string,description:string,icon:string,color:string,url:string,count:int|null}> $sections see WorkService::getSections()
 	 * @return array<string,array{label:string,url:string}>
 	 */
 	private function tabs(array $sections): array
@@ -104,7 +108,7 @@ class WorkController extends BaseController
 		if (isset($sections[WorkService::SECTION_DIAGNOSTICS])) {
 			['label' => $label, 'count' => $count] = $sections[WorkService::SECTION_DIAGNOSTICS];
 			$tabs[WorkService::SECTION_DIAGNOSTICS] = [
-				'label' => $count ? Craft::t('hub', '{label} ({count, number})', ['label' => $label, 'count' => $count]) : $label,
+				'label' => $count !== null && $count > 0 ? Craft::t('hub', '{label} ({count, number})', ['label' => $label, 'count' => $count]) : $label,
 				'url' => $this->hubUrl(WorkService::PATH . '/' . WorkService::SECTION_DIAGNOSTICS),
 			];
 		}
@@ -154,8 +158,8 @@ class WorkController extends BaseController
 	private function diagnosticsPanels(): array
 	{
 		$work = Hub::getInstance()->work;
-		$key = Craft::$app->getRequest()->getQueryParam(self::PANEL_PARAM);
-		$check = fn() => $work->getDiagnostics(WorkService::CHECK_ITEM_LIMIT, (string) $key)[0] ?? throw new NotFoundHttpException('Check not found.');
+		$key = $this->request->getQueryParam(FilterParams::PANEL_PARAM);
+		$check = fn() => $work->getDiagnostics(WorkService::CHECK_ITEM_LIMIT, Fill::text($key) ?? '')[0] ?? throw new NotFoundHttpException('Check not found.');
 
 		return [
 			'hub-snoozed' => fn(): array => ['hub/_panels/work/snoozed', ['snoozed' => $work->getSnoozed()]],
@@ -170,41 +174,39 @@ class WorkController extends BaseController
 	 * @throws NotFoundHttpException for checks and elements that don't exist
 	 * @throws ForbiddenHttpException for elements the user may not view
 	 */
-	public function actionSnooze(): Response
+	public function actionSnooze(): ?Response
 	{
 		$this->requirePostRequest();
 
-		$request = Craft::$app->getRequest();
-		$days = (int) $request->getRequiredBodyParam('days');
+		$days = $this->requiredBodyInt('days');
 
 		if (!in_array($days, WorkService::SNOOZE_DAYS, true)) {
 			throw new BadRequestHttpException('Invalid number of days.');
 		}
 
 		$hub = Hub::getInstance();
-		$check = $hub->diagnostics->getDefinition((string) $request->getRequiredBodyParam('check'));
+		$check = $hub->diagnostics->getDefinition($this->requiredBodyString('check'));
 		$elementType = $check?->kind->elementType();
-		$element = $elementType !== null ? Craft::$app->getElements()->getElementById((int) $request->getRequiredBodyParam('element'), $elementType, '*') : null;
+		$element = $elementType !== null ? Craft::$app->getElements()->getElementById($this->requiredBodyInt('element'), $elementType, '*') : null;
 
 		if ($check === null || $element === null) {
 			throw new NotFoundHttpException('Item not found.');
 		}
 
 		$this->requireViewable($element);
-		$hub->work->snooze($check, (int) $element->id, $days ?: null);
+		$hub->work->snooze($check, (int) $element->id, Fill::number($days));
 
-		return $this->asSuccess($days ? Craft::t('hub', 'Snoozed for {days, plural, =1{one day} other{# days}}.', ['days' => $days]) : Craft::t('hub', 'Dismissed.'));
+		return $this->asSuccess($days > 0 ? Craft::t('hub', 'Snoozed for {days, plural, =1{one day} other{# days}}.', ['days' => $days]) : Craft::t('hub', 'Dismissed.'));
 	}
 
 	/**
 	 * Lets an element be flagged by a check for the user again.
 	 */
-	public function actionWake(): Response
+	public function actionWake(): ?Response
 	{
 		$this->requirePostRequest();
 
-		$request = Craft::$app->getRequest();
-		Hub::getInstance()->work->wake((string) $request->getRequiredBodyParam('check'), (int) $request->getRequiredBodyParam('element'));
+		Hub::getInstance()->work->wake($this->requiredBodyString('check'), $this->requiredBodyInt('element'));
 
 		return $this->asSuccess(Craft::t('hub', 'Back on your list.'));
 	}

@@ -8,6 +8,8 @@ use Craft;
 
 /**
  * What was done in an activity of the activity log.
+ *
+ * @internal
  */
 enum ActivityAction: string
 {

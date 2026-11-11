@@ -9,7 +9,7 @@
 	and to review the selection: the list then shows only the selected items, whatever the filters, and offers the actions
 	in a menu in their place, which apply to all of them.
 	Other lists, like the transforms of a file, select the rows of their page only, offering the actions in a menu.
-	Labeling (see BulkService::getActions()) opens a dialog with the labels of the selection (see the `bulkLabels` macro) to
+	Labeling (see BulkActions::getActions()) opens a dialog with the labels of the selection (see the `bulkLabels` macro) to
 	pick the labels to add and remove first. Deleting opens a dialog previewing what is deleted along with the items, changed or
 	kept, and the elements referencing them (see the `deletion-preview` component), to confirm it there; downloading opens
 	one listing the files downloaded and their size (see the `download-preview` component), exporting one picking the
@@ -29,8 +29,8 @@
 	browser's own menu.
 
 	Variables: list, the variables of the list (see BaseController::entryListVariables()), with bulkActions (see
-	BulkService::getActions(); those of lists not keeping their selection may load their preview from an action of their own,
-	see the `previewDialog` macro), bulkMultiple (see BulkService::canSelect()), bulkSelection, pageInfo (of a paginated list),
+	BulkActions::getActions(); those of lists not keeping their selection may load their preview from an action of their own,
+	see the `previewDialog` macro), bulkMultiple (see BulkActions::canSelect()), bulkSelection, pageInfo (of a paginated list),
 	labels, labelList and canManageLabels; bulkList, bulkNone (the label while none is selected), bulkAction and bulkParams,
 	for actions of other controllers than BulkController
 	Blocks: table, footer (e.g. the pagination, before the bulk bar)

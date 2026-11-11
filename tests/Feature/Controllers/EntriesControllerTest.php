@@ -7,17 +7,18 @@ use craft\elements\db\EntryQuery;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\services\Tokens;
+use craft\web\twig\variables\Paginate;
 use SomehowDigital\Craft\Hub\controllers\EntriesController;
 use SomehowDigital\Craft\Hub\controllers\SectionsController;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\enums\Permission;
+use SomehowDigital\Craft\Hub\models\EntryFilter;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
+use SomehowDigital\Craft\Hub\models\TrashedEntryFilter;
 use SomehowDigital\Craft\Hub\services\ColumnService;
-use SomehowDigital\Craft\Hub\services\EntryService;
-use SomehowDigital\Craft\Hub\services\ReferenceService;
-use SomehowDigital\Craft\Hub\services\ReviewService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
+use SomehowDigital\Craft\Hub\Tests\TestCase;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 
@@ -50,21 +51,21 @@ it('lists the entries', function (): void {
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/entries/index')
-		->and($variables['list']['entries'])->toBe($entries)
-		->and($variables['list']['pageInfo']->total)->toBe(2)
-		->and(array_keys($variables['list']['statuses']))->toBe(['live', 'pending', 'expired', 'disabled'])
-		->and($variables['list']['staleMonths'])->toBe(12)
-		->and(array_map(fn(SectionInfo $info): ?string => $info->section->handle, array_values($variables['list']['sections'])))->toBe(['archive', 'news', 'pages', 'settings'])
-		->and(array_map(fn(EntryTypeInfo $info): ?string => $info->entryType->handle, array_values($variables['list']['entryTypes'])))->toBe(['article', 'block', 'empty', 'page'])
-		->and(array_keys($variables['list']['nestedFields']))->toBe([2])
-		->and(array_column($variables['list']['columns'], 'key'))->toContain('origin', 'owner')
-		->and($variables['list']['listFixed'])->toBeNull()
-		->and($variables['list']['listPath'])->toBe('hub/data/entries')
-		->and($variables['list']['sort'])->toBeNull()
+		->and(at($variables, 'list', 'entries'))->toBe($entries)
+		->and(objectAt(Paginate::class, $variables, 'list', 'pageInfo')->total)->toBe(2)
+		->and(array_keys(arrayAt($variables, 'list', 'statuses')))->toBe(['live', 'pending', 'expired', 'disabled'])
+		->and(at($variables, 'list', 'staleMonths'))->toBe(12)
+		->and(array_map(fn(SectionInfo $info): ?string => $info->section->handle, objectsAt(SectionInfo::class, $variables, 'list', 'sections')))->toBe(['archive', 'news', 'pages', 'settings'])
+		->and(array_map(fn(EntryTypeInfo $info): ?string => $info->entryType->handle, objectsAt(EntryTypeInfo::class, $variables, 'list', 'entryTypes')))->toBe(['article', 'block', 'empty', 'page'])
+		->and(array_keys(arrayAt($variables, 'list', 'nestedFields')))->toBe([2])
+		->and(array_column(arrayAt($variables, 'list', 'columns'), 'key'))->toContain('origin', 'owner')
+		->and(at($variables, 'list', 'listFixed'))->toBeNull()
+		->and(at($variables, 'list', 'listPath'))->toBe('hub/data/entries')
+		->and(at($variables, 'list', 'sort'))->toBeNull()
 		// The options of the user filters are loaded as their dropdowns open.
-		->and($variables['list']['authorOptions'])->toBe([])
-		->and($variables['list']['editorOptions'])->toBe([])
-		->and($variables['list']['optionsUrls']['author'])->toContain('hub/options/index', 'filter=author')
+		->and(at($variables, 'list', 'authorOptions'))->toBe([])
+		->and(at($variables, 'list', 'editorOptions'))->toBe([])
+		->and(at($variables, 'list', 'optionsUrls', 'author'))->toContain('hub/options/index', 'filter=author')
 		->and($this->db()->queriesMatching('entries_authors'))->toBe([]);
 });
 
@@ -74,8 +75,8 @@ it('shows the users picked in its filters', function (): void {
 
 	$variables = $this->runAction(EntriesController::class, 'index', query: ['author' => 'me,4', 'editor' => 'me'])->variables;
 
-	expect(array_keys($variables['list']['authorOptions']))->toBe(['me', 4])
-		->and(array_keys($variables['list']['editorOptions']))->toBe(['me']);
+	expect(array_keys(arrayAt($variables, 'list', 'authorOptions')))->toBe(['me', 4])
+		->and(array_keys(arrayAt($variables, 'list', 'editorOptions')))->toBe(['me']);
 });
 
 it('reads the filters of the entries list', function (): void {
@@ -98,7 +99,7 @@ it('reads the filters of the entries list', function (): void {
 		'myDrafts' => '1',
 		'sort' => 'title',
 	])->variables;
-	$filter = $variables['list']['filter'];
+	$filter = objectAt(EntryFilter::class, $variables, 'list', 'filter');
 
 	expect($filter->search)->toBe('term')
 		->and($filter->sections)->toBe(['news'])
@@ -111,67 +112,62 @@ it('reads the filters of the entries list', function (): void {
 		->and($filter->editors)->toBe(['me', 5])
 		->and($filter->usage)->toBe('unreferenced')
 		->and($filter->referencesMin)->toBe(1)
-		->and($filter->postedFrom->format('Y-m-d'))->toBe('2024-01-01')
+		->and($filter->postedFrom?->format('Y-m-d'))->toBe('2024-01-01')
 		->and($filter->postedTo)->toBeNull()
-		->and($filter->updatedTo->format('Y-m-d'))->toBe('2024-02-01')
+		->and($filter->updatedTo?->format('Y-m-d'))->toBe('2024-02-01')
 		->and($filter->staleMonths)->toBe(12)
 		->and($filter->drafts)->toBeTrue()
 		->and($filter->myDrafts)->toBeTrue()
-		->and($variables['list']['sort'])->toBe('title')
-		->and($variables['list']['sortHeaders']['title']['url'])->toContain('section=news')
-		->and($variables['list']['sortHeaders']['title']['url'])->toContain('dir=desc');
+		->and(at($variables, 'list', 'sort'))->toBe('title')
+		->and(at($variables, 'list', 'sortHeaders', 'title', 'url'))->toContain('section=news')
+		->and(at($variables, 'list', 'sortHeaders', 'title', 'url'))->toContain('dir=desc');
 });
 
 it('ignores unknown usage values and origins', function (): void {
-	$filter = $this->runAction(EntriesController::class, 'index', query: ['usage' => 'any', 'origin' => 'any'])->variables['list']['filter'];
+	/** @var EntryFilter $filter */
+	$filter = at($this->runAction(EntriesController::class, 'index', query: ['usage' => 'any', 'origin' => 'any'])->variables, 'list', 'filter');
 
 	expect($filter->usage)->toBeNull()
 		->and($filter->origin)->toBeNull();
 });
 
 it('summarizes the entries', function (): void {
-	$review = Mockery::mock(ReviewService::class)->makePartial();
-	$review->shouldReceive('countStale')->with(12)->andReturn(3);
-	$this->hub()->set('review', $review);
-	$entryService = Mockery::mock(EntryService::class)->makePartial();
-	$entryService->shouldReceive('getAuthors')->andReturn([
-		3 => ['user' => new User(['id' => 3, 'username' => 'ann', 'fullName' => 'Ann']), 'count' => 4],
-		4 => ['user' => new User(['id' => 4, 'username' => 'ann2', 'fullName' => 'Ann']), 'count' => 1],
-	]);
-	$this->hub()->set('entries', $entryService);
+	$this->db()->respondToCounts(fn(): array => [['sectionId' => null, 'typeId' => null, 'total' => 3]]);
+	$this->db()->respond('FROM {{%entries_authors}}', [['authorId' => '3', 'count' => '4'], ['authorId' => '4', 'count' => '1']]);
+	ElementQueries::respond(User::class, [new User(['id' => 3, 'username' => 'ann', 'fullName' => 'Ann']), new User(['id' => 4, 'username' => 'ann2', 'fullName' => 'Ann'])]);
 
-	[$entries, $sections, $types, $authors, $activity] = loadCards($this->runAction(EntriesController::class, 'statistics')->variables['cards']);
-	$statuses = array_column($entries['segments'], null, 'label');
+	[$entries, $sections, $types, $authors, $activity] = loadCards(at($this->runAction(EntriesController::class, 'statistics')->variables, 'cards'));
+	$statuses = array_column(arrayAt($entries, 'segments'), null, 'label');
 
 	// Like the list, the summary counts nested entries too, and splits the enabled ones into Craft's statuses.
 	expect($entries['total'])->toBe(15)
-		->and(array_column($entries['segments'], 'value', 'label'))->toBe(['Live' => 12, 'Pending' => 1, 'Expired' => 1, 'Disabled' => 1, 'Drafts' => 1])
-		->and($statuses['Disabled']['url'])->toContain('status=disabled')
-		->and($statuses['Pending']['url'])->toContain('status=pending')
-		->and($statuses['Drafts']['url'])->toContain('drafts=1')
+		->and(array_column(arrayAt($entries, 'segments'), 'value', 'label'))->toBe(['Live' => 12, 'Pending' => 1, 'Expired' => 1, 'Disabled' => 1, 'Drafts' => 1])
+		->and(at($statuses, 'Disabled', 'url'))->toContain('status=disabled')
+		->and(at($statuses, 'Pending', 'url'))->toContain('status=pending')
+		->and(at($statuses, 'Drafts', 'url'))->toContain('drafts=1')
 		// Authors sharing a name are told apart by their username.
-		->and(array_column($authors['segments'], 'value', 'label'))->toBe(['Ann' => 4, 'Ann (ann2)' => 1])
-		->and($authors['segments'][1]['url'])->toContain('author=4')
-		->and($authors['table']['unit'])->toBe('Entries')
-		->and(array_column($sections['segments'], 'value', 'label'))->toBe(['News' => 5, 'Pages' => 2, 'Settings' => 1, 'Archive' => 0])
-		->and($sections['segments'][0]['url'])->toContain('section=news')
-		->and(array_column($types['segments'], 'value', 'label'))->toBe(['Block' => 7, 'Article' => 5, 'Page' => 3])
-		->and($types['segments'][2]['url'])->toContain('type=page')
-		->and(array_column($activity['segments'], 'value'))->toBe([12, 3])
-		->and($activity['segments'][1]['url'])->toContain('stale=1');
+		->and(array_column(arrayAt($authors, 'segments'), 'value', 'label'))->toBe(['Ann' => 4, 'Ann (ann2)' => 1])
+		->and(at($authors, 'segments', 1, 'url'))->toContain('author=4')
+		->and(at($authors, 'table', 'unit'))->toBe('Entries')
+		->and(array_column(arrayAt($sections, 'segments'), 'value', 'label'))->toBe(['News' => 5, 'Pages' => 2, 'Settings' => 1, 'Archive' => 0])
+		->and(at($sections, 'segments', 0, 'url'))->toContain('section=news')
+		->and(array_column(arrayAt($types, 'segments'), 'value', 'label'))->toBe(['Block' => 7, 'Article' => 5, 'Page' => 3])
+		->and(at($types, 'segments', 2, 'url'))->toContain('type=page')
+		->and(array_column(arrayAt($activity, 'segments'), 'value'))->toBe([12, 3])
+		->and(at($activity, 'segments', 1, 'url'))->toContain('stale=1');
 });
 
 it('paginates lists on detail pages by the page of the URL', function (): void {
 	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray ? [] : listedEntries(...range(1, 60)));
 	$this->request();
-	(fn(): int => $this->_pageNum = 2)->call(Craft::$app->getRequest());
+	setPageNumber(2);
 
 	$controller = Craft::createObject(SectionsController::class, ['test', $this->hub()]);
 	$variables = (fn() => $this->entryListVariables('hub/structure/sections/1/entries'))->call($controller);
 
-	expect($variables['list']['pageInfo']->currentPage)->toBe(2)
-		->and($variables['list']['pageInfo']->totalPages)->toBe(2)
-		->and($variables['list']['pageInfo']->total)->toBe(60);
+	expect(objectAt(Paginate::class, $variables, 'list', 'pageInfo')->currentPage)->toBe(2)
+		->and(objectAt(Paginate::class, $variables, 'list', 'pageInfo')->totalPages)->toBe(2)
+		->and(objectAt(Paginate::class, $variables, 'list', 'pageInfo')->total)->toBe(60);
 });
 
 it('shows an entry', function (): void {
@@ -252,18 +248,18 @@ it('shows the history of an entry', function (): void {
 
 	expect($revisionsPanel->template)->toBe('hub/_panels/entries/revisions')
 		->and($revisionsPanel->variables['revisions'])->toBe($revisions)
-		->and($revisionsPanel->variables['pageInfo']->total)->toBe(2)
+		->and(objectAt(Paginate::class, $revisionsPanel->variables, 'pageInfo')->total)->toBe(2)
 		->and($draftsPanel->template)->toBe('hub/_panels/entries/drafts')
 		->and($draftsPanel->variables['drafts'])->toBe([$draft]);
 });
 
 it('loads the history only on its tab', function (): void {
-	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray || $query->revisions ? [] : listedEntries(1));
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray || $query->revisions === true ? [] : listedEntries(1));
 
 	$variables = $this->runAction(EntriesController::class, 'view', ['id' => 1])->variables;
 
 	expect($variables)->not->toHaveKeys(['revisions', 'drafts'])
-		->and(array_filter(ElementQueries::executed(Entry::class), fn(EntryQuery $query): ?bool => $query->revisions))->toBeEmpty();
+		->and(array_filter(ElementQueries::executed(Entry::class), fn(ElementQuery $query): bool => $query->revisions === true))->toBeEmpty();
 });
 
 it('has no history tab for entries without revisions or drafts', function (): void {
@@ -287,7 +283,7 @@ it('shows the drafts of entries without versioning on the history tab', function
 		->and($variables['hasRevisions'])->toBeFalse()
 		->and($variables['draftCount'])->toBe(1)
 		->and($variables['revisionCount'])->toBe(0)
-		->and(array_filter(ElementQueries::executed(Entry::class), fn(EntryQuery $query): ?bool => $query->revisions))->toBeEmpty();
+		->and(array_filter(ElementQueries::executed(Entry::class), fn(ElementQuery $query): bool => $query->revisions === true))->toBeEmpty();
 });
 
 /**
@@ -295,12 +291,14 @@ it('shows the drafts of entries without versioning on the history tab', function
  *
  * @param array<int,array<string,string>> $previewTargets
  */
-function openRevision(object $test, array $previewTargets): ?string
+function openRevision(TestCase $test, array $previewTargets): ?string
 {
-	(fn(): array => $this->sections[1]->previewTargets = $previewTargets)->call($test);
+	(function () use ($previewTargets): void {
+		$this->sections[1]['previewTargets'] = $previewTargets;
+	})->call($test);
 	$entry = new Entry(['id' => 1, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'uri' => 'news/article']);
 	$revision = new Entry(['id' => 3, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'uri' => 'news/article', 'canonicalId' => 1, 'revisionId' => 7]);
-	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->revisions ? [$revision] : [$entry]);
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->revisions === true ? [$revision] : [$entry]);
 	$tokens = Mockery::mock(Tokens::class);
 	$tokens->shouldReceive('createPreviewToken')->once()->with(['preview/preview', [
 		'elementType' => Entry::class,
@@ -312,15 +310,15 @@ function openRevision(object $test, array $previewTargets): ?string
 	Craft::$app->set('tokens', $tokens);
 
 	(fn() => $this->request())->call($test);
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 1, 'username' => 'admin', 'admin' => true]));
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn(new User(['id' => 1, 'username' => 'admin', 'admin' => true]));
 	Craft::createObject(EntriesController::class, ['test', Craft::$app->getModule('hub')])->runAction('view-revision', ['id' => 1, 'revisionId' => 3]);
 
-	return Craft::$app->getResponse()->getHeaders()->get('Location');
+	return webResponse()->getHeaders()->get('Location');
 }
 
 it('opens a revision on its first preview target with a preview token', function (): void {
 	$location = openRevision($this, [['label' => 'Preview', 'url' => 'preview/article'], ['label' => 'Other', 'url' => 'other']]);
-	$revisionQuery = array_values(array_filter(ElementQueries::executed(Entry::class), fn(EntryQuery $query): ?bool => $query->revisions))[0];
+	$revisionQuery = array_values(array_filter(ElementQueries::executed(Entry::class), fn(ElementQuery $query): bool => $query->revisions === true))[0];
 
 	expect($location)->toContain('preview/article')
 		->and($location)->toContain('token=abc')
@@ -332,7 +330,7 @@ it('opens a revision on its URL without preview targets', function (): void {
 });
 
 it('fails for revisions not of the entry', function (): void {
-	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->revisions ? [] : listedEntries(1));
+	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->revisions === true ? [] : listedEntries(1));
 
 	$this->runAction(EntriesController::class, 'view-revision', ['id' => 1, 'revisionId' => 99]);
 })->throws(NotFoundHttpException::class);
@@ -343,6 +341,8 @@ it('fails for entries that do not exist', function (): void {
 
 /**
  * The query listing the entries, rather than counting them.
+ *
+ * @return EntryQuery<array-key,Entry>
  */
 function listingQuery(): EntryQuery
 {
@@ -359,16 +359,14 @@ it('loads the owners and authors of the entries with their columns', function ()
 
 it('leaves out the data of hidden columns', function (): void {
 	$this->preferences[1] = [ColumnService::PREFERENCE => [ColumnService::LIST_ENTRIES => ['order' => [], 'hidden' => ['origin', 'owner', 'creator', 'references', 'maintainers']]]];
-	$references = Mockery::mock(ReferenceService::class)->makePartial();
-	$references->shouldNotReceive('getReferenceCounts');
-	$this->hub()->set('references', $references);
 	ElementQueries::respond(Entry::class, fn(EntryQuery $query): array => $query->asArray ? [] : listedEntries(1, 2));
 
 	$variables = $this->runAction(EntriesController::class, 'index')->variables;
 
 	expect(listingQuery()->with)->toBeEmpty()
-		->and($variables['list']['referenceCounts'])->toBe([])
-		->and($variables['list']['entries'])->toHaveCount(2);
+		->and(at($variables, 'list', 'referenceCounts'))->toBe([])
+		->and($this->db()->queriesMatching('{{%relations}}'))->toBe([])
+		->and(at($variables, 'list', 'entries'))->toHaveCount(2);
 });
 
 it('lists only the selected entries while reviewing them, whatever the filters', function (): void {
@@ -378,11 +376,11 @@ it('lists only the selected entries while reviewing them, whatever the filters',
 	ElementQueries::respond(User::class, []);
 
 	$variables = $this->runAction(EntriesController::class, 'index', query: ['selection' => '1', 'status' => 'live'])->variables;
-	$ids = array_map(fn(EntryQuery $query): mixed => $query->id, ElementQueries::executed(Entry::class));
+	$ids = array_map(fn(ElementQuery $query): mixed => $query->id, ElementQueries::executed(Entry::class));
 
-	expect($variables['list']['filter']->statuses)->toBe([])
+	expect(at($variables, 'list', 'filter', 'statuses'))->toBe([])
 		->and($ids)->toContain([5, 6])
-		->and($variables['list']['bulkSelection']['ids'])->toBe([5])
+		->and(at($variables, 'list', 'bulkSelection', 'ids'))->toBe([5])
 		->and($this->session['hub:bulk:selection:entries:hub/data/entries'])->toBe([5]);
 });
 
@@ -392,26 +390,26 @@ it('lists no entries while reviewing an empty selection', function (): void {
 
 	$this->runAction(EntriesController::class, 'index', query: ['selection' => '1']);
 
-	expect(array_map(fn(EntryQuery $query): mixed => $query->id, ElementQueries::executed(Entry::class)))->toContain([0]);
+	expect(array_map(fn(ElementQuery $query): mixed => $query->id, ElementQueries::executed(Entry::class)))->toContain([0]);
 });
 
 it('offers the trash as a tab of the entries page', function (string $action): void {
 	ElementQueries::respond(Entry::class, []);
 	ElementQueries::respond(User::class, []);
 
-	expect($this->runAction(EntriesController::class, $action)->variables['extraTabs'])->toBe(['trash' => 'Trash']);
+	expect(at($this->runAction(EntriesController::class, $action)->variables, 'extraTabs'))->toBe(['trash' => 'Trash']);
 })->with(['index', 'statistics', 'diagnostics', 'trash']);
 
 it('leaves out the trash tab while the trash is disabled', function (string $action): void {
 	ElementQueries::respond(Entry::class, []);
 	ElementQueries::respond(User::class, []);
-	$this->hub()->getSettings()->enableTrash = false;
+	$this->hub()->settings->enableTrash = false;
 
-	expect($this->runAction(EntriesController::class, $action)->variables['extraTabs'])->toBe([]);
+	expect(at($this->runAction(EntriesController::class, $action)->variables, 'extraTabs'))->toBe([]);
 })->with(['index', 'statistics', 'diagnostics']);
 
 it('has no trash tab while the trash is disabled', function (): void {
-	$this->hub()->getSettings()->enableTrash = false;
+	$this->hub()->settings->enableTrash = false;
 
 	$this->runAction(EntriesController::class, 'trash');
 })->throws(NotFoundHttpException::class);
@@ -419,9 +417,9 @@ it('has no trash tab while the trash is disabled', function (): void {
 it('only shows the trash to users who may view it', function (): void {
 	ElementQueries::respond(Entry::class, []);
 	ElementQueries::respond(User::class, []);
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Entries->viewPermission(), Hub::PERMISSION_DELETE_ENTRIES]);
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessData->value, Page::Entries->viewPermission(), Permission::DeleteEntries->value]);
 
-	expect($this->runAction(EntriesController::class, 'index')->variables['extraTabs'])->toBe([])
+	expect(at($this->runAction(EntriesController::class, 'index')->variables, 'extraTabs'))->toBe([])
 		->and(fn() => $this->runAction(EntriesController::class, 'trash'))->toThrow(ForbiddenHttpException::class);
 });
 
@@ -436,14 +434,14 @@ it('lists the trashed entries with who deleted them', function (): void {
 	$query = ElementQueries::executed(Entry::class)[0];
 
 	expect($response->template)->toBe('hub/pages/entries/trash')
-		->and($variables['list']['entries'])->toBe($entries)
-		->and($variables['list']['deleters'])->toBe([2 => ['user' => null, 'name' => 'Editor']])
-		->and(array_column($variables['list']['sections'], 'handle'))->toContain('news')
-		->and(array_column($variables['list']['columns'], 'key'))->toBe(['type', 'origin', 'owner', 'deleted', 'deleter'])
-		->and($variables['list']['filtered'])->toBeFalse()
-		->and($variables['list']['listPath'])->toBe('hub/data/entries/trash')
-		->and(array_keys($variables['list']['bulkActions']))->toBe(['export', 'restore', 'restoreWithRelations', 'deletePermanently'])
-		->and($variables['list']['sort'])->toBeNull()
+		->and(at($variables, 'list', 'entries'))->toBe($entries)
+		->and(at($variables, 'list', 'deleters'))->toBe([2 => ['user' => null, 'name' => 'Editor']])
+		->and(array_column(arrayAt($variables, 'list', 'sections'), 'handle'))->toContain('news')
+		->and(array_column(arrayAt($variables, 'list', 'columns'), 'key'))->toBe(['type', 'origin', 'owner', 'deleted', 'deleter'])
+		->and(at($variables, 'list', 'filtered'))->toBeFalse()
+		->and(at($variables, 'list', 'listPath'))->toBe('hub/data/entries/trash')
+		->and(array_keys(arrayAt($variables, 'list', 'bulkActions')))->toBe(['export', 'restore', 'restoreWithRelations', 'deletePermanently'])
+		->and(at($variables, 'list', 'sort'))->toBeNull()
 		->and($query->trashed)->toBeTrue();
 });
 
@@ -459,14 +457,14 @@ it('reads the filters of the trashed entries list', function (): void {
 		'deletedTo' => '2024-01-31',
 		'sort' => 'title',
 	])->variables;
-	$filter = $variables['list']['filter'];
+	$filter = objectAt(TrashedEntryFilter::class, $variables, 'list', 'filter');
 
 	expect($filter->search)->toBe('term')
 		->and($filter->sections)->toBe(['news'])
 		->and($filter->fields)->toBe(['blocks'])
 		->and($filter->types)->toBe(['article'])
-		->and($filter->deletedFrom->format('Y-m-d'))->toBe('2024-01-01')
-		->and($filter->deletedTo->format('Y-m-d'))->toBe('2024-01-31')
-		->and($variables['list']['filtered'])->toBeTrue()
-		->and($variables['list']['sort'])->toBe('title');
+		->and($filter->deletedFrom?->format('Y-m-d'))->toBe('2024-01-01')
+		->and($filter->deletedTo?->format('Y-m-d'))->toBe('2024-01-31')
+		->and(at($variables, 'list', 'filtered'))->toBeTrue()
+		->and(at($variables, 'list', 'sort'))->toBe('title');
 });

@@ -6,6 +6,7 @@ use Rector\CodeQuality\Rector\Concat\DirnameDirConcatStringToDirectStringPathRec
 use Rector\CodingStyle\Rector\ClassLike\NewlineBetweenClassLikeStmtsRector;
 use Rector\Config\RectorConfig;
 use Rector\DeadCode\Rector\FunctionLike\NarrowWideUnionReturnTypeRector;
+use Rector\Php74\Rector\Closure\ClosureToArrowFunctionRector;
 
 return RectorConfig::configure()
 	->withPaths([
@@ -36,6 +37,8 @@ return RectorConfig::configure()
 		NewlineBetweenClassLikeStmtsRector::class,
 		// Tests sign the user out by setting the identity that the mock returns to null, after the closure is created.
 		NarrowWideUnionReturnTypeRector::class => [__DIR__ . '/tests/Feature/Services/ColumnServiceTest.php'],
+		// An arrow function takes the narrowed type of the identity that the closure's test assigns before it.
+		ClosureToArrowFunctionRector::class => [__DIR__ . '/tests/Feature/Services/ColumnServiceTest.php'],
 	])
 	->withImportNames(removeUnusedImports: true)
 	->withParallel();

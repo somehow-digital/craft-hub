@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use craft\base\ElementInterface;
 use craft\elements\Address;
 use craft\elements\Asset;
 use craft\elements\Category;
@@ -14,11 +15,6 @@ use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\UserGroup;
 use craft\models\Volume;
-use SomehowDigital\Craft\Hub\conditions\EntryTypeCondition;
-use SomehowDigital\Craft\Hub\conditions\FieldCondition;
-use SomehowDigital\Craft\Hub\conditions\rules\HandleConditionRule;
-use SomehowDigital\Craft\Hub\conditions\SectionCondition;
-use SomehowDigital\Craft\Hub\conditions\VolumeCondition;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivityGroup;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
@@ -108,11 +104,12 @@ it('describes section types', function (SectionType $type, string $value, string
 ]);
 
 it('describes every activity group, action and subject', function (string $enum): void {
+	/** @var list<ActivityGroup|ActivityAction|ActivitySubject> $cases */
 	$cases = $enum::cases();
 
-	expect(array_unique(array_map(fn($case) => $case->label(), $cases)))->toHaveCount(count($cases))
-		->and(array_map(fn($case) => $case->color(), $cases))->each->toBeIn(ACTIVITY_COLORS)
-		->and(array_map(fn($case) => $case->icon(), $cases))->each->toMatch('/^[a-z-]+$/');
+	expect(array_unique(array_map(fn(ActivityGroup|ActivityAction|ActivitySubject $case): string => $case->label(), $cases)))->toHaveCount(count($cases))
+		->and(array_map(fn(ActivityGroup|ActivityAction|ActivitySubject $case): string => $case->color(), $cases))->each->toBeIn(ACTIVITY_COLORS)
+		->and(array_map(fn(ActivityGroup|ActivityAction|ActivitySubject $case): string => $case->icon(), $cases))->each->toMatch('/^[a-z-]+$/');
 })->with([ActivityGroup::class, ActivityAction::class, ActivitySubject::class]);
 
 it('describes activity groups and actions', function (ActivityGroup|ActivityAction $case, string $label, string $color, string $icon): void {
@@ -141,6 +138,7 @@ it('groups activity actions by what was done', function (ActivityAction $action,
 ]);
 
 it('tells the subject of an element', function (string $type, ActivitySubject $subject): void {
+	/** @var class-string<ElementInterface> $type */
 	expect(ActivitySubject::fromElementType($type))->toBe($subject)
 		->and(ActivitySubject::fromElement(new $type()))->toBe($subject)
 		->and($subject->isElement())->toBeTrue();
@@ -172,19 +170,6 @@ it('describes the kinds of checks by the page listing them', function (): void {
 		->and(array_map(fn(CheckKind $kind): string => $kind->icon(), CheckKind::cases()))->toBe(['newspaper', 'image', 'user-group', 'shapes', 'layer-group', 'pen-ruler', 'hard-drive'])
 		->and(array_map(fn(CheckKind $kind): Page => $kind->page(), CheckKind::cases()))->toBe([Page::Entries, Page::Assets, Page::Users, Page::EntryTypes, Page::Sections, Page::Fields, Page::Volumes]);
 });
-
-it('creates the condition of a kind of check with the rules of its config', function (CheckKind $kind, string $class): void {
-	$condition = $kind->createCondition(['conditionRules' => [['class' => HandleConditionRule::class, 'operator' => '=', 'value' => 'news'], 'invalid']]);
-
-	expect($condition)->toBeInstanceOf($class)
-		->and($condition->getConditionRules())->toHaveCount(1)
-		->and($kind->createCondition(['conditionRules' => 'invalid'])->getConditionRules())->toBe([]);
-})->with([
-	[CheckKind::EntryTypes, EntryTypeCondition::class],
-	[CheckKind::Sections, SectionCondition::class],
-	[CheckKind::Fields, FieldCondition::class],
-	[CheckKind::Volumes, VolumeCondition::class],
-]);
 
 it('tells the page listing an item', function (Closure $item, ?Page $page): void {
 	expect(Page::fromItem($item()))->toBe($page);

@@ -4,26 +4,43 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\services;
 
-use Craft;
 use craft\elements\db\ElementQuery;
 use craft\helpers\UrlHelper;
 use craft\models\Site;
-use SomehowDigital\Craft\Hub\Hub;
+use craft\services\Sites;
+use craft\web\Request;
+use craft\web\Session;
+use SomehowDigital\Craft\Hub\models\FilterParams;
 use yii\base\Component;
+use yii\base\Request as BaseRequest;
 
 /**
  * The sites Hub's pages are scoped to, picked by the `hubSite` query param and kept in the session, so coming back to Hub from
  * elsewhere in the control panel shows them again.
+ *
+ * @internal
  */
-class SiteScopeService extends Component
+final class SiteScopeService extends Component
 {
 	private const SESSION_KEY = 'hub:sites';
 
 	/** @var Site[]|null memoized, as the site scope is read for every count and link */
 	private ?array $sites = null;
 
-	/** @var int[]|null */
+	/** @var list<int>|null */
 	private ?array $siteIds = null;
+
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly Sites $craftSites,
+		private readonly BaseRequest $request,
+		private readonly ?Session $session = null,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
 
 	/**
 	 * The sites selected via the comma-separated `hubSite` query param, like `?hubSite=en,de`, an empty one selecting all
@@ -37,24 +54,24 @@ class SiteScopeService extends Component
 	}
 
 	/**
-	 * @return Site[]
+	 * @return list<Site>
 	 */
 	private function resolveSites(): array
 	{
-		$request = Craft::$app->getRequest();
-		$value = $request->getIsConsoleRequest() ? null : $request->getQueryParam(Hub::SITE_PARAM);
+		$request = $this->request instanceof Request && !$this->request->getIsConsoleRequest() ? $this->request : null;
+		$value = $request?->getQueryParam(FilterParams::SITE_PARAM);
 
 		// Other pages, like the dashboard with its widgets, and actions only follow the param.
-		$kept = !$request->getIsConsoleRequest() && $request->getIsCpRequest() && $request->getSegment(1) === 'hub';
+		$session = $this->session;
+		$kept = $request instanceof Request && $session instanceof Session && $request->getIsCpRequest() && $request->getSegment(1) === 'hub';
 
 		if ($kept && $value === null) {
-			$value = Craft::$app->getSession()->get(self::SESSION_KEY);
+			$value = $session->get(self::SESSION_KEY);
 		}
 
 		$sites = $this->sitesOf($value);
 
 		if ($kept) {
-			$session = Craft::$app->getSession();
 			$sites !== [] ? $session->set(self::SESSION_KEY, implode(',', array_map(fn(Site $site): ?string => $site->handle, $sites))) : $session->remove(self::SESSION_KEY);
 		}
 
@@ -62,17 +79,17 @@ class SiteScopeService extends Component
 	}
 
 	/**
-	 * @return Site[] the editable sites of the comma-separated handles
+	 * @return list<Site> the editable sites of the comma-separated handles
 	 */
 	private function sitesOf(mixed $value): array
 	{
 		$handles = array_unique(array_filter(array_map(trim(...), explode(',', is_string($value) ? $value : '')), fn(string $handle): bool => $handle !== ''));
-		$editableIds = Craft::$app->getSites()->getEditableSiteIds();
+		$editableIds = $this->craftSites->getEditableSiteIds();
 
 		// Kept in the order of the sites, so the same selection always reads the same.
 		return array_values(array_filter(
-			Craft::$app->getSites()->getAllSites(),
-			fn(Site $site): bool => in_array($site->handle, $handles, true) && in_array($site->id, $editableIds, false),
+			$this->craftSites->getAllSites(),
+			fn(Site $site): bool => in_array($site->handle, $handles, true) && in_array($site->id, $editableIds, true),
 		));
 	}
 
@@ -93,13 +110,13 @@ class SiteScopeService extends Component
 	 */
 	public function pageUrl(string $path, array $params = []): string
 	{
-		return UrlHelper::cpUrl($path, [Hub::SITE_PARAM => $this->getSiteParam(), ...$params]);
+		return UrlHelper::cpUrl($path, [FilterParams::SITE_PARAM => $this->getSiteParam(), ...$params]);
 	}
 
 	/**
 	 * IDs of the sites counts are scoped to: the selected sites, or all editable sites.
 	 *
-	 * @return int[]
+	 * @return list<int>
 	 */
 	public function getSiteIds(): array
 	{
@@ -108,7 +125,7 @@ class SiteScopeService extends Component
 		}
 
 		$sites = $this->getSites();
-		$siteIds = $sites !== [] ? array_map(fn(Site $site): ?int => $site->id, $sites) : Craft::$app->getSites()->getEditableSiteIds();
+		$siteIds = array_map(fn(Site $site): int => $site->id ?? 0, $sites !== [] ? $sites : $this->craftSites->getEditableSites());
 		sort($siteIds);
 
 		return $this->siteIds = $siteIds;
@@ -122,7 +139,7 @@ class SiteScopeService extends Component
 	 */
 	public function coversAllSites(array $siteIds): bool
 	{
-		return array_diff(Craft::$app->getSites()->getAllSiteIds(true), $siteIds) === [];
+		return array_diff($this->craftSites->getAllSiteIds(true), $siteIds) === [];
 	}
 
 	/**
@@ -139,7 +156,7 @@ class SiteScopeService extends Component
 
 		return $query
 			->siteId($this->getSiteIds())
-			->preferSites([...$selected, Craft::$app->getSites()->getCurrentSite()->id])
+			->preferSites([...$selected, $this->craftSites->getCurrentSite()->id])
 			->unique();
 	}
 }

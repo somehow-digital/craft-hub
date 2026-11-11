@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
+use SomehowDigital\Craft\Hub\bulk\BulkActions;
 use SomehowDigital\Craft\Hub\helpers\Ids;
 use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\services\BulkService;
 use SomehowDigital\Craft\Hub\services\SelectionService;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
@@ -21,18 +21,19 @@ use yii\web\Response;
  * are. Deleting, downloading and exporting are previewed first, exporting picking the exporter and format there, as are
  * the actions picking what they change the items to, like the section entries are moved to. Only users who may
  * bulk-edit a list select its items; others apply the actions to a single item.
+ *
+ * @internal
  */
-class BulkController extends BaseController
+final class BulkController extends BaseController
 {
 	public function actionApply(): ?Response
 	{
 		$this->requirePostRequest();
 
-		$request = Craft::$app->getRequest();
-		$bulk = Hub::getInstance()->bulk;
-		$list = (string) $request->getRequiredBodyParam('list');
+		$bulk = Hub::getInstance()->bulkActions;
+		$list = $this->requiredBodyString('list');
 		$path = $this->requirePostedListPath();
-		$action = (string) $request->getRequiredBodyParam('bulkAction');
+		$action = $this->requiredBodyString('bulkAction');
 		$actions = $bulk->getActions($list);
 
 		if (!isset($actions[$action])) {
@@ -40,7 +41,7 @@ class BulkController extends BaseController
 		}
 
 		// A single item, picked from its context menu, in place of the selection.
-		$item = (int) $request->getBodyParam('item');
+		$item = $this->bodyInt('item');
 		$this->requireSelectable($list, $item);
 		$selected = Hub::getInstance()->selection->getSelection($list, $path);
 		$ids = $item > 0 ? [$item] : $selected;
@@ -48,11 +49,11 @@ class BulkController extends BaseController
 		$keep = $actions[$action]['keep'] ?? false;
 
 		if ($actions[$action]['file'] ?? false) {
-			return $bulk->send($list, $action, $this->response, $ids, $request->getBodyParams())
+			return $bulk->getFileAction($list, $action)?->send($this->response, $ids, $this->bodyParams())
 				?? $this->asFailure(Craft::t('hub', '“{action}” couldn’t be applied to the selected items.', ['action' => $label]));
 		}
 
-		$applied = $bulk->apply($list, $action, $ids, $request->getBodyParams());
+		$applied = $bulk->apply($list, $action, $ids, $this->bodyParams());
 		$count = count($applied);
 
 		if ($count === 0) {
@@ -78,7 +79,7 @@ class BulkController extends BaseController
 
 	/**
 	 * Previews what an action takes along for the selection of a list, or a single item of it, as HTML (see
-	 * BulkAction::preview()), listing the items by the page asked for (`page`), the totals covering all of them. Responds with
+	 * BaseBulkAction::preview()), listing the items by the page asked for (`page`), the totals covering all of them. Responds with
 	 * the number of items the action applies to, so nothing is offered without any.
 	 */
 	public function actionPreview(): Response
@@ -86,20 +87,19 @@ class BulkController extends BaseController
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
 
-		$request = Craft::$app->getRequest();
 		$hub = Hub::getInstance();
-		$list = (string) $request->getRequiredBodyParam('list');
-		$action = (string) $request->getBodyParam('bulkAction', BulkService::ACTION_DELETE);
+		$list = $this->requiredBodyString('list');
+		$action = $this->bodyString('bulkAction', BulkActions::ACTION_DELETE);
 
-		if (!($hub->bulk->getActions($list)[$action]['preview'] ?? false)) {
+		if (!($hub->bulkActions->getActions($list)[$action]['preview'] ?? false)) {
 			throw new BadRequestHttpException('Unknown action.');
 		}
 
-		$item = (int) $request->getBodyParam('item');
+		$item = $this->bodyInt('item');
 		$this->requireSelectable($list, $item);
 		$ids = $item > 0 ? [$item] : $hub->selection->getSelection($list, $this->requirePostedListPath());
-		$page = (int) $request->getBodyParam('page', 1);
-		$preview = $hub->bulk->preview($list, $action, $ids, $page);
+		$page = $this->bodyInt('page', 1);
+		$preview = $hub->bulkActions->preview($list, $action, $ids, $page);
 
 		if ($preview === null) {
 			throw new BadRequestHttpException('Unknown action.');
@@ -119,20 +119,21 @@ class BulkController extends BaseController
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
 
-		$request = Craft::$app->getRequest();
-		$bulk = Hub::getInstance()->bulk;
-		$list = (string) $request->getRequiredBodyParam('list');
+		$request = $this->request;
+		$hub = Hub::getInstance();
+		$bulk = $hub->bulk;
+		$list = $this->requiredBodyString('list');
 		$path = $this->requirePostedListPath();
 
 		// Lists without actions have nothing to select.
-		if ($bulk->getActions($list) === []) {
+		if ($hub->bulkActions->getActions($list) === []) {
 			throw new BadRequestHttpException('Unknown list.');
 		}
 
 		$this->requireSelectable($list);
 
 		$kept = Hub::getInstance()->selection->getSelection($list, $path);
-		$ids = $request->getBodyParam('clear') ? [] : $kept;
+		$ids = $this->bodyBool('clear') ? [] : $kept;
 		$ids = array_values(array_diff($ids, Ids::positive($request->getBodyParam('remove'))));
 		$ids = [...$ids, ...Ids::positive($request->getBodyParam('add'))];
 
@@ -163,7 +164,7 @@ class BulkController extends BaseController
 	 */
 	private function requireSelectable(string $list, int $item = 0): void
 	{
-		if ($item <= 0 && !Hub::getInstance()->bulk->canSelect($list)) {
+		if ($item <= 0 && !Hub::getInstance()->bulkActions->canSelect($list)) {
 			throw new ForbiddenHttpException('User is not authorized to bulk-edit these items.');
 		}
 	}

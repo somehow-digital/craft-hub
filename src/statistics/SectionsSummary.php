@@ -8,31 +8,54 @@ use Craft;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
 use SomehowDigital\Craft\Hub\enums\SectionType;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\models\EntryStatistics;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
 use SomehowDigital\Craft\Hub\models\Snapshot;
+use SomehowDigital\Craft\Hub\services\AccessService;
+use SomehowDigital\Craft\Hub\services\EntryService;
+use SomehowDigital\Craft\Hub\services\FilterService;
+use SomehowDigital\Craft\Hub\services\SiteScopeService;
+use SomehowDigital\Craft\Hub\services\SnapshotService;
+use SomehowDigital\Craft\Hub\services\StatisticsService;
+use SomehowDigital\Craft\Hub\services\StructureService;
+use SomehowDigital\Craft\Hub\services\VolumeService;
 
 /**
  * Statistics of the sections: the summary cards of their list and those of a section's page.
+ *
+ * @internal
  */
-final class SectionsSummary extends Summary
+final class SectionsSummary extends BaseSummary
 {
+	public function __construct(
+		SiteScopeService $siteScope,
+		SnapshotService $snapshots,
+		StructureService $structure,
+		VolumeService $volumes,
+		StatisticsService $statistics,
+		private readonly AccessService $access,
+		private readonly EntryService $entries,
+		private readonly FilterService $filters,
+	) {
+		parent::__construct($siteScope, $snapshots, $structure, $volumes, $statistics);
+	}
+
 	/**
 	 * Summary cards for the sections list.
 	 *
-	 * @return array<int,array<string,mixed>> see lazyCard()
+	 * @return list<array<string,mixed>> see lazyCard()
 	 */
 	public function index(): array
 	{
 		$path = 'hub/structure/sections';
-		$siteIds = Hub::getInstance()->siteScope->getSiteIds();
-		$months = Hub::getInstance()->filters->getThreshold(CheckKind::Sections, 'stale');
-		$sections = fn() => Hub::getInstance()->structure->getSections();
+		$siteIds = $this->siteScope->getSiteIds();
+		$months = $this->filters->getThreshold(CheckKind::Sections, 'stale');
+		$sections = fn(): array => $this->structure->getSections();
 		// Entries of the sections of a snapshot, by the section.
 		$snapshotStats = fn(Snapshot $snapshot): array => $this->byId(
 			array_keys($snapshot->getSections()),
-			fn(int $id): EntryStatistics => $snapshot->statistics->sumEntries($siteIds, $id),
+			fn(int $id): EntryStatistics => $this->snapshots->getStatistics($snapshot)->sumEntries($siteIds, $id),
 		);
 		$referenced = fn(): int => count(array_filter($sections(), fn(SectionInfo $info): bool => $info->references->references > 0));
 
@@ -48,11 +71,11 @@ final class SectionsSummary extends Summary
 					['label' => Craft::t('hub', 'References'), 'type' => 'number'],
 					['label' => Craft::t('hub', 'Last edited'), 'type' => 'date'],
 				], array_map(function (SectionInfo $info) use ($path): array {
-					$type = SectionType::from($info->section->type);
+					$type = SectionType::from($info->section->type ?? '');
 
 					return [
-						'label' => Craft::t('site', $info->section->name),
-						'url' => $this->hubUrl("{$path}/{$info->section->id}"),
+						'label' => Craft::t('site', $info->section->name ?? ''),
+						'url' => $this->hubUrl($path . '/' . ($info->section->id ?? '')),
 						'color' => $type->color(),
 						'value' => $info->stats->total,
 						'cells' => [$type->label(), $info->references->references, $info->stats->lastUpdated],
@@ -65,10 +88,10 @@ final class SectionsSummary extends Summary
 				count(array_filter($snapshotStats($snapshot), fn(EntryStatistics $stats): bool => $stats->total === 0)),
 			)),
 			$this->lazyCard(Craft::t('hub', 'Types'), 'sitemap', function () use ($sections, $path): array {
-				$types = array_count_values(array_map(fn(SectionInfo $info): ?string => $info->section->type, $sections()));
+				$types = array_count_values(array_map(fn(SectionInfo $info): string => $info->section->type ?? '', $sections()));
 				$entries = [];
 				foreach ($sections() as $info) {
-					$entries[$info->section->type] = ($entries[$info->section->type] ?? 0) + $info->stats->total;
+					$entries[$info->section->type ?? ''] = ($entries[$info->section->type ?? ''] ?? 0) + $info->stats->total;
 				}
 
 				return [
@@ -84,7 +107,7 @@ final class SectionsSummary extends Summary
 					], SectionType::cases())),
 				];
 			}, fn(Snapshot $snapshot): array => $this->sectionTypesCard(
-				array_count_values(array_map(fn(array $section): string => (string) $section['type'], $snapshot->getSections())),
+				array_count_values(array_map(fn(array $section): string => $section['type'], $snapshot->getSections())),
 				$path,
 			)),
 			$this->lazyCard(Craft::t('app', 'Entries'), 'file-lines', function () use ($sections, $referenced): array {
@@ -103,8 +126,8 @@ final class SectionsSummary extends Summary
 			$this->lazyCard(Craft::t('hub', 'Activity'), 'clock', fn(): array => [
 				...$this->activityCard(array_map(fn(SectionInfo $info): EntryStatistics => $info->stats, $sections()), $path, $months),
 				'table' => $this->leastEditedTable(Craft::t('app', 'Section'), array_map(fn(SectionInfo $info): array => [
-					'label' => Craft::t('site', $info->section->name),
-					'url' => $this->hubUrl("{$path}/{$info->section->id}"),
+					'label' => Craft::t('site', $info->section->name ?? ''),
+					'url' => $this->hubUrl($path . '/' . ($info->section->id ?? '')),
 					'stats' => $info->stats,
 				], $sections()), $months),
 			], fn(Snapshot $snapshot): array => $this->activityCard($snapshotStats($snapshot), $path, $months, $snapshot->date)),
@@ -112,14 +135,14 @@ final class SectionsSummary extends Summary
 	}
 
 	/**
-	 * @return array<int,array<string,mixed>> see lazyCard()
+	 * @return list<array<string,mixed>> see lazyCard()
 	 */
 	public function detail(SectionInfo $info): array
 	{
 		$id = $info->section->id;
-		$statistics = Hub::getInstance()->statistics;
-		$siteIds = Hub::getInstance()->siteScope->getSiteIds();
-		$path = "hub/structure/sections/{$id}/entries";
+		$statistics = $this->statistics;
+		$siteIds = $this->siteScope->getSiteIds();
+		$path = 'hub/structure/sections/' . ($id ?? '') . '/entries';
 
 		return [
 			$this->lazyCard(Craft::t('app', 'Entries'), 'file-lines', fn(): array => $this->entriesCard($info->stats, path: $path), $this->entriesHistory(sectionId: $id)),
@@ -127,19 +150,21 @@ final class SectionsSummary extends Summary
 				$counts = [];
 				$handles = [];
 				foreach ($info->entryTypes as $entryType) {
-					$name = Craft::t('site', $entryType->name);
+					$name = Craft::t('site', $entryType->name ?? '');
 					$counts[$name] = $statistics->sumEntries($siteIds, $id, $entryType->id)->total;
-					$handles[$name] = $entryType->handle;
+					$handles[$name] = $entryType->handle ?? '';
 				}
 
 				$card = $this->topCard(Craft::t('hub', 'Entry Types'), 'shapes', $counts);
-				foreach ($card['segments'] as &$segment) {
-					if (isset($handles[$segment['label']]) && Hub::getInstance()->access->canView(Page::Entries)) {
-						$segment['url'] = $this->hubUrl('hub/data/entries', ['section' => $info->section->handle, 'type' => $handles[$segment['label']]]);
-					}
-				}
+				if ($this->access->canView(Page::Entries)) {
+					$urls = [];
 
-				unset($segment);
+					foreach ($handles as $name => $handle) {
+						$urls[$name] = $this->hubUrl('hub/data/entries', ['section' => $info->section->handle, 'type' => $handle]);
+					}
+
+					$card = $this->withSegmentUrls($card, $urls);
+				}
 
 				$withoutEntries = count(array_filter($counts, fn(int $count): bool => $count === 0));
 				if ($withoutEntries > 0) {
@@ -148,13 +173,13 @@ final class SectionsSummary extends Summary
 
 				return $card;
 			}, fn(Snapshot $snapshot): array => $this->labeledTopHistory($this->entryTypeLabels(), $this->byId(
-				$snapshot->getSections()[$id]['entryTypes'] ?? [],
-				fn(int $typeId): int => $snapshot->statistics->sumEntries($siteIds, $id, $typeId)->total,
+				$snapshot->getSections()[$id ?? 0]['entryTypes'] ?? [],
+				fn(int $typeId): int => $this->snapshots->getStatistics($snapshot)->sumEntries($siteIds, $id, $typeId)->total,
 			))),
 			$this->lazyCard(Craft::t('hub', 'References'), 'link', function () use ($info, $id, $statistics, $siteIds): array {
 				$counts = [];
 				foreach ([...$info->referenceFields, ...$info->linkFields] as $field) {
-					$counts[$field->name] = $statistics->sumReferences($siteIds, $field->id, $id)->references;
+					$counts[$field->name ?? ''] = $statistics->sumReferences($siteIds, Fill::id($field->id), $id)->references;
 				}
 
 				$card = $this->topCard(Craft::t('hub', 'References'), 'link', $counts, sum: true);
@@ -165,10 +190,10 @@ final class SectionsSummary extends Summary
 
 				return $card;
 			}, fn(Snapshot $snapshot): array => $this->labeledTopHistory($this->fieldLabels(), $this->byId(
-				$snapshot->getSections()[$id]['fields'] ?? [],
-				fn(int $fieldId): int => $snapshot->statistics->sumReferences($siteIds, $fieldId, $id)->references,
+				$snapshot->getSections()[$id ?? 0]['fields'] ?? [],
+				fn(int $fieldId): int => $this->snapshots->getStatistics($snapshot)->sumReferences($siteIds, $fieldId, $id)->references,
 			), true)),
-			$this->lazyCard(Craft::t('app', 'Authors'), 'user', fn(): array => $this->peopleCard(Craft::t('app', 'Authors'), 'user', Hub::getInstance()->entries->getAuthors($id), 'author', $path, Craft::t('app', 'Entries'))),
+			$this->lazyCard(Craft::t('app', 'Authors'), 'user', fn(): array => $this->peopleCard(Craft::t('app', 'Authors'), 'user', $this->entries->getAuthors($id), 'author', $path, Craft::t('app', 'Entries'))),
 		];
 	}
 

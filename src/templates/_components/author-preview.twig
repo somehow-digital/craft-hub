@@ -1,7 +1,7 @@
 {#
 	What changing the authors of entries does, shown in the dialog of the bulk actions before they're changed (see the
 	`action-preview` component): the number of entries whose authors are changed, the user picked, and whether it replaces
-	their authors or is added to them (see BulkService::AUTHORS_*). Entries the user may not author are left as they are.
+	their authors or is added to them (see BulkActions::AUTHORS_*). Entries the user may not author are left as they are.
 
 	Variables: authors (User[], those who may author any of the entries, see EntryService::getAuthorCandidates()), total, skipped
 #}
@@ -24,8 +24,8 @@
 		label: 'Their authors'|t('hub'),
 		name: 'authors',
 		options: [
-			{label: 'Replace them with the author'|t('hub'), value: constant('SomehowDigital\\Craft\\Hub\\services\\BulkService::AUTHORS_REPLACE')},
-			{label: 'Add the author to them'|t('hub'), value: constant('SomehowDigital\\Craft\\Hub\\services\\BulkService::AUTHORS_ADD')},
+			{label: 'Replace them with the author'|t('hub'), value: constant('SomehowDigital\\Craft\\Hub\\bulk\\BulkActions::AUTHORS_REPLACE')},
+			{label: 'Add the author to them'|t('hub'), value: constant('SomehowDigital\\Craft\\Hub\\bulk\\BulkActions::AUTHORS_ADD')},
 		],
 		class: 'fullwidth',
 	}) }}

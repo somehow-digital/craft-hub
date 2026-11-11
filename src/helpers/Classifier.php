@@ -8,15 +8,17 @@ use SomehowDigital\Craft\Hub\enums\UsageKind;
 
 /**
  * Pure helpers without Craft dependencies, so they can be unit tested.
+ *
+ * @internal
  */
 final class Classifier
 {
 	/**
 	 * Resolves the `sources` setting of an Entries field or a Link field's entry link type to section UIDs.
 	 *
-	 * @param string|string[]|null $sources `'*'`, or a list of `section:<uid>` / `singles` keys
+	 * @param string|array<mixed>|null $sources `'*'`, or a list of `section:<uid>` / `singles` keys
 	 * @param array<string,string> $sectionTypes section UID => section type
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public static function resolveSectionUids(string|array|null $sources, array $sectionTypes): array
 	{
@@ -31,6 +33,10 @@ final class Classifier
 		$uids = [];
 
 		foreach ($sources as $source) {
+			if (!is_string($source)) {
+				continue;
+			}
+
 			if ($source === '*') {
 				return array_keys($sectionTypes);
 			}
@@ -59,7 +65,7 @@ final class Classifier
 	/**
 	 * Resolves the `sources` setting of an Assets field or a Link field's asset link type to volume UIDs.
 	 *
-	 * @param string|string[]|null $sources `'*'`, or a list of `volume:<uid>` keys
+	 * @param string|array<mixed>|null $sources `'*'`, or a list of `volume:<uid>` keys
 	 * @param string[] $volumeUids all volume UIDs the sources can resolve to
 	 * @return string[]
 	 */
@@ -76,6 +82,10 @@ final class Classifier
 		$uids = [];
 
 		foreach ($sources as $source) {
+			if (!is_string($source)) {
+				continue;
+			}
+
 			if ($source === '*') {
 				return $volumeUids;
 			}
@@ -128,7 +138,7 @@ final class Classifier
 		$name = mb_strtolower(pathinfo($filename, PATHINFO_FILENAME));
 
 		// Hashes and IDs
-		if (preg_match('/^[0-9a-f]{16,}$/', $name) || preg_match('/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/', $name)) {
+		if (preg_match('/^[0-9a-f]{16,}$/', $name) === 1 || preg_match('/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/', $name) === 1) {
 			return true;
 		}
 
@@ -143,7 +153,7 @@ final class Classifier
 		// Dates and times of screenshots, e.g. "2024-01-01 at 10.00.00" or "vom 2024-01-01 um 10.00.00".
 		$rest = preg_replace('/\b(at|um|am|vom|from|von)\b/', '', $rest) ?? $rest;
 
-		return ($count > 0 || $rest !== '') && !preg_match('/\p{L}/u', $rest);
+		return ($count > 0 || $rest !== '') && preg_match('/\p{L}/u', $rest) !== 1;
 	}
 
 	/**
@@ -160,7 +170,7 @@ final class Classifier
 	}
 
 	/**
-	 * @return UsageKind[]
+	 * @return list<UsageKind>
 	 */
 	public static function entryTypeKinds(
 		int $sectionCount,

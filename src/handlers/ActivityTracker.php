@@ -17,14 +17,23 @@ use SomehowDigital\Craft\Hub\handlers\activity\SystemActivity;
  * to, unless drafts are recorded too (see Settings::$activityDrafts), as are nested elements, which are saved along with
  * their owners, and elements saved again or propagated to other sites. Element actions are recorded as a batch of what
  * they changed, as are project config changes applied from the YAML files.
+ *
+ * @internal
  */
-class ActivityTracker
+final readonly class ActivityTracker
 {
+	public function __construct(
+		private ContentActivity $content,
+		private AccountActivity $account,
+		private ConfigActivity $config,
+		private SystemActivity $system,
+	) {}
+
 	public function register(): void
 	{
-		(new ContentActivity())->register();
-		(new AccountActivity())->register();
-		(new ConfigActivity())->register();
-		(new SystemActivity())->register();
+		$this->content->register();
+		$this->account->register();
+		$this->config->register();
+		$this->system->register();
 	}
 }

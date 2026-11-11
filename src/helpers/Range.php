@@ -9,6 +9,8 @@ use yii\db\ExpressionInterface;
 
 /**
  * Conditions for range filters, where either bound may be left open.
+ *
+ * @internal
  */
 final class Range
 {

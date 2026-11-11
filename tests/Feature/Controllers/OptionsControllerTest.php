@@ -5,7 +5,7 @@ declare(strict_types=1);
 use craft\elements\User;
 use SomehowDigital\Craft\Hub\controllers\OptionsController;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\enums\Permission;
 use SomehowDigital\Craft\Hub\models\ActivityFilter;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 use yii\web\ForbiddenHttpException;
@@ -33,9 +33,9 @@ it('renders the options of a filter on their own', function (): void {
 });
 
 it('offers the user viewing the list first in filters by users, then the users of the list', function (string $filter): void {
-	$options = $this->runAction(OptionsController::class, 'index', ['filter' => $filter])->variables['options'];
+	$options = at($this->runAction(OptionsController::class, 'index', ['filter' => $filter])->variables, 'options');
 
-	expect(array_keys($options))->toBe(['me', 4]);
+	expect(array_keys(listOf($options)))->toBe(['me', 4]);
 })->with(['author', 'uploader']);
 
 it('limits the options to what the list is limited to', function (): void {
@@ -46,18 +46,18 @@ it('limits the options to what the list is limited to', function (): void {
 });
 
 it('offers the kinds of the files there are', function (): void {
-	$options = $this->runAction(OptionsController::class, 'index', ['filter' => 'kind'])->variables['options'];
+	$options = at($this->runAction(OptionsController::class, 'index', ['filter' => 'kind'])->variables, 'options');
 
-	expect(array_keys($options))->toBe(['image', 'pdf'])
-		->and($options['image'])->toHaveKeys(['label', 'icon', 'color']);
+	expect(array_keys(listOf($options)))->toBe(['image', 'pdf'])
+		->and(at($options, 'image'))->toHaveKeys(['label', 'icon', 'color']);
 });
 
 it('offers the users of the activity log in the order of their names, and the activities without a user', function (): void {
-	$options = $this->runAction(OptionsController::class, 'index', ['filter' => 'user'])->variables['options'];
+	$options = at($this->runAction(OptionsController::class, 'index', ['filter' => 'user'])->variables, 'options');
 
-	expect(array_keys($options))->toBe([9, 4, ActivityFilter::USER_NONE])
-		->and($options[4]['user'])->toBeInstanceOf(User::class)
-		->and($options[9]['icon'])->toBe('user-slash');
+	expect(array_keys(listOf($options)))->toBe([9, 4, ActivityFilter::USER_NONE])
+		->and(at($options, 4, 'user'))->toBeInstanceOf(User::class)
+		->and(at($options, 9, 'icon'))->toBe('user-slash');
 });
 
 it('knows no other filters', function (): void {
@@ -65,13 +65,13 @@ it('knows no other filters', function (): void {
 })->throws(NotFoundHttpException::class);
 
 it('requires access to the list a filter is of', function (string $filter, array $permissions): void {
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', 'accessPlugin-hub', ...$permissions]);
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', 'accessPlugin-hub', ...strings($permissions)]);
 
 	$this->runAction(OptionsController::class, 'index', ['filter' => $filter]);
 })->with([
-	'authors without the entries' => ['author', [Hub::PERMISSION_ACCESS_DATA, Page::Assets->viewPermission()]],
-	'extensions without the assets' => ['extension', [Hub::PERMISSION_ACCESS_DATA, Page::Entries->viewPermission()]],
-	'users without the activity log' => ['user', [Hub::PERMISSION_ACCESS_DATA]],
+	'authors without the entries' => ['author', [Permission::AccessData->value, Page::Assets->viewPermission()]],
+	'extensions without the assets' => ['extension', [Permission::AccessData->value, Page::Entries->viewPermission()]],
+	'users without the activity log' => ['user', [Permission::AccessData->value]],
 ])->throws(ForbiddenHttpException::class);
 
 it('offers no users while the activity log is disabled', function (): void {

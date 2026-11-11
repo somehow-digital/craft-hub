@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\services;
 
-use Craft;
 use craft\base\FieldInterface;
 use craft\elements\Asset;
 use craft\fields\Assets as AssetsField;
@@ -12,8 +11,10 @@ use craft\fields\Link as LinkField;
 use craft\fields\linktypes\Asset as AssetLinkType;
 use craft\helpers\Assets as AssetsHelper;
 use craft\models\Volume;
+use craft\services\Fields;
+use craft\services\Volumes;
 use SomehowDigital\Craft\Hub\helpers\Classifier;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\models\AssetStatistics;
 use SomehowDigital\Craft\Hub\models\FileKindInfo;
 use SomehowDigital\Craft\Hub\models\ReferenceStatistics;
@@ -22,14 +23,29 @@ use yii\base\Component;
 
 /**
  * Builds a read-only overview of volumes, the file kinds they hold and the fields relating to them.
+ *
+ * @internal
  */
-class VolumeService extends Component
+final class VolumeService extends Component
 {
 	/** @var array<string,array<int,VolumeInfo>> */
 	private array $graphs = [];
 
 	/** @var array<string,array<string,FileKindInfo>> */
 	private array $fileKinds = [];
+
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly SiteScopeService $siteScope,
+		private readonly StatisticsService $statistics,
+		private readonly Volumes $craftVolumes,
+		private readonly Fields $craftFields,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
 
 	/**
 	 * @return array<int,VolumeInfo>
@@ -47,7 +63,7 @@ class VolumeService extends Component
 	/**
 	 * Volumes an Assets or Link field can relate to assets of.
 	 *
-	 * @return VolumeInfo[]
+	 * @return list<VolumeInfo>
 	 */
 	public function getVolumesOf(FieldInterface $field): array
 	{
@@ -61,7 +77,7 @@ class VolumeService extends Component
 	 */
 	public function getFileKinds(): array
 	{
-		$siteIds = Hub::getInstance()->siteScope->getSiteIds();
+		$siteIds = $this->siteScope->getSiteIds();
 
 		return $this->fileKinds[implode(',', $siteIds)] ??= $this->buildFileKinds($siteIds);
 	}
@@ -75,7 +91,7 @@ class VolumeService extends Component
 	public function getKinds(): array
 	{
 		$kinds = [];
-		foreach (Hub::getInstance()->statistics->getAssetKinds(Hub::getInstance()->siteScope->getSiteIds()) as $kind) {
+		foreach ($this->statistics->getAssetKinds($this->siteScope->getSiteIds()) as $kind) {
 			$kinds[$kind] = new FileKindInfo($kind);
 		}
 
@@ -91,6 +107,7 @@ class VolumeService extends Component
 	{
 		$kinds = [];
 		foreach ([...array_keys(AssetsHelper::getFileKinds()), Asset::KIND_UNKNOWN] as $kind) {
+			$kind = (string) $kind;
 			$kinds[$kind] = new FileKindInfo($kind);
 		}
 
@@ -100,11 +117,11 @@ class VolumeService extends Component
 	/**
 	 * All volumes in the order of their names, without what's known about them.
 	 *
-	 * @return Volume[]
+	 * @return list<Volume>
 	 */
 	public function getVolumeModels(): array
 	{
-		$volumes = Craft::$app->getVolumes()->getAllVolumes();
+		$volumes = $this->craftVolumes->getAllVolumes();
 		usort($volumes, fn(Volume $a, Volume $b): int => strnatcasecmp((string) $a->name, (string) $b->name));
 
 		return $volumes;
@@ -116,14 +133,14 @@ class VolumeService extends Component
 	 */
 	private function buildFileKinds(array $siteIds): array
 	{
-		$volumes = Craft::$app->getVolumes();
+		$volumes = $this->craftVolumes;
 		/** @var array<string,FileKindInfo> $fileKinds */
 		$fileKinds = [];
 
-		foreach (Hub::getInstance()->statistics->getAssetRows($siteIds) as $row) {
+		foreach ($this->statistics->getAssetRows($siteIds) as $row) {
 			$volume = $volumes->getVolumeById($row['volumeId']);
 
-			if ($volume === null) {
+			if (!$volume instanceof Volume) {
 				continue;
 			}
 
@@ -142,7 +159,7 @@ class VolumeService extends Component
 	 */
 	private function getGraph(): array
 	{
-		$siteIds = Hub::getInstance()->siteScope->getSiteIds();
+		$siteIds = $this->siteScope->getSiteIds();
 
 		return $this->graphs[implode(',', $siteIds)] ??= $this->buildGraph($siteIds);
 	}
@@ -155,19 +172,19 @@ class VolumeService extends Component
 	 */
 	private function buildGraph(array $siteIds): array
 	{
-		$fieldsService = Craft::$app->getFields();
-		$statistics = Hub::getInstance()->statistics;
+		$fieldsService = $this->craftFields;
+		$statistics = $this->statistics;
 
 		/** @var array<int,VolumeInfo> $volumes */
 		$volumes = [];
 		/** @var array<string,VolumeInfo> $volumesByUid */
 		$volumesByUid = [];
 
-		foreach (Craft::$app->getVolumes()->getAllVolumes() as $volume) {
+		foreach ($this->craftVolumes->getAllVolumes() as $volume) {
 			$id = (int) $volume->id;
 			$info = new VolumeInfo($volume);
 			$info->hasUrls = $volume->getFs()->hasUrls;
-			$info->lazy('stats', fn() => $statistics->sumAssets($siteIds, $id));
+			$info->lazy('stats', fn(): AssetStatistics => $statistics->sumAssets($siteIds, $id));
 			$info->lazy('kinds', function () use ($statistics, $siteIds, $id): array {
 				$kinds = [];
 				foreach ($statistics->getAssetRows($siteIds) as $row) {
@@ -180,8 +197,8 @@ class VolumeService extends Component
 
 				return $kinds;
 			});
-			$volumes[$volume->id] = $info;
-			$volumesByUid[$volume->uid] = $info;
+			$volumes[(int) $volume->id] = $info;
+			$volumesByUid[(string) $volume->uid] = $info;
 		}
 
 		// Assets and Link fields → volumes
@@ -189,7 +206,7 @@ class VolumeService extends Component
 
 		foreach ($fieldsService->getFieldsByType(AssetsField::class) as $field) {
 			/** @var AssetsField $field */
-			$volumeSources[$field->id] = [
+			$volumeSources[(int) $field->id] = [
 				$field,
 				$field->restrictLocation ? [$field->restrictedLocationSource] : $field->sources,
 				array_keys($volumesByUid),
@@ -202,7 +219,7 @@ class VolumeService extends Component
 
 			if ($linkType instanceof AssetLinkType) {
 				// Asset link types store no sources when all volumes with URLs are allowed.
-				$volumeSources[$field->id] = [
+				$volumeSources[(int) $field->id] = [
 					$field,
 					$linkType->sources ?? '*',
 					array_keys(array_filter($volumesByUid, fn(VolumeInfo $info): bool => $info->hasUrls)),
@@ -211,18 +228,20 @@ class VolumeService extends Component
 		}
 
 		foreach ($volumeSources as [$field, $sources, $uids]) {
-			$property = $field instanceof LinkField ? 'linkFields' : 'assetFields';
-
 			foreach (Classifier::resolveVolumeUids($sources, $uids) as $uid) {
 				$info = $volumesByUid[$uid];
-				$info->{$property}[] = $field;
+				if ($field instanceof LinkField) {
+					$info->linkFields[] = $field;
+				} else {
+					$info->assetFields[] = $field;
+				}
 			}
 		}
 
 		foreach ($volumes as $id => $info) {
 			$info->lazy('references', fn(): ReferenceStatistics => array_reduce(
 				[...$info->assetFields, ...$info->linkFields],
-				fn(ReferenceStatistics $sum, FieldInterface $field): ReferenceStatistics => $sum->add($statistics->sumReferences($siteIds, $field->id, volumeId: $id)),
+				fn(ReferenceStatistics $sum, FieldInterface $field): ReferenceStatistics => $sum->add($statistics->sumReferences($siteIds, Fill::id($field->id), volumeId: $id)),
 				new ReferenceStatistics(),
 			));
 		}

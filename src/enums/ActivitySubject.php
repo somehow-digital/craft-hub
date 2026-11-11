@@ -16,6 +16,8 @@ use craft\elements\User;
 /**
  * What an activity of the activity log was done to: an element, something holding the content, a part of the system's
  * settings, something of Hub's own, or the system itself.
+ *
+ * @internal
  */
 enum ActivitySubject: string
 {

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\handlers\activity;
 
-use Craft;
 use craft\base\ElementInterface;
 use craft\base\NestedElementInterface;
 use craft\behaviors\DraftBehavior;
@@ -24,9 +23,12 @@ use craft\services\Assets;
 use craft\services\Drafts;
 use craft\services\Elements;
 use craft\services\Structures;
+use craft\web\Request as WebRequest;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\models\Settings;
+use SomehowDigital\Craft\Hub\services\ActivityService;
 use WeakMap;
 use yii\base\ActionEvent;
 use yii\base\Controller;
@@ -34,8 +36,10 @@ use yii\base\Event;
 
 /**
  * Elements saved, deleted, restored, merged and moved, and element actions, recorded as a batch of what they changed.
+ *
+ * @internal
  */
-class ContentActivity extends ActivitySubscriber
+final class ContentActivity extends BaseActivitySubscriber
 {
 	/** attributes Craft sets as elements are saved, which aren't changes users made */
 	private const IGNORED_ATTRIBUTES = [
@@ -58,8 +62,13 @@ class ContentActivity extends ActivitySubscriber
 	/** whether an element action is performed, recorded as a batch */
 	private bool $performing = false;
 
-	public function __construct()
-	{
+	public function __construct(
+		ActivityService $activity,
+		private readonly Settings $settings,
+		private readonly Elements $craftElements,
+		private readonly ?WebRequest $request,
+	) {
+		parent::__construct($activity);
 		$this->saving = new WeakMap();
 	}
 
@@ -71,14 +80,14 @@ class ContentActivity extends ActivitySubscriber
 		Event::on(Elements::class, Elements::EVENT_AFTER_DELETE_FOR_SITE, fn(ElementEvent $event) => $this->elementDeletedForSite($event));
 		Event::on(Elements::class, Elements::EVENT_AFTER_RESTORE_ELEMENT, fn(ElementEvent $event) => $this->elementRestored($event));
 		Event::on(Elements::class, Elements::EVENT_AFTER_MERGE_ELEMENTS, fn(MergeElementsEvent $event) => $this->elementsMerged($event));
-		Event::on(Structures::class, Structures::EVENT_AFTER_MOVE_ELEMENT, fn(MoveElementEvent $event) => $this->elementMoved($event));
+		Event::on(Structures::class, Structures::EVENT_AFTER_UPDATE_ELEMENT, fn(MoveElementEvent $event) => $this->elementMoved($event));
 		Event::on(Assets::class, Assets::EVENT_AFTER_REPLACE_ASSET, fn(ReplaceAssetEvent $event) => $this->element(ActivityAction::Replaced, $event->asset, ['filename' => $event->filename]));
 
 		Event::on(Elements::class, Elements::EVENT_BEFORE_PERFORM_ACTION, fn(ElementActionEvent $event) => $this->performingAction($event));
 		Event::on(Elements::class, Elements::EVENT_AFTER_PERFORM_ACTION, fn(ElementActionEvent $event) => $this->performedAction($event));
 		Event::on(ElementIndexesController::class, Controller::EVENT_AFTER_ACTION, fn(ActionEvent $event) => $this->elementIndexAction($event));
 
-		if (Hub::getInstance()->settings->activityDrafts) {
+		if ($this->settings->activityDrafts) {
 			Event::on(Drafts::class, Drafts::EVENT_AFTER_CREATE_DRAFT, fn(DraftEvent $event) => $this->draftCreated($event));
 			Event::on(Drafts::class, Drafts::EVENT_BEFORE_APPLY_DRAFT, fn(): int => $this->applyingDrafts++);
 			Event::on(Drafts::class, Drafts::EVENT_AFTER_APPLY_DRAFT, fn(): int => $this->applyingDrafts--);
@@ -117,7 +126,7 @@ class ContentActivity extends ActivitySubscriber
 			// Changes saved in the control panel are applied from provisional drafts, which are named like any other.
 			$draft = $derivative instanceof ElementInterface && !$derivative->isProvisionalDraft ? $derivative->getBehavior('draft') : null;
 			$ignored = $element instanceof User ? [...self::IGNORED_ATTRIBUTES, ...self::IGNORED_USER_ATTRIBUTES] : self::IGNORED_ATTRIBUTES;
-			$data = array_filter([
+			$data = Fill::truthy([
 				'draft' => $draft instanceof DraftBehavior ? $draft->draftName : null,
 				'attributes' => array_values(array_diff($dirty, $ignored)),
 				'fields' => array_values($element->getDirtyFields()),
@@ -152,13 +161,13 @@ class ContentActivity extends ActivitySubscriber
 		$draft = $element->getBehavior('draft');
 
 		if (
-			Hub::getInstance()->settings->activityDrafts
+			$this->settings->activityDrafts
 			&& $draft instanceof DraftBehavior
 			&& !$element->isProvisionalDraft
 			&& $this->applyingDrafts === 0
 			&& !$this->isNested($element)
 		) {
-			$this->activity()->record(ActivityAction::DraftDeleted, ActivitySubject::fromElement($element), $element->getCanonicalId(), $element->getUiLabel(), array_filter(['draftName' => $draft->draftName]), $element->siteId);
+			$this->activity->record(ActivityAction::DraftDeleted, ActivitySubject::fromElement($element), $element->getCanonicalId(), $element->getUiLabel(), Fill::truthy(['draftName' => $draft->draftName]), $element->siteId);
 		}
 	}
 
@@ -184,9 +193,9 @@ class ContentActivity extends ActivitySubscriber
 	 */
 	private function elementsMerged(MergeElementsEvent $event): void
 	{
-		$element = Craft::$app->getElements()->getElementById($event->prevailingElementId);
+		$element = $this->craftElements->getElementById($event->prevailingElementId);
 
-		if ($element !== null && $this->tracks($element)) {
+		if ($element instanceof ElementInterface && $this->tracks($element)) {
 			$this->element(ActivityAction::Merged, $element, ['merged' => $event->mergedElementId]);
 		}
 	}
@@ -202,7 +211,7 @@ class ContentActivity extends ActivitySubscriber
 			return;
 		}
 
-		$this->element(ActivityAction::Moved, $element, array_filter([
+		$this->element(ActivityAction::Moved, $element, Fill::truthy([
 			'position' => $event->action,
 			'target' => $event->getTargetElement()?->getUiLabel(),
 		]));
@@ -214,7 +223,7 @@ class ContentActivity extends ActivitySubscriber
 	private function draftCreated(DraftEvent $event): void
 	{
 		if (!$event->provisional && $this->tracks($event->canonical)) {
-			$this->element(ActivityAction::DraftCreated, $event->canonical, array_filter(['draftName' => $event->draftName]));
+			$this->element(ActivityAction::DraftCreated, $event->canonical, Fill::truthy(['draftName' => $event->draftName]));
 		}
 	}
 
@@ -247,7 +256,7 @@ class ContentActivity extends ActivitySubscriber
 			$data['type'] = $element::displayName();
 		}
 
-		$this->activity()->record($action, $subject, $element->id, $element->getUiLabel(), $data, $element->siteId);
+		$this->activity->record($action, $subject, $element->id, $element->getUiLabel(), $data, $element->siteId);
 	}
 
 	/**
@@ -262,7 +271,7 @@ class ContentActivity extends ActivitySubscriber
 		$type = $event->criteria instanceof ElementQuery ? $event->criteria->elementType : null;
 
 		$this->performing = true;
-		$this->activity()->beginBatch(
+		$this->activity->beginBatch(
 			ActivityAction::Bulk,
 			$type !== null ? ActivitySubject::fromElementType($type) : ActivitySubject::Element,
 			$event->action->getTriggerLabel(),
@@ -302,16 +311,15 @@ class ContentActivity extends ActivitySubscriber
 		}
 
 		$query = $event->sender->getElementQuery();
-		$request = Craft::$app->getRequest();
-		$exporter = $request->getBodyParam('type');
+		$exporter = $this->request?->getBodyParam('type');
 
-		$this->activity()->record(
+		$this->activity->record(
 			ActivityAction::Exported,
 			$query instanceof ElementQuery ? ActivitySubject::fromElementType($query->elementType) : ActivitySubject::Element,
-			data: array_filter([
+			data: Fill::truthy([
 				'count' => (int) (clone $query)->count(),
 				'exporter' => is_string($exporter) && class_exists($exporter) && method_exists($exporter, 'displayName') ? $exporter::displayName() : null,
-				'format' => is_string($format = $request->getBodyParam('format')) ? $format : null,
+				'format' => is_string($format = $this->request?->getBodyParam('format')) ? $format : null,
 			]),
 		);
 	}
@@ -320,7 +328,7 @@ class ContentActivity extends ActivitySubscriber
 	{
 		if ($this->performing) {
 			$this->performing = false;
-			$this->activity()->endBatch();
+			$this->activity->endBatch();
 		}
 	}
 }

@@ -9,8 +9,10 @@ use craft\models\EntryType;
 
 /**
  * A field layout that contains a given field, described by its owner and the owner's type.
+ *
+ * @internal
  */
-class LayoutUsage
+final readonly class LayoutUsage
 {
 	public function __construct(
 		public string $ownerType,
@@ -20,4 +22,12 @@ class LayoutUsage
 		public EntryType|FieldInterface|null $model = null,
 		public ?string $color = null,
 	) {}
+
+	/**
+	 * The usage for another number of instances of the layout.
+	 */
+	public function withInstances(int $instances): self
+	{
+		return new self($this->ownerType, $this->label, $this->url, $instances, $this->model, $this->color);
+	}
 }

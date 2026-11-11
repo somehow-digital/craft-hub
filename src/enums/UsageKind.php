@@ -8,6 +8,8 @@ use Craft;
 
 /**
  * How an entry type is used.
+ *
+ * @internal
  */
 enum UsageKind: string
 {
@@ -22,7 +24,7 @@ enum UsageKind: string
 	/**
 	 * Kinds shown as usage on the entry types list.
 	 *
-	 * @return self[]
+	 * @return list<self>
 	 */
 	public static function listed(): array
 	{

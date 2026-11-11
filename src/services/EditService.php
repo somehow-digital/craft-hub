@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\services;
 
-use Craft;
+use craft\db\Connection;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Entry;
 use craft\elements\User;
-use craft\helpers\DateTimeHelper;
 use craft\helpers\Db;
+use craft\web\Request as WebRequest;
+use craft\web\User as WebUser;
 use DateTime;
-use SomehowDigital\Craft\Hub\Hub;
+use DateTimeInterface;
+use SomehowDigital\Craft\Hub\db\Tables;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\helpers\Ids;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use yii\base\Component;
 
 /**
@@ -22,18 +27,30 @@ use yii\base\Component;
  * changing an entry's status. So Hub records the saves of signed-in users on the web, outside of the queue, that change
  * an entry's content: its fields or attributes other than its status. Entries without a record fall back to their
  * `dateUpdated`; existing entries are given one from their revisions and Craft's change tracking, see {@see backfill()}.
+ *
+ * @internal
  */
-class EditService extends Component
+final class EditService extends Component
 {
-	/** the last edit of each entry by a person, with the user who made it */
-	public const TABLE = '{{%hub_edits}}';
-
 	/** attributes Craft sets as elements are saved, and the status, none of which are edits of the content */
 	public const IGNORED_ATTRIBUTES = [
 		'id', 'uid', 'canonicalId', 'draftId', 'revisionId', 'isProvisionalDraft', 'siteSettingsId', 'fieldLayoutId',
 		'structureId', 'root', 'lft', 'rgt', 'level', 'uri', 'dateCreated', 'dateUpdated', 'dateLastMerged',
 		'enabled', 'enabledForSite', 'archived',
 	];
+
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly UserService $users,
+		private readonly Connection $db,
+		private readonly ?WebRequest $request,
+		private readonly ?WebUser $user = null,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
 
 	/**
 	 * Records the save of an entry as an edit, if a person made it and it changed the entry's content.
@@ -51,9 +68,9 @@ class EditService extends Component
 			return;
 		}
 
-		Craft::$app->getDb()->createCommand()->upsert(self::TABLE, [
+		$this->db->createCommand()->upsert(Tables::EDITS, [
 			'elementId' => $entry->id,
-			'userId' => Craft::$app->getUser()->getId(),
+			'userId' => $this->user?->getId(),
 			'dateEdited' => Db::prepareDateForDb(new DateTime()),
 		])->execute();
 	}
@@ -66,11 +83,11 @@ class EditService extends Component
 	 */
 	public function getLastEdited(array $entries): array
 	{
-		$dates = $this->getRecorded(array_map(fn(Entry $entry): ?int => $entry->id, $entries));
+		$dates = $this->getRecorded(Ids::of($entries));
 		$lastEdited = [];
 
 		foreach ($entries as $entry) {
-			$lastEdited[$entry->id] = $dates[$entry->id]['date'] ?? $entry->dateUpdated;
+			$lastEdited[(int) $entry->id] = $dates[(int) $entry->id]['date'] ?? $entry->dateUpdated;
 		}
 
 		return $lastEdited;
@@ -83,11 +100,11 @@ class EditService extends Component
 	 */
 	public function getLastEdit(Entry $entry): array
 	{
-		$recorded = $this->getRecorded([$entry->id])[$entry->id] ?? null;
+		$recorded = $this->getRecorded([(int) $entry->id])[(int) $entry->id] ?? null;
 
 		return [
 			'date' => $recorded['date'] ?? $entry->dateUpdated,
-			'user' => isset($recorded['userId']) ? User::find()->id($recorded['userId'])->status(null)->one() : null,
+			'user' => isset($recorded['userId']) ? $this->userOf($recorded['userId']) : null,
 		];
 	}
 
@@ -99,10 +116,17 @@ class EditService extends Component
 	{
 		$edited = (new Query())
 			->select(['hubEdits.dateEdited'])
-			->from(['hubEdits' => self::TABLE])
+			->from(['hubEdits' => Tables::EDITS])
 			->where('[[hubEdits.elementId]] = [[elements.id]]');
 
 		return sprintf('COALESCE((%s), [[elements.dateUpdated]])', $edited->createCommand()->getRawSql());
+	}
+
+	private function userOf(int $id): ?User
+	{
+		$user = User::find()->id($id)->status(null)->one();
+
+		return $user instanceof User ? $user : null;
 	}
 
 	/**
@@ -113,18 +137,18 @@ class EditService extends Component
 	 */
 	public function lastEditedCondition(mixed $param): ?array
 	{
-		return Db::parseDateParam($this->lastEditedSql(), $param);
+		return is_string($param) || is_array($param) || $param instanceof DateTimeInterface ? Db::parseDateParam($this->lastEditedSql(), $param) : null;
 	}
 
 	/**
 	 * Condition matching the queried entries last edited by one of the users.
 	 *
 	 * @param int[] $userIds
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	public function editedByCondition(array $userIds): array
 	{
-		return ['in', 'elements.id', (new Query())->select(['hubEditors.elementId'])->from(['hubEditors' => self::TABLE])->where(['hubEditors.userId' => $userIds])];
+		return ['in', 'elements.id', (new Query())->select(['hubEditors.elementId'])->from(['hubEditors' => Tables::EDITS])->where(['hubEditors.userId' => $userIds])];
 	}
 
 	/**
@@ -137,7 +161,7 @@ class EditService extends Component
 	{
 		$counts = (new Query())
 			->select(['hubEdits.userId', 'count' => 'COUNT(*)'])
-			->from(['hubEdits' => self::TABLE])
+			->from(['hubEdits' => Tables::EDITS])
 			->innerJoin(['entries' => Table::ENTRIES], '[[entries.id]] = [[hubEdits.elementId]]')
 			->innerJoin(['elements' => Table::ELEMENTS], '[[elements.id]] = [[entries.id]]')
 			->where(['elements.dateDeleted' => null])
@@ -151,12 +175,12 @@ class EditService extends Component
 			return [];
 		}
 
-		$users = Hub::getInstance()->users->getUsers(array_map(intval(...), array_keys($counts)));
+		$users = $this->users->getUsers(array_map(Fill::int(...), array_keys($counts)));
 		$editors = [];
 
 		foreach ($counts as $id => $count) {
 			if (isset($users[$id])) {
-				$editors[(int) $id] = ['user' => $users[$id], 'count' => (int) $count];
+				$editors[Fill::int($id)] = ['user' => $users[$id], 'count' => Fill::int($count)];
 			}
 		}
 
@@ -174,10 +198,10 @@ class EditService extends Component
 		$edits = [];
 		$add = function (array $rows) use (&$edits): void {
 			foreach ($rows as $row) {
-				$id = (int) $row['elementId'];
+				$id = Row::int($row, 'elementId');
 
-				if (!isset($edits[$id]) || $row['date'] > $edits[$id]['dateEdited']) {
-					$edits[$id] = ['elementId' => $id, 'userId' => $row['userId'] !== null ? (int) $row['userId'] : null, 'dateEdited' => $row['date']];
+				if (!isset($edits[$id]) || Row::string($row, 'date') > $edits[$id]['dateEdited']) {
+					$edits[$id] = ['elementId' => $id, 'userId' => Row::intOrNull($row, 'userId'), 'dateEdited' => Row::string($row, 'date')];
 				}
 			}
 		};
@@ -210,18 +234,18 @@ class EditService extends Component
 			->from(['elements' => Table::ELEMENTS])
 			->innerJoin(['entries' => Table::ENTRIES], '[[entries.id]] = [[elements.id]]')
 			->where(['elements.draftId' => null, 'elements.revisionId' => null])
-			->andWhere(['not exists', (new Query())->from(['hubEdits' => self::TABLE])->where('[[hubEdits.elementId]] = [[elements.id]]')])
+			->andWhere(['not exists', (new Query())->from(['hubEdits' => Tables::EDITS])->where('[[hubEdits.elementId]] = [[elements.id]]')])
 			->orderBy(['elements.id' => SORT_ASC])
 			->all();
 
-		$rows = array_map(fn(array $row): array => array_values($edits[(int) $row['elementId']] ?? [
-			'elementId' => (int) $row['elementId'],
+		$rows = array_map(fn(array $row): array => array_values($edits[Row::int($row, 'elementId')] ?? [
+			'elementId' => Row::int($row, 'elementId'),
 			'userId' => null,
 			'dateEdited' => $row['date'],
 		]), $entries);
 
 		foreach (array_chunk($rows, 500) as $chunk) {
-			Craft::$app->getDb()->createCommand()->batchInsert(self::TABLE, ['elementId', 'userId', 'dateEdited'], $chunk)->execute();
+			$this->db->createCommand()->batchInsert(Tables::EDITS, ['elementId', 'userId', 'dateEdited'], $chunk)->execute();
 		}
 	}
 
@@ -237,17 +261,17 @@ class EditService extends Component
 
 		$rows = (new Query())
 			->select(['elementId', 'userId', 'dateEdited'])
-			->from([self::TABLE])
+			->from([Tables::EDITS])
 			->where(['elementId' => $entryIds])
 			->all();
 
 		$recorded = [];
 
 		foreach ($rows as $row) {
-			$date = DateTimeHelper::toDateTime($row['dateEdited']);
+			$date = Row::date($row, 'dateEdited');
 
-			if ($date !== false) {
-				$recorded[(int) $row['elementId']] = ['date' => $date, 'userId' => $row['userId'] !== null ? (int) $row['userId'] : null];
+			if ($date instanceof DateTime) {
+				$recorded[Row::int($row, 'elementId')] = ['date' => $date, 'userId' => Row::intOrNull($row, 'userId')];
 			}
 		}
 
@@ -260,13 +284,13 @@ class EditService extends Component
 	 */
 	private function isPerson(): bool
 	{
-		$request = Craft::$app->getRequest();
+		$request = $this->request;
 
-		if ($request->getIsConsoleRequest() || ($request->getIsActionRequest() && $request->getActionSegments() === ['queue', 'run'])) {
+		if (!$request instanceof WebRequest || $request->getIsConsoleRequest() || ($request->getIsActionRequest() && $request->getActionSegments() === ['queue', 'run'])) {
 			return false;
 		}
 
-		return Craft::$app->getUser()->getId() !== null;
+		return $this->user?->getId() !== null;
 	}
 
 	/**

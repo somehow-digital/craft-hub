@@ -7,6 +7,7 @@ namespace SomehowDigital\Craft\Hub\conditions\rules;
 use Craft;
 use craft\base\conditions\BaseMultiSelectConditionRule;
 use craft\base\Field;
+use SomehowDigital\Craft\Hub\base\InfoConditionRuleInterface;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
@@ -14,14 +15,19 @@ use SomehowDigital\Craft\Hub\models\VolumeInfo;
 
 /**
  * Matches how the values of a field are translated.
+ *
+ * @internal
  */
-class TranslationMethodConditionRule extends BaseMultiSelectConditionRule implements InfoConditionRuleInterface
+final class TranslationMethodConditionRule extends BaseMultiSelectConditionRule implements InfoConditionRuleInterface
 {
 	public function getLabel(): string
 	{
 		return Craft::t('app', 'Translation Method');
 	}
 
+	/**
+	 * @return list<array{value: string, label: string}|string>
+	 */
 	protected function options(): array
 	{
 		return [

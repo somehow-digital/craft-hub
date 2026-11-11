@@ -8,17 +8,32 @@ use Craft;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\models\Section;
+use craft\services\Elements;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\enums\Permission;
+use SomehowDigital\Craft\Hub\services\AccessService;
 use SomehowDigital\Craft\Hub\services\BulkService;
+use SomehowDigital\Craft\Hub\services\EntryService;
 
 /**
  * Changes the authors of entries as far as the user may (see EntryService::canChangeAuthors()), to the user picked
- * (`authorId`), replacing the authors or being added to them (`authors`, see BulkService::AUTHORS_*). They must be able
+ * (`authorId`), replacing the authors or being added to them (`authors`, see BulkActions::AUTHORS_*). They must be able
  * to view the entries of the section, as Craft requires; entries with those authors already are left as they are.
+ *
+ * @internal
  */
-class ChangeAuthor extends BulkAction
+final class ChangeAuthor extends BaseBulkAction
 {
+	public function __construct(
+		string $list,
+		AccessService $access,
+		private readonly BulkService $bulk,
+		private readonly EntryService $entries,
+		private readonly Elements $craftElements,
+	) {
+		parent::__construct($list, $access);
+	}
+
 	public function definition(): array
 	{
 		return $this->picked(
@@ -32,40 +47,42 @@ class ChangeAuthor extends BulkAction
 
 	public function isAvailable(): bool
 	{
-		return $this->hub()->access->canAct(Page::Entries, Hub::PERMISSION_CHANGE_AUTHORS);
+		return $this->access->canAct(Page::Entries, Permission::ChangeAuthors->value);
 	}
 
+	/**
+	 * @return list<int>
+	 */
 	public function apply(array $ids, array $params): array
 	{
-		$authorId = $this->intParam($params, 'authorId');
-		$author = $authorId > 0 ? User::find()->id($authorId)->status(User::STATUS_ACTIVE)->one() : null;
-		$add = ($params['authors'] ?? null) === BulkService::AUTHORS_ADD;
+		$author = $this->activeUser($this->intParam($params, 'authorId'));
+		$add = ($params['authors'] ?? null) === BulkActions::AUTHORS_ADD;
 
-		return $author === null ? [] : $this->succeeded($this->entries($ids), fn(Entry $entry): bool => $this->change($entry, $author, $add));
+		return $author instanceof User ? $this->succeeded($this->entries($ids), fn(Entry $entry): bool => $this->change($entry, $author, $add)) : [];
 	}
 
-	public function preview(array $ids, int $page): ?BulkPreview
+	public function preview(array $ids, int $page): BulkPreview
 	{
-		$entries = array_values(array_filter($this->entries($ids), $this->hub()->entries->canChangeAuthors(...)));
-		$authors = $this->hub()->entries->getAuthorCandidates($entries);
+		$entries = array_values(array_filter($this->entries($ids), $this->entries->canChangeAuthors(...)));
+		$authors = $this->entries->getAuthorCandidates($entries);
 
 		return new BulkPreview('author-preview', $authors !== [] ? count($entries) : 0, ['authors' => $authors]);
 	}
 
 	/**
 	 * @param int[] $ids
-	 * @return Entry[]
+	 * @return list<Entry>
 	 */
 	private function entries(array $ids): array
 	{
-		return $this->hub()->bulk->getElementsOf($this->list, $ids, Entry::class);
+		return $this->bulk->getElementsOf($this->list, $ids, Entry::class);
 	}
 
 	private function change(Entry $entry, User $author, bool $add): bool
 	{
 		$section = $entry->getSection();
 
-		if (!$section instanceof Section || !$this->hub()->entries->canChangeAuthors($entry) || !$author->can("viewEntries:{$section->uid}")) {
+		if (!$section instanceof Section || !$this->entries->canChangeAuthors($entry) || !$author->can('viewEntries:' . ($section->uid ?? ''))) {
 			return false;
 		}
 
@@ -78,6 +95,6 @@ class ChangeAuthor extends BulkAction
 
 		$entry->setAuthorIds($changed);
 
-		return Craft::$app->getElements()->saveElement($entry);
+		return $this->craftElements->saveElement($entry);
 	}
 }

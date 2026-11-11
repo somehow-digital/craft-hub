@@ -4,15 +4,23 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\services;
 
-use Craft;
+use craft\base\ElementInterface;
+use craft\db\Connection;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\db\ElementQuery;
 use craft\elements\db\UserQuery;
 use craft\elements\Entry;
-use SomehowDigital\Craft\Hub\Hub;
+use craft\services\Sites;
+use craft\web\twig\variables\Paginate;
+use InvalidArgumentException;
+use SomehowDigital\Craft\Hub\base\ElementQueryRunnerInterface;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\helpers\Row;
+use SomehowDigital\Craft\Hub\models\Paginator;
 use yii\base\Component;
 use yii\db\Expression;
+use yii\db\ExpressionInterface;
 
 /**
  * Counts and pages element queries over several sites without querying unique elements.
@@ -24,9 +32,24 @@ use yii\db\Expression;
  * On a single site, each element has a single row, so the rows are counted and sorted as they are.
  * The same goes for several sites when nothing depends on the site of a row: the sites aren't joined then, but matched
  * with a subquery, as an element matches on all of its sites or none, so it has a single row too.
+ *
+ * @internal
  */
-class QueryService extends Component
+final class QueryService extends Component
 {
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly SiteScopeService $siteScope,
+		private readonly Connection $db,
+		private readonly Sites $craftSites,
+		private readonly ?ElementQueryRunnerInterface $runner = null,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
+
 	/**
 	 * Counts the elements of a query, and those matching each of the conditions, grouped by the given columns.
 	 * An element counts for a condition, or a value of a case, if it matches it on any of its sites.
@@ -39,11 +62,13 @@ class QueryService extends Component
 	 * @param array<string,string> $groups alias => column to group by, which each element has a single value of
 	 * @param array<string,mixed> $conditions alias => condition, in the format of `where()`
 	 * @param array<string,array<string,mixed>> $cases alias => value => condition; the first matching value counts, null for the remaining elements
-	 * @param array<string,string|Query>|null $tables alias => table the conditions refer to besides `elements`, joined by element ID,
+	 * @param array<string,string|Query<array-key,mixed>>|null $tables alias => table the conditions refer to besides `elements`, joined by element ID,
 	 *     to evaluate them once per element; null if they depend on the site, to evaluate them on the rows of the query.
 	 *     Tables are inner joined, as each element has a row in them; subqueries are left joined, as it may not have one
 	 * @return array<int,array<string,mixed>> a row for each group, with its columns, the `total`, the count of each condition,
 	 *     and the count of each value of a case as `{alias}_{value}`
+	 *
+	 * @param ElementQuery<array-key,covariant ElementInterface> $query
 	 */
 	public function count(ElementQuery $query, array $groups, array $conditions = [], array $cases = [], ?array $tables = null): array
 	{
@@ -95,7 +120,7 @@ class QueryService extends Component
 
 		if (!$single) {
 			$elements->groupBy(array_map(fn(string $column): Expression => new Expression($column), [$id, ...array_values($columns)]));
-		} elseif (Craft::$app->getDb()->getIsPgsql()) {
+		} elseif ($this->db->getIsPgsql()) {
 			// PostgreSQL pulls a subquery without grouping up into the counts, evaluating the value of each condition
 			// again for each aggregate referring to it; an offset keeps it apart. MySQL keeps subqueries apart
 			// that select subqueries already.
@@ -125,22 +150,41 @@ class QueryService extends Component
 			$counts->groupBy($aliases);
 		}
 
-		return $counts->all();
+		/** @var array<int,array<string,mixed>> $result */
+		$result = $counts->all();
+
+		return $result;
 	}
 
 	/**
 	 * How many elements a query matches.
+	 *
+	 * @param ElementQuery<array-key,covariant ElementInterface> $query
 	 */
 	public function total(ElementQuery $query): int
 	{
-		return (int) ($this->count($query, [])[0]['total'] ?? 0);
+		$total = $this->runner?->total($query);
+
+		if ($total !== null) {
+			return $total;
+		}
+
+		return Fill::int(($this->count($query, [])[0]['total'] ?? 0));
 	}
 
 	/**
 	 * Whether a query matches any element, on any of its sites; the first row found tells, without counting the rest.
+	 *
+	 * @param ElementQuery<array-key,covariant ElementInterface> $query
 	 */
 	public function exists(ElementQuery $query): bool
 	{
+		$exists = $this->runner?->exists($query);
+
+		if ($exists !== null) {
+			return $exists;
+		}
+
 		[$rows] = $this->elementRows($query, []);
 
 		return $rows->select(['hubId' => 'elements.id'])->limit(1)->scalar() !== false;
@@ -150,7 +194,9 @@ class QueryService extends Component
 	 * IDs of the elements on a page of a query, in its order.
 	 *
 	 * @param int|null $total the elements the query matches, if counted already, see pageSites()
-	 * @return int[]
+	 * @return list<int>
+	 *
+	 * @param ElementQuery<array-key,covariant ElementInterface> $query
 	 */
 	public function pageIds(ElementQuery $query, int $offset, int $limit, ?int $total = null): array
 	{
@@ -164,10 +210,19 @@ class QueryService extends Component
 	 * only elements matching on all sites or none are loaded on their preferred site, without the criteria too.
 	 *
 	 * @param int|null $total the elements the query matches, if counted already, see pageSites()
-	 * @return array<int,mixed>
+	 * @template T of \craft\base\ElementInterface
+	 * @param ElementQuery<array-key,covariant T> $query
+	 * @return list<T>
 	 */
 	public function page(ElementQuery $query, int $offset, int $limit, ?int $total = null): array
 	{
+		/** @var list<T>|null $answered */
+		$answered = $this->runner?->page($query, $offset, $limit);
+
+		if ($answered !== null) {
+			return $answered;
+		}
+
 		$sites = $this->pageSites($query, $offset, $limit, $total);
 		$bySite = [];
 
@@ -175,10 +230,11 @@ class QueryService extends Component
 			$bySite[$siteId ?? ''][] = $id;
 		}
 
+		/** @var array<int,T> $elements */
 		$elements = [];
 
 		foreach ($bySite as $siteId => $ids) {
-			/** @var ElementQuery $siteQuery */
+			/** @var ElementQuery<array-key,T> $siteQuery */
 			// Lists show none of the custom fields, though the titles and preview targets of entries may be made of them.
 			$siteQuery = $query->elementType::find()->id($ids)->status(null)->trashed($query->trashed)->with($query->with)->withCustomFields($query->elementType === Entry::class);
 
@@ -196,7 +252,7 @@ class QueryService extends Component
 			}
 
 			foreach ($siteQuery->all() as $element) {
-				$elements[$element->id] = $element;
+				$elements[(int) $element->id] = $element;
 			}
 		}
 
@@ -214,6 +270,8 @@ class QueryService extends Component
 	 * Ranking the sites of each element finds all of them before sorting them already.
 	 *
 	 * @return array<int,int|null> element ID => site ID
+	 *
+	 * @param ElementQuery<array-key,covariant ElementInterface> $query
 	 */
 	private function pageSites(ElementQuery $query, int $offset, int $limit, ?int $total): array
 	{
@@ -221,6 +279,7 @@ class QueryService extends Component
 			return [];
 		}
 
+		/** @var array<string,int> $orderBy */
 		$orderBy = $query->orderBy ?? [];
 		[$rows, $single] = $this->elementRows($query, array_map(strval(...), array_keys($orderBy)));
 
@@ -230,17 +289,19 @@ class QueryService extends Component
 
 		$ids = $total !== null && $offset + $limit >= $total
 			? $this->sortedPageIds($rows, $orderBy, $offset, $limit)
-			: $rows->select(['hubId' => 'elements.id'])->orderBy($orderBy ?: ['elements.id' => SORT_ASC])->offset($offset)->limit($limit)->column();
-		$siteId = $this->isSingleSite($query) ? (int) (is_array($query->siteId) ? reset($query->siteId) : $query->siteId) : null;
+			: $rows->select(['hubId' => 'elements.id'])->orderBy($orderBy !== [] ? $orderBy : ['elements.id' => SORT_ASC])->offset($offset)->limit($limit)->column();
+		$siteId = $this->isSingleSite($query) ? Fill::int((is_array($query->siteId) ? reset($query->siteId) : $query->siteId)) : null;
 
-		return array_fill_keys(array_map(intval(...), $ids), $siteId);
+		return array_fill_keys(array_map(Fill::int(...), $ids), $siteId);
 	}
 
 	/**
 	 * IDs of the elements on a page of rows with a single one for each element, sorted once all of them are found.
 	 *
 	 * @param array<string,int> $orderBy
-	 * @return array<int,mixed>
+	 * @return list<mixed>
+	 *
+	 * @param Query<array-key,mixed> $rows
 	 */
 	private function sortedPageIds(Query $rows, array $orderBy, int $offset, int $limit): array
 	{
@@ -249,15 +310,15 @@ class QueryService extends Component
 		// Kept apart from the sort, so databases don't sort the rows as they find them: by an offset on PostgreSQL, and a
 		// limit on MySQL, which leaves out offsets of 0.
 		$rows->select(['hubId' => 'elements.id', ...$select]);
-		Craft::$app->getDb()->getIsPgsql() ? $rows->offset(new Expression('0')) : $rows->limit(PHP_INT_MAX);
+		$this->db->getIsPgsql() ? $rows->offset(new Expression('0')) : $rows->limit(PHP_INT_MAX);
 
-		return (new Query())
+		return array_values((new Query())
 			->select(['hubId'])
 			->from(['hubRows' => $rows])
-			->orderBy($sort ?: ['hubId' => SORT_ASC])
+			->orderBy($sort !== [] ? $sort : ['hubId' => SORT_ASC])
 			->offset($offset)
 			->limit($limit)
-			->column();
+			->column());
 	}
 
 	/**
@@ -265,12 +326,15 @@ class QueryService extends Component
 	 *
 	 * @param array<string,int> $orderBy
 	 * @return array<int,int|null> element ID => site ID
+	 *
+	 * @param ElementQuery<array-key,covariant ElementInterface> $query
+	 * @param Query<array-key,mixed> $rows
 	 */
 	private function rankedPageSites(ElementQuery $query, Query $rows, array $orderBy, int $offset, int $limit): array
 	{
 		[$select, $sort] = $this->sortColumns($orderBy);
 
-		$rows = (new Query())
+		$ranked = (new Query())
 			->select(['hubId', 'hubSiteId'])
 			->from(['hubRows' => $rows->select([
 				'hubId' => 'elements.id',
@@ -279,15 +343,15 @@ class QueryService extends Component
 				...$select,
 			])])
 			->where(['hubRank' => 1])
-			->orderBy($sort ?: ['hubId' => SORT_ASC])
+			->orderBy($sort !== [] ? $sort : ['hubId' => SORT_ASC])
 			->offset($offset)
 			->limit($limit)
 			->all();
 
 		$sites = [];
 
-		foreach ($rows as $row) {
-			$sites[(int) $row['hubId']] = (int) $row['hubSiteId'];
+		foreach ($ranked as $row) {
+			$sites[Row::int($row, 'hubId')] = Row::int($row, 'hubSiteId');
 		}
 
 		return $sites;
@@ -305,7 +369,7 @@ class QueryService extends Component
 		$sort = [];
 
 		foreach (array_keys($orderBy) as $i => $column) {
-			$select["hubSort{$i}"] = (string) $column;
+			$select["hubSort{$i}"] = $column;
 			$sort["hubSort{$i}"] = $orderBy[$column];
 		}
 
@@ -314,10 +378,15 @@ class QueryService extends Component
 
 	/**
 	 * The rows of a query, a row for each element and site matching its criteria, with the tables of its criteria joined.
+	 *
+	 * @param ElementQuery<array-key,covariant ElementInterface> $query
+	 * @return Query<array-key,mixed>
 	 */
-	protected function rows(ElementQuery $query): Query
+	private function rows(ElementQuery $query): Query
 	{
-		return (clone $query)
+		$rows = $this->runner?->rows($query);
+
+		return $rows instanceof Query ? $rows : (clone $query)
 			->unique(false)
 			->orderBy(null)
 			->offset(null)
@@ -330,7 +399,8 @@ class QueryService extends Component
 	 * the criteria of the query nor the given SQL refer to the site of a row, as the sites are matched with a subquery then.
 	 *
 	 * @param string[] $sql columns and conditions evaluated on the rows
-	 * @return array{0:Query,1:bool}
+	 * @param ElementQuery<array-key,covariant ElementInterface> $query
+	 * @return array{0:Query<array-key,mixed>,1:bool}
 	 */
 	private function elementRows(ElementQuery $query, array $sql): array
 	{
@@ -342,9 +412,11 @@ class QueryService extends Component
 
 		$found = 0;
 		$elementRows = clone $rows;
-		$elementRows->where = $this->matchSites($elementRows->where, $found);
+		/** @var array<mixed>|string|ExpressionInterface|null $where */
+		$where = $this->matchSites($elementRows->where, $found);
+		$elementRows->where = $where;
 
-		$joins = array_filter($elementRows->join ?? [], fn(array $join): bool => !is_array($join[1]) || array_keys($join[1]) !== ['elements_sites']);
+		$joins = array_filter($elementRows->join ?? [], fn(mixed $join): bool => !is_array($join) || !is_array($join[1] ?? null) || array_keys($join[1]) !== ['elements_sites']);
 
 		// Only the join and the condition of the sites Craft adds are replaced.
 		if ($found !== 1 || count($joins) !== count($elementRows->join ?? []) - 1) {
@@ -353,10 +425,10 @@ class QueryService extends Component
 
 		$elementRows->join = array_values($joins);
 		$elementRows->select(['hubId' => 'elements.id']);
-		[$criteria] = Craft::$app->getDb()->getQueryBuilder()->build($elementRows);
+		[$criteria] = $this->db->getQueryBuilder()->build($elementRows);
 
 		foreach ([$criteria, ...$sql] as $part) {
-			if (preg_match('/\belements_sites\W*\./', $part)) {
+			if (is_string($part) && preg_match('/\belements_sites\W*\./', $part) === 1) {
 				return [$rows, false];
 			}
 		}
@@ -393,11 +465,11 @@ class QueryService extends Component
 	 * Condition matching an element on any of the sites, in a subquery, or nothing on all sites, which every element is on
 	 * one of.
 	 *
-	 * @return array<int|string,mixed>
+	 * @return list<mixed>
 	 */
 	private function onSitesCondition(mixed $siteIds): array
 	{
-		if (Hub::getInstance()->siteScope->coversAllSites(array_map(intval(...), (array) $siteIds))) {
+		if ($this->siteScope->coversAllSites(array_map(Fill::int(...), is_array($siteIds) ? $siteIds : [$siteIds]))) {
 			return ['and'];
 		}
 
@@ -409,6 +481,8 @@ class QueryService extends Component
 
 	/**
 	 * Whether the query is limited to a single site, which each element has a single row on.
+	 *
+	 * @param ElementQuery<array-key,covariant ElementInterface> $query
 	 */
 	private function isSingleSite(ElementQuery $query): bool
 	{
@@ -417,14 +491,16 @@ class QueryService extends Component
 
 	/**
 	 * Rank of a site of an element, like the `unique()` param ranks them: preferred sites first, then the current site.
+	 *
+	 * @param ElementQuery<array-key,covariant ElementInterface> $query
 	 */
 	private function preferSql(ElementQuery $query): string
 	{
-		$sites = Craft::$app->getSites();
+		$sites = $this->craftSites;
 		$preferSites = [];
 
-		foreach ($query->preferSites ?: [$sites->getCurrentSite()->id] as $site) {
-			$id = is_numeric($site) ? (int) $site : $sites->getSiteByHandle((string) $site)?->id;
+		foreach ((is_array($query->preferSites) && $query->preferSites !== [] ? $query->preferSites : [$sites->getCurrentSite()->id]) as $site) {
+			$id = is_numeric($site) ? (int) $site : $sites->getSiteByHandle(Fill::text($site) ?? '')?->id;
 
 			if ($id !== null) {
 				$preferSites[] = $id;
@@ -466,10 +542,74 @@ class QueryService extends Component
 	 */
 	private function sql(mixed $condition): string
 	{
-		$db = Craft::$app->getDb();
+		if (!is_array($condition) && !is_string($condition) && !$condition instanceof ExpressionInterface) {
+			throw new InvalidArgumentException('The condition is neither an array, a string nor an expression.');
+		}
+
+		$db = $this->db;
 		$params = [];
 		$sql = $db->getQueryBuilder()->buildCondition($condition, $params);
 
 		return $db->createCommand($sql, $params)->getRawSql();
+	}
+
+	/**
+	 * Paginates the elements of a list. Only those of the page are loaded, as {@see self::page()} finds them, and counted.
+	 *
+	 * @template T of \craft\base\ElementInterface
+	 * @param ElementQuery<array-key,covariant T> $query
+	 * @return array{0:Paginate,1:array<int,T>}
+	 */
+	public function paginate(Paginator $paginator, ElementQuery $query): array
+	{
+		$total = $this->total($query);
+
+		return $paginator->paginate($total, fn(int $offset, int $limit): array => $this->page($query, $offset, $limit, $total));
+	}
+
+	/**
+	 * Paginates a query on a single site, loading the elements of the page with the query itself, for elements
+	 * {@see self::page()} can't load again by their ID, like revisions.
+	 *
+	 * @template T of \craft\base\ElementInterface
+	 * @param ElementQuery<array-key,covariant T> $query
+	 * @return array{0:Paginate,1:array<int,T>}
+	 */
+	public function paginateQuery(Paginator $paginator, ElementQuery $query): array
+	{
+		return $paginator->paginate($this->total($query), function (int $offset, int $limit) use ($query): array {
+			/** @var array<int,T> $elements */
+			$elements = (clone $query)->offset($offset)->limit($limit)->all();
+
+			return $elements;
+		});
+	}
+
+	/**
+	 * Operator matching text regardless of its case, which `like` does on MySQL only.
+	 */
+	public function likeOperator(): string
+	{
+		return $this->db->getIsPgsql() ? 'ilike' : 'like';
+	}
+
+	/**
+	 * Paginates the rows of a query, for lists that aren't of elements, like the activity log.
+	 *
+	 * @return array{0:Paginate,1:array<int,array<string,mixed>>}
+	 *
+	 * @param Query<array-key,mixed> $query
+	 */
+	public function paginateRows(Paginator $paginator, Query $query): array
+	{
+		return $paginator->paginate(
+			(int) (clone $query)->orderBy([])->count(),
+			function (int $offset, int $limit) use ($query): array {
+				/** @var array<int,array<string,mixed>> $rows */
+				$rows = (clone $query)->offset($offset)->limit($limit)->all();
+
+				return $rows;
+			},
+		);
 	}
 }

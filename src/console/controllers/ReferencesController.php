@@ -8,12 +8,15 @@ use craft\console\Controller;
 use craft\helpers\Console;
 use craft\helpers\Db;
 use craft\helpers\Queue;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\jobs\IndexReferences;
+use SomehowDigital\Craft\Hub\jobs\IndexReferencesJob;
 use yii\console\ExitCode;
 
 /**
  * Indexes the reference tags in the content of all elements again.
+ *
+ * @internal
  */
 class ReferencesController extends Controller
 {
@@ -33,7 +36,7 @@ class ReferencesController extends Controller
 	public function actionIndex(): int
 	{
 		if ($this->queue) {
-			Queue::push(new IndexReferences());
+			Queue::push(new IndexReferencesJob());
 			$this->stdout('Indexing the references in the queue.' . PHP_EOL, Console::FG_GREEN);
 
 			return ExitCode::OK;
@@ -47,7 +50,11 @@ class ReferencesController extends Controller
 		Console::startProgress(0, $total);
 
 		foreach (Db::batch($query, 500) as $rows) {
-			$references->index(array_map(fn(array $row): int => (int) $row['id'], $rows));
+			if (!is_array($rows)) {
+				continue;
+			}
+
+			$references->index(array_map(fn(mixed $row): int => Row::int($row, 'id'), $rows));
 			$done += count($rows);
 			Console::updateProgress($done, $total);
 		}

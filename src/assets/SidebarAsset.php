@@ -10,8 +10,10 @@ use craft\web\View;
 
 /**
  * Styles and scripts of the panels Hub adds to native edit pages.
+ *
+ * @internal
  */
-class SidebarAsset extends AssetBundle
+final class SidebarAsset extends AssetBundle
 {
 	public function init(): void
 	{

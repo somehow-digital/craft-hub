@@ -8,8 +8,10 @@ use craft\base\Model;
 
 /**
  * The settings of the plugin, see the settings page and `config/hub.php`.
+ *
+ * @internal
  */
-class Settings extends Model
+final class Settings extends Model
 {
 	/**
 	 * Whether the items of the lists can be labeled and the lists filtered by their labels; the labels can be managed
@@ -77,7 +79,7 @@ class Settings extends Model
 	public bool $keepTrashedFiles = false;
 
 	/**
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	protected function defineRules(): array
 	{

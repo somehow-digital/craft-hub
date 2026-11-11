@@ -8,6 +8,7 @@ use Craft;
 use craft\base\Batchable;
 use craft\db\QueryBatcher;
 use craft\queue\BaseBatchedJob;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use SomehowDigital\Craft\Hub\Hub;
 
 /**
@@ -15,8 +16,10 @@ use SomehowDigital\Craft\Hub\Hub;
  * without saving elements, like by Craft's find and replace utility.
  *
  * Elements are indexed a batch at a time, after their IDs are collected.
+ *
+ * @internal
  */
-class IndexReferences extends BaseBatchedJob
+final class IndexReferencesJob extends BaseBatchedJob
 {
 	public int $batchSize = 500;
 
@@ -35,7 +38,7 @@ class IndexReferences extends BaseBatchedJob
 
 	protected function processItem(mixed $item): void
 	{
-		$this->elementIds[] = (int) $item['id'];
+		$this->elementIds[] = Row::int($item, 'id');
 	}
 
 	protected function afterBatch(): void
@@ -43,7 +46,7 @@ class IndexReferences extends BaseBatchedJob
 		Hub::getInstance()->references->index($this->elementIds);
 	}
 
-	protected function defaultDescription(): ?string
+	protected function defaultDescription(): string
 	{
 		return Craft::t('hub', 'Indexing references in content');
 	}

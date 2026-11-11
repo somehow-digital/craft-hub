@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Composer\Autoload\ClassLoader;
 use craft\helpers\FileHelper;
 
 /**
@@ -15,6 +16,7 @@ define('YII_ENV', 'test');
 
 $vendorPath = dirname(__DIR__) . '/vendor';
 
+/** @var ClassLoader $loader */
 $loader = require $vendorPath . '/autoload.php';
 
 // Craft and Yii trigger deprecations on newer PHP versions when their classes are compiled, which aren't the plugin's to fix,

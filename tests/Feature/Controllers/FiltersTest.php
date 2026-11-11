@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use craft\elements\User;
+use craft\web\Controller;
+use LogicException;
 use SomehowDigital\Craft\Hub\controllers\BaseController;
 use SomehowDigital\Craft\Hub\controllers\EntriesController;
 use SomehowDigital\Craft\Hub\controllers\FieldsController;
@@ -11,6 +13,8 @@ use SomehowDigital\Craft\Hub\controllers\SectionsController;
 use SomehowDigital\Craft\Hub\controllers\TypesController;
 use SomehowDigital\Craft\Hub\controllers\UsersController;
 use SomehowDigital\Craft\Hub\controllers\VolumesController;
+use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\Tests\TestCase;
 
 beforeEach(function (): void {
 	$this->createContentModel();
@@ -21,17 +25,23 @@ beforeEach(function (): void {
  *
  * @param array<string,mixed> $query
  */
-function openList(object $test, string $class, array $query = [], bool $inPlace = false): ?string
+function openList(TestCase $test, string $class, array $query = [], bool $inPlace = false): ?string
 {
 	(fn() => $this->request($query))->call($test);
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 1, 'username' => 'admin', 'admin' => true]));
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn(new User(['id' => 1, 'username' => 'admin', 'admin' => true]));
 
 	if ($inPlace) {
-		Craft::$app->getRequest()->getHeaders()->set(BaseController::FILTERS_HEADER, '1');
+		webRequest()->getHeaders()->set(BaseController::FILTERS_HEADER, '1');
 	}
 
-	Craft::createObject($class, ['test', Craft::$app->getModule('hub')])->runAction('index');
-	$response = Craft::$app->getResponse();
+	if (!is_subclass_of($class, Controller::class)) {
+		throw new LogicException('Not a controller.');
+	}
+
+	$controller = Craft::createObject($class, ['test', Hub::getInstance()]);
+	$controller->runAction('index');
+
+	$response = webResponse();
 
 	return $response->getIsRedirection() ? $response->getHeaders()->get('Location') : null;
 }
@@ -41,9 +51,9 @@ function openList(object $test, string $class, array $query = [], bool $inPlace 
  *
  * @return array<string,mixed>
  */
-function keptFilters(object $test): array
+function keptFilters(TestCase $test): array
 {
-	return array_filter((fn() => $this->session)->call($test), fn(string $key): bool => str_starts_with($key, 'hub:filters:'), ARRAY_FILTER_USE_KEY);
+	return array_filter((fn(): array => $this->session)->call($test), fn(string $key): bool => str_starts_with($key, 'hub:filters:'), ARRAY_FILTER_USE_KEY);
 }
 
 it('keeps the filters of each list in the session', function (string $class, string $path): void {
@@ -119,9 +129,9 @@ it('redirects the user groups to their kept filters', function (): void {
 	$this->userGroup(1, 'editors');
 	$this->session['hub:filters:hub/data/users/groups'] = ['q' => 'edit'];
 	$this->request();
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 1, 'username' => 'admin', 'admin' => true]));
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn(new User(['id' => 1, 'username' => 'admin', 'admin' => true]));
 
 	Craft::createObject(UsersController::class, ['test', $this->hub()])->runAction('groups');
 
-	expect(Craft::$app->getResponse()->getHeaders()->get('Location'))->toContain('hub/data/users/groups&q=edit');
+	expect(webResponse()->getHeaders()->get('Location'))->toContain('hub/data/users/groups&q=edit');
 });

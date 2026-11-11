@@ -787,7 +787,7 @@
 	First cell of a row of a table in the `bulk` component, selecting the item by its ID; nothing without actions.
 	Lists keeping their selection on the server submit it from there; others submit the checkboxes by their `name`.
 	The `states` of the item leave the actions out of its context menu that are `unless` in one of them, see
-	BulkService::getActions().
+	BulkActions::getActions().
 #}
 {% macro bulkItem(actions, value, label, name, states) %}
 	{%- if actions|length -%}

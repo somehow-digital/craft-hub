@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use DateTime;
 
 /**
  * Filters of the files list. Lists hold their values as they appear in the URL; empty lists and null values don't filter.
+ *
+ * @internal
  */
-class FileFilter
+final class FileFilter extends Model
 {
 	public const ORIENTATION_LANDSCAPE = 'landscape';
 	public const ORIENTATION_PORTRAIT = 'portrait';
@@ -72,7 +75,7 @@ class FileFilter
 	public bool $oversized = false;
 
 	/**
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public static function getOrientations(): array
 	{

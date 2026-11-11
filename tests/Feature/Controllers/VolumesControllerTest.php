@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use craft\elements\Asset;
 use craft\fields\Assets as AssetsField;
+use craft\web\twig\variables\Paginate;
 use SomehowDigital\Craft\Hub\controllers\VolumesController;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 use yii\web\NotFoundHttpException;
@@ -27,49 +28,49 @@ it('lists the volumes', function (): void {
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/volumes/index')
-		->and(array_keys($variables['list']['volumes']))->toBe([1])
-		->and($variables['list']['total'])->toBe(2)
-		->and($variables['list']['pageInfo']->total)->toBe(1)
-		->and($variables['list']['pageInfo']->totalPages)->toBe(1)
-		->and(array_keys($variables['list']['fileKinds']))->toBe(['image', 'pdf'])
-		->and($variables['list']['filter']->sizeMin)->toBe(0.0)
-		->and($variables['list']['filter']->uploadedFrom->format('Y-m-d H:i'))->toBe('2024-01-01 00:00')
-		->and($variables['list']['filter']->uploadedTo)->toBeNull()
+		->and(array_keys(arrayAt($variables, 'list', 'volumes')))->toBe([1])
+		->and(at($variables, 'list', 'total'))->toBe(2)
+		->and(objectAt(Paginate::class, $variables, 'list', 'pageInfo')->total)->toBe(1)
+		->and(objectAt(Paginate::class, $variables, 'list', 'pageInfo')->totalPages)->toBe(1)
+		->and(array_keys(arrayAt($variables, 'list', 'fileKinds')))->toBe(['image', 'pdf'])
+		->and(at($variables, 'list', 'filter', 'sizeMin'))->toBe(0.0)
+		->and(asDateTime(at($variables, 'list', 'filter', 'uploadedFrom'))->format('Y-m-d H:i'))->toBe('2024-01-01 00:00')
+		->and(at($variables, 'list', 'filter', 'uploadedTo'))->toBeNull()
 		->and($variables)->not->toHaveKey('summary');
 });
 
 it('summarizes the volumes on their statistics tab', function (): void {
-	$cards = loadCards($this->runAction(VolumesController::class, 'statistics')->variables['cards']);
+	$cards = loadCards(at($this->runAction(VolumesController::class, 'statistics')->variables, 'cards'));
 
-	expect($cards[0]['segments'][1]['value'])->toBe(1)
+	expect(at($cards, 0, 'segments', 1, 'value'))->toBe(1)
 		->and($cards[1]['note'])->toBe('5 references from Assets and Link fields')
-		->and($cards[1]['details'][0]['value'])->toBe(5000)
-		->and(array_column($cards[0]['table']['rows'], 'value', 'label'))->toBe(['Images' => 5, 'Documents' => 0])
-		->and(array_column($cards[2]['segments'], 'value', 'label'))->toBe(['Image' => 4, 'PDF' => 1])
-		->and($cards[3]['segments'][1]['value'])->toBe(1);
+		->and(at($cards, 1, 'details', 0, 'value'))->toBe(5000)
+		->and(array_column(arrayAt($cards, 0, 'table', 'rows'), 'value', 'label'))->toBe(['Images' => 5, 'Documents' => 0])
+		->and(array_column(arrayAt($cards, 2, 'segments'), 'value', 'label'))->toBe(['Image' => 4, 'PDF' => 1])
+		->and(at($cards, 3, 'segments', 1, 'value'))->toBe(1);
 });
 
 it('has no statistics tab while statistics are disabled', function (): void {
-	$this->hub()->getSettings()->enableStatistics = false;
+	$this->hub()->settings->enableStatistics = false;
 
 	try {
 		$this->runAction(VolumesController::class, 'statistics');
 	} finally {
-		$this->hub()->getSettings()->enableStatistics = true;
+		$this->hub()->settings->enableStatistics = true;
 	}
 })->throws(NotFoundHttpException::class);
 
 it('tells the templates whether statistics are enabled', function (): void {
-	$this->hub()->getSettings()->enableStatistics = false;
+	$this->hub()->settings->enableStatistics = false;
 
 	try {
 		$variables = $this->runAction(VolumesController::class, 'view', ['id' => 1])->variables;
 	} finally {
-		$this->hub()->getSettings()->enableStatistics = true;
+		$this->hub()->settings->enableStatistics = true;
 	}
 
 	expect($variables['statisticsEnabled'])->toBeFalse()
-		->and($this->runAction(VolumesController::class, 'index')->variables['statisticsEnabled'])->toBeTrue();
+		->and(at($this->runAction(VolumesController::class, 'index')->variables, 'statisticsEnabled'))->toBeTrue();
 });
 
 it('shows a volume', function (): void {
@@ -78,7 +79,7 @@ it('shows a volume', function (): void {
 
 	expect($response->template)->toBe('hub/pages/volumes/view')
 		->and($variables['selectedTab'])->toBe('overview')
-		->and($variables['info']->volume->handle)->toBe('images')
+		->and(at($variables, 'info', 'volume', 'handle'))->toBe('images')
 		->and($variables)->not->toHaveKeys(['summary', 'assets', 'reviewList']);
 });
 
@@ -88,10 +89,10 @@ it('summarizes a volume on its statistics tab', function (): void {
 
 	expect($variables['selectedTab'])->toBe('statistics')
 		->and($assets['note'])->toBeNull()
-		->and(array_column($assets['details'], 'value', 'label'))->toMatchArray(['Total size' => 5000, 'Average size' => 1000])
-		->and(array_column($kinds['segments'], 'value', 'label'))->toBe(['Image' => 4, 'PDF' => 1])
+		->and(array_column(arrayAt($assets, 'details'), 'value', 'label'))->toMatchArray(['Total size' => 5000, 'Average size' => 1000])
+		->and(array_column(arrayAt($kinds, 'segments'), 'value', 'label'))->toBe(['Image' => 4, 'PDF' => 1])
 		->and($alt['total'])->toBe(4)
-		->and(array_column($references['segments'], 'value', 'label'))->toBe(['Gallery' => 5])
+		->and(array_column(arrayAt($references, 'segments'), 'value', 'label'))->toBe(['Gallery' => 5])
 		->and($references['note'])->toBe('One Assets field and no Link field can relate to assets from this volume')
 		->and($variables)->not->toHaveKeys(['assets', 'reviewList']);
 });
@@ -100,7 +101,7 @@ it('remembers the filters of the assets tab', function (): void {
 	$this->runAction(VolumesController::class, 'view', ['id' => 1, 'tab' => 'assets'], ['q' => 'news']);
 	$this->runAction(VolumesController::class, 'view', ['id' => 1, 'tab' => 'assets']);
 
-	expect(Craft::$app->getResponse()->getHeaders()->get('Location'))->toContain('hub/structure/volumes/1/assets&q=news');
+	expect(webResponse()->getHeaders()->get('Location'))->toContain('hub/structure/volumes/1/assets&q=news');
 });
 
 it('lists the assets of a volume on a tab of its own', function (): void {
@@ -110,18 +111,18 @@ it('lists the assets of a volume on a tab of its own', function (): void {
 	$variables = $this->runAction(VolumesController::class, 'view', ['id' => 1, 'tab' => 'assets'])->variables;
 
 	expect($variables['selectedTab'])->toBe('assets')
-		->and($variables['list']['assets'])->toBe([$asset])
-		->and($variables['list']['referenceCounts'])->toBe([1 => 2])
-		->and($variables['list']['listFixed'])->toBe('volume')
-		->and($variables['list']['listPath'])->toBe('hub/structure/volumes/1/assets')
-		->and($variables['list']['filter']->volumes)->toBe(['images'])
+		->and(at($variables, 'list', 'assets'))->toBe([$asset])
+		->and(at($variables, 'list', 'referenceCounts'))->toBe([1 => 2])
+		->and(at($variables, 'list', 'listFixed'))->toBe('volume')
+		->and(at($variables, 'list', 'listPath'))->toBe('hub/structure/volumes/1/assets')
+		->and(at($variables, 'list', 'filter', 'volumes'))->toBe(['images'])
 		->and($variables)->not->toHaveKeys(['summary', 'reviewList']);
 });
 
 it('shows the checks of volumes on their diagnostics tab', function (): void {
 	$variables = $this->runAction(VolumesController::class, 'view', ['id' => 2, 'tab' => 'diagnostics'])->variables;
 
-	expect(array_map(fn($check) => $check->key, $variables['checks']))->toContain('volumes.empty', 'assets.unused')
+	expect(array_map(fn(mixed $check): mixed => at($check, 'key'), arrayAt($variables, 'checks')))->toContain('volumes.empty', 'assets.unused')
 		->and($variables)->not->toHaveKeys(['summary', 'reviewList']);
 });
 

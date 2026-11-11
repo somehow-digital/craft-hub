@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use DateTime;
 
 /**
  * Counts of a set of assets, like those of a volume.
+ *
+ * @internal
  */
-class AssetStatistics
+final class AssetStatistics extends Model
 {
 	public int $total = 0;
 

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\services;
 
-use Craft;
 use craft\base\ElementContainerFieldInterface;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
+use craft\db\Connection;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
@@ -17,11 +17,20 @@ use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\UserGroup;
 use craft\models\Volume;
+use craft\services\Entries;
+use craft\services\Fields;
+use craft\services\UserGroups;
+use craft\services\Volumes;
+use craft\web\User as WebUser;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\enums\Permission;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use SomehowDigital\Craft\Hub\models\MaintainerSource;
+use SomehowDigital\Craft\Hub\models\Settings;
 use yii\base\Component;
 
 /**
@@ -29,11 +38,11 @@ use yii\base\Component;
  * assets stored in them, so editors know who to ask for help; maintainers have no permissions of their own. They're
  * kept in the database rather than the project config, as users are, and changes to them are recorded in the activity
  * log.
+ *
+ * @internal
  */
-class MaintainerService extends Component
+final class MaintainerService extends Component
 {
-	public const TABLE = '{{%hub_maintainers}}';
-
 	/** tables holding the items of each list, by its name, which maintainers of items no longer in them are removed for */
 	public const LISTS = [
 		ColumnService::LIST_SECTIONS => Table::SECTIONS,
@@ -46,14 +55,33 @@ class MaintainerService extends Component
 	private ?array $maintainers = null;
 
 	/** @var array<int,User>|null */
-	private ?array $users = null;
+	private ?array $loadedUsers = null;
+
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly Settings $settings,
+		private readonly AccessService $access,
+		private readonly ActivityService $activity,
+		private readonly UserService $users,
+		private readonly Entries $craftEntries,
+		private readonly Fields $craftFields,
+		private readonly Volumes $craftVolumes,
+		private readonly UserGroups $craftUserGroups,
+		private readonly Connection $db,
+		private readonly ?WebUser $user = null,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
 
 	/**
 	 * Whether maintainers can be set and are shown (see Settings::$enableMaintainers).
 	 */
 	public function isEnabled(): bool
 	{
-		return Hub::getInstance()->settings->enableMaintainers;
+		return $this->settings->enableMaintainers;
 	}
 
 	/**
@@ -62,11 +90,11 @@ class MaintainerService extends Component
 	 */
 	public function canManage(string $list): bool
 	{
-		return $this->isEnabled()
+		return $this->settings->enableMaintainers
 			&& isset(self::LISTS[$list])
 			&& ($page = Page::fromList($list)) instanceof Page
-			&& Hub::getInstance()->access->canView($page)
-			&& Craft::$app->getUser()->checkPermission(Hub::PERMISSION_MANAGE_MAINTAINERS);
+			&& $this->access->canView($page)
+			&& $this->user?->checkPermission(Permission::ManageMaintainers->value) === true;
 	}
 
 	/**
@@ -75,10 +103,10 @@ class MaintainerService extends Component
 	public function getItem(string $list, int $id): Section|EntryType|FieldInterface|Volume|null
 	{
 		return match ($list) {
-			ColumnService::LIST_SECTIONS => Craft::$app->getEntries()->getSectionById($id),
-			ColumnService::LIST_ENTRY_TYPES => Craft::$app->getEntries()->getEntryTypeById($id),
-			ColumnService::LIST_FIELDS => Craft::$app->getFields()->getFieldById($id),
-			ColumnService::LIST_VOLUMES => Craft::$app->getVolumes()->getVolumeById($id),
+			ColumnService::LIST_SECTIONS => $this->craftEntries->getSectionById($id),
+			ColumnService::LIST_ENTRY_TYPES => $this->craftEntries->getEntryTypeById($id),
+			ColumnService::LIST_FIELDS => $this->craftFields->getFieldById($id),
+			ColumnService::LIST_VOLUMES => $this->craftVolumes->getVolumeById($id),
 			default => null,
 		};
 	}
@@ -92,11 +120,11 @@ class MaintainerService extends Component
 	{
 		$maintainers = $this->all()[$list][$id] ?? ['userIds' => [], 'groupIds' => []];
 		$users = $this->loadUsers();
-		$groups = Craft::$app->getUserGroups();
+		$groups = $this->craftUserGroups;
 
 		return [
 			'users' => array_values(array_filter(array_map(fn(int $id) => $users[$id] ?? null, $maintainers['userIds']))),
-			'groups' => array_values(array_filter(array_map(fn(int $id) => $groups->getGroupById($id), $maintainers['groupIds']))),
+			'groups' => array_values(array_filter(array_map($groups->getGroupById(...), $maintainers['groupIds']))),
 		];
 	}
 
@@ -115,7 +143,7 @@ class MaintainerService extends Component
 	 */
 	public function countSources(ElementInterface $element, bool $withFields = false): int
 	{
-		if (!$this->isEnabled() || $this->all() === []) {
+		if (!$this->settings->enableMaintainers || $this->all() === []) {
 			return 0;
 		}
 
@@ -129,7 +157,7 @@ class MaintainerService extends Component
 
 		$counts = [];
 		foreach ($items as [$list, $item]) {
-			$counts["{$list}:{$item->id}"] ??= $this->countMaintainers($list, (int) $item->id);
+			$counts[$list . ':' . ($item->id ?? '')] ??= $this->countMaintainers($list, (int) $item->id);
 		}
 
 		return array_sum($counts);
@@ -140,7 +168,7 @@ class MaintainerService extends Component
 	 */
 	public function countMaintainedBy(User $user): int
 	{
-		if (!$this->isEnabled()) {
+		if (!$this->settings->enableMaintainers) {
 			return 0;
 		}
 
@@ -154,7 +182,7 @@ class MaintainerService extends Component
 	 */
 	public function countMaintainedByGroup(UserGroup $group): int
 	{
-		return $this->isEnabled() ? $this->countItems(fn(array $maintainers): bool => in_array((int) $group->id, $maintainers['groupIds'], true)) : 0;
+		return $this->settings->enableMaintainers ? $this->countItems(fn(array $maintainers): bool => in_array((int) $group->id, $maintainers['groupIds'], true)) : 0;
 	}
 
 	/**
@@ -163,12 +191,12 @@ class MaintainerService extends Component
 	 * while maintainers are disabled.
 	 *
 	 * @param bool $withFields whether to include those of the fields of the element's field layout, as used while editing it
-	 * @return MaintainerSource[]
+	 * @return list<MaintainerSource>
 	 */
 	public function getSources(ElementInterface $element, bool $withFields = false): array
 	{
 		// Nothing is looked up through the owners of elements while nothing is maintained, as lists ask for each of their items.
-		if (!$this->isEnabled() || $this->all() === []) {
+		if (!$this->settings->enableMaintainers || $this->all() === []) {
 			return [];
 		}
 
@@ -185,7 +213,7 @@ class MaintainerService extends Component
 			$maintainers = $this->getMaintainers($list, (int) $item->id);
 
 			if ($maintainers['users'] !== [] || $maintainers['groups'] !== []) {
-				$sources["{$list}:{$item->id}"] ??= new MaintainerSource($list, $item, $maintainers['users'], $maintainers['groups']);
+				$sources[$list . ':' . ($item->id ?? '')] ??= new MaintainerSource($list, $item, $maintainers['users'], $maintainers['groups']);
 			}
 		}
 
@@ -204,11 +232,11 @@ class MaintainerService extends Component
 
 		foreach ($this->getSources($element) as $source) {
 			foreach ($source->users as $user) {
-				$users[$user->id] ??= $user;
+				$users[(int) $user->id] ??= $user;
 			}
 
 			foreach ($source->groups as $group) {
-				$groups[$group->id] ??= $group;
+				$groups[(int) $group->id] ??= $group;
 			}
 		}
 
@@ -219,11 +247,11 @@ class MaintainerService extends Component
 	 * What a user maintains, in the order of the lists: each item with the user, if they maintain it themselves, and their
 	 * groups maintaining it; items no longer existing are left out, as is everything while maintainers are disabled.
 	 *
-	 * @return MaintainerSource[]
+	 * @return list<MaintainerSource>
 	 */
 	public function getMaintainedBy(User $user): array
 	{
-		if (!$this->isEnabled()) {
+		if (!$this->settings->enableMaintainers) {
 			return [];
 		}
 
@@ -237,7 +265,7 @@ class MaintainerService extends Component
 				$item = $direct || $through !== [] ? $this->getItem($list, $id) : null;
 
 				if ($item !== null) {
-					$groups = array_filter(array_map(fn(int $id) => Craft::$app->getUserGroups()->getGroupById($id), $through));
+					$groups = array_filter(array_map($this->craftUserGroups->getGroupById(...), $through));
 					$maintained[] = new MaintainerSource($list, $item, $direct ? [$user] : [], array_values($groups));
 				}
 			}
@@ -249,11 +277,11 @@ class MaintainerService extends Component
 	/**
 	 * What a user group maintains, by the kind of item.
 	 *
-	 * @return MaintainerSource[]
+	 * @return list<MaintainerSource>
 	 */
 	public function getMaintainedByGroup(UserGroup $group): array
 	{
-		if (!$this->isEnabled()) {
+		if (!$this->settings->enableMaintainers) {
 			return [];
 		}
 
@@ -283,31 +311,31 @@ class MaintainerService extends Component
 	{
 		$before = $this->getMaintainers($list, $itemId);
 		$userIds = $this->knownUserIds($userIds);
-		$groupIds = array_values(array_unique(array_filter($groupIds, fn(int $id): bool => Craft::$app->getUserGroups()->getGroupById($id) !== null)));
+		$groupIds = array_values(array_unique(array_filter($groupIds, fn(int $id): bool => $this->craftUserGroups->getGroupById($id) instanceof UserGroup)));
 
 		$rows = [
 			...array_map(fn(int $userId): array => [$list, $itemId, $userId, null], $userIds),
 			...array_map(fn(int $groupId): array => [$list, $itemId, null, $groupId], $groupIds),
 		];
 
-		$db = Craft::$app->getDb();
+		$db = $this->db;
 
 		$db->transaction(function () use ($db, $list, $itemId, $rows): void {
-			$db->createCommand()->delete(self::TABLE, ['list' => $list, 'itemId' => $itemId])->execute();
+			$db->createCommand()->delete(Tables::MAINTAINERS, ['list' => $list, 'itemId' => $itemId])->execute();
 
 			if ($rows !== []) {
-				$db->createCommand()->batchInsert(self::TABLE, ['list', 'itemId', 'userId', 'groupId'], $rows)->execute();
+				$db->createCommand()->batchInsert(Tables::MAINTAINERS, ['list', 'itemId', 'userId', 'groupId'], $rows)->execute();
 			}
 		});
 
 		$this->maintainers = null;
-		$this->users = null;
+		$this->loadedUsers = null;
 
 		$after = $this->getMaintainers($list, $itemId);
 		$changes = $this->changes($before, $after);
 
 		if ($changes !== [] && ($subject = ActivitySubject::fromList($list)) instanceof ActivitySubject) {
-			Hub::getInstance()->activity->record(ActivityAction::MaintainersChanged, $subject, $itemId, $this->getItem($list, $itemId)?->name, $changes);
+			$this->activity->record(ActivityAction::MaintainersChanged, $subject, $itemId, $this->getItem($list, $itemId)?->name, $changes);
 		}
 	}
 
@@ -316,13 +344,13 @@ class MaintainerService extends Component
 	 */
 	public function deleteOrphans(): void
 	{
-		$command = Craft::$app->getDb()->createCommand();
+		$command = $this->db->createCommand();
 
 		foreach (self::LISTS as $list => $table) {
-			$command->delete(self::TABLE, [
+			$command->delete(Tables::MAINTAINERS, [
 				'and',
 				['list' => $list],
-				['not exists', (new Query())->from(['items' => $table])->where('[[items.id]] = ' . self::TABLE . '.[[itemId]]')],
+				['not exists', (new Query())->from(['items' => $table])->where('[[items.id]] = ' . Tables::MAINTAINERS . '.[[itemId]]')],
 			])->execute();
 		}
 	}
@@ -330,7 +358,7 @@ class MaintainerService extends Component
 	/**
 	 * Items an element is stored in, as pairs of their list and the item.
 	 *
-	 * @return array<int,array{0:string,1:Section|EntryType|FieldInterface|Volume}>
+	 * @return list<array{0:string,1:Section|EntryType|FieldInterface|Volume}>
 	 */
 	private function storedIn(ElementInterface $element): array
 	{
@@ -383,14 +411,14 @@ class MaintainerService extends Component
 
 		$rows = (new Query())
 			->select(['list', 'itemId', 'userId', 'groupId'])
-			->from(self::TABLE)
+			->from(Tables::MAINTAINERS)
 			->orderBy(['id' => SORT_ASC])
 			->all();
 
 		$maintainers = [];
 		foreach ($rows as $row) {
-			$key = $row['userId'] !== null ? 'userIds' : 'groupIds';
-			$maintainers[(string) $row['list']][(int) $row['itemId']][$key][] = (int) ($row['userId'] ?? $row['groupId']);
+			$key = Row::value($row, 'userId') !== null ? 'userIds' : 'groupIds';
+			$maintainers[Row::string($row, 'list')][Row::int($row, 'itemId')][$key][] = Fill::int((Row::value($row, 'userId') ?? Row::value($row, 'groupId')));
 		}
 
 		return $this->maintainers = array_map(
@@ -406,8 +434,8 @@ class MaintainerService extends Component
 	 */
 	private function loadUsers(): array
 	{
-		if ($this->users !== null) {
-			return $this->users;
+		if ($this->loadedUsers !== null) {
+			return $this->loadedUsers;
 		}
 
 		$ids = [];
@@ -417,7 +445,7 @@ class MaintainerService extends Component
 			}
 		}
 
-		return $this->users = Hub::getInstance()->users->getUsers($ids);
+		return $this->loadedUsers = $this->users->getUsers($ids);
 	}
 
 	/**
@@ -430,7 +458,7 @@ class MaintainerService extends Component
 	{
 		$ids = array_values(array_unique($ids));
 
-		return $ids !== [] ? array_map(intval(...), User::find()->id($ids)->status(null)->fixedOrder()->ids()) : [];
+		return $ids !== [] ? array_map(Fill::int(...), User::find()->id($ids)->status(null)->fixedOrder()->ids()) : [];
 	}
 
 	/**
@@ -443,8 +471,8 @@ class MaintainerService extends Component
 	private function changes(array $before, array $after): array
 	{
 		$names = fn(array $maintainers): array => [
-			...array_combine(array_map(fn(User $user): string => "user:{$user->id}", $maintainers['users']), array_map(fn(User $user): string => $user->getName(), $maintainers['users'])),
-			...array_combine(array_map(fn(UserGroup $group): string => "group:{$group->id}", $maintainers['groups']), array_map(fn(UserGroup $group): string => (string) $group->name, $maintainers['groups'])),
+			...array_combine(array_map(fn(User $user): string => 'user:' . ($user->id ?? ''), $maintainers['users']), array_map(fn(User $user): string => $user->getName(), $maintainers['users'])),
+			...array_combine(array_map(fn(UserGroup $group): string => 'group:' . ($group->id ?? ''), $maintainers['groups']), array_map(fn(UserGroup $group): string => (string) $group->name, $maintainers['groups'])),
 		];
 		$old = $names($before);
 		$new = $names($after);

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\Tests\Support;
 
+use craft\base\ElementInterface;
 use craft\db\Connection;
 use craft\db\ExpressionBuilder;
 use craft\db\ExpressionInterface;
 use craft\elements\db\ElementQuery;
+use LogicException;
 use PDO;
 
 /**
@@ -23,7 +25,7 @@ class FakeConnection extends Connection
 	/** @var array<int,array{0:string,1:mixed}> pattern => rows, or a callable receiving the raw SQL */
 	private array $responses = [];
 
-	/** @var ElementQuery[] element queries about to run, by their placeholder SQL */
+	/** @var array<string,ElementQuery<array-key,covariant ElementInterface>> element queries about to run, by their placeholder SQL */
 	private array $elementQueries = [];
 
 	private ?FakeMysqlQueryBuilder $mysqlBuilder = null;
@@ -33,9 +35,24 @@ class FakeConnection extends Connection
 	/** @var string[] raw SQL of the queries run, in order */
 	public array $queries = [];
 
+	/** @var string[] the tables that exist, which the connection can't tell, as it never connects */
+	public array $tables = [];
+
+	/** @var string[] the tables asked for, in order */
+	public array $checkedTables = [];
+
+	public function tableExists(string $table, ?bool $refresh = null): bool
+	{
+		$this->checkedTables[] = $table;
+
+		return in_array($table, $this->tables, true);
+	}
+
 	public function init(): void
 	{
-		$this->commandClass = FakeCommand::class;
+		foreach (array_keys($this->commandMap) as $driver) {
+			$this->commandMap[$driver] = FakeCommand::class;
+		}
 
 		parent::init();
 
@@ -43,7 +60,7 @@ class FakeConnection extends Connection
 		$this->pdo = new PDO('sqlite::memory:');
 	}
 
-	public function getQueryBuilder()
+	public function getQueryBuilder(): FakePgsqlQueryBuilder|FakeMysqlQueryBuilder
 	{
 		// Configured like the builders of Craft's schemas.
 		$config = [
@@ -61,7 +78,7 @@ class FakeConnection extends Connection
 	/**
 	 * Answers queries containing the pattern, a part of their raw SQL like `{{%relations}}`, quoted like the SQL.
 	 *
-	 * @param array<int,mixed>|callable(string):mixed|int|string $result rows, a scalar for `scalar()` and `count()`, or a callable returning either
+	 * @param mixed $result rows, a scalar for `scalar()` and `count()`, or a callable (taking the SQL) returning either
 	 */
 	public function respond(string $pattern, mixed $result): static
 	{
@@ -91,11 +108,17 @@ class FakeConnection extends Connection
 	/**
 	 * Answers the counts of {@see FakeQueryService}, with rows for the element query counted.
 	 *
-	 * @param callable(ElementQuery):array<int,array<string,mixed>> $rows
+	 * @template T of ElementQuery
+	 * @param callable(T):array<int,array<string,mixed>> $rows
 	 */
 	public function respondToCounts(callable $rows): static
 	{
-		return $this->respond('[[hubElements]]', fn(string $sql) => $rows($this->elementQueryIn($sql)));
+		return $this->respond('[[hubElements]]', function (string $sql) use ($rows): array {
+			/** @var T $query */
+			$query = $this->elementQueryIn($sql) ?? throw new LogicException('No element query in the SQL.');
+
+			return $rows($query);
+		});
 	}
 
 	/**
@@ -119,7 +142,7 @@ class FakeConnection extends Connection
 	/**
 	 * Raw SQL of the counts of {@see FakeQueryService} run.
 	 *
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public function counts(): array
 	{
@@ -129,15 +152,18 @@ class FakeConnection extends Connection
 	/**
 	 * The element query a query is built on, as a subquery.
 	 */
+	/**
+	 * @return ElementQuery<array-key,covariant ElementInterface>|null
+	 */
 	public function elementQueryIn(string $sql): ?ElementQuery
 	{
-		return preg_match('#/\* element query \d+ \*/#', $sql, $match) ? $this->findElementQuery($match[0]) : null;
+		return preg_match('#/\* element query \d+ \*/#', $sql, $match) === 1 ? $this->findElementQuery($match[0]) : null;
 	}
 
 	/**
 	 * Raw SQL of the queries run that contain the pattern.
 	 *
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public function queriesMatching(string $pattern): array
 	{
@@ -147,6 +173,7 @@ class FakeConnection extends Connection
 	}
 
 	/**
+	 * @param ElementQuery<array-key,covariant ElementInterface> $query
 	 * @return string placeholder SQL the command finds the query by
 	 */
 	public function stashElementQuery(ElementQuery $query): string
@@ -157,13 +184,19 @@ class FakeConnection extends Connection
 		return $sql;
 	}
 
+	/**
+	 * @return ElementQuery<array-key,covariant ElementInterface>|null
+	 */
 	public function findElementQuery(string $sql): ?ElementQuery
 	{
 		return $this->elementQueries[$sql] ?? null;
 	}
 
-	public function quoteValue($value)
+	/**
+	 * @param mixed $value
+	 */
+	public function quoteValue($value): string
 	{
-		return is_string($value) ? "'" . addslashes($value) . "'" : $value;
+		return is_string($value) ? "'" . addslashes($value) . "'" : (is_scalar($value) ? (string) $value : '');
 	}
 }

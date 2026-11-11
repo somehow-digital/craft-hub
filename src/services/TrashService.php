@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
+use craft\db\Connection;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
@@ -13,12 +14,16 @@ use craft\elements\db\EntryQuery;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\helpers\Db;
+use craft\models\Volume;
+use craft\services\Volumes;
 use DateTime;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\helpers\Ids;
 use SomehowDigital\Craft\Hub\helpers\Range;
-use SomehowDigital\Craft\Hub\helpers\Sql;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use SomehowDigital\Craft\Hub\models\TrashedEntryFilter;
 use SomehowDigital\Craft\Hub\models\TrashedFileFilter;
 use Throwable;
@@ -34,12 +39,11 @@ use yii\base\Component;
  * While Settings::$keepTrashedFiles is on, the files of assets moved to the trash are kept, by whatever deletes them (see
  * TrashTracker), and recorded by their volume and path. Craft's garbage collection deletes trashed assets permanently
  * without deleting their files, so the files recorded are deleted once their assets are gone, see deletePurgedFiles().
+ *
+ * @internal
  */
-class TrashService extends Component
+final class TrashService extends Component
 {
-	/** files kept of trashed assets, by the asset's ID, with its volume and path */
-	public const TABLE_KEPT_FILES = '{{%hub_kept_files}}';
-
 	public const SORT_TITLE = 'title';
 	public const SORT_FILE = 'file';
 	public const SORT_SIZE = 'size';
@@ -51,21 +55,40 @@ class TrashService extends Component
 	private ?bool $keptFilesTableExists = null;
 
 	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly EntryService $entries,
+		private readonly SiteScopeService $siteScope,
+		private readonly ReviewService $review,
+		private readonly QueryService $queries,
+		private readonly FileService $files,
+		private readonly UserService $users,
+		private readonly Volumes $craftVolumes,
+		private readonly Connection $db,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
+
+	/**
 	 * Trashed entries of all sections and nested entry fields on the counted sites, narrowed by the given filters.
 	 *
 	 * @param string $sort one of the columns of {@see getEntrySortColumns()}
 	 * @param int $direction `SORT_ASC` or `SORT_DESC`
+	 *
+	 * @return EntryQuery<array-key,Entry>
 	 */
 	public function getEntryQuery(TrashedEntryFilter $filter, string $sort = self::SORT_DELETED, int $direction = SORT_DESC): EntryQuery
 	{
-		$entries = Hub::getInstance()->entries;
+		$entries = $this->entries;
 
 		$query = Entry::find()
-			->siteId(Hub::getInstance()->siteScope->getSiteIds())
+			->siteId($this->siteScope->getSiteIds())
 			->unique()
 			->status(null)
 			->trashed()
-			->andWhere($entries->contentCondition())
+			->andWhere($this->review->contentCondition())
 			->andWhere(['or', ['elements.deletedWithOwner' => null], ['elements.deletedWithOwner' => false]])
 			->orderBy($this->sortOrder($sort === self::SORT_TITLE ? ['elements_sites.title'] : ['elements.dateDeleted'], $direction));
 
@@ -74,7 +97,7 @@ class TrashService extends Component
 		}
 
 		if ($filter->search !== '') {
-			$operator = Sql::likeOperator();
+			$operator = $this->queries->likeOperator();
 			$query->andWhere([
 				'or',
 				[$operator, 'elements_sites.title', $filter->search],
@@ -91,7 +114,7 @@ class TrashService extends Component
 		}
 
 		if (($deleted = Range::dateParam($filter->deletedFrom, $filter->deletedTo)) !== null) {
-			$query->andWhere(Db::parseDateParam('elements.dateDeleted', $deleted));
+			$query->andWhere(Db::parseDateParam('elements.dateDeleted', $deleted) ?? []);
 		}
 
 		return $query;
@@ -102,11 +125,13 @@ class TrashService extends Component
 	 *
 	 * @param string $sort one of the columns of {@see getFileSortColumns()}
 	 * @param int $direction `SORT_ASC` or `SORT_DESC`
+	 *
+	 * @return AssetQuery<array-key,Asset>
 	 */
 	public function getFileQuery(TrashedFileFilter $filter, string $sort = self::SORT_DELETED, int $direction = SORT_DESC): AssetQuery
 	{
 		$query = Asset::find()
-			->siteId(Hub::getInstance()->siteScope->getSiteIds())
+			->siteId($this->siteScope->getSiteIds())
 			->unique()
 			->trashed()
 			->andWhere(['or', ['assets.deletedWithVolume' => null], ['assets.deletedWithVolume' => false]])
@@ -116,12 +141,12 @@ class TrashService extends Component
 				default => ['elements.dateDeleted'],
 			}, $direction));
 
-		if (($viewable = Hub::getInstance()->files->viewableCondition()) !== null) {
+		if (($viewable = $this->files->viewableCondition()) !== null) {
 			$query->andWhere($viewable);
 		}
 
 		if ($filter->search !== '') {
-			$operator = Sql::likeOperator();
+			$operator = $this->queries->likeOperator();
 			$query->andWhere([
 				'or',
 				[$operator, 'assets.filename', $filter->search],
@@ -142,7 +167,7 @@ class TrashService extends Component
 		}
 
 		if (($deleted = Range::dateParam($filter->deletedFrom, $filter->deletedTo)) !== null) {
-			$query->andWhere(Db::parseDateParam('elements.dateDeleted', $deleted));
+			$query->andWhere(Db::parseDateParam('elements.dateDeleted', $deleted) ?? []);
 		}
 
 		return $query;
@@ -179,10 +204,10 @@ class TrashService extends Component
 
 		foreach ($rows as $row) {
 			foreach ([['sourceId', 'targetId'], ['targetId', 'sourceId']] as [$own, $other]) {
-				$id = (int) $row[$own];
+				$id = Fill::int($row[$own]);
 
 				if (array_key_exists($id, $members)) {
-					$related[(int) $row[$other]][$members[$id] ?? $id] = true;
+					$related[Fill::int($row[$other])][$members[$id] ?? $id] = true;
 				}
 			}
 		}
@@ -201,13 +226,13 @@ class TrashService extends Component
 		}
 
 		$elements = [
-			...Hub::getInstance()->siteScope->inSiteScope(Entry::find())
+			...$this->siteScope->inSiteScope(Entry::find())
 				->id(array_keys($related))
 				->status(null)
 				->trashed()
 				->andWhere(['or', ['elements.deletedWithOwner' => null], ['elements.deletedWithOwner' => false]])
 				->all(),
-			...Hub::getInstance()->siteScope->inSiteScope(Asset::find())
+			...$this->siteScope->inSiteScope(Asset::find())
 				->id(array_keys($related))
 				->trashed()
 				->andWhere(['assets.keptFile' => true])
@@ -217,7 +242,7 @@ class TrashService extends Component
 
 		$byItem = [];
 		foreach ($elements as $element) {
-			foreach (array_keys($related[$element->id]) as $itemId) {
+			foreach (array_keys($related[(int) $element->id]) as $itemId) {
 				$byItem[$itemId][(int) $element->id] = $element;
 			}
 		}
@@ -242,7 +267,7 @@ class TrashService extends Component
 		$rows = (new Query())->select(['elementId', 'ownerId'])->from([Table::ELEMENTS_OWNERS])->where([$column => $ids])->all();
 
 		foreach ($rows as $row) {
-			$owners[(int) $row['elementId']][] = (int) $row['ownerId'];
+			$owners[Row::int($row, 'elementId')][] = Row::int($row, 'ownerId');
 		}
 
 		return $owners;
@@ -293,22 +318,22 @@ class TrashService extends Component
 		$latest = [];
 		foreach ((new Query())
 			->select(['subjectId', 'userId', 'userName'])
-			->from(ActivityService::TABLE)
+			->from(Tables::ACTIVITY)
 			->where(['id' => (new Query())
 				->select('MAX([[id]])')
-				->from(ActivityService::TABLE)
+				->from(Tables::ACTIVITY)
 				->where(['action' => ActivityAction::Deleted->value, 'subject' => $subject->value, 'subjectId' => $ids])
 				->groupBy(['subjectId'])])
 			->all() as $row) {
-			$latest[(int) $row['subjectId']] = $row;
+			$latest[Row::int($row, 'subjectId')] = $row;
 		}
 
-		$userIds = array_values(array_unique(array_filter(array_map(fn(array $row): ?int => $row['userId'] !== null ? (int) $row['userId'] : null, $latest))));
-		$users = Hub::getInstance()->users->getUsers($userIds);
+		$userIds = array_values(array_unique(Ids::positive(array_map(fn(array $row): ?int => Row::intOrNull($row, 'userId'), $latest))));
+		$users = $this->users->getUsers($userIds);
 
 		return array_map(fn(array $row): array => [
-			'user' => $row['userId'] !== null ? $users[(int) $row['userId']] ?? null : null,
-			'name' => $row['userName'] !== null ? (string) $row['userName'] : null,
+			'user' => $row['userId'] !== null ? $users[Row::int($row, 'userId')] ?? null : null,
+			'name' => Row::stringOrNull($row, 'userName'),
 		], $latest);
 	}
 
@@ -321,7 +346,7 @@ class TrashService extends Component
 			return;
 		}
 
-		Db::upsert(self::TABLE_KEPT_FILES, [
+		Db::upsert(Tables::KEPT_FILES, [
 			'assetId' => $asset->id,
 			'volumeId' => $asset->volumeId,
 			'path' => $asset->getPath(),
@@ -335,7 +360,7 @@ class TrashService extends Component
 	public function forgetKeptFile(int $assetId): void
 	{
 		if ($this->keptFilesTableExists()) {
-			Db::delete(self::TABLE_KEPT_FILES, ['assetId' => $assetId]);
+			Db::delete(Tables::KEPT_FILES, ['assetId' => $assetId]);
 		}
 	}
 
@@ -354,19 +379,19 @@ class TrashService extends Component
 
 		$rows = (new Query())
 			->select(['kept.assetId', 'kept.volumeId', 'kept.path'])
-			->from(['kept' => self::TABLE_KEPT_FILES])
+			->from(['kept' => Tables::KEPT_FILES])
 			->leftJoin(['assets' => Table::ASSETS], '[[assets.id]] = [[kept.assetId]]')
 			->where(['assets.id' => null])
 			->all();
 
-		$volumes = Craft::$app->getVolumes();
+		$volumes = $this->craftVolumes;
 		$deleted = 0;
 
 		foreach ($rows as $row) {
-			$volume = $volumes->getVolumeById((int) $row['volumeId']);
-			$path = (string) $row['path'];
+			$volume = $volumes->getVolumeById(Row::int($row, 'volumeId'));
+			$path = Row::string($row, 'path');
 
-			if ($volume !== null && !$this->isFileInUse((int) $volume->id, $path)) {
+			if ($volume instanceof Volume && !$this->isFileInUse((int) $volume->id, $path)) {
 				try {
 					$volume->deleteFile($path);
 					$deleted++;
@@ -375,7 +400,7 @@ class TrashService extends Component
 				}
 			}
 
-			Db::delete(self::TABLE_KEPT_FILES, ['assetId' => $row['assetId']]);
+			Db::delete(Tables::KEPT_FILES, ['assetId' => Row::value($row, 'assetId')]);
 		}
 
 		return $deleted;
@@ -394,7 +419,7 @@ class TrashService extends Component
 			->column();
 
 		foreach ($folders as $folder) {
-			if (($folder) . basename($path) === $path) {
+			if ((Fill::text($folder) ?? '') . basename($path) === $path) {
 				return true;
 			}
 		}
@@ -402,9 +427,9 @@ class TrashService extends Component
 		return false;
 	}
 
-	protected function keptFilesTableExists(): bool
+	private function keptFilesTableExists(): bool
 	{
-		return $this->keptFilesTableExists ??= Craft::$app->getDb()->tableExists(self::TABLE_KEPT_FILES);
+		return $this->keptFilesTableExists ??= $this->db->tableExists(Tables::KEPT_FILES);
 	}
 
 	/**

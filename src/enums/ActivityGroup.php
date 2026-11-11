@@ -9,6 +9,8 @@ use Craft;
 /**
  * Generic kind of what was done in an activity, the activity log is filtered by; the type of the subject narrows it
  * down, like deleted assets rather than deleted anything. Each action belongs to one, see ActivityAction::group().
+ *
+ * @internal
  */
 enum ActivityGroup: string
 {
@@ -25,7 +27,7 @@ enum ActivityGroup: string
 	/**
 	 * The actions of the group.
 	 *
-	 * @return ActivityAction[]
+	 * @return list<ActivityAction>
 	 */
 	public function actions(): array
 	{

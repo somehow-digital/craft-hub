@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-use SomehowDigital\Craft\Hub\helpers\FilterParams;
+use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\models\FilterParams;
 
 it('reads the search, flags and choices of a list', function (): void {
-	$params = new FilterParams(['q' => '  news ', 'drafts' => '1', 'empty' => 'yes', 'urls' => 'no', 'type' => ['channel']]);
+	$params = new FilterParams(['q' => '  news ', 'drafts' => '1', 'empty' => 'yes', 'urls' => 'no', 'type' => ['channel']], Craft::$app->getTimeZone());
 
 	expect($params->search())->toBe('news')
 		->and($params->flag('drafts'))->toBeTrue()
@@ -13,11 +14,11 @@ it('reads the search, flags and choices of a list', function (): void {
 		->and($params->choice('urls', ['yes', 'no']))->toBe('no')
 		->and($params->choice('urls', ['yes']))->toBeNull()
 		->and($params->string('type'))->toBeNull()
-		->and((new FilterParams([]))->search())->toBe('');
+		->and((new FilterParams([], Craft::$app->getTimeZone()))->search())->toBe('');
 });
 
 it('reads comma-separated values and IDs, without duplicates', function (): void {
-	$params = new FilterParams(['volume' => 'images, documents,,images', 'author' => '1,x,-2,4']);
+	$params = new FilterParams(['volume' => 'images, documents,,images', 'author' => '1,x,-2,4'], Craft::$app->getTimeZone());
 
 	expect($params->list('volume'))->toBe(['images', 'documents'])
 		->and($params->list('volume', ['documents', 'other']))->toBe(['documents'])
@@ -26,7 +27,7 @@ it('reads comma-separated values and IDs, without duplicates', function (): void
 });
 
 it('reads the users of a filter by users, with `me` first', function (): void {
-	$params = new FilterParams(['author' => '4,me,x,me,0', 'editor' => '2']);
+	$params = new FilterParams(['author' => '4,me,x,me,0', 'editor' => '2'], Craft::$app->getTimeZone());
 
 	expect($params->users('author'))->toBe(['me', 4])
 		->and($params->users('editor'))->toBe([2])
@@ -34,15 +35,15 @@ it('reads the users of a filter by users, with `me` first', function (): void {
 });
 
 it('resolves `me` to the current user, or to no one without one', function (): void {
-	expect(FilterParams::userIds(['me', 4]))->toBe([0, 4]);
+	expect(Hub::getInstance()->users->resolveIds(['me', 4]))->toBe([0, 4]);
 
-	Craft::$app->getUser()->shouldReceive('getId')->andReturn(7);
+	mocked(Craft::$app->getUser())->shouldReceive('getId')->andReturn(7);
 
-	expect(FilterParams::userIds(['me', 4]))->toBe([7, 4]);
+	expect(Hub::getInstance()->users->resolveIds(['me', 4]))->toBe([7, 4]);
 });
 
 it('reads non-negative numbers of range filters', function (): void {
-	$params = new FilterParams(['sizeMin' => '2.5', 'sizeMax' => '-1', 'width' => 'wide']);
+	$params = new FilterParams(['sizeMin' => '2.5', 'sizeMax' => '-1', 'width' => 'wide'], Craft::$app->getTimeZone());
 
 	expect($params->number('sizeMin'))->toBe(2.5)
 		->and($params->int('sizeMin'))->toBe(2)
@@ -51,7 +52,7 @@ it('reads non-negative numbers of range filters', function (): void {
 });
 
 it('reads days of date range filters in the time zone of the user', function (): void {
-	$params = new FilterParams(['from' => '2026-03-01', 'to' => '03/01/2026']);
+	$params = new FilterParams(['from' => '2026-03-01', 'to' => '03/01/2026'], Craft::$app->getTimeZone());
 
 	expect($params->date('from')?->format('Y-m-d H:i'))->toBe('2026-03-01 00:00')
 		->and($params->date('from')?->getTimezone()->getName())->toBe(Craft::$app->getTimeZone())

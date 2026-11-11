@@ -63,7 +63,7 @@ it('sums asset statistics, keeping the last upload', function (): void {
 		->add(assetStats(0));
 
 	expect([$stats->total, $stats->used, $stats->images, $stats->missingAlt, $stats->size])->toBe([7, 4, 4, 3, 1510])
-		->and($stats->lastUploaded->format('Y-m-d'))->toBe('2024-03-01')
+		->and($stats->lastUploaded?->format('Y-m-d'))->toBe('2024-03-01')
 		->and($stats->getUnused())->toBe(3)
 		->and($stats->getAverageSize())->toBe(215);
 });
@@ -79,7 +79,7 @@ it('sums entry statistics, keeping the last update', function (): void {
 		->add(entryStats(1, 0, 4, '2023-01-01'));
 
 	expect([$stats->total, $stats->enabled, $stats->drafts, $stats->getDisabled()])->toBe([6, 4, 5, 2])
-		->and($stats->lastUpdated->format('Y-m-d'))->toBe('2024-01-01');
+		->and($stats->lastUpdated?->format('Y-m-d'))->toBe('2024-01-01');
 });
 
 it('tells how recently entries were updated', function (): void {
@@ -278,22 +278,19 @@ it('names the subject of an activity as it was, or by how many items it was done
 	expect($activity->getTitle())->toBe('Hello');
 });
 
-it('tells the site of an activity and who impersonated its user', function (): void {
+it('tells who impersonated the user of an activity', function (): void {
 	$activity = new Activity();
 
-	expect($activity->getSite())->toBeNull()
-		->and($activity->getImpersonatorName())->toBeNull();
+	expect($activity->getImpersonatorName())->toBeNull();
 
-	$activity->siteId = 1;
 	$activity->data = ['impersonator' => 'admin'];
 
-	expect($activity->getSite()?->handle)->toBe('en')
-		->and($activity->getImpersonatorName())->toBe('admin');
+	expect($activity->getImpersonatorName())->toBe('admin');
 });
 
 it('names the attributes and fields an update changed', function (): void {
-	$this->field(PlainText::class, 1, 'summary', ['name' => 'Short Summary']);
 	$activity = new Activity();
+	$activity->fieldNames = ['summary' => 'Short Summary'];
 	$activity->data = ['attributes' => ['typeId', 'slug', 'enabled', 'enabledForSite'], 'fields' => ['summary', 'deleted']];
 
 	expect($activity->getChanges())->toBe(['Entry Type', 'Slug', 'Status', 'Short Summary', 'deleted']);

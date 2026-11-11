@@ -7,6 +7,8 @@ namespace SomehowDigital\Craft\Hub\bulk;
 /**
  * What a preview of a bulk action shows: rendered by a component (see `_components`) with the variables, along with the
  * number of the items the action applies to, so nothing is offered without any.
+ *
+ * @internal
  */
 final readonly class BulkPreview
 {

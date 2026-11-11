@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
+
 /**
  * Filters of the user groups list. Null values don't filter.
+ *
+ * @internal
  */
-class UserGroupFilter
+final class UserGroupFilter extends Model
 {
 	public const TWO_FACTOR_REQUIRED = 'required';
 	public const TWO_FACTOR_OPTIONAL = 'optional';

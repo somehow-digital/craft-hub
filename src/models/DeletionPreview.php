@@ -6,18 +6,20 @@ namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
+use craft\base\Model;
 use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\UserGroup;
 use craft\models\Volume;
 use craft\web\twig\variables\Paginate;
-use SomehowDigital\Craft\Hub\helpers\Paginator;
 
 /**
  * What deleting the items of a list takes along, shown before they're deleted: the totals of what is deleted, changed or
  * kept along with all items, and the items of a page, each with what deleting it takes along (see DeletionItem).
+ *
+ * @internal
  */
-class DeletionPreview
+final class DeletionPreview extends Model
 {
 	/** effects on what is deleted along with the items, changed by deleting them, or kept */
 	public const TONE_DELETED = 'deleted';
@@ -51,7 +53,7 @@ class DeletionPreview
 	/**
 	 * Sets the items deleted, detailing those of the page shown, as many as on the lists of the Hub (see Paginator).
 	 *
-	 * @param array<int,ElementInterface|Section|EntryType|FieldInterface|Volume|UserGroup> $models
+	 * @param array<ElementInterface|Section|EntryType|FieldInterface|Volume|UserGroup> $models
 	 * @param string $label see `$label`
 	 */
 	public function setItems(array $models, string $label, string $icon): void

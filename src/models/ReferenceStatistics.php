@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
+
 /**
  * Counts of the references of a set of elements, their sources and targets.
+ *
+ * @internal
  */
-class ReferenceStatistics
+final class ReferenceStatistics extends Model
 {
 	public int $references = 0;
 

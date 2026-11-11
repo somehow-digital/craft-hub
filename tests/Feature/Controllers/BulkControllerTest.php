@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use craft\base\ElementInterface;
 use craft\behaviors\DraftBehavior;
 use craft\elements\Asset;
 use craft\elements\db\ElementQuery;
@@ -20,12 +21,17 @@ use craft\models\VolumeFolder;
 use craft\queue\jobs\GenerateImageTransform;
 use craft\queue\Queue;
 use craft\services\Assets;
+use craft\services\Entries;
 use craft\services\ImageTransforms;
+use craft\web\Response as WebResponse;
+use Mockery\MockInterface;
+use SomehowDigital\Craft\Hub\bulk\BulkActions;
 use SomehowDigital\Craft\Hub\controllers\BulkController;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\enums\Permission;
 use SomehowDigital\Craft\Hub\models\EntryFilter;
 use SomehowDigital\Craft\Hub\models\EntryTypeFilter;
 use SomehowDigital\Craft\Hub\models\FieldFilter;
@@ -34,164 +40,159 @@ use SomehowDigital\Craft\Hub\models\TrashedEntryFilter;
 use SomehowDigital\Craft\Hub\models\TrashedFileFilter;
 use SomehowDigital\Craft\Hub\models\UserGroupFilter;
 use SomehowDigital\Craft\Hub\models\VolumeFilter;
-use SomehowDigital\Craft\Hub\services\ActivityService;
-use SomehowDigital\Craft\Hub\services\BulkService;
 use SomehowDigital\Craft\Hub\services\ColumnService;
-use SomehowDigital\Craft\Hub\services\LabelService;
 use SomehowDigital\Craft\Hub\services\SelectionService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
+use SomehowDigital\Craft\Hub\Tests\TestCase;
 use yii\base\Event;
 use yii\base\Exception;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
 use yii\web\MethodNotAllowedHttpException;
-use yii\web\Response;
+
+/**
+ * Posts to the action of the bulk controller, from a page of Hub.
+ *
+ * @param array<string,mixed> $body
+ */
+function bulkPost(TestCase $test, string $action, array $body): WebResponse
+{
+	return $test->postTo(BulkController::class, $action, ['path' => 'hub/test', ...$body], $test->identity);
+}
+
+/**
+ * Applies the action to the items with the `ids`, selected in the list beforehand.
+ *
+ * @param array<string,mixed> $body
+ */
+function bulkApply(TestCase $test, array $body): WebResponse
+{
+	$test->session['hub:bulk:selection:' . stringAt($body, 'list') . ':hub/test'] = array_map(fn(mixed $id): int => (int) $id, array_filter(listOf($body['ids'] ?? []), is_numeric(...)));
+	unset($body['ids']);
+
+	return bulkPost($test, 'apply', $body);
+}
 
 beforeEach(function (): void {
 	$this->identity = new User(['id' => 1, 'username' => 'admin', 'admin' => true]);
 
-	// Posts the body params to an action of the controller as the signed-in user, asking for JSON, for the list on `hub/test`.
-	$this->post = function (string $action, array $body): Response {
-		$this->request();
-		$request = Craft::$app->getRequest();
-		$request->enableCsrfValidation = false;
-		$request->enableCookieValidation = false;
-		$request->setBodyParams(['path' => 'hub/test', ...$body]);
-		$request->getHeaders()->set('Accept', 'application/json');
-		$_SERVER['REQUEST_METHOD'] = 'POST';
-		Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn($this->identity);
-
-		try {
-			return Craft::createObject(BulkController::class, ['bulk', $this->hub()])->runAction($action);
-		} finally {
-			unset($_SERVER['REQUEST_METHOD']);
-		}
-	};
-
-	// Applies the action to the items with the `ids`, selected in the list beforehand.
-	$this->apply = function (array $body): Response {
-		$this->session['hub:bulk:selection:' . $body['list'] . ':hub/test'] = array_map(intval(...), array_filter($body['ids'] ?? [], is_numeric(...)));
-		unset($body['ids']);
-
-		return ($this->post)('apply', $body);
-	};
 });
 
 it('refuses paths that are no pages of Hub', function (): void {
-	($this->post)('apply', ['path' => 'https://example.test/hub', 'list' => ColumnService::LIST_ENTRIES, 'bulkAction' => BulkService::ACTION_ENABLE]);
+	bulkPost($this, 'apply', ['path' => 'https://example.test/hub', 'list' => ColumnService::LIST_ENTRIES, 'bulkAction' => BulkActions::ACTION_ENABLE]);
 })->throws(BadRequestHttpException::class);
 
 it('takes an invalid item for the selection, which takes the permission to bulk-edit', function (): void {
-	$this->actingAs(permissions: [Hub::PERMISSION_ACCESS_DATA, Page::Entries->viewPermission(), Hub::PERMISSION_ENABLE_ENTRIES]);
+	$this->actingAs(permissions: [Permission::AccessData->value, Page::Entries->viewPermission(), Permission::EnableEntries->value]);
 	$this->identity = new User(['id' => 1, 'username' => 'editor']);
 
-	($this->post)('apply', ['list' => ColumnService::LIST_ENTRIES, 'bulkAction' => BulkService::ACTION_ENABLE, 'item' => -1]);
+	bulkPost($this, 'apply', ['list' => ColumnService::LIST_ENTRIES, 'bulkAction' => BulkActions::ACTION_ENABLE, 'item' => -1]);
 })->throws(ForbiddenHttpException::class);
 
 it('offers the actions of each list', function (): void {
 	Craft::$app->edition = CmsEdition::Pro;
 	$this->request();
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn($this->identity);
-	$bulk = $this->hub()->bulk;
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn($this->identity);
+	$bulk = $this->hub()->bulkActions;
 
-	expect(array_keys($bulk->getActions(ColumnService::LIST_ENTRIES)))->toBe([BulkService::ACTION_LABELS, BulkService::ACTION_EXPORT, BulkService::ACTION_ENABLE, BulkService::ACTION_DISABLE, BulkService::ACTION_CHANGE_AUTHOR, BulkService::ACTION_MOVE_TO_SECTION, BulkService::ACTION_DELETE_DRAFTS, BulkService::ACTION_DELETE])
-		->and(array_keys($bulk->getActions(ColumnService::LIST_FILES)))->toBe([BulkService::ACTION_LABELS, BulkService::ACTION_EXPORT, BulkService::ACTION_DOWNLOAD, BulkService::ACTION_MOVE_TO_FOLDER, BulkService::ACTION_GENERATE_TRANSFORMS, BulkService::ACTION_DELETE_TRANSFORMS, BulkService::ACTION_DELETE])
-		->and(array_keys($bulk->getActions(ColumnService::LIST_USERS)))->toBe([BulkService::ACTION_LABELS, BulkService::ACTION_EXPORT, BulkService::ACTION_GROUPS, BulkService::ACTION_SUSPEND, BulkService::ACTION_UNSUSPEND, BulkService::ACTION_DELETE])
-		->and(array_keys($bulk->getActions(ColumnService::LIST_SECTIONS)))->toBe([BulkService::ACTION_LABELS])
-		->and(array_keys($bulk->getActions(ColumnService::LIST_TRASHED_ENTRIES)))->toBe([BulkService::ACTION_EXPORT, BulkService::ACTION_RESTORE, BulkService::ACTION_RESTORE_WITH_RELATIONS, BulkService::ACTION_DELETE_PERMANENTLY])
-		->and(array_keys($bulk->getActions(ColumnService::LIST_TRASHED_FILES)))->toBe([BulkService::ACTION_EXPORT, BulkService::ACTION_RESTORE, BulkService::ACTION_RESTORE_WITH_RELATIONS, BulkService::ACTION_DELETE_PERMANENTLY])
-		->and($bulk->getActions(ColumnService::LIST_TRASHED_FILES)[BulkService::ACTION_RESTORE]['unless'])->toBe('unrestorable')
-		->and($bulk->getActions(ColumnService::LIST_TRASHED_FILES)[BulkService::ACTION_RESTORE_WITH_RELATIONS]['unless'])->toBe('unrestorable')
-		->and($bulk->getActions(ColumnService::LIST_ENTRIES)[BulkService::ACTION_MOVE_TO_SECTION])->toMatchArray(['preview' => true, 'fields' => true])
+	expect(array_keys($bulk->getActions(ColumnService::LIST_ENTRIES)))->toBe([BulkActions::ACTION_LABELS, BulkActions::ACTION_EXPORT, BulkActions::ACTION_ENABLE, BulkActions::ACTION_DISABLE, BulkActions::ACTION_CHANGE_AUTHOR, BulkActions::ACTION_MOVE_TO_SECTION, BulkActions::ACTION_DELETE_DRAFTS, BulkActions::ACTION_DELETE])
+		->and(array_keys($bulk->getActions(ColumnService::LIST_FILES)))->toBe([BulkActions::ACTION_LABELS, BulkActions::ACTION_EXPORT, BulkActions::ACTION_DOWNLOAD, BulkActions::ACTION_MOVE_TO_FOLDER, BulkActions::ACTION_GENERATE_TRANSFORMS, BulkActions::ACTION_DELETE_TRANSFORMS, BulkActions::ACTION_DELETE])
+		->and(array_keys($bulk->getActions(ColumnService::LIST_USERS)))->toBe([BulkActions::ACTION_LABELS, BulkActions::ACTION_EXPORT, BulkActions::ACTION_GROUPS, BulkActions::ACTION_SUSPEND, BulkActions::ACTION_UNSUSPEND, BulkActions::ACTION_DELETE])
+		->and(array_keys($bulk->getActions(ColumnService::LIST_SECTIONS)))->toBe([BulkActions::ACTION_LABELS])
+		->and(array_keys($bulk->getActions(ColumnService::LIST_TRASHED_ENTRIES)))->toBe([BulkActions::ACTION_EXPORT, BulkActions::ACTION_RESTORE, BulkActions::ACTION_RESTORE_WITH_RELATIONS, BulkActions::ACTION_DELETE_PERMANENTLY])
+		->and(array_keys($bulk->getActions(ColumnService::LIST_TRASHED_FILES)))->toBe([BulkActions::ACTION_EXPORT, BulkActions::ACTION_RESTORE, BulkActions::ACTION_RESTORE_WITH_RELATIONS, BulkActions::ACTION_DELETE_PERMANENTLY])
+		->and(at($bulk->getActions(ColumnService::LIST_TRASHED_FILES), BulkActions::ACTION_RESTORE, 'unless'))->toBe('unrestorable')
+		->and(at($bulk->getActions(ColumnService::LIST_TRASHED_FILES), BulkActions::ACTION_RESTORE_WITH_RELATIONS, 'unless'))->toBe('unrestorable')
+		->and($bulk->getActions(ColumnService::LIST_ENTRIES)[BulkActions::ACTION_MOVE_TO_SECTION])->toMatchArray(['preview' => true, 'fields' => true])
 		->and($bulk->getActions('bogus'))->toBe([]);
 });
 
 it('offers labeling while there are labels or the user may create some', function (): void {
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_STRUCTURE, Page::Sections->viewPermission(), Page::Sections->labelPermission()]);
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessStructure->value, Page::Sections->viewPermission(), Page::Sections->labelPermission()]);
 	$this->request();
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 2, 'username' => 'editor']));
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn(new User(['id' => 2, 'username' => 'editor']));
 
-	expect($this->hub()->bulk->getActions(ColumnService::LIST_SECTIONS))->toBe([]);
+	expect($this->hub()->bulkActions->getActions(ColumnService::LIST_SECTIONS))->toBe([]);
 
 	$this->db()->respond('FROM {{%hub_labels}}', [['id' => 1, 'name' => 'Keep', 'description' => null, 'icon' => null, 'color' => null, 'sortOrder' => 1, 'uid' => 'label-keep']]);
-	$this->hub()->set('labels', new LabelService());
+	$this->resetServices();
 
-	expect($this->hub()->bulk->getActions(ColumnService::LIST_SECTIONS))->toHaveKey(BulkService::ACTION_LABELS)
-		->and($this->hub()->bulk->getActions(ColumnService::LIST_SECTIONS)[BulkService::ACTION_LABELS])->toMatchArray(['labels' => true, 'keep' => true]);
+	expect($this->hub()->bulkActions->getActions(ColumnService::LIST_SECTIONS))->toHaveKey(BulkActions::ACTION_LABELS)
+		->and($this->hub()->bulkActions->getActions(ColumnService::LIST_SECTIONS)[BulkActions::ACTION_LABELS])->toMatchArray(['labels' => true, 'keep' => true]);
 });
 
 it('offers the actions of a list only to users with the permissions', function (array $permissions, array $actions): void {
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Entries->viewPermission(), ...$permissions]);
+	/** @var list<string> $permissions */
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessData->value, Page::Entries->viewPermission(), ...strings($permissions)]);
 	$this->request();
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 2, 'username' => 'editor']));
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn(new User(['id' => 2, 'username' => 'editor']));
 	$this->db()->respond('FROM {{%hub_labels}}', [['id' => 1, 'name' => 'Keep', 'description' => null, 'icon' => null, 'color' => null, 'sortOrder' => 1, 'uid' => 'label-keep']]);
-	$this->hub()->set('labels', new LabelService());
 
-	expect(array_keys($this->hub()->bulk->getActions(ColumnService::LIST_ENTRIES)))->toBe($actions);
+	expect(array_keys($this->hub()->bulkActions->getActions(ColumnService::LIST_ENTRIES)))->toBe($actions);
 })->with([
 	'none' => [[], []],
-	'labels' => [[Page::Entries->labelPermission()], [BulkService::ACTION_LABELS]],
-	'enabling' => [[Hub::PERMISSION_ENABLE_ENTRIES], [BulkService::ACTION_ENABLE, BulkService::ACTION_DISABLE]],
-	'deleting' => [[Hub::PERMISSION_DELETE_ENTRIES], [BulkService::ACTION_DELETE]],
-	'exporting' => [[Hub::PERMISSION_EXPORT_ENTRIES], [BulkService::ACTION_EXPORT]],
-	'changing authors' => [[Hub::PERMISSION_CHANGE_AUTHORS], [BulkService::ACTION_CHANGE_AUTHOR]],
-	'moving' => [[Hub::PERMISSION_MOVE_ENTRIES], [BulkService::ACTION_MOVE_TO_SECTION]],
-	'deleting drafts' => [[Hub::PERMISSION_DELETE_DRAFTS], [BulkService::ACTION_DELETE_DRAFTS]],
-	'exporting trashed entries' => [[Hub::PERMISSION_EXPORT_TRASHED_ENTRIES], []],
-	'an action of another page' => [[Hub::PERMISSION_DELETE_ASSETS], []],
+	'labels' => [[Page::Entries->labelPermission()], [BulkActions::ACTION_LABELS]],
+	'enabling' => [[Permission::EnableEntries->value], [BulkActions::ACTION_ENABLE, BulkActions::ACTION_DISABLE]],
+	'deleting' => [[Permission::DeleteEntries->value], [BulkActions::ACTION_DELETE]],
+	'exporting' => [[Permission::ExportEntries->value], [BulkActions::ACTION_EXPORT]],
+	'changing authors' => [[Permission::ChangeAuthors->value], [BulkActions::ACTION_CHANGE_AUTHOR]],
+	'moving' => [[Permission::MoveEntries->value], [BulkActions::ACTION_MOVE_TO_SECTION]],
+	'deleting drafts' => [[Permission::DeleteDrafts->value], [BulkActions::ACTION_DELETE_DRAFTS]],
+	'exporting trashed entries' => [[Permission::ExportTrashedEntries->value], []],
+	'an action of another page' => [[Permission::DeleteAssets->value], []],
 ]);
 
 it('offers no actions for lists the user may not view', function (string $list): void {
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Entries->viewPermission(), Page::Users->labelPermission(), Page::Sections->labelPermission(), Hub::PERMISSION_SUSPEND_USERS]);
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessData->value, Page::Entries->viewPermission(), Page::Users->labelPermission(), Page::Sections->labelPermission(), Permission::SuspendUsers->value]);
 	$this->request();
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn($this->identity);
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn($this->identity);
 
-	expect($this->hub()->bulk->getActions($list))->toBe([]);
+	expect($this->hub()->bulkActions->getActions($list))->toBe([]);
 })->with([ColumnService::LIST_USERS, ColumnService::LIST_USER_GROUPS, ColumnService::LIST_SECTIONS, ColumnService::LIST_VOLUMES]);
 
 it('offers no labeling while labels are disabled', function (): void {
-	$this->hub()->getSettings()->enableLabels = false;
+	$this->hub()->settings->enableLabels = false;
 
 	try {
-		expect($this->hub()->bulk->getActions(ColumnService::LIST_SECTIONS))->not->toHaveKey(BulkService::ACTION_LABELS);
+		expect($this->hub()->bulkActions->getActions(ColumnService::LIST_SECTIONS))->not->toHaveKey(BulkActions::ACTION_LABELS);
 	} finally {
-		$this->hub()->getSettings()->enableLabels = true;
+		$this->hub()->settings->enableLabels = true;
 	}
 });
 
 it('offers no deleting of structure, not even to admins', function (): void {
 	$this->request();
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn($this->identity);
-	$bulk = $this->hub()->bulk;
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn($this->identity);
+	$bulk = $this->hub()->bulkActions;
 
 	foreach ([ColumnService::LIST_SECTIONS, ColumnService::LIST_ENTRY_TYPES, ColumnService::LIST_FIELDS, ColumnService::LIST_VOLUMES, ColumnService::LIST_USER_GROUPS] as $list) {
-		expect($bulk->getActions($list))->not->toHaveKey(BulkService::ACTION_DELETE);
+		expect($bulk->getActions($list))->not->toHaveKey(BulkActions::ACTION_DELETE);
 	}
 });
 
 it('deletes the selected entries the user may delete', function (): void {
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1, 'siteId' => 1]), new Entry(['id' => 2, 'siteId' => 1])]);
-	$elements = Craft::$app->getElements();
+	$elements = mocked(Craft::$app->getElements());
 	$elements->shouldReceive('canDelete')->andReturnUsing(fn(Entry $entry): bool => $entry->id === 1);
 	$elements->shouldReceive('deleteElement')->once()->andReturn(true);
 
-	$response = ($this->apply)(['list' => 'entries', 'bulkAction' => 'delete', 'ids' => ['1', '2', 'bogus']]);
+	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'delete', 'ids' => ['1', '2', 'bogus']]);
 
-	expect($response->data['count'])->toBe(1)
-		->and($response->data['skipped'])->toBe(1)
-		->and($response->data['message'])->toContain('applied to one item')
-		->and($response->data['message'])->toContain('One item was skipped');
+	expect(at($response->data, 'count'))->toBe(1)
+		->and(at($response->data, 'skipped'))->toBe(1)
+		->and(at($response->data, 'message'))->toContain('applied to one item')
+		->and(at($response->data, 'message'))->toContain('One item was skipped');
 });
 
 it('disables and enables the selected entries', function (): void {
 	$entry = new Entry(['id' => 1, 'siteId' => 1, 'enabled' => true]);
 	ElementQueries::respond(Entry::class, [$entry]);
-	Craft::$app->getElements()->shouldReceive('saveElement')->twice()->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('saveElement')->twice()->andReturn(true);
 
-	($this->apply)(['list' => 'entries', 'bulkAction' => 'disable', 'ids' => ['1']]);
+	bulkApply($this, ['list' => 'entries', 'bulkAction' => 'disable', 'ids' => ['1']]);
 	expect($entry->enabled)->toBeFalse();
 
-	($this->apply)(['list' => 'entries', 'bulkAction' => 'enable', 'ids' => ['1']]);
+	bulkApply($this, ['list' => 'entries', 'bulkAction' => 'enable', 'ids' => ['1']]);
 	expect($entry->enabled)->toBeTrue()
 		->and($entry->getEnabledForSite())->toBeTrue()
 		->and($entry->getScenario())->toBe(Entry::SCENARIO_LIVE);
@@ -202,71 +203,72 @@ it('deletes the transforms of the selected files', function (): void {
 	$row = ['id' => '11', 'assetId' => '1', 'transformer' => 'other\\Transformer', 'filename' => 'a.jpg', 'format' => null, 'transformString' => '_100x100', 'fileExists' => '1', 'inProgress' => '0', 'error' => '0', 'dateIndexed' => null];
 	$this->db()->respond('SELECT `id`, `assetId`', [$row]);
 
-	$response = ($this->apply)(['list' => 'files', 'bulkAction' => 'deleteTransforms', 'ids' => ['1']]);
+	$response = bulkApply($this, ['list' => 'files', 'bulkAction' => 'deleteTransforms', 'ids' => ['1']]);
 
-	expect($response->data['count'])->toBe(1)
+	expect(at($response->data, 'count'))->toBe(1)
 		->and($this->db()->queriesMatching('DELETE FROM {{%imagetransformindex}}')[0])->toContain('`id`=11');
 });
 
 it('suspends the selected users, but not the current one', function (): void {
 	ElementQueries::respond(User::class, [new User(['id' => 1, 'username' => 'admin']), new User(['id' => 2, 'username' => 'editor'])]);
-	$users = Craft::$app->getUsers();
+	$users = mocked(Craft::$app->getUsers());
 	$users->shouldReceive('canSuspend')->andReturn(true);
 	$users->shouldReceive('suspendUser')->once()->withArgs(fn(User $user): bool => $user->id === 2);
 
-	$response = ($this->apply)(['list' => 'users', 'bulkAction' => 'suspend', 'ids' => ['1', '2']]);
+	$response = bulkApply($this, ['list' => 'users', 'bulkAction' => 'suspend', 'ids' => ['1', '2']]);
 
-	expect($response->data['count'])->toBe(1)
-		->and($response->data['skipped'])->toBe(1);
+	expect(at($response->data, 'count'))->toBe(1)
+		->and(at($response->data, 'skipped'))->toBe(1);
 });
 
 it('offers the actions of the trashed entries by their own permissions, to users who may view the trash', function (array $permissions, array $actions): void {
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Entries->viewPermission(), ...$permissions]);
+	/** @var list<string> $permissions */
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessData->value, Page::Entries->viewPermission(), ...strings($permissions)]);
 	$this->request();
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 2, 'username' => 'editor']));
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn(new User(['id' => 2, 'username' => 'editor']));
 
-	expect(array_keys($this->hub()->bulk->getActions(ColumnService::LIST_TRASHED_ENTRIES)))->toBe($actions);
+	expect(array_keys($this->hub()->bulkActions->getActions(ColumnService::LIST_TRASHED_ENTRIES)))->toBe($actions);
 })->with([
 	'restoring and purging' => [
-		[Hub::PERMISSION_VIEW_TRASHED_ENTRIES, Hub::PERMISSION_RESTORE_ENTRIES, Hub::PERMISSION_PURGE_ENTRIES],
-		[BulkService::ACTION_RESTORE, BulkService::ACTION_RESTORE_WITH_RELATIONS, BulkService::ACTION_DELETE_PERMANENTLY],
+		[Permission::ViewTrashedEntries->value, Permission::RestoreEntries->value, Permission::PurgeEntries->value],
+		[BulkActions::ACTION_RESTORE, BulkActions::ACTION_RESTORE_WITH_RELATIONS, BulkActions::ACTION_DELETE_PERMANENTLY],
 	],
-	'restoring' => [[Hub::PERMISSION_VIEW_TRASHED_ENTRIES, Hub::PERMISSION_RESTORE_ENTRIES], [BulkService::ACTION_RESTORE, BulkService::ACTION_RESTORE_WITH_RELATIONS]],
-	'purging' => [[Hub::PERMISSION_VIEW_TRASHED_ENTRIES, Hub::PERMISSION_PURGE_ENTRIES], [BulkService::ACTION_DELETE_PERMANENTLY]],
-	'without viewing the trash' => [[Hub::PERMISSION_RESTORE_ENTRIES, Hub::PERMISSION_PURGE_ENTRIES], []],
-	'deleting' => [[Hub::PERMISSION_VIEW_TRASHED_ENTRIES, Hub::PERMISSION_DELETE_ENTRIES], []],
+	'restoring' => [[Permission::ViewTrashedEntries->value, Permission::RestoreEntries->value], [BulkActions::ACTION_RESTORE, BulkActions::ACTION_RESTORE_WITH_RELATIONS]],
+	'purging' => [[Permission::ViewTrashedEntries->value, Permission::PurgeEntries->value], [BulkActions::ACTION_DELETE_PERMANENTLY]],
+	'without viewing the trash' => [[Permission::RestoreEntries->value, Permission::PurgeEntries->value], []],
+	'deleting' => [[Permission::ViewTrashedEntries->value, Permission::DeleteEntries->value], []],
 ]);
 
 it('offers no actions of the trashed items while the trash is disabled', function (): void {
 	$this->request();
-	$this->hub()->getSettings()->enableTrash = false;
+	$this->hub()->settings->enableTrash = false;
 
-	expect($this->hub()->bulk->getActions(ColumnService::LIST_TRASHED_ENTRIES))->toBe([])
-		->and($this->hub()->bulk->getActions(ColumnService::LIST_TRASHED_FILES))->toBe([]);
+	expect($this->hub()->bulkActions->getActions(ColumnService::LIST_TRASHED_ENTRIES))->toBe([])
+		->and($this->hub()->bulkActions->getActions(ColumnService::LIST_TRASHED_FILES))->toBe([]);
 });
 
 it('restores the selected trashed entries the user may save', function (): void {
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1, 'siteId' => 1]), new Entry(['id' => 2, 'siteId' => 1])]);
-	$elements = Craft::$app->getElements();
+	$elements = mocked(Craft::$app->getElements());
 	$elements->shouldReceive('canSave')->andReturnUsing(fn(Entry $entry): bool => $entry->id === 1);
 	$elements->shouldReceive('restoreElement')->once()->withArgs(fn(Entry $entry): bool => $entry->id === 1)->andReturn(true);
 
-	$response = ($this->apply)(['list' => 'trashedEntries', 'bulkAction' => 'restore', 'ids' => ['1', '2']]);
+	$response = bulkApply($this, ['list' => 'trashedEntries', 'bulkAction' => 'restore', 'ids' => ['1', '2']]);
 
-	expect($response->data['count'])->toBe(1)
-		->and($response->data['skipped'])->toBe(1)
+	expect(at($response->data, 'count'))->toBe(1)
+		->and(at($response->data, 'skipped'))->toBe(1)
 		->and(ElementQueries::executed(Entry::class)[0]->trashed)->toBeTrue();
 });
 
 it('deletes the selected trashed files permanently', function (): void {
 	ElementQueries::respond(Asset::class, [new Asset(['id' => 1, 'siteId' => 1, 'filename' => 'a.jpg'])]);
-	$elements = Craft::$app->getElements();
+	$elements = mocked(Craft::$app->getElements());
 	$elements->shouldReceive('canDelete')->andReturn(true);
 	$elements->shouldReceive('deleteElement')->once()->withArgs(fn(Asset $asset, bool $hardDelete): bool => $hardDelete)->andReturn(true);
 
-	$response = ($this->apply)(['list' => 'trashedFiles', 'bulkAction' => 'deletePermanently', 'ids' => ['1']]);
+	$response = bulkApply($this, ['list' => 'trashedFiles', 'bulkAction' => 'deletePermanently', 'ids' => ['1']]);
 
-	expect($response->data['count'])->toBe(1)
+	expect(at($response->data, 'count'))->toBe(1)
 		->and(ElementQueries::executed(Asset::class)[0]->trashed)->toBeTrue();
 });
 
@@ -283,84 +285,85 @@ it('matches the trashed items against their filters', function (): void {
 });
 
 it('fails when the action applies to none of the selected items', function (): void {
-	$response = ($this->apply)(['list' => 'entries', 'bulkAction' => 'delete', 'ids' => []]);
+	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'delete', 'ids' => []]);
 
 	expect($response->getStatusCode())->toBe(400)
-		->and($response->data['message'])->toContain('couldn’t be applied');
+		->and(at($response->data, 'message'))->toContain('couldn’t be applied');
 });
 
 it('rejects actions the list does not offer', function (): void {
-	($this->apply)(['list' => 'users', 'bulkAction' => 'enable', 'ids' => ['1']]);
+	bulkApply($this, ['list' => 'users', 'bulkAction' => 'enable', 'ids' => ['1']]);
 })->throws(BadRequestHttpException::class);
 
 it('rejects deleting structure, even for admins', function (string $list): void {
-	Craft::$app->getEntries()->shouldNotReceive('deleteSectionById', 'deleteEntryTypeById');
-	Craft::$app->getFields()->shouldNotReceive('deleteFieldById');
+	mocked(Craft::$app->getEntries())->shouldNotReceive('deleteSectionById', 'deleteEntryTypeById');
+	mocked(Craft::$app->getFields())->shouldNotReceive('deleteFieldById');
 
-	($this->apply)(['list' => $list, 'bulkAction' => 'delete', 'ids' => ['1']]);
+	bulkApply($this, ['list' => $list, 'bulkAction' => 'delete', 'ids' => ['1']]);
 })->with([ColumnService::LIST_SECTIONS, ColumnService::LIST_ENTRY_TYPES, ColumnService::LIST_FIELDS, ColumnService::LIST_VOLUMES, ColumnService::LIST_USER_GROUPS])
 	->throws(BadRequestHttpException::class);
 
 it('requires a post request to apply bulk actions', function (): void {
 	$this->request();
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn($this->identity);
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn($this->identity);
 
 	Craft::createObject(BulkController::class, ['bulk', $this->hub()])->runAction('apply');
 })->throws(MethodNotAllowedHttpException::class);
 
 it('unselects the items an action was applied to, keeping the skipped ones selected', function (): void {
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1, 'siteId' => 1]), new Entry(['id' => 2, 'siteId' => 1])]);
-	$elements = Craft::$app->getElements();
+	$elements = mocked(Craft::$app->getElements());
 	$elements->shouldReceive('canDelete')->andReturnUsing(fn(Entry $entry): bool => $entry->id === 1);
 	$elements->shouldReceive('deleteElement')->andReturn(true);
 
-	$response = ($this->apply)(['list' => 'entries', 'bulkAction' => 'delete', 'ids' => ['1', '2']]);
+	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'delete', 'ids' => ['1', '2']]);
 
 	expect($this->session['hub:bulk:selection:entries:hub/test'])->toBe([2])
-		->and($response->data['message'])->toContain('so it stays selected')
+		->and(at($response->data, 'message'))->toContain('so it stays selected')
 		->and($response->data)->not->toHaveKey('redirect');
 });
 
 it('goes back to the list once the action was applied to all selected items', function (): void {
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 3, 'siteId' => 1]), new Entry(['id' => 4, 'siteId' => 1])]);
-	Craft::$app->getElements()->shouldReceive('saveElement')->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('saveElement')->andReturn(true);
 
-	$response = ($this->apply)(['list' => 'entries', 'bulkAction' => 'disable', 'ids' => ['3', '4']]);
+	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'disable', 'ids' => ['3', '4']]);
 
 	expect($this->session)->not->toHaveKey('hub:bulk:selection:entries:hub/test')
-		->and($response->data['redirect'])->toContain('hub/test');
+		->and(at($response->data, 'redirect'))->toContain('hub/test');
 });
 
 it('applies an action to a single item in place of the selection, unselecting it', function (): void {
 	$entry = new Entry(['id' => 2, 'siteId' => 1, 'enabled' => true]);
-	ElementQueries::respond(Entry::class, fn($query): array => (array) $query->id === [2] ? [$entry] : []);
-	Craft::$app->getElements()->shouldReceive('saveElement')->once()->andReturn(true);
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => listOf($query->id) === [2] ? [$entry] : []);
+	mocked(Craft::$app->getElements())->shouldReceive('saveElement')->once()->andReturn(true);
 
-	$response = ($this->apply)(['list' => 'entries', 'bulkAction' => 'disable', 'item' => '2', 'ids' => ['1', '2']]);
+	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'disable', 'item' => '2', 'ids' => ['1', '2']]);
 
 	expect($entry->enabled)->toBeFalse()
-		->and($response->data['count'])->toBe(1)
+		->and(at($response->data, 'count'))->toBe(1)
 		->and($this->session['hub:bulk:selection:entries:hub/test'])->toBe([1])
 		->and($response->data)->not->toHaveKey('redirect');
 });
 
 it('applies an action to a single item for users who may not bulk-edit the list', function (): void {
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Entries->viewPermission(), Hub::PERMISSION_ENABLE_ENTRIES]);
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessData->value, Page::Entries->viewPermission(), Permission::EnableEntries->value]);
 	$entry = new Entry(['id' => 2, 'siteId' => 1, 'enabled' => true]);
-	ElementQueries::respond(Entry::class, fn($query): array => (array) $query->id === [2] ? [$entry] : []);
-	Craft::$app->getElements()->shouldReceive('saveElement')->once()->andReturn(true);
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => listOf($query->id) === [2] ? [$entry] : []);
+	mocked(Craft::$app->getElements())->shouldReceive('saveElement')->once()->andReturn(true);
 
-	$response = ($this->apply)(['list' => 'entries', 'bulkAction' => 'disable', 'item' => '2']);
+	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'disable', 'item' => '2']);
 
 	expect($entry->enabled)->toBeFalse()
-		->and($response->data['count'])->toBe(1);
+		->and(at($response->data, 'count'))->toBe(1);
 });
 
 it('selects nothing for users who may not bulk-edit the list', function (string $action, array $body): void {
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Entries->viewPermission(), Hub::PERMISSION_ENABLE_ENTRIES, Hub::PERMISSION_DELETE_ENTRIES]);
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessData->value, Page::Entries->viewPermission(), Permission::EnableEntries->value, Permission::DeleteEntries->value]);
 	$this->session['hub:bulk:selection:entries:hub/test'] = [1, 2];
 
-	($this->post)($action, ['list' => 'entries', ...$body]);
+	/** @var array<string, mixed> $body */
+	bulkPost($this, $action, ['list' => 'entries', ...$body]);
 })->with([
 	'selecting' => ['select', ['add' => ['3']]],
 	'applying to the selection' => ['apply', ['bulkAction' => 'disable']],
@@ -368,42 +371,43 @@ it('selects nothing for users who may not bulk-edit the list', function (string 
 ])->throws(ForbiddenHttpException::class);
 
 it('lets users who may bulk-edit the list select its items', function (): void {
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Entries->viewPermission(), Page::Entries->bulkEditPermission(), Hub::PERMISSION_ENABLE_ENTRIES]);
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessData->value, Page::Entries->viewPermission(), Page::Entries->bulkEditPermission(), Permission::EnableEntries->value]);
 
-	expect(($this->post)('select', ['list' => 'entries', 'add' => ['3']])->data['ids'])->toBe([3])
-		->and($this->hub()->bulk->canSelect(ColumnService::LIST_ENTRIES))->toBeTrue();
+	expect(at(bulkPost($this, 'select', ['list' => 'entries', 'add' => ['3']])->data, 'ids'))->toBe([3])
+		->and($this->hub()->bulkActions->canSelect(ColumnService::LIST_ENTRIES))->toBeTrue();
 
 	// Bulk-editing alone offers nothing to apply to the selection.
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Entries->viewPermission(), Page::Entries->bulkEditPermission()]);
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessData->value, Page::Entries->viewPermission(), Page::Entries->bulkEditPermission()]);
 
-	expect($this->hub()->bulk->canSelect(ColumnService::LIST_ENTRIES))->toBeFalse();
+	expect($this->hub()->bulkActions->canSelect(ColumnService::LIST_ENTRIES))->toBeFalse();
 });
 
 it('offers the actions of the assets and users by their own permissions', function (array $permissions, string $list, array $actions): void {
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Assets->viewPermission(), Page::Users->viewPermission(), ...$permissions]);
+	/** @var list<string> $permissions */
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessData->value, Page::Assets->viewPermission(), Page::Users->viewPermission(), ...strings($permissions)]);
 	$this->request();
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn($this->identity);
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn($this->identity);
 
-	expect(array_keys($this->hub()->bulk->getActions($list)))->toBe($actions);
+	expect(array_keys($this->hub()->bulkActions->getActions($list)))->toBe($actions);
 })->with([
-	'downloading' => [[Hub::PERMISSION_DOWNLOAD_ASSETS], ColumnService::LIST_FILES, [BulkService::ACTION_DOWNLOAD]],
-	'exporting assets' => [[Hub::PERMISSION_EXPORT_ASSETS], ColumnService::LIST_FILES, [BulkService::ACTION_EXPORT]],
-	'exporting users' => [[Hub::PERMISSION_EXPORT_USERS], ColumnService::LIST_USERS, [BulkService::ACTION_EXPORT]],
-	'exporting trashed assets' => [[Hub::PERMISSION_VIEW_TRASHED_ASSETS, Hub::PERMISSION_EXPORT_TRASHED_ASSETS], ColumnService::LIST_TRASHED_FILES, [BulkService::ACTION_EXPORT]],
-	'exporting assets, but not trashed ones' => [[Hub::PERMISSION_VIEW_TRASHED_ASSETS, Hub::PERMISSION_EXPORT_ASSETS], ColumnService::LIST_TRASHED_FILES, []],
-	'deleting transforms' => [[Hub::PERMISSION_DELETE_TRANSFORMS], ColumnService::LIST_FILES, [BulkService::ACTION_DELETE_TRANSFORMS]],
-	'deleting assets' => [[Hub::PERMISSION_DELETE_ASSETS], ColumnService::LIST_FILES, [BulkService::ACTION_DELETE]],
-	'suspending' => [[Hub::PERMISSION_SUSPEND_USERS], ColumnService::LIST_USERS, [BulkService::ACTION_SUSPEND, BulkService::ACTION_UNSUSPEND]],
-	'moving assets' => [[Hub::PERMISSION_MOVE_ASSETS], ColumnService::LIST_FILES, [BulkService::ACTION_MOVE_TO_FOLDER]],
-	'generating transforms' => [[Hub::PERMISSION_GENERATE_TRANSFORMS], ColumnService::LIST_FILES, [BulkService::ACTION_GENERATE_TRANSFORMS]],
-	'changing groups, but not in Craft Solo' => [[Hub::PERMISSION_ASSIGN_USER_GROUPS], ColumnService::LIST_USERS, []],
-	'deleting users' => [[Hub::PERMISSION_DELETE_USERS], ColumnService::LIST_USERS, [BulkService::ACTION_DELETE]],
+	'downloading' => [[Permission::DownloadAssets->value], ColumnService::LIST_FILES, [BulkActions::ACTION_DOWNLOAD]],
+	'exporting assets' => [[Permission::ExportAssets->value], ColumnService::LIST_FILES, [BulkActions::ACTION_EXPORT]],
+	'exporting users' => [[Permission::ExportUsers->value], ColumnService::LIST_USERS, [BulkActions::ACTION_EXPORT]],
+	'exporting trashed assets' => [[Permission::ViewTrashedAssets->value, Permission::ExportTrashedAssets->value], ColumnService::LIST_TRASHED_FILES, [BulkActions::ACTION_EXPORT]],
+	'exporting assets, but not trashed ones' => [[Permission::ViewTrashedAssets->value, Permission::ExportAssets->value], ColumnService::LIST_TRASHED_FILES, []],
+	'deleting transforms' => [[Permission::DeleteTransforms->value], ColumnService::LIST_FILES, [BulkActions::ACTION_DELETE_TRANSFORMS]],
+	'deleting assets' => [[Permission::DeleteAssets->value], ColumnService::LIST_FILES, [BulkActions::ACTION_DELETE]],
+	'suspending' => [[Permission::SuspendUsers->value], ColumnService::LIST_USERS, [BulkActions::ACTION_SUSPEND, BulkActions::ACTION_UNSUSPEND]],
+	'moving assets' => [[Permission::MoveAssets->value], ColumnService::LIST_FILES, [BulkActions::ACTION_MOVE_TO_FOLDER]],
+	'generating transforms' => [[Permission::GenerateTransforms->value], ColumnService::LIST_FILES, [BulkActions::ACTION_GENERATE_TRANSFORMS]],
+	'changing groups, but not in Craft Solo' => [[Permission::AssignUserGroups->value], ColumnService::LIST_USERS, []],
+	'deleting users' => [[Permission::DeleteUsers->value], ColumnService::LIST_USERS, [BulkActions::ACTION_DELETE]],
 	'restoring trashed assets' => [
-		[Hub::PERMISSION_VIEW_TRASHED_ASSETS, Hub::PERMISSION_RESTORE_ASSETS, Hub::PERMISSION_PURGE_ASSETS],
+		[Permission::ViewTrashedAssets->value, Permission::RestoreAssets->value, Permission::PurgeAssets->value],
 		ColumnService::LIST_TRASHED_FILES,
-		[BulkService::ACTION_RESTORE, BulkService::ACTION_RESTORE_WITH_RELATIONS, BulkService::ACTION_DELETE_PERMANENTLY],
+		[BulkActions::ACTION_RESTORE, BulkActions::ACTION_RESTORE_WITH_RELATIONS, BulkActions::ACTION_DELETE_PERMANENTLY],
 	],
-	'trashed assets without restoring them' => [[Hub::PERMISSION_VIEW_TRASHED_ASSETS, Hub::PERMISSION_DELETE_ASSETS], ColumnService::LIST_TRASHED_FILES, []],
+	'trashed assets without restoring them' => [[Permission::ViewTrashedAssets->value, Permission::DeleteAssets->value], ColumnService::LIST_TRASHED_FILES, []],
 	'none' => [[], ColumnService::LIST_FILES, []],
 ]);
 
@@ -415,28 +419,28 @@ it('adds and removes labels of the selected items, keeping them selected', funct
 	$this->db()->respond('FROM {{%hub_labeled}}', [['itemId' => 5, 'labelId' => 1]]);
 	$this->section(1, 'news', entryTypes: [$this->entryType(10, 'article')]);
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 5, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'title' => 'Hello']), new Entry(['id' => 6, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'title' => 'World'])]);
-	$activity = $this->mockComponent('hub.activity', ActivityService::class);
-	$activity->shouldReceive('beginBatch')->once()->with(ActivityAction::Bulk, ActivitySubject::Entry, 'Labels')->ordered();
-	$activity->shouldReceive('record')->once()->with(ActivityAction::Labeled, ActivitySubject::Entry, 6, 'World', ['added' => ['Keep']])->ordered();
-	$activity->shouldReceive('endBatch')->once()->ordered();
+	$this->db()->tables = [Tables::ACTIVITY];
 
-	$response = ($this->apply)(['list' => 'entries', 'bulkAction' => 'labels', 'labelsAdd' => ['1'], 'labelsRemove' => ['2'], 'ids' => ['5', '6', '7']]);
+	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'labels', 'labelsAdd' => ['1'], 'labelsRemove' => ['2'], 'ids' => ['5', '6', '7']]);
 	$inserts = $this->db()->queriesMatching('INSERT INTO {{%hub_labeled}}');
 
-	expect($response->data['count'])->toBe(2)
-		->and($response->data['skipped'])->toBe(1)
+	expect(at($response->data, 'count'))->toBe(2)
+		->and(at($response->data, 'skipped'))->toBe(1)
 		->and($this->session['hub:bulk:selection:entries:hub/test'])->toBe([5, 6, 7])
 		->and($response->data)->not->toHaveKey('redirect')
 		->and($this->db()->queriesMatching('DELETE FROM {{%hub_labeled}}')[0])->toContain('`labelId`=2')
 		->and($inserts)->toHaveCount(1)
 		->and($inserts[0])->toContain("(1, 'entries', 6")
-		->and($inserts[0])->not->toContain("(1, 'entries', 5");
+		->and($inserts[0])->not->toContain("(1, 'entries', 5")
+		->and(array_map(fn(array $row): array => array_slice($row, 0, 5), activities()))->toBe([[ActivityAction::Labeled, ActivitySubject::Entry, 6, 'World', ['added' => ['Keep']]]])
+		->and(array_values(array_filter($this->db()->queriesMatching(sqlInsertInto(Tables::ACTIVITY)), fn(string $sql): bool => str_contains($sql, "'bulk'"))))->toHaveCount(1)
+		->and(isBatching())->toBeFalse();
 });
 
 it('keeps the selection when downloading files', function (): void {
 	ElementQueries::respond(Asset::class, []);
 
-	($this->apply)(['list' => 'files', 'bulkAction' => 'download', 'ids' => ['1']]);
+	bulkApply($this, ['list' => 'files', 'bulkAction' => 'download', 'ids' => ['1']]);
 
 	expect($this->session['hub:bulk:selection:files:hub/test'])->toBe([1]);
 });
@@ -444,18 +448,18 @@ it('keeps the selection when downloading files', function (): void {
 it('selects and unselects items by their IDs', function (): void {
 	$this->session['hub:bulk:selection:entries:hub/test'] = [1, 2];
 
-	$response = ($this->post)('select', ['list' => 'entries', 'add' => ['3', '4', '2', 'x', '-1'], 'remove' => ['1']]);
+	$response = bulkPost($this, 'select', ['list' => 'entries', 'add' => ['3', '4', '2', 'x', '-1'], 'remove' => ['1']]);
 
-	expect($response->data['ids'])->toBe([2, 3, 4])
+	expect(at($response->data, 'ids'))->toBe([2, 3, 4])
 		->and($this->session['hub:bulk:selection:entries:hub/test'])->toBe([2, 3, 4]);
 });
 
 it('clears the selection before selecting items', function (): void {
 	$this->session['hub:bulk:selection:entries:hub/test'] = [1, 2];
 
-	expect(($this->post)('select', ['list' => 'entries', 'clear' => 1, 'add' => ['5']])->data['ids'])->toBe([5]);
+	expect(at(bulkPost($this, 'select', ['list' => 'entries', 'clear' => 1, 'add' => ['5']])->data, 'ids'))->toBe([5]);
 
-	($this->post)('select', ['list' => 'entries', 'clear' => 1]);
+	bulkPost($this, 'select', ['list' => 'entries', 'clear' => 1]);
 
 	expect($this->session)->not->toHaveKey('hub:bulk:selection:entries:hub/test');
 });
@@ -468,32 +472,32 @@ it('selects and unselects all items matching the filters the list was shown with
 	$this->session['hub:bulk:selection:sections:hub/test'] = [2];
 
 	// Like the list, sorted by name: archive, then news.
-	expect(($this->post)('select', ['list' => 'sections', 'matching' => 'add'])->data['ids'])->toBe([2, 4, 1])
-		->and(($this->post)('select', ['list' => 'sections', 'matching' => 'remove'])->data['ids'])->toBe([2]);
+	expect(at(bulkPost($this, 'select', ['list' => 'sections', 'matching' => 'add'])->data, 'ids'))->toBe([2, 4, 1])
+		->and(at(bulkPost($this, 'select', ['list' => 'sections', 'matching' => 'remove'])->data, 'ids'))->toBe([2]);
 });
 
 it('selects no matching items without filters kept for the list', function (): void {
 	$this->createContentModel();
 
-	expect(($this->post)('select', ['list' => 'sections', 'matching' => 'add'])->data['ids'])->toBe([])
-		->and(($this->post)('select', ['list' => 'entries', 'matching' => 'add'])->data['ids'])->toBe([]);
+	expect(at(bulkPost($this, 'select', ['list' => 'sections', 'matching' => 'add'])->data, 'ids'))->toBe([])
+		->and(at(bulkPost($this, 'select', ['list' => 'entries', 'matching' => 'add'])->data, 'ids'))->toBe([]);
 });
 
 it('refuses selecting more items than can be selected at once', function (): void {
 	$this->session['hub:bulk:selection:entries:hub/test'] = range(1, SelectionService::LIMIT);
 
-	$response = ($this->post)('select', ['list' => 'entries', 'add' => [SelectionService::LIMIT + 1]]);
+	$response = bulkPost($this, 'select', ['list' => 'entries', 'add' => [SelectionService::LIMIT + 1]]);
 
-	expect($response->data['ids'])->toHaveCount(SelectionService::LIMIT)
-		->and($response->data['error'])->toContain('Up to 1,000 items')
+	expect(at($response->data, 'ids'))->toHaveCount(SelectionService::LIMIT)
+		->and(at($response->data, 'error'))->toContain('Up to 1,000 items')
 		->and($this->session['hub:bulk:selection:entries:hub/test'])->toHaveCount(SelectionService::LIMIT);
 });
 
 it('rejects selecting in lists without actions for the user', function (): void {
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_STRUCTURE, Page::Sections->viewPermission()]);
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessStructure->value, Page::Sections->viewPermission()]);
 	$this->identity = new User(['id' => 2, 'username' => 'editor']);
 
-	($this->post)('select', ['list' => 'sections', 'add' => ['1']]);
+	bulkPost($this, 'select', ['list' => 'sections', 'add' => ['1']]);
 })->throws(BadRequestHttpException::class);
 
 it('matches the items of each list against its filters', function (): void {
@@ -523,7 +527,7 @@ it('matches the items of each list against its filters', function (): void {
 
 it('requires a post request asking for JSON to change the selection', function (): void {
 	$this->request();
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn($this->identity);
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn($this->identity);
 
 	Craft::createObject(BulkController::class, ['bulk', $this->hub()])->runAction('select');
 })->throws(MethodNotAllowedHttpException::class);
@@ -532,9 +536,9 @@ it('previews deleting the selection, or a single item', function (): void {
 	$this->section(1, 'news', entryTypes: [$this->entryType(10, 'article')]);
 	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => array_map(
 		fn(int $id): Entry => new Entry(['id' => $id, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'title' => "Entry {$id}"]),
-		(array) $query->id,
+		idsOf($query->id),
 	));
-	Craft::$app->getElements()->shouldReceive('canDelete')->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('canDelete')->andReturn(true);
 	$this->session['hub:bulk:selection:entries:hub/test'] = [1, 2];
 
 	// The preview links the items to their Hub pages, which keep the selected sites of the plugin.
@@ -543,59 +547,59 @@ it('previews deleting the selection, or a single item', function (): void {
 	Craft::$app->set('plugins', $plugins);
 
 	// The responses are the same object, so their data is read as they are sent.
-	$selection = ($this->post)('preview', ['list' => 'entries'])->data;
-	$single = ($this->post)('preview', ['list' => 'entries', 'item' => '2'])->data;
+	$selection = bulkPost($this, 'preview', ['list' => 'entries'])->data;
+	$single = bulkPost($this, 'preview', ['list' => 'entries', 'item' => '2'])->data;
 
-	expect($selection['total'])->toBe(2)
-		->and($selection['html'])->toContain('Entry 1')
-		->and($selection['html'])->toContain('moved to the trash')
-		->and($single['total'])->toBe(1)
-		->and($single['html'])->not->toContain('Entry 1');
+	expect(at($selection, 'total'))->toBe(2)
+		->and(at($selection, 'html'))->toContain('Entry 1')
+		->and(at($selection, 'html'))->toContain('moved to the trash')
+		->and(at($single, 'total'))->toBe(1)
+		->and(at($single, 'html'))->not->toContain('Entry 1');
 });
 
 it('previews deleting only for lists whose items are deleted', function (): void {
-	($this->post)('preview', ['list' => 'sections']);
+	bulkPost($this, 'preview', ['list' => 'sections']);
 })->throws(BadRequestHttpException::class);
 
 it('previews downloading the files the user may view, and how they are sent', function (): void {
 	$this->volume(1, 'images');
 	ElementQueries::respond(Asset::class, fn(ElementQuery $query): array => array_map(
 		fn(int $id): Asset => new Asset(['id' => $id, 'siteId' => 1, 'volumeId' => 1, 'kind' => 'image', 'filename' => "file-{$id}.jpg", 'title' => "File {$id}", 'size' => 1000 * 1000]),
-		(array) $query->id,
+		idsOf($query->id),
 	));
-	Craft::$app->getElements()->shouldReceive('canView')->andReturnUsing(fn(Asset $asset): bool => $asset->id !== 3);
+	mocked(Craft::$app->getElements())->shouldReceive('canView')->andReturnUsing(fn(Asset $asset): bool => $asset->id !== 3);
 	$this->session['hub:bulk:selection:files:hub/test'] = [1, 2, 3];
 
 	$plugins = Mockery::mock(Craft::$app->getPlugins())->makePartial();
 	$plugins->shouldReceive('getPlugin')->with('hub')->andReturn($this->hub());
 	Craft::$app->set('plugins', $plugins);
 
-	$selection = ($this->post)('preview', ['list' => 'files', 'bulkAction' => 'download'])->data;
-	$single = ($this->post)('preview', ['list' => 'files', 'bulkAction' => 'download', 'item' => '2'])->data;
+	$selection = bulkPost($this, 'preview', ['list' => 'files', 'bulkAction' => 'download'])->data;
+	$single = bulkPost($this, 'preview', ['list' => 'files', 'bulkAction' => 'download', 'item' => '2'])->data;
 
-	expect($selection['total'])->toBe(2)
-		->and($selection['html'])->toContain('File 1')
-		->and($selection['html'])->toContain('Images/file-2.jpg')
-		->and($selection['html'])->toContain('zip archive')
-		->and($selection['html'])->toContain('1 skipped')
-		->and($single['total'])->toBe(1)
-		->and($single['html'])->toContain('downloaded as it is')
-		->and($single['html'])->not->toContain('File 1');
+	expect(at($selection, 'total'))->toBe(2)
+		->and(at($selection, 'html'))->toContain('File 1')
+		->and(at($selection, 'html'))->toContain('Images/file-2.jpg')
+		->and(at($selection, 'html'))->toContain('zip archive')
+		->and(at($selection, 'html'))->toContain('1 skipped')
+		->and(at($single, 'total'))->toBe(1)
+		->and(at($single, 'html'))->toContain('downloaded as it is')
+		->and(at($single, 'html'))->not->toContain('File 1');
 });
 
 it('previews the items by the page asked for, the totals covering all of them', function (): void {
 	$this->section(1, 'news', entryTypes: [$this->entryType(10, 'article')]);
 	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => array_map(
 		fn(int $id): Entry => new Entry(['id' => $id, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'title' => "Entry {$id}"]),
-		(array) $query->id,
+		idsOf($query->id),
 	));
 	$this->volume(1, 'images');
 	ElementQueries::respond(Asset::class, fn(ElementQuery $query): array => array_map(
 		fn(int $id): Asset => new Asset(['id' => $id, 'siteId' => 1, 'volumeId' => 1, 'kind' => 'image', 'filename' => "file-{$id}.jpg", 'title' => "File {$id}", 'size' => 1000]),
-		(array) $query->id,
+		idsOf($query->id),
 	));
-	Craft::$app->getElements()->shouldReceive('canDelete')->andReturn(true);
-	Craft::$app->getElements()->shouldReceive('canView')->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('canDelete')->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('canView')->andReturn(true);
 	$this->session['hub:bulk:selection:entries:hub/test'] = range(1, 52);
 	$this->session['hub:bulk:selection:files:hub/test'] = range(1, 52);
 
@@ -603,31 +607,31 @@ it('previews the items by the page asked for, the totals covering all of them', 
 	$plugins->shouldReceive('getPlugin')->with('hub')->andReturn($this->hub());
 	Craft::$app->set('plugins', $plugins);
 
-	$first = ($this->post)('preview', ['list' => 'entries'])->data;
-	$second = ($this->post)('preview', ['list' => 'entries', 'page' => '2'])->data;
-	$files = ($this->post)('preview', ['list' => 'files', 'bulkAction' => 'download', 'page' => '2'])->data;
+	$first = bulkPost($this, 'preview', ['list' => 'entries'])->data;
+	$second = bulkPost($this, 'preview', ['list' => 'entries', 'page' => '2'])->data;
+	$files = bulkPost($this, 'preview', ['list' => 'files', 'bulkAction' => 'download', 'page' => '2'])->data;
 
-	expect($first['total'])->toBe(52)
-		->and($first['html'])->toContain('Entry 50')
-		->and($first['html'])->not->toContain('Entry 51')
-		->and($first['html'])->toContain('data-hub-preview-pages="1"')
-		->and($second['total'])->toBe(52)
-		->and($second['html'])->toContain('Entry 52')
-		->and($second['html'])->not->toContain('Entry 50<')
-		->and($second['html'])->toContain('data-hub-preview-pages="2"')
-		->and($files['total'])->toBe(52)
-		->and($files['html'])->toContain('File 51')
-		->and($files['html'])->not->toContain('File 1<')
-		->and($files['html'])->toContain('data-hub-preview-pages="2"');
+	expect(at($first, 'total'))->toBe(52)
+		->and(at($first, 'html'))->toContain('Entry 50')
+		->and(at($first, 'html'))->not->toContain('Entry 51')
+		->and(at($first, 'html'))->toContain('data-hub-preview-pages="1"')
+		->and(at($second, 'total'))->toBe(52)
+		->and(at($second, 'html'))->toContain('Entry 52')
+		->and(at($second, 'html'))->not->toContain('Entry 50<')
+		->and(at($second, 'html'))->toContain('data-hub-preview-pages="2"')
+		->and(at($files, 'total'))->toBe(52)
+		->and(at($files, 'html'))->toContain('File 51')
+		->and(at($files, 'html'))->not->toContain('File 1<')
+		->and(at($files, 'html'))->toContain('data-hub-preview-pages="2"');
 });
 
 it('previews deleting the transforms of the selected files the user may save', function (): void {
 	$this->volume(1, 'images');
 	ElementQueries::respond(Asset::class, fn(ElementQuery $query): array => array_map(
 		fn(int $id): Asset => new Asset(['id' => $id, 'siteId' => 1, 'volumeId' => 1, 'kind' => 'image', 'filename' => "file-{$id}.jpg", 'title' => "File {$id}"]),
-		(array) $query->id,
+		idsOf($query->id),
 	));
-	Craft::$app->getElements()->shouldReceive('canSave')->andReturnUsing(fn(Asset $asset): bool => $asset->id !== 3);
+	mocked(Craft::$app->getElements())->shouldReceive('canSave')->andReturnUsing(fn(Asset $asset): bool => $asset->id !== 3);
 	$transform = ['transformer' => 'other\\Transformer', 'filename' => 'a.jpg', 'format' => null, 'fileExists' => '1', 'inProgress' => '0', 'error' => '0', 'dateIndexed' => null];
 	$this->db()->respond('SELECT `id`, `assetId`', [
 		['id' => '11', 'assetId' => '1', 'transformString' => '_100x100', ...$transform],
@@ -640,24 +644,24 @@ it('previews deleting the transforms of the selected files the user may save', f
 	$plugins->shouldReceive('getPlugin')->with('hub')->andReturn($this->hub());
 	Craft::$app->set('plugins', $plugins);
 
-	$selection = ($this->post)('preview', ['list' => 'files', 'bulkAction' => 'deleteTransforms'])->data;
+	$selection = bulkPost($this, 'preview', ['list' => 'files', 'bulkAction' => 'deleteTransforms'])->data;
 
 	// The second file has no transforms, and the third may not be saved.
-	expect($selection['total'])->toBe(1)
-		->and($selection['html'])->toContain('2 transforms')
-		->and($selection['html'])->toContain('_200x200')
-		->and($selection['html'])->not->toContain('_300x300')
-		->and($selection['html'])->toContain('generated again')
-		->and($selection['html'])->toContain('2 skipped');
+	expect(at($selection, 'total'))->toBe(1)
+		->and(at($selection, 'html'))->toContain('2 transforms')
+		->and(at($selection, 'html'))->toContain('_200x200')
+		->and(at($selection, 'html'))->not->toContain('_300x300')
+		->and(at($selection, 'html'))->toContain('generated again')
+		->and(at($selection, 'html'))->toContain('2 skipped');
 });
 
 it('previews only the actions previewed', function (): void {
-	($this->post)('preview', ['list' => 'users', 'bulkAction' => 'suspend']);
+	bulkPost($this, 'preview', ['list' => 'users', 'bulkAction' => 'suspend']);
 })->throws(BadRequestHttpException::class);
 
 it('offers Craft’s exporters of the element type of the list, along with those registered by plugins', function (): void {
 	$this->request();
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn($this->identity);
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn($this->identity);
 	$bulk = $this->hub()->bulk;
 
 	expect(array_keys($bulk->getExporters(ColumnService::LIST_ENTRIES)))->toBe([Raw::class, Expanded::class])
@@ -680,19 +684,19 @@ it('offers Craft’s exporters of the element type of the list, along with those
 it('previews exporting the items the user may view, offering the exporters and formats', function (): void {
 	ElementQueries::respond(Asset::class, fn(ElementQuery $query): array => array_map(
 		fn(int $id): Asset => new Asset(['id' => $id, 'siteId' => 1, 'filename' => "file-{$id}.jpg"]),
-		(array) $query->id,
+		idsOf($query->id),
 	));
-	Craft::$app->getElements()->shouldReceive('canView')->andReturnUsing(fn(Asset $asset): bool => $asset->id !== 3);
+	mocked(Craft::$app->getElements())->shouldReceive('canView')->andReturnUsing(fn(Asset $asset): bool => $asset->id !== 3);
 	$this->session['hub:bulk:selection:trashedFiles:hub/test'] = [1, 2, 3];
 
-	$selection = ($this->post)('preview', ['list' => 'trashedFiles', 'bulkAction' => 'export'])->data;
+	$selection = bulkPost($this, 'preview', ['list' => 'trashedFiles', 'bulkAction' => 'export'])->data;
 
-	expect($selection['total'])->toBe(2)
-		->and($selection['html'])->toContain('2 items')
-		->and($selection['html'])->toContain('1 skipped')
-		->and($selection['html'])->toContain('Raw data (fastest)')
-		->and($selection['html'])->toContain('value="' . htmlspecialchars(Expanded::class) . '"')
-		->and($selection['html'])->toContain('XLSX')
+	expect(at($selection, 'total'))->toBe(2)
+		->and(at($selection, 'html'))->toContain('2 items')
+		->and(at($selection, 'html'))->toContain('1 skipped')
+		->and(at($selection, 'html'))->toContain('Raw data (fastest)')
+		->and(at($selection, 'html'))->toContain('value="' . htmlspecialchars(Expanded::class) . '"')
+		->and(at($selection, 'html'))->toContain('XLSX')
 		->and(ElementQueries::executed(Asset::class)[0]->trashed)->toBeTrue();
 });
 
@@ -700,33 +704,33 @@ it('exports the selected items the user may view by the exporter and format pick
 	$this->section(1, 'news', entryTypes: [$this->entryType(10, 'article')]);
 	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => array_map(
 		fn(int $id): Entry|array => $query->asArray ? ['id' => $id, 'title' => "Entry {$id}"] : new Entry(['id' => $id, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'title' => "Entry {$id}"]),
-		(array) $query->id,
+		idsOf($query->id),
 	));
-	Craft::$app->getElements()->shouldReceive('canView')->andReturnUsing(fn(Entry $entry): bool => $entry->id !== 3);
-	$activity = $this->mockComponent('hub.activity', ActivityService::class);
-	$activity->shouldReceive('beginBatch')->once()->with(ActivityAction::Bulk, ActivitySubject::Entry, 'Export')->ordered();
-	$activity->shouldReceive('record')->twice()->withArgs(fn(ActivityAction $action, ActivitySubject $subject, int $id): bool => $action === ActivityAction::Exported && $subject === ActivitySubject::Entry && in_array($id, [1, 2], true))->ordered();
-	$activity->shouldReceive('endBatch')->once()->ordered();
+	mocked(Craft::$app->getElements())->shouldReceive('canView')->andReturnUsing(fn(Entry $entry): bool => $entry->id !== 3);
+	$this->db()->tables = [Tables::ACTIVITY];
 
-	$response = ($this->apply)(['list' => 'entries', 'bulkAction' => 'export', 'exporter' => Raw::class, 'format' => 'json', 'ids' => ['2', '1', '3']]);
+	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'export', 'exporter' => Raw::class, 'format' => 'json', 'ids' => ['2', '1', '3']]);
 	$queries = ElementQueries::executed(Entry::class);
+	$last = $queries[array_key_last($queries) ?? throw new LogicException('No query ran.')];
 
 	expect($response->format)->toBe('json')
 		->and($response->data)->toBe([['id' => 2, 'title' => 'Entry 2'], ['id' => 1, 'title' => 'Entry 1']])
 		->and($response->getHeaders()->get('Content-Disposition'))->toContain('entries.json')
-		->and(end($queries)->id)->toBe([2, 1])
-		->and(end($queries)->fixedOrder)->toBeTrue()
-		->and($this->session['hub:bulk:selection:entries:hub/test'])->toBe([2, 1, 3]);
+		->and($last->id)->toBe([2, 1])
+		->and($last->fixedOrder)->toBeTrue()
+		->and($this->session['hub:bulk:selection:entries:hub/test'])->toBe([2, 1, 3])
+		->and(array_map(fn(array $row): array => [$row[0], $row[1], $row[2]], activities()))->toBe([[ActivityAction::Exported, ActivitySubject::Entry, 2], [ActivityAction::Exported, ActivitySubject::Entry, 1]])
+		->and(isBatching())->toBeFalse();
 });
 
 it('exports by the first exporter as CSV by default', function (): void {
 	ElementQueries::respond(User::class, fn(ElementQuery $query): array => array_map(
 		fn(int $id): User|array => $query->asArray ? ['id' => $id] : new User(['id' => $id, 'username' => "user{$id}"]),
-		(array) $query->id,
+		idsOf($query->id),
 	));
-	Craft::$app->getElements()->shouldReceive('canView')->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('canView')->andReturn(true);
 
-	$response = ($this->apply)(['list' => 'users', 'bulkAction' => 'export', 'ids' => ['4']]);
+	$response = bulkApply($this, ['list' => 'users', 'bulkAction' => 'export', 'ids' => ['4']]);
 
 	expect($response->format)->toBe('csv')
 		->and($response->data)->toBe([['id' => 4]])
@@ -737,13 +741,14 @@ it('exports by the first exporter as CSV by default', function (): void {
 it('fails exporting when the user may view none of the selected items', function (): void {
 	ElementQueries::respond(Entry::class, []);
 
-	$response = ($this->apply)(['list' => 'entries', 'bulkAction' => 'export', 'ids' => ['1']]);
+	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'export', 'ids' => ['1']]);
 
-	expect($response->data['message'] ?? null)->toContain('couldn’t be applied');
+	expect(at($response->data, 'message'))->toContain('couldn’t be applied');
 });
 
 it('rejects exporting by exporters or in formats Craft does not offer', function (array $body): void {
-	($this->apply)(['list' => 'entries', 'bulkAction' => 'export', 'ids' => ['1'], ...$body]);
+	/** @var array<string, mixed> $body */
+	bulkApply($this, ['list' => 'entries', 'bulkAction' => 'export', 'ids' => ['1'], ...$body]);
 })->with([
 	'exporter' => [['exporter' => 'bogus']],
 	'format' => [['exporter' => Raw::class, 'format' => 'html']],
@@ -753,16 +758,16 @@ it('replaces the authors of the selected entries with the author picked, or adds
 	$this->section(1, 'news', entryTypes: [$this->entryType(10, 'article')])->maxAuthors = 2;
 	$first = new Entry(['id' => 1, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'authorIds' => [2]]);
 	$second = new Entry(['id' => 2, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'authorIds' => [2]]);
-	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => array_values(array_filter([$first, $second], fn(Entry $entry): bool => in_array($entry->id, (array) $query->id, true))));
-	ElementQueries::respond(User::class, fn(ElementQuery $query): array => (array) $query->id === [7] ? [new User(['id' => 7, 'username' => 'author', 'admin' => true])] : []);
-	Craft::$app->getElements()->shouldReceive('saveElement')->twice()->andReturn(true);
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => array_values(array_filter([$first, $second], fn(Entry $entry): bool => in_array($entry->id, listOf($query->id), true))));
+	ElementQueries::respond(User::class, fn(ElementQuery $query): array => listOf($query->id) === [7] ? [new User(['id' => 7, 'username' => 'author', 'admin' => true])] : []);
+	mocked(Craft::$app->getElements())->shouldReceive('saveElement')->twice()->andReturn(true);
 
-	$replaced = ($this->apply)(['list' => 'entries', 'bulkAction' => 'changeAuthor', 'ids' => ['1'], 'authorId' => '7', 'authors' => 'replace']);
-	$added = ($this->apply)(['list' => 'entries', 'bulkAction' => 'changeAuthor', 'ids' => ['2'], 'authorId' => '7', 'authors' => 'add']);
+	$replaced = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'changeAuthor', 'ids' => ['1'], 'authorId' => '7', 'authors' => 'replace']);
+	$added = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'changeAuthor', 'ids' => ['2'], 'authorId' => '7', 'authors' => 'add']);
 
-	expect($replaced->data['count'])->toBe(1)
+	expect(at($replaced->data, 'count'))->toBe(1)
 		->and($first->getAuthorIds())->toBe([7])
-		->and($added->data['count'])->toBe(1)
+		->and(at($added->data, 'count'))->toBe(1)
 		->and($second->getAuthorIds())->toBe([2, 7]);
 });
 
@@ -771,15 +776,15 @@ it('changes no authors without an author picked, or of entries the author may no
 	$this->section(2, 'home', Section::TYPE_SINGLE, entryTypes: [$this->entryType(11, 'home')]);
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'authorIds' => [7]]), new Entry(['id' => 2, 'siteId' => 1, 'sectionId' => 2, 'typeId' => 11])]);
 	ElementQueries::respond(User::class, [new User(['id' => 7, 'username' => 'author', 'admin' => true])]);
-	Craft::$app->getElements()->shouldNotReceive('saveElement');
+	mocked(Craft::$app->getElements())->shouldNotReceive('saveElement');
 
-	$none = ($this->apply)(['list' => 'entries', 'bulkAction' => 'changeAuthor', 'ids' => ['1']]);
+	$none = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'changeAuthor', 'ids' => ['1']]);
 	// The first one has the author already, the single has no authors.
-	$same = ($this->apply)(['list' => 'entries', 'bulkAction' => 'changeAuthor', 'ids' => ['1', '2'], 'authorId' => '7']);
+	$same = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'changeAuthor', 'ids' => ['1', '2'], 'authorId' => '7']);
 
 	expect($none->getStatusCode())->toBe(400)
-		->and($same->data['count'])->toBe(1)
-		->and($same->data['skipped'])->toBe(1);
+		->and(at($same->data, 'count'))->toBe(1)
+		->and(at($same->data, 'skipped'))->toBe(1);
 });
 
 it('previews changing authors, offering those who may author the entries', function (): void {
@@ -788,13 +793,13 @@ it('previews changing authors, offering those who may author the entries', funct
 	ElementQueries::respond(User::class, [new User(['id' => 8, 'username' => 'zoe', 'fullName' => 'Zoe']), new User(['id' => 7, 'username' => 'ann', 'fullName' => 'Ann'])]);
 	$this->session['hub:bulk:selection:entries:hub/test'] = [1, 2];
 
-	$preview = ($this->post)('preview', ['list' => 'entries', 'bulkAction' => 'changeAuthor'])->data;
+	$preview = bulkPost($this, 'preview', ['list' => 'entries', 'bulkAction' => 'changeAuthor'])->data;
 
-	expect($preview['total'])->toBe(1)
-		->and($preview['html'])->toContain('name="authorId"')
-		->and(strpos($preview['html'], 'Ann (ann)'))->toBeLessThan(strpos($preview['html'], 'Zoe (zoe)'))
-		->and($preview['html'])->toContain('value="add"')
-		->and($preview['html'])->toContain('1 skipped');
+	expect(at($preview, 'total'))->toBe(1)
+		->and(at($preview, 'html'))->toContain('name="authorId"')
+		->and(at($preview, 'html'))->toMatch('/Ann \(ann\).*Zoe \(zoe\)/s')
+		->and(at($preview, 'html'))->toContain('value="add"')
+		->and(at($preview, 'html'))->toContain('1 skipped');
 });
 
 it('moves the selected entries to the section picked, as far as it has their entry types', function (): void {
@@ -807,14 +812,14 @@ it('moves the selected entries to the section picked, as far as it has their ent
 		new Entry(['id' => 2, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 11]),
 		new Entry(['id' => 3, 'siteId' => 1, 'sectionId' => 2, 'typeId' => 10]),
 	]);
-	Craft::$app->getEntries()->shouldReceive('moveEntryToSection')->once()
-		->withArgs(fn(Entry $entry, $section): bool => $entry->id === 1 && $section->id === 2)
+	mocked(Craft::$app->getEntries())->shouldReceive('moveEntryToSection')->once()
+		->withArgs(fn(Entry $entry, Section $section): bool => $entry->id === 1 && $section->id === 2)
 		->andReturn(true);
 
-	$response = ($this->apply)(['list' => 'entries', 'bulkAction' => 'moveToSection', 'ids' => ['1', '2', '3'], 'sectionId' => '2']);
+	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'moveToSection', 'ids' => ['1', '2', '3'], 'sectionId' => '2']);
 
-	expect($response->data['count'])->toBe(1)
-		->and($response->data['skipped'])->toBe(2);
+	expect(at($response->data, 'count'))->toBe(1)
+		->and(at($response->data, 'skipped'))->toBe(2);
 });
 
 it('skips entries Craft fails to move, and moves none without a section picked', function (): void {
@@ -822,10 +827,10 @@ it('skips entries Craft fails to move, and moves none without a section picked',
 	$this->section(1, 'news', entryTypes: [$article]);
 	$this->section(2, 'blog', entryTypes: [$article]);
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10])]);
-	Craft::$app->getEntries()->shouldReceive('moveEntryToSection')->once()->andThrow(new Exception('Invalid'));
+	mocked(Craft::$app->getEntries())->shouldReceive('moveEntryToSection')->once()->andThrow(new Exception('Invalid'));
 
-	$failed = ($this->apply)(['list' => 'entries', 'bulkAction' => 'moveToSection', 'ids' => ['1'], 'sectionId' => '2']);
-	$none = ($this->apply)(['list' => 'entries', 'bulkAction' => 'moveToSection', 'ids' => ['1'], 'sectionId' => '99']);
+	$failed = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'moveToSection', 'ids' => ['1'], 'sectionId' => '2']);
+	$none = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'moveToSection', 'ids' => ['1'], 'sectionId' => '99']);
 
 	expect($failed->getStatusCode())->toBe(400)
 		->and($none->getStatusCode())->toBe(400);
@@ -844,51 +849,53 @@ it('previews moving entries, offering the sections taking them', function (): vo
 	]);
 	$this->session['hub:bulk:selection:entries:hub/test'] = [1, 2];
 
-	$preview = ($this->post)('preview', ['list' => 'entries', 'bulkAction' => 'moveToSection'])->data;
+	$preview = bulkPost($this, 'preview', ['list' => 'entries', 'bulkAction' => 'moveToSection'])->data;
 
-	expect($preview['total'])->toBe(2)
-		->and($preview['html'])->toContain('Blog (1 of 2)')
-		->and($preview['html'])->toContain('>Pages<')
-		->and($preview['html'])->not->toContain('Home')
-		->and($preview['html'])->not->toContain('>News<');
+	expect(at($preview, 'total'))->toBe(2)
+		->and(at($preview, 'html'))->toContain('Blog (1 of 2)')
+		->and(at($preview, 'html'))->toContain('>Pages<')
+		->and(at($preview, 'html'))->not->toContain('Home')
+		->and(at($preview, 'html'))->not->toContain('>News<');
 });
 
 it('deletes the drafts of the selected entries the user may delete', function (): void {
-	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => $query->drafts
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => $query->drafts === true
 		? [new Entry(['id' => 11, 'siteId' => 1, 'canonicalId' => 1, 'draftId' => 1]), new Entry(['id' => 12, 'siteId' => 1, 'canonicalId' => 1, 'draftId' => 2]), new Entry(['id' => 13, 'siteId' => 1, 'canonicalId' => 2, 'draftId' => 3])]
 		: [new Entry(['id' => 1, 'siteId' => 1]), new Entry(['id' => 2, 'siteId' => 1]), new Entry(['id' => 3, 'siteId' => 1])]);
-	$elements = Craft::$app->getElements();
+	$elements = mocked(Craft::$app->getElements());
 	$elements->shouldReceive('canDelete')->andReturnUsing(fn(Entry $draft): bool => $draft->id !== 13);
 	$elements->shouldReceive('deleteElement')->twice()->withArgs(fn(Entry $draft, bool $hardDelete): bool => $draft->getCanonicalId() === 1 && $hardDelete)->andReturn(true);
 
-	$response = ($this->apply)(['list' => 'entries', 'bulkAction' => 'deleteDrafts', 'ids' => ['1', '2', '3']]);
+	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'deleteDrafts', 'ids' => ['1', '2', '3']]);
 
-	expect($response->data['count'])->toBe(1)
-		->and($response->data['skipped'])->toBe(2)
-		->and(array_values(array_filter(ElementQueries::executed(Entry::class), fn(ElementQuery $query): ?bool => $query->drafts))[0]->draftOf)->toBe([1, 2, 3]);
+	expect(at($response->data, 'count'))->toBe(1)
+		->and(at($response->data, 'skipped'))->toBe(2)
+		->and(array_values(array_filter(ElementQueries::executed(Entry::class), fn(ElementQuery $query): bool => $query->drafts === true))[0]->draftOf)->toBe([1, 2, 3]);
 });
 
 it('previews deleting the drafts of entries, listing them by entry', function (): void {
 	$this->section(1, 'news', entryTypes: [$this->entryType(10, 'article')]);
-	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => $query->drafts
-		? [(new Entry(['id' => 11, 'canonicalId' => 1, 'draftId' => 1, 'title' => 'Draft one', 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10]))->attachBehavior('draft', new DraftBehavior(['draftName' => 'First draft']))->owner]
+	$draft = new Entry(['id' => 11, 'canonicalId' => 1, 'draftId' => 1, 'title' => 'Draft one', 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10]);
+	$draft->attachBehavior('draft', ['class' => DraftBehavior::class, 'draftName' => 'First draft']);
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => $query->drafts === true
+		? [$draft]
 		: [new Entry(['id' => 1, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'title' => 'Entry 1']), new Entry(['id' => 2, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10, 'title' => 'Entry 2'])]);
-	Craft::$app->getElements()->shouldReceive('canDelete')->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('canDelete')->andReturn(true);
 	$this->session['hub:bulk:selection:entries:hub/test'] = [1, 2];
 
 	$plugins = Mockery::mock(Craft::$app->getPlugins())->makePartial();
 	$plugins->shouldReceive('getPlugin')->with('hub')->andReturn($this->hub());
 	Craft::$app->set('plugins', $plugins);
 
-	$preview = ($this->post)('preview', ['list' => 'entries', 'bulkAction' => 'deleteDrafts'])->data;
+	$preview = bulkPost($this, 'preview', ['list' => 'entries', 'bulkAction' => 'deleteDrafts'])->data;
 
-	expect($preview['total'])->toBe(1)
-		->and($preview['html'])->toContain('Entry 1')
-		->and($preview['html'])->not->toContain('Entry 2')
-		->and($preview['html'])->toContain('Draft one')
-		->and($preview['html'])->toContain('First draft')
-		->and($preview['html'])->toContain('deleted permanently')
-		->and($preview['html'])->toContain('1 skipped');
+	expect(at($preview, 'total'))->toBe(1)
+		->and(at($preview, 'html'))->toContain('Entry 1')
+		->and(at($preview, 'html'))->not->toContain('Entry 2')
+		->and(at($preview, 'html'))->toContain('Draft one')
+		->and(at($preview, 'html'))->toContain('First draft')
+		->and(at($preview, 'html'))->toContain('deleted permanently')
+		->and(at($preview, 'html'))->toContain('1 skipped');
 });
 
 it('moves the selected files to the folder picked, as far as the user may move them', function (): void {
@@ -903,15 +910,15 @@ it('moves the selected files to the folder picked, as far as the user may move t
 	$assets = $this->mockComponent('assets', Assets::class);
 	$assets->shouldReceive('findFolders')->andReturnUsing(fn(array $criteria): array => $criteria['volumeId'] === 2 ? [$target] : [new VolumeFolder(['id' => 10, 'volumeId' => 1, 'path' => ''])]);
 	$assets->shouldReceive('moveAsset')->once()->withArgs(fn(Asset $asset, VolumeFolder $folder): bool => $asset->id === 1 && $folder === $target)->andReturn(true);
-	$elements = Craft::$app->getElements();
+	$elements = mocked(Craft::$app->getElements());
 	$elements->shouldReceive('canDelete')->andReturnUsing(fn(Asset $asset): bool => $asset->id !== 2);
 
 	// The second may not be deleted from its volume, the third is in the folder already.
-	$response = ($this->apply)(['list' => 'files', 'bulkAction' => 'moveToFolder', 'ids' => ['1', '2', '3'], 'folderId' => '20'])->data;
-	$unknown = ($this->apply)(['list' => 'files', 'bulkAction' => 'moveToFolder', 'ids' => ['1'], 'folderId' => '99'])->getStatusCode();
+	$response = bulkApply($this, ['list' => 'files', 'bulkAction' => 'moveToFolder', 'ids' => ['1', '2', '3'], 'folderId' => '20'])->data;
+	$unknown = bulkApply($this, ['list' => 'files', 'bulkAction' => 'moveToFolder', 'ids' => ['1'], 'folderId' => '99'])->getStatusCode();
 
-	expect($response['count'])->toBe(1)
-		->and($response['skipped'])->toBe(2)
+	expect(at($response, 'count'))->toBe(1)
+		->and(at($response, 'skipped'))->toBe(2)
 		->and($unknown)->toBe(400);
 });
 
@@ -923,15 +930,15 @@ it('previews moving files, offering the folders of the volumes the user may save
 	$assets->shouldReceive('findFolders')->andReturnUsing(fn(array $criteria): array => $criteria['volumeId'] === 1
 		? [new VolumeFolder(['id' => 10, 'volumeId' => 1, 'path' => '']), new VolumeFolder(['id' => 11, 'volumeId' => 1, 'path' => 'photos/'])]
 		: [new VolumeFolder(['id' => 20, 'volumeId' => 2, 'path' => ''])]);
-	Craft::$app->getElements()->shouldReceive('canDelete')->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('canDelete')->andReturn(true);
 	$this->session['hub:bulk:selection:files:hub/test'] = [1];
 
-	$preview = ($this->post)('preview', ['list' => 'files', 'bulkAction' => 'moveToFolder'])->data;
+	$preview = bulkPost($this, 'preview', ['list' => 'files', 'bulkAction' => 'moveToFolder'])->data;
 
-	expect($preview['total'])->toBe(1)
-		->and($preview['html'])->toContain('<optgroup label="Images">')
-		->and($preview['html'])->toContain('Images/photos')
-		->and($preview['html'])->toContain('<optgroup label="Documents">');
+	expect(at($preview, 'total'))->toBe(1)
+		->and(at($preview, 'html'))->toContain('<optgroup label="Images">')
+		->and(at($preview, 'html'))->toContain('Images/photos')
+		->and(at($preview, 'html'))->toContain('<optgroup label="Documents">');
 });
 
 it('queues generating the transforms picked of the selected images not generated yet', function (): void {
@@ -939,16 +946,17 @@ it('queues generating the transforms picked of the selected images not generated
 		new Asset(['id' => 1, 'siteId' => 1, 'kind' => 'image', 'filename' => 'a.jpg']),
 		new Asset(['id' => 2, 'siteId' => 1, 'kind' => 'image', 'filename' => 'b.jpg']),
 	]);
-	Craft::$app->getElements()->shouldReceive('canView')->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('canView')->andReturn(true);
 	$thumb = new ImageTransform(['handle' => 'thumb', 'name' => 'Thumb', 'width' => 100]);
 	$hero = new ImageTransform(['handle' => 'hero', 'name' => 'Hero', 'width' => 1000]);
 	$transformer = Mockery::mock(ImageTransformer::class);
 	$transformer->shouldReceive('getTransformIndex')->andReturnUsing(fn(Asset $asset, ImageTransform $transform): ImageTransformIndex => new ImageTransformIndex([
-		'id' => $asset->id * 10,
+		'id' => ($asset->id ?? 0) * 10,
 		'assetId' => $asset->id,
-		'transformString' => '_' . $transform->handle,
+		'transformString' => '_' . ($transform->handle ?? ''),
 		'fileExists' => $asset->id === 2,
 	]));
+	/** @var ImageTransforms&MockInterface $transforms */
 	$transforms = Mockery::mock(ImageTransforms::class)->makePartial();
 	$transforms->shouldReceive('getAllTransforms')->andReturn([$thumb, $hero]);
 	$transforms->shouldReceive('getImageTransformer')->with(ImageTransformer::class)->andReturn($transformer);
@@ -957,11 +965,11 @@ it('queues generating the transforms picked of the selected images not generated
 	$queue->shouldReceive('push')->once()->with(Mockery::on(fn(GenerateImageTransform $job): bool => $job->transformId === 10));
 
 	// The second file has the transform already.
-	$response = ($this->apply)(['list' => 'files', 'bulkAction' => 'generateTransforms', 'ids' => ['1', '2'], 'transforms' => ['thumb', 'bogus']])->data;
-	$none = ($this->apply)(['list' => 'files', 'bulkAction' => 'generateTransforms', 'ids' => ['1'], 'transforms' => ['bogus']])->getStatusCode();
+	$response = bulkApply($this, ['list' => 'files', 'bulkAction' => 'generateTransforms', 'ids' => ['1', '2'], 'transforms' => ['thumb', 'bogus']])->data;
+	$none = bulkApply($this, ['list' => 'files', 'bulkAction' => 'generateTransforms', 'ids' => ['1'], 'transforms' => ['bogus']])->getStatusCode();
 
-	expect($response['count'])->toBe(1)
-		->and($response['skipped'])->toBe(1)
+	expect(at($response, 'count'))->toBe(1)
+		->and(at($response, 'skipped'))->toBe(1)
 		->and($none)->toBe(400);
 });
 
@@ -970,7 +978,8 @@ it('previews generating transforms, offering the transforms of Craft’s transfo
 		new Asset(['id' => 1, 'siteId' => 1, 'kind' => 'image', 'filename' => 'a.jpg']),
 		new Asset(['id' => 2, 'siteId' => 1, 'kind' => 'pdf', 'filename' => 'b.pdf']),
 	]);
-	Craft::$app->getElements()->shouldReceive('canView')->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('canView')->andReturn(true);
+	/** @var ImageTransforms&MockInterface $transforms */
 	$transforms = Mockery::mock(ImageTransforms::class)->makePartial();
 	$transforms->shouldReceive('getAllTransforms')->andReturn([
 		new ImageTransform(['handle' => 'thumb', 'name' => 'Thumb']),
@@ -979,12 +988,12 @@ it('previews generating transforms, offering the transforms of Craft’s transfo
 	Craft::$app->set('imageTransforms', $transforms);
 	$this->session['hub:bulk:selection:files:hub/test'] = [1, 2];
 
-	$preview = ($this->post)('preview', ['list' => 'files', 'bulkAction' => 'generateTransforms'])->data;
+	$preview = bulkPost($this, 'preview', ['list' => 'files', 'bulkAction' => 'generateTransforms'])->data;
 
-	expect($preview['total'])->toBe(1)
-		->and($preview['html'])->toContain('value="thumb" checked')
-		->and($preview['html'])->not->toContain('Service')
-		->and($preview['html'])->toContain('1 skipped');
+	expect(at($preview, 'total'))->toBe(1)
+		->and(at($preview, 'html'))->toContain('value="thumb" checked')
+		->and(at($preview, 'html'))->not->toContain('Service')
+		->and(at($preview, 'html'))->toContain('1 skipped');
 });
 
 it('adds the selected users to the groups picked and removes them from others, but not the current one', function (): void {
@@ -993,16 +1002,16 @@ it('adds the selected users to the groups picked and removes them from others, b
 	$this->userGroup(2, 'authors');
 	$this->userGroup(3, 'guests');
 	ElementQueries::respond(User::class, [new User(['id' => 1, 'username' => 'admin']), new User(['id' => 2, 'username' => 'editor']), new User(['id' => 3, 'username' => 'author'])]);
-	Craft::$app->getUserGroups()->shouldReceive('getGroupsByUserId')->andReturnUsing(fn(int $id): array => $id === 3 ? [$this->userGroups[1]] : [$this->userGroups[2]]);
-	$users = Craft::$app->getUsers();
+	mocked(Craft::$app->getUserGroups())->shouldReceive('getGroupsByUserId')->andReturnUsing(fn(int $id): array => $id === 3 ? [$this->userGroups[1]] : [$this->userGroups[2]]);
+	$users = mocked(Craft::$app->getUsers());
 	$users->shouldReceive('assignUserToGroups')->once()->with(2, [1])->andReturn(true);
 
 	// The third one is in the first group already, and not in the second.
-	$response = ($this->apply)(['list' => 'users', 'bulkAction' => 'groups', 'ids' => ['1', '2', '3'], 'groups' => ['1' => 'add', '2' => 'remove', '3' => '', '99' => 'add']])->data;
-	$none = ($this->apply)(['list' => 'users', 'bulkAction' => 'groups', 'ids' => ['2'], 'groups' => ['3' => '']])->getStatusCode();
+	$response = bulkApply($this, ['list' => 'users', 'bulkAction' => 'groups', 'ids' => ['1', '2', '3'], 'groups' => ['1' => 'add', '2' => 'remove', '3' => '', '99' => 'add']])->data;
+	$none = bulkApply($this, ['list' => 'users', 'bulkAction' => 'groups', 'ids' => ['2'], 'groups' => ['3' => '']])->getStatusCode();
 
-	expect($response['count'])->toBe(2)
-		->and($response['skipped'])->toBe(1)
+	expect(at($response, 'count'))->toBe(2)
+		->and(at($response, 'skipped'))->toBe(1)
 		->and($none)->toBe(400);
 });
 
@@ -1014,51 +1023,58 @@ it('previews changing groups, naming how many of the users are in each', functio
 	$this->db()->respond('FROM {{%usergroups_users}}', [['groupId' => 1, 'count' => 2], ['groupId' => 2, 'count' => 1]]);
 	$this->session['hub:bulk:selection:users:hub/test'] = [1, 2, 3];
 
-	$preview = ($this->post)('preview', ['list' => 'users', 'bulkAction' => 'groups'])->data;
+	$preview = bulkPost($this, 'preview', ['list' => 'users', 'bulkAction' => 'groups'])->data;
 
-	expect($preview['total'])->toBe(2)
-		->and($preview['html'])->toContain('name="groups[1]"')
-		->and($preview['html'])->toContain('All of them are in it.')
-		->and($preview['html'])->toContain('1 of them is in it.')
-		->and($preview['html'])->toContain('1 skipped');
+	expect(at($preview, 'total'))->toBe(2)
+		->and(at($preview, 'html'))->toContain('name="groups[1]"')
+		->and(at($preview, 'html'))->toContain('All of them are in it.')
+		->and(at($preview, 'html'))->toContain('1 of them is in it.')
+		->and(at($preview, 'html'))->toContain('1 skipped');
 });
 
 it('deletes the selected users, transferring their content to the user picked', function (): void {
 	ElementQueries::respond(User::class, fn(ElementQuery $query): array => array_map(
 		fn(int $id): User => new User(['id' => $id, 'username' => "user-{$id}"]),
-		array_values(array_filter((array) $query->id, is_int(...))),
+		array_values(array_filter(listOf($query->id), is_int(...))),
 	));
-	$elements = Craft::$app->getElements();
+	$elements = mocked(Craft::$app->getElements());
 	$elements->shouldReceive('canDelete')->andReturn(true);
 	$deleted = [];
-	$elements->shouldReceive('deleteElement')->andReturnUsing(function (User $user) use (&$deleted): true {
-		$deleted[$user->id] = $user->inheritorOnDelete?->id;
+	/** @var array<int,int|null> $transferred */
+	$transferred = [];
+	$elements->shouldReceive('deleteElement')->andReturnUsing(function (User $user) use (&$deleted, &$transferred): true {
+		$deleted[(int) $user->id] = $transferred[(int) $user->id] ?? null;
 
 		return true;
 	});
+	$this->mockComponent('entries', Entries::class)->shouldReceive('reassignEntries')->andReturnUsing(function (int $from, int $to) use (&$transferred): int {
+		$transferred[$from] = $to;
+
+		return 0;
+	});
 
 	// The current one isn't deleted, nor is the one inheriting the content.
-	$response = ($this->apply)(['list' => 'users', 'bulkAction' => 'delete', 'ids' => ['1', '2', '3', '9'], 'inheritorId' => '9']);
+	$response = bulkApply($this, ['list' => 'users', 'bulkAction' => 'delete', 'ids' => ['1', '2', '3', '9'], 'inheritorId' => '9']);
 
-	expect($response->data['count'])->toBe(2)
-		->and($response->data['skipped'])->toBe(2)
+	expect(at($response->data, 'count'))->toBe(2)
+		->and(at($response->data, 'skipped'))->toBe(2)
 		->and($deleted)->toBe([2 => 9, 3 => 9]);
 });
 
 it('deletes no users when the user picked to inherit their content does not exist', function (): void {
-	ElementQueries::respond(User::class, fn(ElementQuery $query): array => (array) $query->id === [9] ? [] : [new User(['id' => 2, 'username' => 'editor'])]);
-	Craft::$app->getElements()->shouldNotReceive('deleteElement');
+	ElementQueries::respond(User::class, fn(ElementQuery $query): array => listOf($query->id) === [9] ? [] : [new User(['id' => 2, 'username' => 'editor'])]);
+	mocked(Craft::$app->getElements())->shouldNotReceive('deleteElement');
 
-	$response = ($this->apply)(['list' => 'users', 'bulkAction' => 'delete', 'ids' => ['2'], 'inheritorId' => '9']);
+	$response = bulkApply($this, ['list' => 'users', 'bulkAction' => 'delete', 'ids' => ['2'], 'inheritorId' => '9']);
 
 	expect($response->getStatusCode())->toBe(400);
 });
 
 it('previews deleting users, with the entries they are an author of and who may inherit them', function (): void {
-	ElementQueries::respond(User::class, fn(ElementQuery $query): array => in_array(User::STATUS_ACTIVE, (array) $query->status, true)
+	ElementQueries::respond(User::class, fn(ElementQuery $query): array => in_array(User::STATUS_ACTIVE, listOf($query->status), true)
 		? [new User(['id' => 5, 'username' => 'heir', 'fullName' => 'Heir'])]
 		: [new User(['id' => 1, 'username' => 'admin']), new User(['id' => 2, 'username' => 'editor', 'email' => 'editor@example.com'])]);
-	Craft::$app->getElements()->shouldReceive('canDelete')->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('canDelete')->andReturn(true);
 	$this->db()->respond('[[hubAuthors.authorId]]', [['authorId' => 2, 'count' => 3]]);
 	$this->session['hub:bulk:selection:users:hub/test'] = [1, 2];
 
@@ -1066,58 +1082,58 @@ it('previews deleting users, with the entries they are an author of and who may 
 	$plugins->shouldReceive('getPlugin')->with('hub')->andReturn($this->hub());
 	Craft::$app->set('plugins', $plugins);
 
-	$preview = ($this->post)('preview', ['list' => 'users', 'bulkAction' => 'delete'])->data;
+	$preview = bulkPost($this, 'preview', ['list' => 'users', 'bulkAction' => 'delete'])->data;
 
-	expect($preview['total'])->toBe(1)
-		->and($preview['html'])->toContain('editor@example.com')
-		->and($preview['html'])->toContain('<strong>3</strong>')
-		->and($preview['html'])->toContain('Entries authored')
-		->and($preview['html'])->toContain('>editor<')
-		->and($preview['html'])->toContain('name="inheritorId"')
-		->and($preview['html'])->toContain('Heir (heir)')
-		->and($preview['html'])->toContain('1 skipped');
+	expect(at($preview, 'total'))->toBe(1)
+		->and(at($preview, 'html'))->toContain('editor@example.com')
+		->and(at($preview, 'html'))->toContain('<strong>3</strong>')
+		->and(at($preview, 'html'))->toContain('Entries authored')
+		->and(at($preview, 'html'))->toContain('>editor<')
+		->and(at($preview, 'html'))->toContain('name="inheritorId"')
+		->and(at($preview, 'html'))->toContain('Heir (heir)')
+		->and(at($preview, 'html'))->toContain('1 skipped');
 });
 
 it('restores the selected trashed items along with the trashed elements related to them', function (): void {
 	$this->db()->respond('FROM {{%elements_owners}}', fn(string $sql): array => str_contains($sql, 'WHERE `ownerId`') ? [['elementId' => 4, 'ownerId' => 1]] : []);
 	$this->db()->respond('FROM {{%relations}}', [['sourceId' => 4, 'targetId' => 20], ['sourceId' => 30, 'targetId' => 2], ['sourceId' => 1, 'targetId' => 2]]);
-	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => in_array(30, (array) $query->id, true)
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => in_array(30, listOf($query->id), true)
 		? [new Entry(['id' => 30, 'siteId' => 1])]
 		: [new Entry(['id' => 1, 'siteId' => 1]), new Entry(['id' => 2, 'siteId' => 1])]);
 	ElementQueries::respond(Asset::class, [new Asset(['id' => 20, 'siteId' => 1, 'filename' => 'a.jpg', 'keptFile' => true])]);
 	$restored = [];
-	Craft::$app->getElements()->shouldReceive('restoreElement')->andReturnUsing(function ($element) use (&$restored): true {
+	mocked(Craft::$app->getElements())->shouldReceive('restoreElement')->andReturnUsing(function (ElementInterface $element) use (&$restored): true {
 		$restored[] = $element->id;
 
 		return true;
 	});
 
-	$response = ($this->apply)(['list' => 'trashedEntries', 'bulkAction' => 'restoreWithRelations', 'ids' => ['1', '2']]);
+	$response = bulkApply($this, ['list' => 'trashedEntries', 'bulkAction' => 'restoreWithRelations', 'ids' => ['1', '2']]);
 
 	// The file is related through a nested entry of the first, the entry relates to the second.
-	expect($response->data['count'])->toBe(2)
+	expect(at($response->data, 'count'))->toBe(2)
 		->and($restored)->toBe([1, 20, 2, 30]);
 });
 
 it('previews restoring trashed items with their relations, listing what is restored along with each', function (): void {
 	$this->db()->respond('FROM {{%relations}}', [['sourceId' => 1, 'targetId' => 20]]);
-	ElementQueries::respond(Asset::class, fn(ElementQuery $query): array => in_array(20, (array) $query->id, true)
+	ElementQueries::respond(Asset::class, fn(ElementQuery $query): array => in_array(20, listOf($query->id), true)
 		? [new Asset(['id' => 20, 'siteId' => 1, 'filename' => 'related.jpg', 'title' => 'Linked image', 'keptFile' => true])]
 		: []);
-	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => in_array(1, (array) $query->id, true) ? [new Entry(['id' => 1, 'siteId' => 1, 'title' => 'Trashed entry'])] : []);
-	Craft::$app->getElements()->shouldReceive('canSave')->andReturn(true);
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => in_array(1, listOf($query->id), true) ? [new Entry(['id' => 1, 'siteId' => 1, 'title' => 'Trashed entry'])] : []);
+	mocked(Craft::$app->getElements())->shouldReceive('canSave')->andReturn(true);
 	$this->session['hub:bulk:selection:trashedEntries:hub/test'] = [1];
 
 	$plugins = Mockery::mock(Craft::$app->getPlugins())->makePartial();
 	$plugins->shouldReceive('getPlugin')->with('hub')->andReturn($this->hub());
 	Craft::$app->set('plugins', $plugins);
 
-	$preview = ($this->post)('preview', ['list' => 'trashedEntries', 'bulkAction' => 'restoreWithRelations'])->data;
+	$preview = bulkPost($this, 'preview', ['list' => 'trashedEntries', 'bulkAction' => 'restoreWithRelations'])->data;
 
-	expect($preview['total'])->toBe(1)
-		->and($preview['html'])->toContain('Trashed entry')
-		->and($preview['html'])->toContain('Linked image')
-		->and($preview['html'])->toContain('Related file<');
+	expect(at($preview, 'total'))->toBe(1)
+		->and(at($preview, 'html'))->toContain('Trashed entry')
+		->and(at($preview, 'html'))->toContain('Linked image')
+		->and(at($preview, 'html'))->toContain('Related file<');
 });
 
 it('previews the actions picking what they change the items to as applying to none without anything to pick', function (string $list, string $action): void {
@@ -1126,22 +1142,23 @@ it('previews the actions picking what they change the items to as applying to no
 	ElementQueries::respond(User::class, [new User(['id' => 2, 'username' => 'editor'])]);
 	$assets = $this->mockComponent('assets', Assets::class);
 	$assets->shouldReceive('findFolders')->andReturn([]);
+	/** @var ImageTransforms&MockInterface $transforms */
 	$transforms = Mockery::mock(ImageTransforms::class)->makePartial();
 	$transforms->shouldReceive('getAllTransforms')->andReturn([]);
 	Craft::$app->set('imageTransforms', $transforms);
-	Craft::$app->getElements()->shouldReceive('canDelete')->andReturn(true);
-	Craft::$app->getElements()->shouldReceive('canView')->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('canDelete')->andReturn(true);
+	mocked(Craft::$app->getElements())->shouldReceive('canView')->andReturn(true);
 	Craft::$app->edition = CmsEdition::Pro;
 	$this->session["hub:bulk:selection:{$list}:hub/test"] = [1, 2];
 
-	$preview = ($this->post)('preview', ['list' => $list, 'bulkAction' => $action])->data;
+	$preview = bulkPost($this, 'preview', ['list' => $list, 'bulkAction' => $action])->data;
 
-	expect($preview['total'])->toBe(0)
-		->and($preview['html'])->toContain('Nothing to');
+	expect(at($preview, 'total'))->toBe(0)
+		->and(at($preview, 'html'))->toContain('Nothing to');
 })->with([
-	'authors' => [ColumnService::LIST_ENTRIES, BulkService::ACTION_CHANGE_AUTHOR],
-	'sections' => [ColumnService::LIST_ENTRIES, BulkService::ACTION_MOVE_TO_SECTION],
-	'folders' => [ColumnService::LIST_FILES, BulkService::ACTION_MOVE_TO_FOLDER],
-	'transforms' => [ColumnService::LIST_FILES, BulkService::ACTION_GENERATE_TRANSFORMS],
-	'groups' => [ColumnService::LIST_USERS, BulkService::ACTION_GROUPS],
+	'authors' => [ColumnService::LIST_ENTRIES, BulkActions::ACTION_CHANGE_AUTHOR],
+	'sections' => [ColumnService::LIST_ENTRIES, BulkActions::ACTION_MOVE_TO_SECTION],
+	'folders' => [ColumnService::LIST_FILES, BulkActions::ACTION_MOVE_TO_FOLDER],
+	'transforms' => [ColumnService::LIST_FILES, BulkActions::ACTION_GENERATE_TRANSFORMS],
+	'groups' => [ColumnService::LIST_USERS, BulkActions::ACTION_GROUPS],
 ]);

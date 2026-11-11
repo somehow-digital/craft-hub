@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Craft;
 use SomehowDigital\Craft\Hub\services\SiteScopeService;
 
 beforeEach(function (): void {
@@ -11,28 +12,28 @@ beforeEach(function (): void {
 
 it('keeps the selected sites for the Hub pages opened without any', function (): void {
 	$this->request(['hubSite' => 'de'], path: 'hub/data/entries');
-	(new SiteScopeService())->getSites();
+	Craft::createObject(SiteScopeService::class)->getSites();
 
 	$this->request(path: 'hub/structure/fields');
 
-	expect((new SiteScopeService())->getSiteParam())->toBe('de');
+	expect(Craft::createObject(SiteScopeService::class)->getSiteParam())->toBe('de');
 });
 
 it('forgets the kept sites as all sites are selected', function (): void {
 	$this->session['hub:sites'] = 'de';
 
 	$this->request(['hubSite' => ''], path: 'hub/data/entries');
-	expect((new SiteScopeService())->getSites())->toBe([]);
+	expect(Craft::createObject(SiteScopeService::class)->getSites())->toBe([]);
 
 	$this->request(path: 'hub/data/entries');
-	expect((new SiteScopeService())->getSites())->toBe([]);
+	expect(Craft::createObject(SiteScopeService::class)->getSites())->toBe([]);
 });
 
 it('prefers the requested sites over those kept', function (): void {
 	$this->session['hub:sites'] = 'de';
 	$this->request(['hubSite' => 'en'], path: 'hub/data/entries');
 
-	expect((new SiteScopeService())->getSiteParam())->toBe('en')
+	expect(Craft::createObject(SiteScopeService::class)->getSiteParam())->toBe('en')
 		->and($this->session['hub:sites'])->toBe('en');
 });
 
@@ -41,7 +42,7 @@ it('leaves out kept sites the user may no longer edit', function (): void {
 	$this->editableSiteIds = [1];
 	$this->request(path: 'hub/data/entries');
 
-	expect((new SiteScopeService())->getSites())->toBe([])
+	expect(Craft::createObject(SiteScopeService::class)->getSites())->toBe([])
 		->and($this->session)->not->toHaveKey('hub:sites');
 });
 
@@ -49,7 +50,7 @@ it('ignores and keeps the kept sites outside of Hub', function (string $path, bo
 	$this->session['hub:sites'] = 'de';
 	$this->request(cp: $cp, path: $path);
 
-	expect((new SiteScopeService())->getSites())->toBe([])
+	expect(Craft::createObject(SiteScopeService::class)->getSites())->toBe([])
 		->and($this->session['hub:sites'])->toBe('de');
 })->with([
 	['dashboard', true],

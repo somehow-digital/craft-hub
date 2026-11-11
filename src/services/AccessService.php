@@ -4,28 +4,43 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\services;
 
-use Craft;
+use craft\web\User as WebUser;
 use SomehowDigital\Craft\Hub\enums\ListType;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\enums\Permission;
+use SomehowDigital\Craft\Hub\models\Settings;
 use yii\base\Component;
 
 /**
  * What the current user may do in Hub, by its own permissions; Craft's permissions of each item still apply.
+ *
+ * @internal
  */
-class AccessService extends Component
+final class AccessService extends Component
 {
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly Settings $settings,
+		private readonly ActivityService $activity,
+		private readonly ?WebUser $user = null,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
+
 	/**
 	 * Whether the current user may open the settings page, as they may manage the saved filters, the labels or the checks;
 	 * admins may manage the settings of the statistics and the activity log too.
 	 */
 	public function canManageSettings(): bool
 	{
-		$user = Craft::$app->getUser();
+		$user = $this->user;
 
-		return $user->checkPermission(Hub::PERMISSION_MANAGE_LABELS)
-			|| $user->checkPermission(Hub::PERMISSION_MANAGE_DIAGNOSTICS)
-			|| $user->checkPermission(Hub::PERMISSION_MANAGE_FILTERS);
+		return $user?->checkPermission(Permission::ManageLabels->value) === true
+			|| $user?->checkPermission(Permission::ManageDiagnostics->value) === true
+			|| $user?->checkPermission(Permission::ManageFilters->value) === true;
 	}
 
 	/**
@@ -35,10 +50,10 @@ class AccessService extends Component
 	public function canView(Page|string $page): bool
 	{
 		$page = is_string($page) ? Page::tryFrom($page) : $page;
-		$user = Craft::$app->getUser();
+		$user = $this->user;
 
 		return $page !== null
-			&& $user->checkPermission('accessPlugin-' . Hub::getInstance()->id)
+			&& $user?->checkPermission(Permission::PLUGIN) === true
 			&& $user->checkPermission($page->areaPermission())
 			&& $user->checkPermission($page->viewPermission());
 	}
@@ -48,7 +63,7 @@ class AccessService extends Component
 	 */
 	public function canLabel(Page $page): bool
 	{
-		return $this->canView($page) && Craft::$app->getUser()->checkPermission($page->labelPermission());
+		return $this->canView($page) && $this->user?->checkPermission($page->labelPermission()) === true;
 	}
 
 	/**
@@ -57,7 +72,7 @@ class AccessService extends Component
 	 */
 	public function canBulkEdit(Page $page): bool
 	{
-		return $this->canView($page) && Craft::$app->getUser()->checkPermission($page->bulkEditPermission());
+		return $this->canView($page) && $this->user?->checkPermission($page->bulkEditPermission()) === true;
 	}
 
 	/**
@@ -68,10 +83,10 @@ class AccessService extends Component
 	public function canAct(Page $page, string $permission): bool
 	{
 		if (isset($page->trashActionPermissions()[$permission])) {
-			return $this->canViewTrash($page) && Craft::$app->getUser()->checkPermission($permission);
+			return $this->canViewTrash($page) && $this->user?->checkPermission($permission) === true;
 		}
 
-		return $this->canView($page) && isset($page->actionPermissions()[$permission]) && Craft::$app->getUser()->checkPermission($permission);
+		return $this->canView($page) && isset($page->actionPermissions()[$permission]) && $this->user?->checkPermission($permission) === true;
 	}
 
 	/**
@@ -82,10 +97,10 @@ class AccessService extends Component
 	{
 		$permission = $page->trashPermission();
 
-		return Hub::getInstance()->settings->enableTrash
+		return $this->settings->enableTrash
 			&& $permission !== null
 			&& $this->canView($page)
-			&& Craft::$app->getUser()->checkPermission($permission);
+			&& $this->user?->checkPermission($permission) === true;
 	}
 
 	/**
@@ -96,7 +111,7 @@ class AccessService extends Component
 		$type = ListType::tryFrom($list);
 
 		if ($type === ListType::Activity) {
-			return Hub::getInstance()->activity->canView();
+			return $this->activity->canView();
 		}
 
 		if (($page = $type?->page()) === null) {

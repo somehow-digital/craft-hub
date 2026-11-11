@@ -5,16 +5,23 @@ declare(strict_types=1);
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\FieldInterface;
+use craft\base\Model;
 use craft\models\EntryType;
 use craft\models\Section;
+use LogicException;
 use SomehowDigital\Craft\Hub\enums\UsageKind;
 
 /**
  * What Hub knows of an entry type: where it's used, and the counts of its entries.
+ *
+ * @property EntryStatistics $stats
+ * @property list<UsageKind> $kinds
+ *
+ * @internal
  */
-class EntryTypeInfo
+final class EntryTypeInfo extends Model
 {
-	use LazyProperties;
+	use LazyPropertiesTrait;
 
 	/** @var Section[] */
 	public array $sections = [];
@@ -28,17 +35,48 @@ class EntryTypeInfo
 	/** @var FieldInterface[] Link fields that can link to entries of this type */
 	public array $linkFields = [];
 
-	/** @var UsageKind[] */
-	public array $kinds = [];
-
 	public bool $hasUrls = false;
-
-	public EntryStatistics $stats;
 
 	public function __construct(
 		public EntryType $entryType
 	) {
-		$this->stats = new EntryStatistics();
+		parent::__construct();
+		$this->setStats(new EntryStatistics());
+		$this->setKinds([]);
+	}
+
+	public function getStats(): EntryStatistics
+	{
+		$value = $this->getLazyValue('stats');
+		if (!$value instanceof EntryStatistics) {
+			throw new LogicException('Not EntryStatistics.');
+		}
+
+		return $value;
+	}
+
+	public function setStats(EntryStatistics $value): void
+	{
+		$this->setLazyValue('stats', $value);
+	}
+
+	/**
+	 * @return list<UsageKind>
+	 */
+	public function getKinds(): array
+	{
+		/** @var list<UsageKind> $value */
+		$value = $this->getLazyValue('kinds');
+
+		return $value;
+	}
+
+	/**
+	 * @param list<UsageKind> $value
+	 */
+	public function setKinds(array $value): void
+	{
+		$this->setLazyValue('kinds', $value);
 	}
 
 	public function getRelationCount(): int
@@ -47,7 +85,7 @@ class EntryTypeInfo
 	}
 
 	/**
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public function getKindValues(): array
 	{

@@ -14,15 +14,13 @@ use DateTime;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\helpers\ListSelection;
-use SomehowDigital\Craft\Hub\helpers\ListSort;
-use SomehowDigital\Craft\Hub\helpers\Paginator;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\models\TrashedEntryFilter;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use SomehowDigital\Craft\Hub\services\TrashService;
-use SomehowDigital\Craft\Hub\statistics\EntriesSummary;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 use yii\web\ServerErrorHttpException;
@@ -30,8 +28,10 @@ use yii\web\ServerErrorHttpException;
 /**
  * The entries page, below the "Data" navigation item: its list, trash, statistics and diagnostics, and the detail pages
  * of entries.
+ *
+ * @internal
  */
-class EntriesController extends BaseController
+final class EntriesController extends BaseController
 {
 	protected ?Page $page = Page::Entries;
 
@@ -62,13 +62,13 @@ class EntriesController extends BaseController
 		}
 
 		// While reviewing the selection, the filters don't apply.
-		$selection = ListSelection::fromRequest(ColumnService::LIST_TRASHED_ENTRIES, $path);
+		$selection = Hub::getInstance()->bulkActions->selectionFor(ColumnService::LIST_TRASHED_ENTRIES, $path);
 		$filter = $selection->review ? new TrashedEntryFilter() : $this->trashedEntryFilterFromRequest();
-		$sort = ListSort::fromRequest($trash->getEntrySortColumns(), TrashService::SORT_DELETED);
+		$sort = $this->listSort($trash->getEntrySortColumns(), TrashService::SORT_DELETED);
 
 		$query = $trash->getEntryQuery($filter, $sort->column, $sort->direction);
 		$selection->limitQuery($query);
-		[$pageInfo, $results] = Paginator::fromRequest()->elements($query);
+		[$pageInfo, $results] = Hub::getInstance()->queries->paginate($this->paginator(), $query);
 		$columns = $hub->columns->getColumns(ColumnService::LIST_TRASHED_ENTRIES);
 
 		return $this->renderTemplate('hub/pages/entries/trash', [
@@ -82,10 +82,10 @@ class EntriesController extends BaseController
 				'nestedFields' => array_filter($hub->structure->getFields(), fn(FieldInfo $info): bool => $info->isNested),
 				'entryTypes' => $entries->getAllEntryTypes(),
 				'filter' => $filter,
-				'filtered' => $filter != new TrashedEntryFilter(),
+				'filtered' => $filter->isFiltered(),
 				'listPath' => $path,
 				'columns' => $columns,
-				...$selection->variables($filter),
+				...Hub::getInstance()->selection->variables($selection, $filter),
 				...$sort->variables($path),
 			],
 			'extraTabs' => $this->trashTabs(),
@@ -94,7 +94,7 @@ class EntriesController extends BaseController
 
 	public function actionStatistics(): Response
 	{
-		return $this->renderStatistics(CheckKind::Entries, (new EntriesSummary())->index(), extraTabs: $this->trashTabs());
+		return $this->renderStatistics(CheckKind::Entries, Hub::getInstance()->entriesSummary->index(), extraTabs: $this->trashTabs());
 	}
 
 	public function actionDiagnostics(): Response
@@ -127,7 +127,7 @@ class EntriesController extends BaseController
 		}
 
 		$months = $hub->filters->getThreshold(CheckKind::Entries, 'stale');
-		$staleDate = (new DateTime())->modify(sprintf('-%d months', $months));
+		$staleDate = new DateTime(sprintf('-%d months', $months));
 		$lastEdit = $hub->edits->getLastEdit($entry);
 		$stale = $lastEdit['date'] !== null && $lastEdit['date'] < $staleDate;
 
@@ -165,11 +165,14 @@ class EntriesController extends BaseController
 
 		$this->requireViewable($entry);
 
-		$revision = $entries->getRevisionsQuery($entry)->id($revisionId)->with([])->one()
-			?? throw new NotFoundHttpException('Revision not found.');
+		$revision = $entries->getRevisionsQuery($entry)->id($revisionId)->with([])->one();
+
+		if (!$revision instanceof Entry) {
+			throw new NotFoundHttpException('Revision not found.');
+		}
 
 		// The first preview target of the section, like the CP's preview, falling back to the URL of the revision.
-		$url = $revision->getPreviewTargets()[0]['url'] ?? $revision->getUrl() ?? throw new NotFoundHttpException('Revision has no URL.');
+		$url = Fill::text(Row::value($revision->getPreviewTargets()[0] ?? null, 'url')) ?? $revision->getUrl() ?? throw new NotFoundHttpException('Revision has no URL.');
 
 		$token = Craft::$app->getTokens()->createPreviewToken([
 			'preview/preview', [
@@ -195,9 +198,9 @@ class EntriesController extends BaseController
 
 		$filter = new TrashedEntryFilter();
 		$filter->search = $params->search();
-		$filter->sections = $params->list('section', array_map(fn(Section $section): ?string => $section->handle, $entries->getAllSections()));
+		$filter->sections = $params->list('section', array_map(fn(Section $section): string => $section->handle ?? '', $entries->getAllSections()));
 		$filter->fields = $params->list('field', array_map(fn(FieldInfo $info): string => (string) $info->field->handle, array_filter(Hub::getInstance()->structure->getFields(), fn(FieldInfo $info): bool => $info->isNested)));
-		$filter->types = $params->list('type', array_map(fn(EntryType $type): ?string => $type->handle, $entries->getAllEntryTypes()));
+		$filter->types = $params->list('type', array_map(fn(EntryType $type): string => $type->handle ?? '', $entries->getAllEntryTypes()));
 		$filter->deletedFrom = $params->date('deletedFrom');
 		$filter->deletedTo = $params->date('deletedTo');
 
@@ -235,7 +238,7 @@ class EntriesController extends BaseController
 		return [
 			'drafts' => fn(): array => ['hub/_panels/entries/drafts', ['entry' => $entry, 'drafts' => $entries->getDraftsQuery($entry)->all()]],
 			...($entry->hasRevisions() ? ['revisions' => function () use ($entry, $entries): array {
-				[$pageInfo, $revisions] = Paginator::fromRequest()->query($entries->getRevisionsQuery($entry));
+				[$pageInfo, $revisions] = Hub::getInstance()->queries->paginateQuery($this->paginator(), $entries->getRevisionsQuery($entry));
 
 				return ['hub/_panels/entries/revisions', [
 					'entry' => $entry,

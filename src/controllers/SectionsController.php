@@ -8,23 +8,21 @@ use Closure;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\helpers\ListSelection;
-use SomehowDigital\Craft\Hub\helpers\ListSort;
-use SomehowDigital\Craft\Hub\helpers\Paginator;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\SectionFilter;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use SomehowDigital\Craft\Hub\services\ListService;
-use SomehowDigital\Craft\Hub\statistics\SectionsSummary;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
 /**
  * The sections page, below the "Structure" navigation item: its list, statistics and diagnostics, and the detail pages
  * of sections.
+ *
+ * @internal
  */
-class SectionsController extends BaseController
+final class SectionsController extends BaseController
 {
 	/** The path of the list. */
 	private const PATH = 'hub/structure/sections';
@@ -43,11 +41,11 @@ class SectionsController extends BaseController
 		$all = $hub->structure->getSections();
 
 		// While reviewing the selection, the filters don't apply.
-		$selection = ListSelection::fromRequest(ColumnService::LIST_SECTIONS, self::PATH);
+		$selection = Hub::getInstance()->bulkActions->selectionFor(ColumnService::LIST_SECTIONS, self::PATH);
 		/** @var SectionFilter $filter */
 		$filter = $selection->review ? new SectionFilter() : $this->listFilterFromRequest(CheckKind::Sections);
-		$sort = ListSort::fromRequest($lists->getSectionSortColumns(), ListService::SORT_NAME);
-		[$pageInfo, $sections] = Paginator::fromRequest()->items($selection->limitItems($lists->getSections($filter, $sort->column, $sort->direction)));
+		$sort = $this->listSort($lists->getSectionSortColumns(), ListService::SORT_NAME);
+		[$pageInfo, $sections] = $this->paginator()->items($selection->limitItems($lists->getSections($filter, $sort->column, $sort->direction)));
 		$columns = $hub->columns->getColumns(ColumnService::LIST_SECTIONS);
 		$shown = $hub->columns->getShownKeys($columns);
 
@@ -61,7 +59,7 @@ class SectionsController extends BaseController
 				'columns' => $columns,
 				...$this->savedFilterVariables(CheckKind::Sections, self::PATH, $filter->savedFilter),
 				...$this->labelVariables(ColumnService::LIST_SECTIONS, array_keys($sections)),
-				...$selection->variables($filter),
+				...Hub::getInstance()->selection->variables($selection, $filter),
 				...$sort->variables(self::PATH),
 			],
 		]);
@@ -69,7 +67,7 @@ class SectionsController extends BaseController
 
 	public function actionStatistics(): Response
 	{
-		return $this->renderStatistics(CheckKind::Sections, (new SectionsSummary())->index());
+		return $this->renderStatistics(CheckKind::Sections, Hub::getInstance()->sectionsSummary->index());
 	}
 
 	public function actionDiagnostics(): Response
@@ -87,7 +85,7 @@ class SectionsController extends BaseController
 		}
 
 		// The cards load their data once their panel is opened, so building them all is cheap (see renderCard()).
-		$summary = $tab === self::TAB_STATISTICS ? (new SectionsSummary())->detail($info) : [];
+		$summary = $tab === self::TAB_STATISTICS ? Hub::getInstance()->sectionsSummary->detail($info) : [];
 
 		// A card or panel requested on its own is rendered without the page around it.
 		$part = ($tab === self::TAB_STATISTICS ? $this->renderCard($summary) : null)

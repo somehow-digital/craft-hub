@@ -9,23 +9,21 @@ use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
 use SomehowDigital\Craft\Hub\enums\UsageKind;
-use SomehowDigital\Craft\Hub\helpers\ListSelection;
-use SomehowDigital\Craft\Hub\helpers\ListSort;
-use SomehowDigital\Craft\Hub\helpers\Paginator;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\EntryTypeFilter;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use SomehowDigital\Craft\Hub\services\ListService;
-use SomehowDigital\Craft\Hub\statistics\EntryTypesSummary;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
 /**
  * The entry types page, below the "Structure" navigation item: its list, statistics and diagnostics, and the detail
  * pages of entry types.
+ *
+ * @internal
  */
-class TypesController extends BaseController
+final class TypesController extends BaseController
 {
 	/** The path of the list. */
 	private const PATH = 'hub/structure/entry-types';
@@ -44,11 +42,11 @@ class TypesController extends BaseController
 		$all = $hub->structure->getEntryTypes();
 
 		// While reviewing the selection, the filters don't apply.
-		$selection = ListSelection::fromRequest(ColumnService::LIST_ENTRY_TYPES, self::PATH);
+		$selection = Hub::getInstance()->bulkActions->selectionFor(ColumnService::LIST_ENTRY_TYPES, self::PATH);
 		/** @var EntryTypeFilter $filter */
 		$filter = $selection->review ? new EntryTypeFilter() : $this->listFilterFromRequest(CheckKind::EntryTypes);
-		$sort = ListSort::fromRequest($lists->getEntryTypeSortColumns(), ListService::SORT_NAME);
-		[$pageInfo, $entryTypes] = Paginator::fromRequest()->items($selection->limitItems($lists->getEntryTypes($filter, $sort->column, $sort->direction)));
+		$sort = $this->listSort($lists->getEntryTypeSortColumns(), ListService::SORT_NAME);
+		[$pageInfo, $entryTypes] = $this->paginator()->items($selection->limitItems($lists->getEntryTypes($filter, $sort->column, $sort->direction)));
 		$columns = $hub->columns->getColumns(ColumnService::LIST_ENTRY_TYPES);
 		$shown = $hub->columns->getShownKeys($columns);
 
@@ -63,7 +61,7 @@ class TypesController extends BaseController
 				'columns' => $columns,
 				...$this->savedFilterVariables(CheckKind::EntryTypes, self::PATH, $filter->savedFilter),
 				...$this->labelVariables(ColumnService::LIST_ENTRY_TYPES, array_keys($entryTypes)),
-				...$selection->variables($filter),
+				...Hub::getInstance()->selection->variables($selection, $filter),
 				...$sort->variables(self::PATH),
 			],
 		]);
@@ -71,7 +69,7 @@ class TypesController extends BaseController
 
 	public function actionStatistics(): Response
 	{
-		return $this->renderStatistics(CheckKind::EntryTypes, (new EntryTypesSummary())->index());
+		return $this->renderStatistics(CheckKind::EntryTypes, Hub::getInstance()->entryTypesSummary->index());
 	}
 
 	public function actionDiagnostics(): Response
@@ -90,7 +88,7 @@ class TypesController extends BaseController
 		}
 
 		// The cards load their data once their panel is opened, so building them all is cheap (see renderCard()).
-		$summary = $tab === self::TAB_STATISTICS ? (new EntryTypesSummary())->detail($info) : [];
+		$summary = $tab === self::TAB_STATISTICS ? Hub::getInstance()->entryTypesSummary->detail($info) : [];
 
 		// A card or panel requested on its own is rendered without the page around it.
 		$part = ($tab === self::TAB_STATISTICS ? $this->renderCard($summary) : null)

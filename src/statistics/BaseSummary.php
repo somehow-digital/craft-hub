@@ -10,7 +10,7 @@ use craft\elements\Entry;
 use craft\elements\User;
 use craft\helpers\StringHelper;
 use DateTime;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\models\AssetStatistics;
 use SomehowDigital\Craft\Hub\models\EntryStatistics;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
@@ -19,15 +19,30 @@ use SomehowDigital\Craft\Hub\models\FileKindInfo;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
 use SomehowDigital\Craft\Hub\models\Snapshot;
 use SomehowDigital\Craft\Hub\models\VolumeInfo;
+use SomehowDigital\Craft\Hub\services\SiteScopeService;
+use SomehowDigital\Craft\Hub\services\SnapshotService;
+use SomehowDigital\Craft\Hub\services\StatisticsService;
+use SomehowDigital\Craft\Hub\services\StructureService;
+use SomehowDigital\Craft\Hub\services\VolumeService;
 
 /**
  * Summary cards of a statistics tab, which break down what a list or a page holds (see the statistics component).
  * Each card is lazy (see lazyCard()): it's rendered with only its label and icon until its panel is opened, which loads
  * its data, and charted by its history in the snapshots taken, see SnapshotService::chart(). The cards shared by the
  * tabs are built here, those of a single kind by its summary.
+ *
+ * @internal
  */
-abstract class Summary
+abstract class BaseSummary
 {
+	public function __construct(
+		protected readonly SiteScopeService $siteScope,
+		protected readonly SnapshotService $snapshots,
+		protected readonly StructureService $structure,
+		protected readonly VolumeService $volumes,
+		protected readonly StatisticsService $statistics,
+	) {}
+
 	/**
 	 * CP URL to a Hub page that keeps the selected sites.
 	 *
@@ -35,7 +50,7 @@ abstract class Summary
 	 */
 	protected function hubUrl(string $path, array $params = []): string
 	{
-		return Hub::getInstance()->siteScope->pageUrl($path, $params);
+		return $this->siteScope->pageUrl($path, $params);
 	}
 
 	/**
@@ -203,11 +218,11 @@ abstract class Summary
 
 		foreach (array_keys($counts) as $i => $group) {
 			$row = [
-				'label' => (string) $group,
+				'label' => $group,
 				'value' => $counts[$group],
 				// The rest is gray in the bar, so its groups are in the table.
 				'color' => $i < $limit ? $colors[$i % count($colors)] : 'gray',
-				'url' => $filter !== null && $path !== null ? $this->hubUrl($path, [$filter => $filterValues[$group] ?? mb_strtolower((string) $group)]) : null,
+				'url' => $filter !== null && $path !== null ? $this->hubUrl($path, [$filter => $filterValues[$group] ?? mb_strtolower($group)]) : null,
 			];
 
 			if ($i < $limit) {
@@ -251,7 +266,7 @@ abstract class Summary
 		$ids = [];
 
 		foreach ($people as $id => $person) {
-			$name = (string) $person['user']->getName();
+			$name = $person['user']->getName();
 
 			// People sharing a name are told apart by their username.
 			if (isset($counts[$name])) {
@@ -286,7 +301,7 @@ abstract class Summary
 		$rows = array_values($rows);
 
 		if ($unit !== null) {
-			usort($rows, fn(array $a, array $b): int => $b['value'] <=> $a['value']);
+			usort($rows, fn(array $a, array $b): int => ($b['value'] ?? 0) <=> ($a['value'] ?? 0));
 		}
 
 		return [
@@ -303,21 +318,76 @@ abstract class Summary
 	 * @param array<string,mixed> $card
 	 * @param string $unit header of the column of the counts
 	 * @param array<int,array{label:string,type:string}> $columns see table()
-	 * @param array<string,array<int,mixed>> $cells group label => cells
+	 * @param array<array-key,array<int,mixed>> $cells group label => cells
 	 * @return array<string,mixed>
 	 */
 	protected function withColumns(array $card, string $unit, array $columns, array $cells): array
 	{
-		if ($card['table'] === null) {
+		$table = $card['table'] ?? null;
+
+		if (!is_array($table)) {
 			return $card;
 		}
 
-		$card['table']['unit'] = $unit;
-		$card['table']['columns'] = $columns;
+		$table['unit'] = $unit;
+		$table['columns'] = $columns;
+		$rows = [];
 
-		foreach ($card['table']['rows'] as &$row) {
-			$row['cells'] = $cells[$row['label']] ?? array_fill(0, count($columns), null);
+		foreach (Fill::list($table['rows'] ?? []) as $row) {
+			$row = Fill::map($row);
+			$row['cells'] = $cells[Fill::text($row['label'] ?? null) ?? ''] ?? array_fill(0, count($columns), null);
+			$rows[] = $row;
 		}
+
+		$table['rows'] = $rows;
+		$card['table'] = $table;
+
+		return $card;
+	}
+
+	/**
+	 * The card with the URL of one of its segments.
+	 *
+	 * @param array<string,mixed> $card
+	 * @return array<string,mixed>
+	 */
+	protected function withSegmentUrl(array $card, int $index, string $url): array
+	{
+		$segments = Fill::list($card['segments'] ?? []);
+
+		if (isset($segments[$index])) {
+			$segment = Fill::map($segments[$index]);
+			$segment['url'] = $url;
+			$segments[$index] = $segment;
+			$card['segments'] = $segments;
+		}
+
+		return $card;
+	}
+
+	/**
+	 * The card with the URLs of its segments, by their label, for those that have one.
+	 *
+	 * @param array<string,mixed> $card
+	 * @param array<string,string> $urls
+	 * @return array<string,mixed>
+	 */
+	protected function withSegmentUrls(array $card, array $urls): array
+	{
+		$segments = [];
+
+		foreach (Fill::list($card['segments'] ?? []) as $segment) {
+			$segment = Fill::map($segment);
+			$url = $urls[Fill::text($segment['label'] ?? null) ?? ''] ?? null;
+
+			if ($url !== null) {
+				$segment['url'] = $url;
+			}
+
+			$segments[] = $segment;
+		}
+
+		$card['segments'] = $segments;
 
 		return $card;
 	}
@@ -338,7 +408,7 @@ abstract class Summary
 			return null;
 		}
 
-		usort($items, fn(array $a, array $b): int => $a['stats']->lastUpdated <=> $b['stats']->lastUpdated);
+		usort($items, fn(array $a, array $b): int => ($a['stats']->lastUpdated?->getTimestamp() ?? 0) <=> ($b['stats']->lastUpdated?->getTimestamp() ?? 0));
 
 		return [
 			...$this->table($heading, null, [
@@ -357,7 +427,7 @@ abstract class Summary
 	/**
 	 * Columns of a table breaking down the entries of its rows, see entryCells().
 	 *
-	 * @return array<int,array{label:string,type:string}>
+	 * @return list<array{label:string,type:string}>
 	 */
 	protected function entryColumns(): array
 	{
@@ -380,7 +450,7 @@ abstract class Summary
 	/**
 	 * Columns of a table breaking down the assets of its rows, see assetCells().
 	 *
-	 * @return array<int,array{label:string,type:string}>
+	 * @return list<array{label:string,type:string}>
 	 */
 	protected function assetColumns(): array
 	{
@@ -407,7 +477,7 @@ abstract class Summary
 	{
 		$totals = new AssetStatistics();
 
-		foreach (Hub::getInstance()->volumes->getVolumes() as $info) {
+		foreach ($this->volumes->getVolumes() as $info) {
 			$totals->add($info->stats);
 		}
 
@@ -423,7 +493,7 @@ abstract class Summary
 	protected function fileKindsCard(string $path): array
 	{
 		return $this->lazyCard(Craft::t('hub', 'Types'), 'file', function () use ($path): array {
-			[$kinds, $values, $stats] = $this->fileKindCounts(Hub::getInstance()->volumes->getFileKinds());
+			[$kinds, $values, $stats] = $this->fileKindCounts($this->volumes->getFileKinds());
 
 			return $this->withColumns(
 				$this->topCard(Craft::t('hub', 'Types'), 'file', $kinds, 'kind', path: $path, filterValues: $values),
@@ -445,7 +515,7 @@ abstract class Summary
 		$stats = [];
 
 		foreach ($volumes as $info) {
-			$stats[Craft::t('site', $info->volume->name)] = $info->stats;
+			$stats[Craft::t('site', $info->volume->name ?? '')] = $info->stats;
 		}
 
 		return $stats;
@@ -480,17 +550,17 @@ abstract class Summary
 	 */
 	protected function entriesHistory(?int $sectionId = null, ?int $typeId = null, ?int $fieldId = null, ?bool $nested = null): Closure
 	{
-		$siteIds = Hub::getInstance()->siteScope->getSiteIds();
+		$siteIds = $this->siteScope->getSiteIds();
 
 		if ($nested !== null) {
 			return fn(Snapshot $snapshot): array => $this->entriesCard(array_reduce(
-				$snapshot->statistics->getEntryRows($siteIds, $nested),
+				$this->snapshots->getStatistics($snapshot)->getEntryRows($siteIds, $nested),
 				fn(EntryStatistics $sum, array $row): EntryStatistics => $sum->add($row['stats']),
 				new EntryStatistics(),
 			));
 		}
 
-		return fn(Snapshot $snapshot): array => $this->entriesCard($snapshot->statistics->sumEntries($siteIds, $sectionId, $typeId, $fieldId));
+		return fn(Snapshot $snapshot): array => $this->entriesCard($this->snapshots->getStatistics($snapshot)->sumEntries($siteIds, $sectionId, $typeId, $fieldId));
 	}
 
 	/**
@@ -502,10 +572,10 @@ abstract class Summary
 	 */
 	protected function assetsHistory(?int $volumeId = null, ?Closure $card = null): Closure
 	{
-		$siteIds = Hub::getInstance()->siteScope->getSiteIds();
+		$siteIds = $this->siteScope->getSiteIds();
 		$card ??= fn(AssetStatistics $stats): array => $this->assetsCard($stats);
 
-		return fn(Snapshot $snapshot) => $card($snapshot->statistics->sumAssets($siteIds, $volumeId));
+		return fn(Snapshot $snapshot) => $card($this->snapshots->getStatistics($snapshot)->sumAssets($siteIds, $volumeId));
 	}
 
 	/**
@@ -520,7 +590,7 @@ abstract class Summary
 	{
 		return [
 			'total' => $sum ? array_sum($counts) : count($counts),
-			'segments' => array_map(fn(string|int $label, int $value): array => ['label' => (string) $label, 'value' => $value], array_keys($counts), $counts),
+			'segments' => array_map(fn(string|int $label, int $value): array => ['label' => $label, 'value' => $value], array_keys($counts), $counts),
 		];
 	}
 
@@ -565,11 +635,11 @@ abstract class Summary
 	 */
 	protected function fileKindsHistory(?int $volumeId = null): Closure
 	{
-		$siteIds = Hub::getInstance()->siteScope->getSiteIds();
+		$siteIds = $this->siteScope->getSiteIds();
 
 		return function (Snapshot $snapshot) use ($siteIds, $volumeId): array {
 			$counts = [];
-			foreach ($snapshot->statistics->getAssetRows($siteIds) as $row) {
+			foreach ($this->snapshots->getStatistics($snapshot)->getAssetRows($siteIds) as $row) {
 				if ($volumeId === null || $row['volumeId'] === $volumeId) {
 					$label = (new FileKindInfo($row['kind']))->getLabel();
 					$counts[$label] = ($counts[$label] ?? 0) + $row['stats']->total;
@@ -587,7 +657,7 @@ abstract class Summary
 	 */
 	protected function sectionLabels(): array
 	{
-		return array_map(fn(SectionInfo $info) => Craft::t('site', $info->section->name), Hub::getInstance()->structure->getSections());
+		return array_map(fn(SectionInfo $info) => Craft::t('site', $info->section->name ?? ''), $this->structure->getSections());
 	}
 
 	/**
@@ -595,7 +665,7 @@ abstract class Summary
 	 */
 	protected function entryTypeLabels(): array
 	{
-		return array_map(fn(EntryTypeInfo $info) => Craft::t('site', $info->entryType->name), Hub::getInstance()->structure->getEntryTypes());
+		return array_map(fn(EntryTypeInfo $info) => Craft::t('site', $info->entryType->name ?? ''), $this->structure->getEntryTypes());
 	}
 
 	/**
@@ -603,7 +673,7 @@ abstract class Summary
 	 */
 	protected function volumeLabels(): array
 	{
-		return array_map(fn(VolumeInfo $info) => Craft::t('site', $info->volume->name), Hub::getInstance()->volumes->getVolumes());
+		return array_map(fn(VolumeInfo $info) => Craft::t('site', $info->volume->name ?? ''), $this->volumes->getVolumes());
 	}
 
 	/**
@@ -613,6 +683,6 @@ abstract class Summary
 	 */
 	protected function fieldLabels(): array
 	{
-		return array_map(fn(FieldInfo $info): string => (string) $info->field->name, Hub::getInstance()->structure->getFields());
+		return array_map(fn(FieldInfo $info): string => (string) $info->field->name, $this->structure->getFields());
 	}
 }

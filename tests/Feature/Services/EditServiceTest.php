@@ -4,48 +4,53 @@ declare(strict_types=1);
 
 use craft\elements\Entry;
 use craft\elements\User;
-use SomehowDigital\Craft\Hub\services\EditService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 
+/**
+ * @param string[] $dirtyAttributes
+ * @param string[] $dirtyFields
+ * @param array<mixed> $config
+ */
+function dirtyEntry(array $dirtyAttributes = [], array $dirtyFields = [], array $config = []): Entry
+{
+	$entry = new Entry(['id' => 5, 'siteId' => 1, 'typeId' => 10]);
+	Craft::configure($entry, $config);
+	$entry->setDirtyAttributes($dirtyAttributes, false);
+	$entry->setDirtyFields($dirtyFields, false);
+
+	return $entry;
+}
+
 beforeEach(function (): void {
-	$this->edits = new EditService();
-	Craft::$app->getUser()->shouldReceive('getId')->andReturn(3)->byDefault();
+	mocked(Craft::$app->getUser())->shouldReceive('getId')->andReturn(3)->byDefault();
 
-	$this->entry = function (array $dirtyAttributes = [], array $dirtyFields = [], array $config = []): Entry {
-		$entry = new Entry(['id' => 5, 'siteId' => 1, 'typeId' => 10, ...$config]);
-		$entry->setDirtyAttributes($dirtyAttributes, false);
-		$entry->setDirtyFields($dirtyFields, false);
-
-		return $entry;
-	};
-
-	$this->recorded = fn() => $this->db()->queriesMatching('INTO {{%hub_edits}}');
+	$this->recordedEdits = fn() => $this->db()->queriesMatching('INTO {{%hub_edits}}');
 });
 
 it('records the edits people make to entries, with the user making them', function (): void {
-	$this->edits->record(($this->entry)(['title']), false);
-	$this->edits->record(($this->entry)([], ['body']), false);
+	$this->hub()->edits->record(dirtyEntry(['title']), false);
+	$this->hub()->edits->record(dirtyEntry([], ['body']), false);
 
-	expect(($this->recorded)())->toHaveCount(2)
-		->and(($this->recorded)()[0])->toContain('(`elementId`, `userId`, `dateEdited`) VALUES (5, 3, ');
+	expect(($this->recordedEdits)())->toHaveCount(2)
+		->and(($this->recordedEdits)()[0])->toContain('(`elementId`, `userId`, `dateEdited`) VALUES (5, 3, ');
 });
 
 it('records entries people create, whatever changed', function (): void {
-	$this->edits->record(($this->entry)(), true);
+	$this->hub()->edits->record(dirtyEntry(), true);
 
-	expect(($this->recorded)())->toHaveCount(1);
+	expect(($this->recordedEdits)())->toHaveCount(1);
 });
 
 it('leaves out saves that only change what Craft sets or the status', function (): void {
-	$this->edits->record(($this->entry)(['dateUpdated', 'uri', 'enabled', 'enabledForSite']), false);
+	$this->hub()->edits->record(dirtyEntry(['dateUpdated', 'uri', 'enabled', 'enabledForSite']), false);
 
-	expect(($this->recorded)())->toBe([]);
+	expect(($this->recordedEdits)())->toBe([]);
 });
 
 it('leaves out drafts, revisions, propagated and resaved entries', function (array $config): void {
-	$this->edits->record(($this->entry)(['title'], [], $config), false);
+	$this->hub()->edits->record(dirtyEntry(['title'], [], $config), false);
 
-	expect(($this->recorded)())->toBe([]);
+	expect(($this->recordedEdits)())->toBe([]);
 })->with([
 	'draft' => [['draftId' => 2]],
 	'revision' => [['revisionId' => 2]],
@@ -54,17 +59,17 @@ it('leaves out drafts, revisions, propagated and resaved entries', function (arr
 ]);
 
 it('leaves out saves made without a user', function (): void {
-	Craft::$app->getUser()->shouldReceive('getId')->andReturnNull();
-	$this->edits->record(($this->entry)(['title']), false);
+	mocked(Craft::$app->getUser())->shouldReceive('getId')->andReturnNull();
+	$this->hub()->edits->record(dirtyEntry(['title']), false);
 
-	expect(($this->recorded)())->toBe([]);
+	expect(($this->recordedEdits)())->toBe([]);
 });
 
 it('leaves out saves made on the command line', function (): void {
-	Craft::$app->getRequest()->setIsConsoleRequest(true);
-	$this->edits->record(($this->entry)(['title']), false);
+	webRequest()->setIsConsoleRequest(true);
+	$this->hub()->edits->record(dirtyEntry(['title']), false);
 
-	expect(($this->recorded)())->toBe([]);
+	expect(($this->recordedEdits)())->toBe([]);
 });
 
 it('leaves out saves made while the queue runs, as whoever triggered it', function (): void {
@@ -72,11 +77,11 @@ it('leaves out saves made while the queue runs, as whoever triggered it', functi
 		$this->_checkedRequestType = true;
 		$this->_isActionRequest = true;
 		$this->_actionSegments = ['queue', 'run'];
-	})->call(Craft::$app->getRequest());
+	})->call(webRequest());
 
-	$this->edits->record(($this->entry)(['title']), false);
+	$this->hub()->edits->record(dirtyEntry(['title']), false);
 
-	expect(($this->recorded)())->toBe([]);
+	expect(($this->recordedEdits)())->toBe([]);
 });
 
 it('reads when entries were last edited, falling back to when they were last updated', function (): void {
@@ -84,11 +89,11 @@ it('reads when entries were last edited, falling back to when they were last upd
 	$edited = new Entry(['id' => 5, 'dateUpdated' => new DateTime('2025-01-01')]);
 	$unknown = new Entry(['id' => 6, 'dateUpdated' => new DateTime('2025-02-01')]);
 
-	$lastEdited = $this->edits->getLastEdited([$edited, $unknown]);
+	$lastEdited = $this->hub()->edits->getLastEdited([$edited, $unknown]);
 
-	expect($lastEdited[5]->format('Y-m-d H:i'))->toBe('2020-01-01 10:00')
+	expect($lastEdited[5]?->format('Y-m-d H:i'))->toBe('2020-01-01 10:00')
 		->and($lastEdited[6])->toBe($unknown->dateUpdated)
-		->and($this->edits->getLastEdited([]))->toBe([])
+		->and($this->hub()->edits->getLastEdited([]))->toBe([])
 		->and($this->db()->queriesMatching('FROM {{%hub_edits}}'))->toHaveCount(1);
 });
 
@@ -97,9 +102,9 @@ it('reads when an entry was last edited, and by whom', function (): void {
 	$user = new User(['id' => 3, 'username' => 'editor']);
 	ElementQueries::respond(User::class, [$user]);
 
-	$lastEdit = $this->edits->getLastEdit(new Entry(['id' => 5, 'dateUpdated' => new DateTime('2025-01-01')]));
+	$lastEdit = $this->hub()->edits->getLastEdit(new Entry(['id' => 5, 'dateUpdated' => new DateTime('2025-01-01')]));
 
-	expect($lastEdit['date']->format('Y-m-d'))->toBe('2020-01-01')
+	expect($lastEdit['date']?->format('Y-m-d'))->toBe('2020-01-01')
 		->and($lastEdit['user'])->toBe($user)
 		->and(ElementQueries::executed(User::class)[0]->id)->toBe(3);
 });
@@ -108,26 +113,26 @@ it('reads the last edit of entries without a record or user as their last update
 	$this->db()->respond('FROM {{%hub_edits}}', [['elementId' => 6, 'userId' => null, 'dateEdited' => '2020-01-01 10:00:00']]);
 	$entry = new Entry(['id' => 5, 'dateUpdated' => new DateTime('2025-01-01')]);
 
-	expect($this->edits->getLastEdit($entry))->toBe(['date' => $entry->dateUpdated, 'user' => null])
+	expect($this->hub()->edits->getLastEdit($entry))->toBe(['date' => $entry->dateUpdated, 'user' => null])
 		->and(ElementQueries::executed(User::class))->toBe([]);
 });
 
 it('matches entries by when they were last edited, falling back to when they were last updated', function (): void {
-	$sql = $this->edits->lastEditedSql();
+	$sql = $this->hub()->edits->lastEditedSql();
 
 	expect($sql)->toStartWith('COALESCE((SELECT `hubEdits`.`dateEdited`')
 		->and($sql)->toContain('`hubEdits`.`elementId` = `elements`.`id`')
 		->and($sql)->toEndWith(', [[elements.dateUpdated]])')
-		->and($this->edits->lastEditedCondition('< 2024-01-01T00:00:00+00:00'))->toBe(['<', $sql, '2024-01-01 00:00:00'])
-		->and($this->edits->lastEditedCondition(null))->toBeNull();
+		->and($this->hub()->edits->lastEditedCondition('< 2024-01-01T00:00:00+00:00'))->toBe(['<', $sql, '2024-01-01 00:00:00'])
+		->and($this->hub()->edits->lastEditedCondition(null))->toBeNull();
 });
 
 it('matches entries by the user who last edited them', function (): void {
-	[$in, $column, $edited] = $this->edits->editedByCondition([3, 4]);
+	[$in, $column, $edited] = $this->hub()->edits->editedByCondition([3, 4]);
 
 	expect([$in, $column])->toBe(['in', 'elements.id'])
-		->and($edited->createCommand()->getRawSql())->toContain('SELECT `hubEditors`.`elementId`')
-		->and($edited->createCommand()->getRawSql())->toContain('`hubEditors`.`userId` IN (3, 4)');
+		->and(rawSql($edited))->toContain('SELECT `hubEditors`.`elementId`')
+		->and(rawSql($edited))->toContain('`hubEditors`.`userId` IN (3, 4)');
 });
 
 it('lists the users who last edited entries, most entries first', function (): void {
@@ -140,7 +145,7 @@ it('lists the users who last edited entries, most entries first', function (): v
 	$editor = new User(['id' => 3, 'username' => 'editor']);
 	ElementQueries::respond(User::class, fn(): array => [3 => $editor]);
 
-	expect($this->edits->getEditors(1, 10, 2))->toBe([3 => ['user' => $editor, 'count' => 5]])
+	expect($this->hub()->edits->getEditors(1, 10, 2))->toBe([3 => ['user' => $editor, 'count' => 5]])
 		->and($this->db()->queriesMatching('{{%hub_edits}}')[0])->toContain('`entries`.`sectionId`=1')
 		->and($this->db()->queriesMatching('{{%hub_edits}}')[0])->toContain('`entries`.`typeId`=10')
 		->and($this->db()->queriesMatching('{{%hub_edits}}')[0])->toContain('`entries`.`fieldId`=2')
@@ -148,7 +153,7 @@ it('lists the users who last edited entries, most entries first', function (): v
 });
 
 it('lists no editors when no entries were edited', function (): void {
-	expect($this->edits->getEditors())->toBe([])
+	expect($this->hub()->edits->getEditors())->toBe([])
 		->and(ElementQueries::executed(User::class))->toBe([]);
 });
 
@@ -165,7 +170,7 @@ it('records the last edits of existing entries from their revisions and tracked 
 		['elementId' => 8, 'date' => '2023-01-01 00:00:00'],
 	]);
 
-	$this->edits->backfill();
+	$this->hub()->edits->backfill();
 
 	$changed = $this->db()->queriesMatching('FROM {{%changedattributes}}')[0];
 	$entries = $this->db()->queriesMatching('FROM {{%elements}} {{elements}}')[0];

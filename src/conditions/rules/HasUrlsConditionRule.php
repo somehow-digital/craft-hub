@@ -6,6 +6,7 @@ namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
 use craft\base\conditions\BaseLightswitchConditionRule;
+use SomehowDigital\Craft\Hub\base\InfoConditionRuleInterface;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
@@ -13,8 +14,10 @@ use SomehowDigital\Craft\Hub\models\VolumeInfo;
 
 /**
  * Matches whether entries or assets of an item have URLs on any site.
+ *
+ * @internal
  */
-class HasUrlsConditionRule extends BaseLightswitchConditionRule implements InfoConditionRuleInterface
+final class HasUrlsConditionRule extends BaseLightswitchConditionRule implements InfoConditionRuleInterface
 {
 	public function getLabel(): string
 	{

@@ -15,8 +15,10 @@ use yii\web\Response;
 
 /**
  * Sets who maintains a section, entry type, field or volume, on its page, while maintainers are enabled.
+ *
+ * @internal
  */
-class MaintainersController extends BaseController
+final class MaintainersController extends BaseController
 {
 	/**
 	 * Makes the users and groups sent the maintainers of an item of a list, and only them, and goes back to its page.
@@ -25,10 +27,10 @@ class MaintainersController extends BaseController
 	{
 		$this->requirePostRequest();
 
-		$request = Craft::$app->getRequest();
+		$request = $this->request;
 		$maintainers = Hub::getInstance()->maintainers;
-		$list = (string) $request->getRequiredBodyParam('list');
-		$id = (int) $request->getRequiredBodyParam('id');
+		$list = $this->requiredBodyString('list');
+		$id = $this->requiredBodyInt('id');
 
 		if (!$maintainers->isEnabled()) {
 			throw new ForbiddenHttpException('Maintainers are disabled.');

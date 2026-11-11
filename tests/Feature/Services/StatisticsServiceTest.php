@@ -2,10 +2,7 @@
 
 declare(strict_types=1);
 
-use SomehowDigital\Craft\Hub\services\StatisticsService;
-
 beforeEach(function (): void {
-	$this->statistics = new StatisticsService();
 
 	$this->db()->respondToEntryRows([
 		['sectionId' => '1', 'typeId' => '10', 'fieldId' => null, 'total' => '3', 'enabled' => '2', 'pending' => '1', 'expired' => '0', 'drafts' => '1', 'lastUpdated' => '2024-01-01 10:00:00'],
@@ -27,19 +24,19 @@ beforeEach(function (): void {
 });
 
 it('reads entry counts grouped by section, entry type and field', function (): void {
-	$rows = $this->statistics->getEntryRows([1]);
+	$rows = $this->hub()->statistics->getEntryRows([1]);
 
 	expect($rows)->toHaveCount(3)
 		->and($rows[0])->toMatchArray(['sectionId' => 1, 'typeId' => 10, 'fieldId' => null])
 		->and($rows[2])->toMatchArray(['sectionId' => null, 'typeId' => 10, 'fieldId' => 5])
 		->and([$rows[0]['stats']->total, $rows[0]['stats']->enabled, $rows[0]['stats']->drafts])->toBe([3, 2, 1])
 		->and([$rows[0]['stats']->pending, $rows[0]['stats']->getLive()])->toBe([1, 1])
-		->and($rows[0]['stats']->lastUpdated->format('Y-m-d H:i'))->toBe('2024-01-01 10:00')
+		->and($rows[0]['stats']->lastUpdated?->format('Y-m-d H:i'))->toBe('2024-01-01 10:00')
 		->and($rows[2]['stats']->lastUpdated)->toBeNull();
 });
 
 it('counts entries on the given sites, leaving out deleted ones, revisions and copies owned by drafts', function (): void {
-	$this->statistics->getEntryRows([2, 1]);
+	$this->hub()->statistics->getEntryRows([2, 1]);
 
 	$sql = $this->db()->queriesMatching('{{hubEntryRows}}')[0];
 
@@ -53,13 +50,13 @@ it('counts entries on the given sites, leaving out deleted ones, revisions and c
 });
 
 it('reads the rows once per set of sites, regardless of their order', function (): void {
-	$this->statistics->getEntryRows([1, 2]);
-	$this->statistics->getEntryRows([2, 1]);
-	$this->statistics->getReferenceRows([1]);
-	$this->statistics->getReferenceRows([1]);
-	$this->statistics->getAssetRows([1]);
-	$this->statistics->getAssetRows([1]);
-	$this->statistics->getEntryRows([1]);
+	$this->hub()->statistics->getEntryRows([1, 2]);
+	$this->hub()->statistics->getEntryRows([2, 1]);
+	$this->hub()->statistics->getReferenceRows([1]);
+	$this->hub()->statistics->getReferenceRows([1]);
+	$this->hub()->statistics->getAssetRows([1]);
+	$this->hub()->statistics->getAssetRows([1]);
+	$this->hub()->statistics->getEntryRows([1]);
 
 	// Section entries and nested entries are read separately.
 	expect($this->db()->queriesMatching('{{hubEntryRows}}'))->toHaveCount(4)
@@ -68,15 +65,15 @@ it('reads the rows once per set of sites, regardless of their order', function (
 });
 
 it('reads section entries and nested entries separately, only those summed', function (): void {
-	$this->statistics->sumEntries([1], sectionId: 1);
-	$this->statistics->sumEntries([1], sectionId: 1, typeId: 10);
+	$this->hub()->statistics->sumEntries([1], sectionId: 1);
+	$this->hub()->statistics->sumEntries([1], sectionId: 1, typeId: 10);
 
 	$sql = $this->db()->queriesMatching('{{hubEntryRows}}');
 
 	expect($sql)->toHaveCount(1)
 		->and($sql[0])->toContain('NOT (`entries`.`sectionId` IS NULL)');
 
-	$this->statistics->sumEntries([1], fieldId: 5);
+	$this->hub()->statistics->sumEntries([1], fieldId: 5);
 	$sql = $this->db()->queriesMatching('{{hubEntryRows}}');
 
 	expect($sql)->toHaveCount(2)
@@ -84,35 +81,35 @@ it('reads section entries and nested entries separately, only those summed', fun
 		->and($sql[1])->not->toContain('NOT (`entries`.`sectionId` IS NULL)');
 
 	// Entry types hold both, which are read by now.
-	$this->statistics->sumEntries([1], typeId: 10);
+	$this->hub()->statistics->sumEntries([1], typeId: 10);
 
 	expect($this->db()->queriesMatching('{{hubEntryRows}}'))->toHaveCount(2)
-		->and($this->statistics->getEntryRows([1], nested: false))->toHaveCount(2)
-		->and($this->statistics->getEntryRows([1], nested: true))->toHaveCount(1);
+		->and($this->hub()->statistics->getEntryRows([1], nested: false))->toHaveCount(2)
+		->and($this->hub()->statistics->getEntryRows([1], nested: true))->toHaveCount(1);
 });
 
 it('sums entries by any combination of section, entry type and field', function (): void {
-	expect($this->statistics->sumEntries([1])->total)->toBe(9)
-		->and($this->statistics->sumEntries([1], sectionId: 1)->total)->toBe(5)
-		->and($this->statistics->sumEntries([1], typeId: 10)->total)->toBe(7)
-		->and($this->statistics->sumEntries([1], 1, 10)->total)->toBe(3)
-		->and($this->statistics->sumEntries([1], fieldId: 5)->total)->toBe(4)
-		->and($this->statistics->sumEntries([1], 1, 10, 5)->total)->toBe(0)
-		->and($this->statistics->sumEntries([1], sectionId: 1)->lastUpdated->format('Y-m-d'))->toBe('2024-03-01');
+	expect($this->hub()->statistics->sumEntries([1])->total)->toBe(9)
+		->and($this->hub()->statistics->sumEntries([1], sectionId: 1)->total)->toBe(5)
+		->and($this->hub()->statistics->sumEntries([1], typeId: 10)->total)->toBe(7)
+		->and($this->hub()->statistics->sumEntries([1], 1, 10)->total)->toBe(3)
+		->and($this->hub()->statistics->sumEntries([1], fieldId: 5)->total)->toBe(4)
+		->and($this->hub()->statistics->sumEntries([1], 1, 10, 5)->total)->toBe(0)
+		->and($this->hub()->statistics->sumEntries([1], sectionId: 1)->lastUpdated?->format('Y-m-d'))->toBe('2024-03-01');
 });
 
 it('returns copies of the sums', function (): void {
-	$this->statistics->sumEntries([1], sectionId: 1)->total = 100;
-	$this->statistics->sumReferences([1], 5)->references = 100;
-	$this->statistics->sumAssets([1], 3)->total = 100;
+	$this->hub()->statistics->sumEntries([1], sectionId: 1)->total = 100;
+	$this->hub()->statistics->sumReferences([1], 5)->references = 100;
+	$this->hub()->statistics->sumAssets([1], 3)->total = 100;
 
-	expect($this->statistics->sumEntries([1], sectionId: 1)->total)->toBe(5)
-		->and($this->statistics->sumReferences([1], 5)->references)->toBe(7)
-		->and($this->statistics->sumAssets([1], 3)->total)->toBe(6);
+	expect($this->hub()->statistics->sumEntries([1], sectionId: 1)->total)->toBe(5)
+		->and($this->hub()->statistics->sumReferences([1], 5)->references)->toBe(7)
+		->and($this->hub()->statistics->sumAssets([1], 3)->total)->toBe(6);
 });
 
 it('reads reference counts grouped by field and target section or volume', function (): void {
-	$rows = $this->statistics->getReferenceRows([1, 2]);
+	$rows = $this->hub()->statistics->getReferenceRows([1, 2]);
 	$sql = $this->db()->queriesMatching('FROM {{%relations}} {{relations}}')[0];
 
 	expect($rows[0])->toMatchArray(['fieldId' => 5, 'sectionId' => 1, 'volumeId' => null])
@@ -124,25 +121,25 @@ it('reads reference counts grouped by field and target section or volume', funct
 });
 
 it('sums references by any combination of field, section and volume', function (): void {
-	expect($this->statistics->sumReferences([1])->references)->toBe(11)
-		->and($this->statistics->sumReferences([1], 5)->references)->toBe(7)
-		->and($this->statistics->sumReferences([1], 5, 2)->sources)->toBe(1)
-		->and($this->statistics->sumReferences([1], volumeId: 3)->targets)->toBe(4)
-		->and($this->statistics->sumReferences([1], 7)->references)->toBe(0);
+	expect($this->hub()->statistics->sumReferences([1])->references)->toBe(11)
+		->and($this->hub()->statistics->sumReferences([1], 5)->references)->toBe(7)
+		->and($this->hub()->statistics->sumReferences([1], 5, 2)->sources)->toBe(1)
+		->and($this->hub()->statistics->sumReferences([1], volumeId: 3)->targets)->toBe(4)
+		->and($this->hub()->statistics->sumReferences([1], 7)->references)->toBe(0);
 });
 
 it('reads asset counts grouped by volume and file kind', function (): void {
-	$rows = $this->statistics->getAssetRows([1]);
+	$rows = $this->hub()->statistics->getAssetRows([1]);
 
 	expect($rows[0])->toMatchArray(['volumeId' => 3, 'kind' => 'image'])
 		->and([$rows[0]['stats']->total, $rows[0]['stats']->used, $rows[0]['stats']->images, $rows[0]['stats']->missingAlt, $rows[0]['stats']->size])->toBe([5, 3, 5, 2, 5000])
-		->and($rows[0]['stats']->lastUploaded->format('Y-m-d'))->toBe('2024-02-01')
+		->and($rows[0]['stats']->lastUploaded?->format('Y-m-d'))->toBe('2024-02-01')
 		->and($rows[1]['stats']->lastUploaded)->toBeNull();
 });
 
 it('counts assets on the given sites, with their references and alternative texts on those sites', function (): void {
 	$this->site(3, 'fr');
-	$this->statistics->getAssetRows([1, 2]);
+	$this->hub()->statistics->getAssetRows([1, 2]);
 
 	$sql = $this->db()->queriesMatching('{{hubAssetRows}}')[0];
 
@@ -154,12 +151,12 @@ it('counts assets on the given sites, with their references and alternative text
 });
 
 it('sums assets by volume and file kind', function (): void {
-	expect($this->statistics->sumAssets([1])->total)->toBe(8)
-		->and($this->statistics->sumAssets([1], 3)->size)->toBe(5100)
-		->and($this->statistics->sumAssets([1], 3)->unusedSize)->toBe(2100)
-		->and($this->statistics->sumAssets([1], kind: 'image')->missingAlt)->toBe(2)
-		->and($this->statistics->sumAssets([1], kind: 'image')->lastUploaded->format('Y-m-d'))->toBe('2024-04-01')
-		->and($this->statistics->sumAssets([1], 4, 'pdf')->total)->toBe(0);
+	expect($this->hub()->statistics->sumAssets([1])->total)->toBe(8)
+		->and($this->hub()->statistics->sumAssets([1], 3)->size)->toBe(5100)
+		->and($this->hub()->statistics->sumAssets([1], 3)->unusedSize)->toBe(2100)
+		->and($this->hub()->statistics->sumAssets([1], kind: 'image')->missingAlt)->toBe(2)
+		->and($this->hub()->statistics->sumAssets([1], kind: 'image')->lastUploaded?->format('Y-m-d'))->toBe('2024-04-01')
+		->and($this->hub()->statistics->sumAssets([1], 4, 'pdf')->total)->toBe(0);
 });
 
 it('collects the entries of all sites for a snapshot, by the sets of sites they are on and enabled on', function (): void {
@@ -167,7 +164,7 @@ it('collects the entries of all sites for a snapshot, by the sets of sites they 
 		['sectionId' => '1', 'typeId' => '10', 'fieldId' => null, 'sites' => '2,1', 'enabledSites' => null, 'total' => '3', 'enabled' => '0', 'pending' => '0', 'expired' => '0', 'drafts' => '1', 'lastUpdated' => ''],
 	]);
 
-	$rows = $this->statistics->collectEntryRows();
+	$rows = $this->hub()->statistics->collectEntryRows();
 	$sql = $this->db()->queriesMatching('`hubEntries`')[0];
 
 	expect($rows)->toBe([
@@ -187,7 +184,7 @@ it('collects the assets of all sites for a snapshot, used from the sites of thei
 		['volumeId' => '3', 'kind' => 'pdf', 'sites' => '1', 'usedSites' => null, 'taggedSites' => null, 'altSites' => '0', 'total' => '1', 'size' => '10', 'lastUploaded' => null],
 	]);
 
-	$rows = $this->statistics->collectAssetRows();
+	$rows = $this->hub()->statistics->collectAssetRows();
 	$sql = $this->db()->queriesMatching('`hubAssets`')[0];
 
 	expect($rows)->toBe([
@@ -208,7 +205,7 @@ it('collects the references of all sites for a snapshot, by the site of their so
 		['fieldId' => '6', 'sectionId' => null, 'volumeId' => '3', 'siteId' => null, 'references' => '4', 'sources' => '2', 'targets' => '4'],
 	]);
 
-	$rows = $this->statistics->collectReferenceRows();
+	$rows = $this->hub()->statistics->collectReferenceRows();
 	$sql = $this->db()->queriesMatching('FROM {{%relations}} {{relations}}')[0];
 
 	expect($rows)->toBe([
@@ -221,8 +218,8 @@ it('collects the references of all sites for a snapshot, by the site of their so
 
 it('aggregates the sets of sites for snapshots on PostgreSQL', function (): void {
 	$this->createApp('pgsql');
-	(new StatisticsService())->collectEntryRows();
-	(new StatisticsService())->collectAssetRows();
+	$this->hub()->statistics->collectEntryRows();
+	$this->hub()->statistics->collectAssetRows();
 
 	$sql = implode("\n", $this->db()->queries);
 
@@ -231,7 +228,7 @@ it('aggregates the sets of sites for snapshots on PostgreSQL', function (): void
 });
 
 it('counts the rows of a snapshot for any sites, like the live ones', function (): void {
-	$statistics = StatisticsService::fromSnapshot(fn(string $kind): array => array_combine(['entries', 'assets', 'references'], [
+	$statistics = $this->hub()->statistics->withSnapshot(fn(string $kind): array => array_combine(['entries', 'assets', 'references'], [
 		[
 			['sectionId' => '1', 'typeId' => '10', 'fieldId' => null, 'sites' => '1,2', 'enabledSites' => '2', 'total' => '3', 'enabled' => '3', 'pending' => '1', 'expired' => '1', 'drafts' => '1', 'lastUpdated' => '2024-01-01 10:00:00'],
 			['sectionId' => '1', 'typeId' => '10', 'fieldId' => null, 'sites' => '1', 'enabledSites' => '1', 'total' => '2', 'enabled' => '2', 'pending' => '0', 'expired' => '0', 'drafts' => '0', 'lastUpdated' => null],
@@ -255,12 +252,12 @@ it('counts the rows of a snapshot for any sites, like the live ones', function (
 	$images2 = $statistics->sumAssets([2], 3);
 
 	expect([$site1->total, $site1->enabled, $site1->pending, $site1->expired, $site1->drafts])->toBe([5, 2, 0, 0, 1])
-		->and($site1->lastUpdated->format('Y-m-d'))->toBe('2024-01-01')
+		->and($site1->lastUpdated?->format('Y-m-d'))->toBe('2024-01-01')
 		->and([$site2->total, $site2->enabled, $site2->getLive()])->toBe([7, 7, 5])
 		->and($statistics->sumEntries([1, 2])->total)->toBe(9)
 		->and($statistics->sumEntries([1], fieldId: 5)->total)->toBe(0)
 		->and([$images1->total, $images1->used, $images1->images, $images1->missingAlt, $images1->unusedSize])->toBe([3, 1, 3, 1, 200])
-		->and($images1->lastUploaded->format('Y-m-d'))->toBe('2024-02-01')
+		->and($images1->lastUploaded?->format('Y-m-d'))->toBe('2024-02-01')
 		->and([$images2->total, $images2->used, $images2->missingAlt, $images2->unusedSize])->toBe([2, 2, 2, 0])
 		->and($statistics->sumAssets([2], 4)->images)->toBe(0)
 		->and($statistics->sumAssets([3])->total)->toBe(0)
@@ -273,8 +270,8 @@ it('counts the rows of a snapshot for any sites, like the live ones', function (
 
 it('leaves out matching the sites of entries and assets on all sites, as every element is on one of them', function (): void {
 	$this->site(2, 'de');
-	$this->statistics->getEntryRows([1, 2], nested: false);
-	$this->statistics->getAssetRows([2, 1]);
+	$this->hub()->statistics->getEntryRows([1, 2], nested: false);
+	$this->hub()->statistics->getAssetRows([2, 1]);
 
 	$entries = $this->db()->queriesMatching('{{hubEntryRows}}')[0];
 	$assets = $this->db()->queriesMatching('{{hubAssetRows}}')[0];

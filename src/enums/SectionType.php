@@ -9,6 +9,8 @@ use craft\models\Section;
 
 /**
  * The types of Craft's sections, along with their labels.
+ *
+ * @internal
  */
 enum SectionType: string
 {

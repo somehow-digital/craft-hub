@@ -8,22 +8,18 @@ use Closure;
 use Craft;
 use craft\elements\Asset;
 use craft\models\Volume;
-use SomehowDigital\Craft\Hub\bulk\DeleteTransforms;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
+use SomehowDigital\Craft\Hub\enums\Permission;
 use SomehowDigital\Craft\Hub\helpers\Classifier;
 use SomehowDigital\Craft\Hub\helpers\Ids;
-use SomehowDigital\Craft\Hub\helpers\ListSelection;
-use SomehowDigital\Craft\Hub\helpers\ListSort;
-use SomehowDigital\Craft\Hub\helpers\Paginator;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\FileKindInfo;
 use SomehowDigital\Craft\Hub\models\TrashedFileFilter;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use SomehowDigital\Craft\Hub\services\TrashService;
-use SomehowDigital\Craft\Hub\statistics\FilesSummary;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
@@ -31,8 +27,10 @@ use yii\web\Response;
 /**
  * The assets page, below the "Data" navigation item: its list, trash, statistics and diagnostics, and the detail pages
  * of assets, with their transforms.
+ *
+ * @internal
  */
-class FilesController extends BaseController
+final class FilesController extends BaseController
 {
 	protected ?Page $page = Page::Assets;
 
@@ -62,13 +60,13 @@ class FilesController extends BaseController
 		}
 
 		// While reviewing the selection, the filters don't apply.
-		$selection = ListSelection::fromRequest(ColumnService::LIST_TRASHED_FILES, $path);
+		$selection = Hub::getInstance()->bulkActions->selectionFor(ColumnService::LIST_TRASHED_FILES, $path);
 		$filter = $selection->review ? new TrashedFileFilter() : $this->trashedFileFilterFromRequest();
-		$sort = ListSort::fromRequest($trash->getFileSortColumns(), TrashService::SORT_DELETED);
+		$sort = $this->listSort($trash->getFileSortColumns(), TrashService::SORT_DELETED);
 
 		$query = $trash->getFileQuery($filter, $sort->column, $sort->direction);
 		$selection->limitQuery($query);
-		[$pageInfo, $results] = Paginator::fromRequest()->elements($query);
+		[$pageInfo, $results] = Hub::getInstance()->queries->paginate($this->paginator(), $query);
 		$columns = $hub->columns->getColumns(ColumnService::LIST_TRASHED_FILES);
 
 		return $this->renderTemplate('hub/pages/files/trash', [
@@ -83,10 +81,10 @@ class FilesController extends BaseController
 				'kindOptions' => $this->showsFilterOptions($selection) ? $this->pickedKindOptions($filter->kinds) : [],
 				'optionsUrls' => ['kind' => $this->filterOptionsUrl('kind')],
 				'filter' => $filter,
-				'filtered' => $filter != new TrashedFileFilter(),
+				'filtered' => $filter->isFiltered(),
 				'listPath' => $path,
 				'columns' => $columns,
-				...$selection->variables($filter),
+				...Hub::getInstance()->selection->variables($selection, $filter),
 				...$sort->variables($path),
 			],
 			'extraTabs' => $this->trashTabs(),
@@ -95,7 +93,7 @@ class FilesController extends BaseController
 
 	public function actionStatistics(): Response
 	{
-		return $this->renderStatistics(CheckKind::Assets, (new FilesSummary())->index(), extraTabs: $this->trashTabs());
+		return $this->renderStatistics(CheckKind::Assets, Hub::getInstance()->filesSummary->index(), extraTabs: $this->trashTabs());
 	}
 
 	public function actionDiagnostics(): Response
@@ -126,7 +124,7 @@ class FilesController extends BaseController
 		return $this->renderTemplate('hub/pages/files/view', [
 			'asset' => $asset,
 			'selectedTab' => $tab,
-			'fileKind' => new FileKindInfo($asset->kind),
+			'fileKind' => new FileKindInfo($asset->kind ?? ''),
 			'transforms' => $transforms,
 			...($tab === self::TAB_OVERVIEW ? [
 				'referenceCount' => $references->countReferences($asset),
@@ -135,8 +133,8 @@ class FilesController extends BaseController
 			] : []),
 			'hasTransforms' => $this->hasTransforms($asset, $transforms),
 			'isPlayable' => $isPlayable,
-			'canDeleteTransforms' => Hub::getInstance()->access->canAct(Page::Assets, Hub::PERMISSION_DELETE_TRANSFORMS) && Craft::$app->getElements()->canSave($asset),
-			'canDownload' => Hub::getInstance()->access->canAct(Page::Assets, Hub::PERMISSION_DOWNLOAD_ASSETS),
+			'canDeleteTransforms' => Hub::getInstance()->access->canAct(Page::Assets, Permission::DeleteTransforms->value) && Craft::$app->getElements()->canSave($asset),
+			'canDownload' => Hub::getInstance()->access->canAct(Page::Assets, Permission::DownloadAssets->value),
 			'checks' => Hub::getInstance()->checks->forFile($asset),
 		]);
 	}
@@ -147,7 +145,7 @@ class FilesController extends BaseController
 	 */
 	public function actionDownload(int $id): Response
 	{
-		$this->requirePermission(Hub::PERMISSION_DOWNLOAD_ASSETS);
+		$this->requirePermission(Permission::DownloadAssets->value);
 
 		$files = Hub::getInstance()->files;
 
@@ -170,12 +168,12 @@ class FilesController extends BaseController
 	public function actionDeleteTransforms(): ?Response
 	{
 		$this->requirePostRequest();
-		$this->requirePermission(Hub::PERMISSION_DELETE_TRANSFORMS);
+		$this->requirePermission(Permission::DeleteTransforms->value);
 
-		$request = Craft::$app->getRequest();
+		$request = $this->request;
 		$files = Hub::getInstance()->files;
 
-		$id = (int) $request->getRequiredBodyParam('assetId');
+		$id = $this->requiredBodyInt('assetId');
 		$asset = $files->getFile($id) ?? throw new NotFoundHttpException('File not found.');
 
 		if (!Craft::$app->getElements()->canSave($asset)) {
@@ -202,13 +200,13 @@ class FilesController extends BaseController
 	{
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
-		$this->requirePermission(Hub::PERMISSION_DELETE_TRANSFORMS);
+		$this->requirePermission(Permission::DeleteTransforms->value);
 
-		$request = Craft::$app->getRequest();
+		$request = $this->request;
 		$ids = $request->getBodyParam('transformIds');
 		$ids = Ids::positive($ids);
 
-		$preview = (new DeleteTransforms(ColumnService::LIST_FILES))->previewOf([(int) $request->getRequiredBodyParam('assetId')], (int) $request->getBodyParam('page', 1), $ids);
+		$preview = Hub::getInstance()->bulkActions->previewTransforms([$this->requiredBodyInt('assetId')], $this->bodyInt('page', 1), $ids);
 
 		return $this->renderPreview($preview, 1);
 	}

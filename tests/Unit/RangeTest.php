@@ -21,7 +21,7 @@ it('leaves out an open bound', function (): void {
 it('compares expressions', function (): void {
 	$expression = new Expression('COUNT(*)');
 
-	expect(Range::condition($expression, 2, null)[1])->toBe(['>=', $expression, 2]);
+	expect(at(Range::condition($expression, 2, null), 1))->toBe(['>=', $expression, 2]);
 });
 
 it('has no date param for open bounds', function (): void {

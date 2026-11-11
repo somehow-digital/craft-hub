@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use SomehowDigital\Craft\Hub\helpers\Paginator;
+use SomehowDigital\Craft\Hub\models\Paginator;
 
 it('paginates lists filtered in memory, keeping their keys', function (int $page, int $currentPage, array $keys): void {
 	$items = array_combine(range(101, 220), range(1, 120));

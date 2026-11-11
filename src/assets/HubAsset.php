@@ -10,8 +10,10 @@ use craft\web\View;
 
 /**
  * Styles and scripts of Hub's own pages.
+ *
+ * @internal
  */
-class HubAsset extends AssetBundle
+final class HubAsset extends AssetBundle
 {
 	public function init(): void
 	{

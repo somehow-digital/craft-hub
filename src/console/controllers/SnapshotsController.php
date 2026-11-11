@@ -8,11 +8,13 @@ use craft\console\Controller;
 use craft\helpers\Console;
 use craft\helpers\Queue;
 use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\jobs\TakeSnapshot;
+use SomehowDigital\Craft\Hub\jobs\TakeSnapshotJob;
 use yii\console\ExitCode;
 
 /**
  * Takes snapshots of the statistics, like a cron job can, rather than waiting for a control panel request to push one.
+ *
+ * @internal
  */
 class SnapshotsController extends Controller
 {
@@ -35,7 +37,7 @@ class SnapshotsController extends Controller
 	public function actionIndex(): int
 	{
 		if ($this->queue) {
-			Queue::push(new TakeSnapshot());
+			Queue::push(new TakeSnapshotJob());
 			$this->stdout('Taking the snapshot in the queue.' . PHP_EOL, Console::FG_GREEN);
 
 			return ExitCode::OK;

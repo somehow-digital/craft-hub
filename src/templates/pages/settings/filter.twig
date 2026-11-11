@@ -4,7 +4,7 @@
 	they list, an icon, and match the items their condition matches, which the list applies along with its other filters;
 	they can be deleted from the menu of the save button. Whether it's enabled is switched in the details sidebar.
 
-	Variables: filter (see SavedFilter)
+	Variables: filter (see SavedFilter), condition (its builder, see FilterService::getCondition())
 #}
 {% extends 'hub/_layouts/settings-item' %}
 {% import '_includes/forms' as forms %}
@@ -125,6 +125,7 @@
 			collapsible: false,
 			kind: kind,
 			filter: filter,
+			condition: condition,
 		} only %}
 			{% block body %}
 				{% import '_includes/forms' as forms %}
@@ -134,7 +135,7 @@
 						instructions: 'The list shows the {kind} matching these rules, along with its other filters.'|t('hub', {kind: kind.label()|lower}),
 						fieldClass: 'hub-condition',
 						errors: filter.getErrors('condition'),
-					}, filter.getCondition().getBuilderHtml()) }}
+					}, condition.getBuilderHtml()) }}
 				</div>
 			{% endblock %}
 		{% endembed %}

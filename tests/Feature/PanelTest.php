@@ -36,11 +36,11 @@ it('keys panels by their key, or else their id', function (): void {
 
 it('loads panels from the page of their pagination', function (): void {
 	$this->request(path: 'hub/data/entries/2/history');
-	(fn(): int => $this->_pageNum = 3)->call(Craft::$app->getRequest());
+	(fn(): int => $this->_pageNum = 3)->call(webRequest());
 
 	expect(renderPanel())->toContain('history/p3&amp;panel=sites');
 
-	(fn(): int => $this->_pageNum = 1)->call(Craft::$app->getRequest());
+	(fn(): int => $this->_pageNum = 1)->call(webRequest());
 });
 
 it('renders the body of loaded panels', function (): void {

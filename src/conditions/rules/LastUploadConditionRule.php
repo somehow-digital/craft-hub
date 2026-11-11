@@ -6,6 +6,7 @@ namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
 use craft\base\conditions\BaseDateRangeConditionRule;
+use SomehowDigital\Craft\Hub\base\InfoConditionRuleInterface;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
@@ -13,8 +14,10 @@ use SomehowDigital\Craft\Hub\models\VolumeInfo;
 
 /**
  * Matches the date of the last upload to a volume, on the selected sites.
+ *
+ * @internal
  */
-class LastUploadConditionRule extends BaseDateRangeConditionRule implements InfoConditionRuleInterface
+final class LastUploadConditionRule extends BaseDateRangeConditionRule implements InfoConditionRuleInterface
 {
 	public function getLabel(): string
 	{

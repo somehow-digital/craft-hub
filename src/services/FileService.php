@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\services;
 
-use Craft;
+use craft\db\Connection;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
 use craft\elements\db\AssetQuery;
 use craft\elements\User;
 use craft\errors\ImageTransformException;
-use craft\helpers\DateTimeHelper;
 use craft\helpers\Image;
 use craft\helpers\ImageTransforms;
 use craft\helpers\Queue;
@@ -20,22 +19,29 @@ use craft\models\ImageTransform;
 use craft\models\ImageTransformIndex;
 use craft\models\VolumeFolder;
 use craft\queue\jobs\GenerateImageTransform;
+use craft\services\Assets;
+use craft\services\Elements;
+use craft\services\ImageTransforms as ImageTransformsService;
+use craft\services\Volumes;
+use craft\web\User as WebUser;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
-use SomehowDigital\Craft\Hub\helpers\FilterParams;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\helpers\Range;
-use SomehowDigital\Craft\Hub\helpers\Sql;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use SomehowDigital\Craft\Hub\models\FileFilter;
 use Throwable;
 use yii\base\Component;
+use yii\base\Request;
 use yii\db\Expression;
 
 /**
  * Lists the files of all volumes and collects the details shown for a single file.
+ *
+ * @internal
  */
-class FileService extends Component
+final class FileService extends Component
 {
 	public const USAGE_USED = 'used';
 	public const USAGE_UNUSED = 'unused';
@@ -57,17 +63,42 @@ class FileService extends Component
 	private const SQUARE_CONDITION = '[[assets.width]] = [[assets.height]]';
 
 	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly ReviewService $review,
+		private readonly SiteScopeService $siteScope,
+		private readonly QueryService $queries,
+		private readonly LabelService $labels,
+		private readonly FilterService $filters,
+		private readonly UserService $users,
+		private readonly ActivityService $activity,
+		private readonly Connection $db,
+		private readonly Elements $craftElements,
+		private readonly ImageTransformsService $craftTransforms,
+		private readonly Volumes $craftVolumes,
+		private readonly Assets $craftAssets,
+		private readonly Request $request,
+		private readonly ?WebUser $user = null,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
+
+	/**
 	 * Files of all volumes on the counted sites, narrowed by the given filters.
 	 *
 	 * @param string $sort one of the columns of {@see getSortColumns()}
 	 * @param int $direction `SORT_ASC` or `SORT_DESC`
+	 *
+	 * @return AssetQuery<array-key,Asset>
 	 */
 	public function getQuery(FileFilter $filter, string $sort = self::SORT_UPLOADED, int $direction = SORT_DESC): AssetQuery
 	{
-		$review = Hub::getInstance()->review;
+		$review = $this->review;
 
 		$query = Asset::find()
-			->siteId(Hub::getInstance()->siteScope->getSiteIds())
+			->siteId($this->siteScope->getSiteIds())
 			->unique()
 			->orderBy($this->sortOrder($sort, $direction));
 
@@ -76,7 +107,7 @@ class FileService extends Component
 		}
 
 		// PostgreSQL's `like` is case-sensitive, unlike MySQL's with Craft's collation.
-		$operator = Sql::likeOperator();
+		$operator = $this->queries->likeOperator();
 
 		if ($filter->search !== '') {
 			$query->andWhere([
@@ -87,11 +118,11 @@ class FileService extends Component
 		}
 
 		if ($filter->labels !== []) {
-			$query->andWhere(Hub::getInstance()->labels->condition(ColumnService::LIST_FILES, $filter->labels));
+			$query->andWhere($this->labels->condition(ColumnService::LIST_FILES, $filter->labels));
 		}
 
 		if ($filter->savedFilter !== null) {
-			$query->andWhere(Hub::getInstance()->filters->elementCondition(CheckKind::Assets, $filter->savedFilter));
+			$query->andWhere($this->filters->elementCondition(CheckKind::Assets, $filter->savedFilter));
 		}
 
 		if ($filter->volumes !== []) {
@@ -111,7 +142,7 @@ class FileService extends Component
 		}
 
 		if ($filter->uploaders !== []) {
-			$query->andWhere(['assets.uploaderId' => FilterParams::userIds($filter->uploaders)]);
+			$query->andWhere(['assets.uploaderId' => $this->users->resolveIds($filter->uploaders)]);
 		}
 
 		if ($filter->usage === self::USAGE_USED || $filter->usage === self::USAGE_UNUSED) {
@@ -127,8 +158,10 @@ class FileService extends Component
 			Range::condition('assets.height', $filter->heightMin, $filter->heightMax),
 		];
 
-		foreach (array_filter($conditions) as $condition) {
-			$query->andWhere($condition);
+		foreach ($conditions as $condition) {
+			if ($condition !== null) {
+				$query->andWhere($condition);
+			}
 		}
 
 		if (($uploaded = Range::dateParam($filter->uploadedFrom, $filter->uploadedTo)) !== null) {
@@ -153,7 +186,7 @@ class FileService extends Component
 	 */
 	public function getExtensions(?int $volumeId = null): array
 	{
-		$db = Craft::$app->getDb();
+		$db = $this->db;
 
 		// Everything after the last dot of the filename.
 		$extension = $db->getIsPgsql()
@@ -168,7 +201,13 @@ class FileService extends Component
 			->orderBy(['count' => SORT_DESC, 'extension' => SORT_ASC])
 			->all();
 
-		return array_map(intval(...), array_column($rows, 'count', 'extension'));
+		$counts = [];
+
+		foreach ($rows as $row) {
+			$counts[Row::string($row, 'extension')] = Row::int($row, 'count');
+		}
+
+		return $counts;
 	}
 
 	/**
@@ -190,12 +229,12 @@ class FileService extends Component
 			return [];
 		}
 
-		$users = Hub::getInstance()->users->getUsers(array_map(intval(...), array_keys($counts)));
+		$users = $this->users->getUsers(array_map(Fill::int(...), array_keys($counts)));
 		$uploaders = [];
 
 		foreach ($counts as $id => $count) {
 			if (isset($users[$id])) {
-				$uploaders[(int) $id] = ['user' => $users[$id], 'count' => (int) $count];
+				$uploaders[Fill::int($id)] = ['user' => $users[$id], 'count' => Fill::int($count)];
 			}
 		}
 
@@ -225,7 +264,9 @@ class FileService extends Component
 	 */
 	public function getFile(int $id): ?Asset
 	{
-		return Hub::getInstance()->siteScope->inSiteScope(Asset::find())->id($id)->status(null)->one();
+		$asset = $this->siteScope->inSiteScope(Asset::find())->id($id)->status(null)->one();
+
+		return $asset instanceof Asset ? $asset : null;
 	}
 
 	/**
@@ -235,7 +276,7 @@ class FileService extends Component
 	 */
 	public function getSiteVariants(Asset $asset): array
 	{
-		return $this->getSiteVariantsOf([$asset])[$asset->id] ?? [];
+		return $this->getSiteVariantsOf([$asset])[(int) $asset->id] ?? [];
 	}
 
 	/**
@@ -243,9 +284,9 @@ class FileService extends Component
 	 */
 	public function countSiteVariants(Asset $asset): int
 	{
-		return Hub::getInstance()->queries->total(Asset::find()
+		return $this->queries->total(Asset::find()
 			->id($asset->id)
-			->siteId(Hub::getInstance()->siteScope->getSiteIds())
+			->siteId($this->siteScope->getSiteIds())
 			->status(null));
 	}
 
@@ -263,14 +304,14 @@ class FileService extends Component
 
 		$variants = Asset::find()
 			->id(array_map(fn(Asset $asset): ?int => $asset->id, $assets))
-			->siteId(Hub::getInstance()->siteScope->getSiteIds())
+			->siteId($this->siteScope->getSiteIds())
 			->status(null)
 			->orderBy(['elements_sites.siteId' => SORT_ASC])
 			->all();
 
 		$grouped = [];
 		foreach ($variants as $variant) {
-			$grouped[$variant->id][] = $variant;
+			$grouped[(int) $variant->id][] = $variant;
 		}
 
 		return $grouped;
@@ -290,7 +331,7 @@ class FileService extends Component
 				...$this->getTransformDimensions($asset, $transform),
 				'size' => $this->getTransformSize($asset, $transform),
 			],
-			$this->getTransformsOf([$asset])[$asset->id] ?? [],
+			$this->getTransformsOf([$asset])[(int) $asset->id] ?? [],
 		);
 	}
 
@@ -301,7 +342,7 @@ class FileService extends Component
 	 */
 	public function getTransformUrl(Asset $asset, array $transform): ?string
 	{
-		if (!$transform['fileExists'] || $transform['error']) {
+		if (!Row::bool($transform, 'fileExists') || Row::bool($transform, 'error')) {
 			return null;
 		}
 
@@ -313,7 +354,7 @@ class FileService extends Component
 
 		// Named transforms are shared models, so the format is set on a copy
 		$model = clone $model;
-		$model->format = $transform['format'];
+		$model->format = Row::stringOrNull($transform, 'format');
 
 		return $asset->getUrl($model);
 	}
@@ -343,7 +384,7 @@ class FileService extends Component
 	 */
 	public function getTransformSize(Asset $asset, array $transform): ?int
 	{
-		if (!$transform['fileExists'] || $transform['error'] || !is_a((string) $transform['transformer'], ImageTransformer::class, true)) {
+		if (!Row::bool($transform, 'fileExists') || Row::bool($transform, 'error') || !is_a(Row::string($transform, 'transformer'), ImageTransformer::class, true)) {
 			return null;
 		}
 
@@ -391,13 +432,13 @@ class FileService extends Component
 	 */
 	public function getDeletableTransforms(array $ids, ?array $transformIds = null): array
 	{
-		$service = Craft::$app->getElements();
-		$assets = $ids !== [] ? Hub::getInstance()->siteScope->inSiteScope(Asset::find())->id($ids)->all() : [];
+		$service = $this->craftElements;
+		$assets = $ids !== [] ? $this->siteScope->inSiteScope(Asset::find())->id($ids)->all() : [];
 		$transforms = array_map(
 			fn(array $own): array => $transformIds === null ? $own : array_values(array_filter($own, fn(array $transform): bool => in_array($transform['id'], $transformIds, true))),
 			$this->getTransformsOf($assets),
 		);
-		$assets = array_values(array_filter($assets, fn(Asset $asset): bool => ($transforms[$asset->id] ?? []) !== [] && $service->canSave($asset)));
+		$assets = array_values(array_filter($assets, fn(Asset $asset): bool => ($transforms[(int) $asset->id] ?? []) !== [] && $service->canSave($asset)));
 
 		return [$assets, array_intersect_key($transforms, array_flip(array_map(fn(Asset $asset): int => (int) $asset->id, $assets)))];
 	}
@@ -423,18 +464,18 @@ class FileService extends Component
 
 		$grouped = [];
 		foreach ($rows as $row) {
-			$assetId = (int) $row['assetId'];
+			$assetId = Row::int($row, 'assetId');
 			unset($row['assetId']);
 
 			$grouped[$assetId][] = [
 				...$row,
-				'id' => (int) $row['id'],
-				'fileExists' => (bool) $row['fileExists'],
-				'inProgress' => (bool) $row['inProgress'],
-				'error' => (bool) $row['error'],
+				'id' => Row::int($row, 'id'),
+				'fileExists' => Row::bool($row, 'fileExists'),
+				'inProgress' => Row::bool($row, 'inProgress'),
+				'error' => Row::bool($row, 'error'),
 				// Without a requested format Craft picks one and names the file after it
-				'outputFormat' => $row['format'] ?: (strtolower(pathinfo((string) $row['filename'], PATHINFO_EXTENSION)) ?: null),
-				'dateIndexed' => $row['dateIndexed'] !== null ? DateTimeHelper::toDateTime($row['dateIndexed']) ?: null : null,
+				'outputFormat' => Fill::text(Row::value($row, 'format')) ?? Fill::text(strtolower(pathinfo(Row::string($row, 'filename'), PATHINFO_EXTENSION))),
+				'dateIndexed' => Row::date($row, 'dateIndexed'),
 			];
 		}
 
@@ -465,14 +506,14 @@ class FileService extends Component
 			return 0;
 		}
 
-		$transforms = Craft::$app->getImageTransforms();
+		$transforms = $this->craftTransforms;
 
 		foreach ($rows as $row) {
 			$index = new ImageTransformIndex([
 				...$row,
-				'fileExists' => (bool) $row['fileExists'],
-				'inProgress' => (bool) $row['inProgress'],
-				'error' => (bool) $row['error'],
+				'fileExists' => Row::bool($row, 'fileExists'),
+				'inProgress' => Row::bool($row, 'inProgress'),
+				'error' => Row::bool($row, 'error'),
 			]);
 
 			// Other transformers, like those of image services, keep no files of their own to delete.
@@ -483,17 +524,17 @@ class FileService extends Component
 			}
 		}
 
-		Craft::$app->getDb()->createCommand()
-			->delete(Table::IMAGETRANSFORMINDEX, ['id' => array_map(intval(...), array_column($rows, 'id'))])
+		$this->db->createCommand()
+			->delete(Table::IMAGETRANSFORMINDEX, ['id' => array_map(Fill::int(...), array_column($rows, 'id'))])
 			->execute();
 
-		$activity = Hub::getInstance()->activity;
+		$activity = $this->activity;
 		$activity->record(
 			ActivityAction::TransformsDeleted,
 			ActivitySubject::Asset,
 			$asset->id,
 			$asset->getUiLabel(),
-			['transforms' => array_values(array_unique(array_column($rows, 'transformString')))],
+			['transforms' => array_values(array_unique(array_map(static fn(array $row): string => Row::string($row, 'transformString'), $rows)))],
 			$asset->siteId,
 		);
 
@@ -507,7 +548,7 @@ class FileService extends Component
 	 */
 	public function getFolderTargets(): array
 	{
-		$user = Craft::$app->getUser()->getIdentity();
+		$user = $this->user?->getIdentity();
 
 		if ($user === null) {
 			return [];
@@ -515,12 +556,12 @@ class FileService extends Component
 
 		$folders = [];
 
-		foreach (Craft::$app->getVolumes()->getAllVolumes() as $volume) {
-			if (!$user->can("saveAssets:{$volume->uid}")) {
+		foreach ($this->craftVolumes->getAllVolumes() as $volume) {
+			if (!$user->can('saveAssets:' . ($volume->uid ?? ''))) {
 				continue;
 			}
 
-			foreach (Craft::$app->getAssets()->findFolders(['volumeId' => $volume->id, 'order' => 'path']) as $folder) {
+			foreach ($this->craftAssets->findFolders(['volumeId' => $volume->id, 'order' => 'path']) as $folder) {
 				$folders[(int) $folder->id] = $folder;
 			}
 		}
@@ -534,13 +575,13 @@ class FileService extends Component
 	 */
 	public function canMoveTo(Asset $asset, VolumeFolder $folder): bool
 	{
-		$user = Craft::$app->getUser()->getIdentity();
-		$service = Craft::$app->getElements();
+		$user = $this->user?->getIdentity();
+		$service = $this->craftElements;
 		$volume = $folder->getVolume();
 
 		return $user !== null
 			&& $asset->folderId !== $folder->id
-			&& $user->can("saveAssets:{$volume->uid}")
+			&& $user->can('saveAssets:' . ($volume->uid ?? ''))
 			&& $service->canSave($asset)
 			&& $service->canDelete($asset);
 	}
@@ -555,7 +596,7 @@ class FileService extends Component
 	{
 		$transforms = [];
 
-		foreach (Craft::$app->getImageTransforms()->getAllTransforms() as $transform) {
+		foreach ($this->craftTransforms->getAllTransforms() as $transform) {
 			if ($transform->handle !== null && is_a($transform->getTransformer(), ImageTransformer::class, true)) {
 				$transforms[$transform->handle] = $transform;
 			}
@@ -570,12 +611,12 @@ class FileService extends Component
 	 * Files with the IDs that the current user may view and Craft can transform: images it can manipulate.
 	 *
 	 * @param int[] $ids
-	 * @return Asset[]
+	 * @return list<Asset>
 	 */
 	public function getTransformableFiles(array $ids): array
 	{
-		$service = Craft::$app->getElements();
-		$assets = $ids !== [] ? Hub::getInstance()->siteScope->inSiteScope(Asset::find())->id($ids)->kind(Asset::KIND_IMAGE)->all() : [];
+		$service = $this->craftElements;
+		$assets = $ids !== [] ? $this->siteScope->inSiteScope(Asset::find())->id($ids)->kind(Asset::KIND_IMAGE)->all() : [];
 
 		return array_values(array_filter(
 			$assets,
@@ -594,7 +635,7 @@ class FileService extends Component
 	public function generateTransforms(Asset $asset, array $transforms): int
 	{
 		/** @var ImageTransformer $transformer */
-		$transformer = Craft::$app->getImageTransforms()->getImageTransformer(ImageTransformer::class);
+		$transformer = $this->craftTransforms->getImageTransformer(ImageTransformer::class);
 		$queued = [];
 
 		foreach ($transforms as $transform) {
@@ -610,7 +651,7 @@ class FileService extends Component
 			return 0;
 		}
 
-		$activity = Hub::getInstance()->activity;
+		$activity = $this->activity;
 		$activity->record(ActivityAction::TransformsGenerated, ActivitySubject::Asset, $asset->id, $asset->getUiLabel(), ['transforms' => $queued], $asset->siteId);
 
 		return count($queued);
@@ -625,28 +666,30 @@ class FileService extends Component
 	 */
 	public function viewableCondition(): ?array
 	{
-		$user = Craft::$app->getUser();
+		$user = $this->user;
 
-		if (Craft::$app->getRequest()->getIsConsoleRequest() || $user->getIsAdmin()) {
+		if ($this->request->getIsConsoleRequest() || $user?->getIsAdmin() === true) {
 			return null;
 		}
 
 		$peers = [];
 		$own = [];
 
-		foreach (Craft::$app->getVolumes()->getAllVolumes() as $volume) {
-			if ($user->checkPermission("viewPeerAssets:{$volume->uid}")) {
+		foreach ($this->craftVolumes->getAllVolumes() as $volume) {
+			if ($user?->checkPermission('viewPeerAssets:' . ($volume->uid ?? '')) === true) {
 				$peers[] = $volume->id;
-			} elseif ($user->checkPermission("viewAssets:{$volume->uid}")) {
+			} elseif ($user?->checkPermission('viewAssets:' . ($volume->uid ?? '')) === true) {
 				$own[] = $volume->id;
 			}
 		}
 
-		return ['or', ['assets.volumeId' => $peers], ['assets.volumeId' => $own, 'assets.uploaderId' => (int) $user->getId()]];
+		return ['or', ['assets.volumeId' => $peers], ['assets.volumeId' => $own, 'assets.uploaderId' => Fill::int($user?->getId())]];
 	}
 
 	/**
 	 * Files that aren't deleted, regardless of sites, to aggregate their columns.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	private function filesQuery(): Query
 	{
@@ -663,7 +706,7 @@ class FileService extends Component
 	 */
 	private function sortOrder(string $sort, int $direction): array
 	{
-		$review = Hub::getInstance()->review;
+		$review = $this->review;
 
 		$columns = match ($sort) {
 			self::SORT_FILE => ['assets.filename'],

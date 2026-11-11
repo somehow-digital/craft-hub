@@ -1,7 +1,7 @@
 {#
 	What changing the groups of users does, shown in the dialog of the bulk actions before they're changed (see the
 	`action-preview` component): the number of users whose groups are changed, and what is done with each group the user may
-	assign, naming how many of the users are in it (see BulkService::GROUP_*). Groups are kept as they are by default.
+	assign, naming how many of the users are in it (see BulkActions::GROUP_*). Groups are kept as they are by default.
 
 	Variables: groups (UserGroup[], by ID, see UserService::getAssignableGroups()), counts (number of the users in each group,
 	by its ID), total, skipped
@@ -23,8 +23,8 @@
 			name: 'groups[' ~ group.id ~ ']',
 			options: [
 				{label: 'Keep as it is'|t('hub'), value: ''},
-				{label: 'Add them to it'|t('hub'), value: constant('SomehowDigital\\Craft\\Hub\\services\\BulkService::GROUP_ADD')},
-				{label: 'Remove them from it'|t('hub'), value: constant('SomehowDigital\\Craft\\Hub\\services\\BulkService::GROUP_REMOVE')},
+				{label: 'Add them to it'|t('hub'), value: constant('SomehowDigital\\Craft\\Hub\\bulk\\BulkActions::GROUP_ADD')},
+				{label: 'Remove them from it'|t('hub'), value: constant('SomehowDigital\\Craft\\Hub\\bulk\\BulkActions::GROUP_REMOVE')},
 			],
 			class: 'fullwidth',
 		}) }}

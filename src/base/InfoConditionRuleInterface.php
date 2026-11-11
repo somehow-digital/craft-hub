@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SomehowDigital\Craft\Hub\conditions\rules;
+namespace SomehowDigital\Craft\Hub\base;
 
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
@@ -10,7 +10,9 @@ use SomehowDigital\Craft\Hub\models\SectionInfo;
 use SomehowDigital\Craft\Hub\models\VolumeInfo;
 
 /**
- * A rule of a condition on the items of a structure page, see {@see \SomehowDigital\Craft\Hub\conditions\InfoCondition}.
+ * A rule of a condition on the items of a structure page, see {@see \SomehowDigital\Craft\Hub\conditions\BaseInfoCondition}.
+ *
+ * @internal
  */
 interface InfoConditionRuleInterface
 {

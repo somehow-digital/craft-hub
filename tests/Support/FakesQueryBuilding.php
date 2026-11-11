@@ -13,6 +13,10 @@ use craft\elements\db\ElementQuery;
  */
 trait FakesQueryBuilding
 {
+	/**
+	 * @param array<mixed> $params
+	 * @return array<mixed>
+	 */
 	public function build($query, $params = [])
 	{
 		if ($query instanceof ElementQuery) {

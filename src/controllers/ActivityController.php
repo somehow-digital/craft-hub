@@ -7,20 +7,22 @@ namespace SomehowDigital\Craft\Hub\controllers;
 use Craft;
 use SomehowDigital\Craft\Hub\enums\ActivityGroup;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
+use SomehowDigital\Craft\Hub\enums\Permission;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\helpers\Ids;
-use SomehowDigital\Craft\Hub\helpers\ListSort;
-use SomehowDigital\Craft\Hub\helpers\Paginator;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\ActivityFilter;
-use SomehowDigital\Craft\Hub\services\ActivityService;
+use SomehowDigital\Craft\Hub\services\ActivityFeedService;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
 /**
  * The activity log, below the "Hub" navigation item, listing what users did, for users who may view it, while it's enabled.
+ *
+ * @internal
  */
-class ActivityController extends BaseController
+final class ActivityController extends BaseController
 {
 	public function beforeAction($action): bool
 	{
@@ -32,7 +34,7 @@ class ActivityController extends BaseController
 			throw new NotFoundHttpException('The activity log is disabled.');
 		}
 
-		$this->requirePermission(Hub::PERMISSION_VIEW_ACTIVITY);
+		$this->requirePermission(Permission::ViewActivity->value);
 
 		return true;
 	}
@@ -44,10 +46,10 @@ class ActivityController extends BaseController
 	public function actionIndex(): Response
 	{
 		$hub = Hub::getInstance();
-		$activity = $hub->activity;
+		$activity = $hub->feed;
 		$path = 'hub/manage/activity';
 
-		$batchId = (int) Craft::$app->getRequest()->getQueryParam('batch') ?: null;
+		$batchId = Fill::number($this->queryInt('batch'));
 		$batch = $batchId !== null ? $activity->populate($activity->getQuery(new ActivityFilter())->where(['id' => $batchId, 'batchId' => null])->all())[0] ?? null : null;
 
 		if ($batchId !== null && $batch === null) {
@@ -55,7 +57,7 @@ class ActivityController extends BaseController
 		}
 
 		// The log of one item, opened from its page, isn't kept along with the filters, as the batch isn't.
-		$item = (int) Craft::$app->getRequest()->getQueryParam('item') ?: null;
+		$item = Fill::number($this->queryInt('item'));
 
 		if ($batch === null && $item === null && ($redirect = $this->keepFilters($path)) instanceof Response) {
 			return $redirect;
@@ -68,8 +70,8 @@ class ActivityController extends BaseController
 		$filter->batch = $batch?->id;
 		$filter->item = count($filter->subjects) === 1 ? $item : null;
 
-		$sort = ListSort::fromRequest($activity->getSortColumns(), ActivityService::SORT_DATE);
-		[$pageInfo, $rows] = Paginator::fromRequest()->rows($activity->getQuery($filter, $sort->column, $sort->direction));
+		$sort = $this->listSort($activity->getSortColumns(), ActivityFeedService::SORT_DATE);
+		[$pageInfo, $rows] = Hub::getInstance()->queries->paginateRows($this->paginator(), $activity->getQuery($filter, $sort->column, $sort->direction));
 
 		return $this->renderTemplate('hub/pages/activity', [
 			'list' => [

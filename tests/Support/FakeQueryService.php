@@ -4,9 +4,15 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\Tests\Support;
 
+use Closure;
+use Craft;
+use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\elements\db\ElementQuery;
+use ReflectionClass;
+use SomehowDigital\Craft\Hub\base\ElementQueryRunnerInterface;
 use SomehowDigital\Craft\Hub\services\QueryService;
+use SomehowDigital\Craft\Hub\services\SiteScopeService;
 
 /**
  * Counts element queries without preparing them, as preparing them takes most of Craft.
@@ -14,25 +20,56 @@ use SomehowDigital\Craft\Hub\services\QueryService;
  * Counts are built on the unprepared query and answered by the {@see FakeConnection},
  * while totals, pages and whether queries match anything are answered by {@see ElementQueries}, like the queries themselves.
  */
-class FakeQueryService extends QueryService
+final readonly class FakeQueryService implements ElementQueryRunnerInterface
 {
-	public function total(ElementQuery $query): int
+	/**
+	 * The service as the plugin creates it, but for the app of the test.
+	 */
+	/**
+	 * @param (Closure(ElementQuery<array-key,covariant ElementInterface>):Query<array-key,mixed>)|null $rows the rows the counts are built on, by default those of the query
+	 */
+	public function __construct(
+		private ?Closure $rows = null,
+		private bool $answers = true
+	) {}
+
+	/**
+	 * @param (Closure(ElementQuery<array-key,covariant ElementInterface>):Query<array-key,mixed>)|null $rows
+	 */
+	public static function make(?Closure $rows = null, bool $answers = true): QueryService
 	{
-		return count(ElementQueries::resolve($query));
+		// Reflection, as the container builds the service with this very method.
+		return (new ReflectionClass(QueryService::class))->newInstance(Craft::createObject(SiteScopeService::class), Craft::$app->getDb(), Craft::$app->getSites(), new self($rows, $answers));
 	}
 
-	public function exists(ElementQuery $query): bool
+	public function total(ElementQuery $query): ?int
 	{
-		return ElementQueries::resolve($query) !== [];
+		return !$this->answers ? null : count(ElementQueries::resolve($query));
 	}
 
-	public function page(ElementQuery $query, int $offset, int $limit, ?int $total = null): array
+	public function exists(ElementQuery $query): ?bool
 	{
-		return array_slice(ElementQueries::resolve($query), $offset, $limit);
+		return !$this->answers ? null : ElementQueries::resolve($query) !== [];
 	}
 
-	protected function rows(ElementQuery $query): Query
+	public function page(ElementQuery $query, int $offset, int $limit): ?array
 	{
-		return (new Query())->from(['hubQuery' => $query]);
+		if (!$this->answers) {
+			return null;
+		}
+
+		/** @var list<ElementInterface> $elements */
+		$elements = array_slice(ElementQueries::resolve($query), $offset, $limit);
+
+		return $elements;
+	}
+
+	/**
+	 * @param ElementQuery<array-key,covariant ElementInterface> $query
+	 * @return Query<array-key,mixed>
+	 */
+	public function rows(ElementQuery $query): Query
+	{
+		return $this->rows instanceof Closure ? ($this->rows)($query) : (new Query())->from(['hubQuery' => $query]);
 	}
 }

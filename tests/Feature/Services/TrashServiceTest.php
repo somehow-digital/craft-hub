@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use craft\elements\Asset;
+use craft\elements\db\ElementQuery;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\fs\Local;
+use Mockery\MockInterface;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\models\TrashedEntryFilter;
 use SomehowDigital\Craft\Hub\models\TrashedFileFilter;
@@ -104,21 +107,23 @@ it('finds who last deleted the items in the activity log', function (): void {
 
 describe('files kept of trashed assets', function (): void {
 	beforeEach(function (): void {
-		$this->trash = Mockery::mock(TrashService::class)->makePartial()->shouldAllowMockingProtectedMethods();
-		$this->trash->shouldReceive('keptFilesTableExists')->andReturn(true)->byDefault();
-		$this->fs = Mockery::mock(Local::class)->makePartial();
-		$this->fs->handle = 'fs-images';
-		$this->volumes[1]->setFs($this->fs);
+		$this->db()->tables = [Tables::KEPT_FILES];
+		/** @var Local&MockInterface $fsMock */
+		$fsMock = Mockery::mock(Local::class)->makePartial();
+		$this->fsMock = $fsMock;
+		$this->fsMock->handle = 'fs-images';
+		$this->volumes[1]->setFs($this->fsMock);
 	});
 
 	it('records and forgets the files kept', function (): void {
+		/** @var Asset&MockInterface $asset */
 		$asset = Mockery::mock(Asset::class)->makePartial();
 		$asset->id = 5;
 		$asset->volumeId = 1;
 		$asset->shouldReceive('getPath')->andReturn('photos/a.jpg');
 
-		$this->trash->recordKeptFile($asset);
-		$this->trash->forgetKeptFile(5);
+		$this->hub()->trash->recordKeptFile($asset);
+		$this->hub()->trash->forgetKeptFile(5);
 
 		expect($this->db()->queriesMatching('INSERT INTO {{%hub_kept_files}}')[0])->toContain("(5, 1, 'photos/a.jpg'")
 			->and($this->db()->queriesMatching('DELETE FROM {{%hub_kept_files}}')[0])->toContain('`assetId`=5');
@@ -131,28 +136,28 @@ describe('files kept of trashed assets', function (): void {
 			['assetId' => '7', 'volumeId' => '9', 'path' => 'c.jpg'],
 		]);
 		$this->db()->respond('INNER JOIN {{%volumefolders}}', fn(string $sql): array => str_contains($sql, "'b.jpg'") ? [['path' => 'photos/']] : [['path' => 'other/']]);
-		$this->fs->shouldReceive('deleteFile')->once()->with('photos/a.jpg');
+		$this->fsMock->shouldReceive('deleteFile')->once()->with('photos/a.jpg');
 
-		expect($this->trash->deletePurgedFiles())->toBe(1)
+		expect($this->hub()->trash->deletePurgedFiles())->toBe(1)
 			->and($this->db()->queriesMatching('DELETE FROM {{%hub_kept_files}}'))->toHaveCount(3);
 	});
 
 	it('forgets files that can no longer be deleted', function (): void {
 		$this->db()->respond('FROM {{%hub_kept_files}} `kept`', [['assetId' => '5', 'volumeId' => '1', 'path' => 'a.jpg']]);
-		$this->fs->shouldReceive('deleteFile')->andThrow(new RuntimeException('Gone'));
+		$this->fsMock->shouldReceive('deleteFile')->andThrow(new RuntimeException('Gone'));
 
-		expect($this->trash->deletePurgedFiles())->toBe(0)
+		expect($this->hub()->trash->deletePurgedFiles())->toBe(0)
 			->and($this->db()->queriesMatching('DELETE FROM {{%hub_kept_files}}'))->toHaveCount(1);
 	});
 
 	it('does nothing without its table', function (): void {
-		$this->trash->shouldReceive('keptFilesTableExists')->andReturn(false);
+		$this->db()->tables = [];
 		$asset = new Asset(['id' => 5]);
 
-		$this->trash->recordKeptFile($asset);
-		$this->trash->forgetKeptFile(5);
+		$this->hub()->trash->recordKeptFile($asset);
+		$this->hub()->trash->forgetKeptFile(5);
 
-		expect($this->trash->deletePurgedFiles())->toBe(0)
+		expect($this->hub()->trash->deletePurgedFiles())->toBe(0)
 			->and($this->db()->queriesMatching('hub_kept_files'))->toBe([]);
 	});
 });
@@ -161,12 +166,12 @@ it('finds the trashed elements related to trashed items, through the nested entr
 	// Entry 40 is nested in the trashed entry 30, and relates to the item.
 	$this->db()->respond('FROM {{%elements_owners}}', fn(string $sql): array => str_contains($sql, 'WHERE `elementId`') ? [['elementId' => 40, 'ownerId' => 30]] : []);
 	$this->db()->respond('FROM {{%relations}}', [['sourceId' => 40, 'targetId' => 1]]);
-	ElementQueries::respond(Entry::class, fn($query): array => in_array(30, (array) $query->id, true) ? [new Entry(['id' => 30, 'siteId' => 1])] : []);
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => in_array(30, listOf($query->id), true) ? [new Entry(['id' => 30, 'siteId' => 1])] : []);
 
 	$related = $this->hub()->trash->getRelatedTrashed([1]);
 
 	expect(array_keys($related))->toBe([1])
-		->and(array_keys($related[1]))->toBe([30])
+		->and(array_keys(arrayAt($related, 1)))->toBe([30])
 		->and($this->hub()->trash->getRelatedTrashed([]))->toBe([]);
 });
 

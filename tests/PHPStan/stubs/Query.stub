@@ -1,0 +1,18 @@
+<?php
+
+namespace craft\db;
+
+class Query
+{
+	/**
+	 * @param mixed $db
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function all($db = null) {}
+
+	/**
+	 * @param mixed $db
+	 * @return array<string,mixed>|null
+	 */
+	public function one($db = null) {}
+}

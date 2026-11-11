@@ -5,18 +5,22 @@ declare(strict_types=1);
 namespace SomehowDigital\Craft\Hub\models;
 
 use Craft;
+use craft\base\Model;
 use craft\elements\User;
 use craft\helpers\Inflector;
 use craft\models\Site;
 use DateTime;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 
 /**
  * An activity of the activity log. The names of its user and subject are kept as they were, so it reads the same once
  * they're renamed or deleted.
+ *
+ * @internal
  */
-class Activity
+final class Activity extends Model
 {
 	/** attributes of elements named differently than Craft labels their columns */
 	private const ATTRIBUTE_LABELS = [
@@ -31,14 +35,14 @@ class Activity
 		'folderId' => 'Folder',
 	];
 
-	public int $id;
+	public int $id = 0;
 
 	/** the batch's own activity, for activities of a batch, see ActivityService::beginBatch() */
 	public ?int $batchId = null;
 
-	public ActivityAction $action;
+	public ActivityAction $action = ActivityAction::Created;
 
-	public ActivitySubject $subject;
+	public ActivitySubject $subject = ActivitySubject::Entry;
 
 	public ?int $subjectId = null;
 
@@ -47,6 +51,11 @@ class Activity
 
 	/** site of an element saved, deleted or restored */
 	public ?int $siteId = null;
+
+	public ?Site $site = null;
+
+	/** @var array<string,string> names of the fields an update changed, by their handles */
+	public array $fieldNames = [];
 
 	/** user who did it; none for things done on the command line, by the system or by guests */
 	public ?int $userId = null;
@@ -65,6 +74,13 @@ class Activity
 
 	public DateTime $dateCreated;
 
+	public function __construct(array $config = [])
+	{
+		$this->dateCreated = new DateTime();
+
+		parent::__construct($config);
+	}
+
 	/** the user, unless they were deleted since */
 	public ?User $user = null;
 
@@ -72,7 +88,7 @@ class Activity
 	public ?string $url = null;
 
 	/**
-	 * The first activities of a batch, see ActivityService::populate().
+	 * The first activities of a batch, see ActivityFeedService::populate().
 	 *
 	 * @var Activity[]
 	 */
@@ -98,11 +114,6 @@ class Activity
 		return is_int($count) ? Craft::t('hub', '{count, plural, =1{One item} other{# items}}', ['count' => $count]) : $this->subject->label();
 	}
 
-	public function getSite(): ?Site
-	{
-		return $this->siteId !== null ? Craft::$app->getSites()->getSiteById($this->siteId) : null;
-	}
-
 	/**
 	 * The user who did it while impersonating this one, if any.
 	 */
@@ -116,19 +127,18 @@ class Activity
 	/**
 	 * Names of the attributes and fields an update changed, attributes first.
 	 *
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public function getChanges(): array
 	{
 		$names = [];
 
-		foreach ((array) ($this->data['attributes'] ?? []) as $attribute) {
-			$names[] = Craft::t('app', self::ATTRIBUTE_LABELS[$attribute] ?? Inflector::camel2words((string) $attribute));
+		foreach (Fill::list($this->data['attributes'] ?? []) as $attribute) {
+			$names[] = Craft::t('app', self::ATTRIBUTE_LABELS[Fill::text($attribute) ?? ''] ?? Inflector::camel2words(Fill::text($attribute) ?? ''));
 		}
 
-		$fields = Craft::$app->getFields();
-		foreach ((array) ($this->data['fields'] ?? []) as $handle) {
-			$names[] = $fields->getFieldByHandle((string) $handle)->name ?? (string) $handle;
+		foreach (Fill::list($this->data['fields'] ?? []) as $handle) {
+			$names[] = $this->fieldNames[Fill::text($handle) ?? ''] ?? (Fill::text($handle) ?? '');
 		}
 
 		return array_values(array_unique($names));

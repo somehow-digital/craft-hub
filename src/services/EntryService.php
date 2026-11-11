@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\services;
 
-use Craft;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\db\EntryQuery;
@@ -13,21 +12,26 @@ use craft\elements\User;
 use craft\helpers\Db;
 use craft\models\EntryType;
 use craft\models\Section;
+use craft\services\Elements;
+use craft\services\Entries;
+use craft\services\Fields;
+use craft\web\User as WebUser;
 use DateTime;
 use SomehowDigital\Craft\Hub\elements\db\LastEditedEntryQuery;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
-use SomehowDigital\Craft\Hub\helpers\FilterParams;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\helpers\Range;
-use SomehowDigital\Craft\Hub\helpers\Sql;
-use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\EntryFilter;
 use yii\base\Component;
+use yii\base\Request;
 use yii\db\Expression;
 
 /**
  * Lists the entries of all sections and nested entry fields and collects the details shown for a single entry.
+ *
+ * @internal
  */
-class EntryService extends Component
+final class EntryService extends Component
 {
 	public const USAGE_REFERENCED = 'referenced';
 	public const USAGE_UNREFERENCED = 'unreferenced';
@@ -46,20 +50,43 @@ class EntryService extends Component
 	public const COMING_UP_DAYS = 14;
 
 	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly ReviewService $review,
+		private readonly SiteScopeService $siteScope,
+		private readonly QueryService $queries,
+		private readonly LabelService $labels,
+		private readonly FilterService $filters,
+		private readonly UserService $users,
+		private readonly EditService $edits,
+		private readonly Entries $craftEntries,
+		private readonly Fields $craftFields,
+		private readonly Elements $craftElements,
+		private readonly Request $request,
+		private readonly ?WebUser $user = null,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
+
+	/**
 	 * Entries of all sections and nested entry fields on the counted sites, narrowed by the given filters.
 	 *
 	 * @param string $sort one of the columns of {@see getSortColumns()}
 	 * @param int $direction `SORT_ASC` or `SORT_DESC`
+	 *
+	 * @return EntryQuery<array-key,Entry>
 	 */
 	public function getQuery(EntryFilter $filter, string $sort = self::SORT_UPDATED, int $direction = SORT_DESC): EntryQuery
 	{
-		$review = Hub::getInstance()->review;
+		$review = $this->review;
 
 		$query = ($sort === self::SORT_UPDATED ? new LastEditedEntryQuery(Entry::class) : Entry::find())
-			->siteId(Hub::getInstance()->siteScope->getSiteIds())
+			->siteId($this->siteScope->getSiteIds())
 			->unique()
 			->status($filter->statuses !== [] ? $filter->statuses : null)
-			->andWhere($this->contentCondition())
+			->andWhere($review->contentCondition())
 			->orderBy($this->sortOrder($sort, $direction));
 
 		if (($viewable = $this->viewableCondition()) !== null) {
@@ -68,7 +95,7 @@ class EntryService extends Component
 
 		if ($filter->search !== '') {
 			// PostgreSQL's `like` is case-sensitive, unlike MySQL's with Craft's collation.
-			$operator = Sql::likeOperator();
+			$operator = $this->queries->likeOperator();
 			$query->andWhere([
 				'or',
 				[$operator, 'elements_sites.title', $filter->search],
@@ -77,11 +104,11 @@ class EntryService extends Component
 		}
 
 		if ($filter->labels !== []) {
-			$query->andWhere(Hub::getInstance()->labels->condition(ColumnService::LIST_ENTRIES, $filter->labels));
+			$query->andWhere($this->labels->condition(ColumnService::LIST_ENTRIES, $filter->labels));
 		}
 
 		if ($filter->savedFilter !== null) {
-			$query->andWhere(Hub::getInstance()->filters->elementCondition(CheckKind::Entries, $filter->savedFilter));
+			$query->andWhere($this->filters->elementCondition(CheckKind::Entries, $filter->savedFilter));
 		}
 
 		if (($origin = $this->originCondition($filter->sections, $filter->fields)) !== null) {
@@ -97,11 +124,11 @@ class EntryService extends Component
 		}
 
 		if ($filter->authors !== []) {
-			$query->authorId(FilterParams::userIds($filter->authors));
+			$query->authorId($this->users->resolveIds($filter->authors));
 		}
 
 		if ($filter->editors !== []) {
-			$query->andWhere(Hub::getInstance()->edits->editedByCondition(FilterParams::userIds($filter->editors)));
+			$query->andWhere($this->edits->editedByCondition($this->users->resolveIds($filter->editors)));
 		}
 
 		if ($filter->usage === self::USAGE_REFERENCED || $filter->usage === self::USAGE_UNREFERENCED) {
@@ -124,7 +151,11 @@ class EntryService extends Component
 		}
 
 		if ($edited !== ['and']) {
-			$query->andWhere(Hub::getInstance()->edits->lastEditedCondition($edited));
+			$condition = $this->edits->lastEditedCondition($edited);
+
+			if ($condition !== null) {
+				$query->andWhere($condition);
+			}
 		}
 
 		if ($filter->drafts) {
@@ -132,7 +163,7 @@ class EntryService extends Component
 		}
 
 		if ($filter->myDrafts) {
-			$query->andWhere($review->userDraftsCondition((int) Craft::$app->getUser()->getId()));
+			$query->andWhere($review->userDraftsCondition((int) $this->user?->getId()));
 		}
 
 		if ($filter->comingUp) {
@@ -145,7 +176,7 @@ class EntryService extends Component
 	/**
 	 * Condition matching the queried enabled entries being published or expiring within the next days.
 	 *
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	public function comingUpCondition(): array
 	{
@@ -186,12 +217,12 @@ class EntryService extends Component
 			return [];
 		}
 
-		$users = Hub::getInstance()->users->getUsers(array_map(intval(...), array_keys($counts)));
+		$users = $this->users->getUsers(array_map(Fill::int(...), array_keys($counts)));
 		$authors = [];
 
 		foreach ($counts as $id => $count) {
 			if (isset($users[$id])) {
-				$authors[(int) $id] = ['user' => $users[$id], 'count' => (int) $count];
+				$authors[Fill::int($id)] = ['user' => $users[$id], 'count' => Fill::int($count)];
 			}
 		}
 
@@ -201,7 +232,7 @@ class EntryService extends Component
 	/**
 	 * Statuses the entries can be filtered by.
 	 *
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public function getStatuses(): array
 	{
@@ -218,15 +249,15 @@ class EntryService extends Component
 	 */
 	public function originCondition(array $sections, array $fields): ?array
 	{
-		$entries = Craft::$app->getEntries();
+		$entries = $this->craftEntries;
 		$conditions = [];
 
 		if ($sections !== []) {
-			$conditions[] = ['entries.sectionId' => array_values(array_filter(array_map(fn(string $handle) => $entries->getSectionByHandle($handle)?->id, $sections)))];
+			$conditions[] = ['entries.sectionId' => array_values(Fill::truthy(array_map(fn(string $handle): ?int => $entries->getSectionByHandle($handle)?->id, $sections)))];
 		}
 
 		if ($fields !== []) {
-			$conditions[] = ['entries.fieldId' => array_values(array_filter(array_map(fn(string $handle) => Craft::$app->getFields()->getFieldByHandle($handle)?->id, $fields)))];
+			$conditions[] = ['entries.fieldId' => array_values(Fill::truthy(array_map(fn(string $handle): int|string|null => $this->craftFields->getFieldByHandle($handle)?->id, $fields)))];
 		}
 
 		return $conditions !== [] ? ['or', ...$conditions] : null;
@@ -255,23 +286,29 @@ class EntryService extends Component
 	 */
 	public function getEntry(int $id): ?Entry
 	{
-		return Hub::getInstance()->siteScope->inSiteScope(Entry::find())->id($id)->status(null)->one();
+		$entry = $this->siteScope->inSiteScope(Entry::find())->id($id)->status(null)->one();
+
+		return $entry instanceof Entry ? $entry : null;
 	}
 
 	/**
 	 * Query of the entry on each of the counted sites, to compare titles, slugs and statuses.
+	 *
+	 * @return EntryQuery<array-key,Entry>
 	 */
 	public function getSiteVariantsQuery(Entry $entry): EntryQuery
 	{
 		return Entry::find()
 			->id($entry->id)
-			->siteId(Hub::getInstance()->siteScope->getSiteIds())
+			->siteId($this->siteScope->getSiteIds())
 			->status(null)
 			->orderBy(['elements_sites.siteId' => SORT_ASC]);
 	}
 
 	/**
 	 * Query of the revisions of the entry on its site, newest first, with their creators, as Craft lists them.
+	 *
+	 * @return EntryQuery<array-key,Entry>
 	 */
 	public function getRevisionsQuery(Entry $entry): EntryQuery
 	{
@@ -286,6 +323,8 @@ class EntryService extends Component
 	/**
 	 * Query of the saved drafts of the entry on its site, last updated first, with their creators. Provisional drafts,
 	 * the unsaved changes of each user, are left out.
+	 *
+	 * @return EntryQuery<array-key,Entry>
 	 */
 	public function getDraftsQuery(Entry $entry): EntryQuery
 	{
@@ -306,13 +345,13 @@ class EntryService extends Component
 	 */
 	public function getDeletableDrafts(array $ids): array
 	{
-		$entries = $ids !== [] ? Hub::getInstance()->siteScope->inSiteScope(Entry::find())->id($ids)->status(null)->all() : [];
+		$entries = $ids !== [] ? $this->siteScope->inSiteScope(Entry::find())->id($ids)->status(null)->all() : [];
 
 		if ($entries === []) {
 			return [[], []];
 		}
 
-		$service = Craft::$app->getElements();
+		$service = $this->craftElements;
 		$drafts = [];
 
 		$found = Entry::find()
@@ -330,7 +369,7 @@ class EntryService extends Component
 			}
 		}
 
-		return [array_values(array_filter($entries, fn(Entry $entry): bool => isset($drafts[$entry->id]))), $drafts];
+		return [array_values(array_filter($entries, fn(Entry $entry): bool => isset($drafts[(int) $entry->id]))), $drafts];
 	}
 
 	/**
@@ -338,14 +377,14 @@ class EntryService extends Component
 	 * as Craft lets them author those. Sections without authors, like singles, have none.
 	 *
 	 * @param Entry[] $entries
-	 * @return User[]
+	 * @return list<User>
 	 */
 	public function getAuthorCandidates(array $entries): array
 	{
 		$ids = [];
 
 		foreach ($this->authoredSections($entries) as $section) {
-			$ids = [...$ids, ...User::find()->can("viewEntries:{$section->uid}")->status(User::STATUS_ACTIVE)->ids()];
+			$ids = [...$ids, ...User::find()->can('viewEntries:' . ($section->uid ?? ''))->status(User::STATUS_ACTIVE)->ids()];
 		}
 
 		if ($ids === []) {
@@ -364,16 +403,16 @@ class EntryService extends Component
 	 */
 	public function canChangeAuthors(Entry $entry): bool
 	{
-		$user = Craft::$app->getUser()->getIdentity();
+		$user = $this->user?->getIdentity();
 		$section = $entry->getSection();
 
-		if ($user === null || !$section instanceof Section || $this->authoredSections([$entry]) === [] || !Craft::$app->getElements()->canSave($entry)) {
+		if ($user === null || !$section instanceof Section || $this->authoredSections([$entry]) === [] || !$this->craftElements->canSave($entry)) {
 			return false;
 		}
 
 		$authorIds = $entry->getAuthorIds();
 
-		return $authorIds === [] || in_array($user->id, $authorIds, true) || $user->can("changeAuthorForPeerEntries:{$section->uid}");
+		return $authorIds === [] || in_array($user->id, $authorIds, true) || $user->can('changeAuthorForPeerEntries:' . ($section->uid ?? ''));
 	}
 
 	/**
@@ -387,11 +426,11 @@ class EntryService extends Component
 	{
 		$targets = [];
 
-		foreach (Craft::$app->getEntries()->getAllSections() as $section) {
+		foreach ($this->craftEntries->getAllSections() as $section) {
 			$count = count(array_filter($entries, fn(Entry $entry): bool => $this->canMoveTo($entry, $section)));
 
 			if ($count > 0) {
-				$targets[$section->id] = ['section' => $section, 'count' => $count];
+				$targets[(int) $section->id] = ['section' => $section, 'count' => $count];
 			}
 		}
 
@@ -406,14 +445,14 @@ class EntryService extends Component
 	 */
 	public function canMoveTo(Entry $entry, Section $section): bool
 	{
-		$user = Craft::$app->getUser()->getIdentity();
+		$user = $this->user?->getIdentity();
 
 		return $user !== null
 			&& $section->type !== Section::TYPE_SINGLE
 			&& $entry->sectionId !== null
 			&& $entry->sectionId !== $section->id
 			&& in_array($entry->typeId, array_map(fn(EntryType $type): ?int => $type->id, $section->getEntryTypes()), true)
-			&& $user->can("saveEntries:{$section->uid}")
+			&& $user->can('saveEntries:' . ($section->uid ?? ''))
 			&& $entry->canMove($user);
 	}
 
@@ -431,30 +470,11 @@ class EntryService extends Component
 			$section = $entry->getSection();
 
 			if ($section !== null && $section->type !== Section::TYPE_SINGLE && $section->maxAuthors !== 0) {
-				$sections[$section->id] = $section;
+				$sections[(int) $section->id] = $section;
 			}
 		}
 
 		return $sections;
-	}
-
-	/**
-	 * Condition leaving out the nested entries owned by drafts or revisions, which are copies, not content of their own.
-	 * Owners are looked up by their primary key for each entry on purpose: other forms are faster on some data, but need
-	 * memory that grows with all elements, drafts and revisions, failing or taking minutes on large sites.
-	 *
-	 * @return array<int,mixed>
-	 */
-	public function contentCondition(): array
-	{
-		return [
-			'or',
-			['entries.primaryOwnerId' => null],
-			['exists', (new Query())
-				->from(['hubOwners' => Table::ELEMENTS])
-				->where('[[hubOwners.id]] = [[entries.primaryOwnerId]]')
-				->andWhere(['hubOwners.dateDeleted' => null, 'hubOwners.draftId' => null, 'hubOwners.revisionId' => null])],
-		];
 	}
 
 	/**
@@ -467,26 +487,26 @@ class EntryService extends Component
 	 */
 	public function viewableCondition(): ?array
 	{
-		$user = Craft::$app->getUser();
+		$user = $this->user;
 
-		if (Craft::$app->getRequest()->getIsConsoleRequest() || $user->getIsAdmin()) {
+		if ($this->request->getIsConsoleRequest() || !$user instanceof \craft\web\User || $user->getIsAdmin()) {
 			return null;
 		}
 
 		$all = [];
 		$authored = [];
 
-		foreach (Craft::$app->getEntries()->getAllSections() as $section) {
-			if ($user->checkPermission("viewEntries:{$section->uid}")) {
-				if ($section->type === Section::TYPE_SINGLE || $user->checkPermission("viewPeerEntries:{$section->uid}")) {
-					$all[] = $section->id;
+		foreach ($this->craftEntries->getAllSections() as $section) {
+			if ($user->checkPermission('viewEntries:' . ($section->uid ?? ''))) {
+				if ($section->type === Section::TYPE_SINGLE || $user->checkPermission('viewPeerEntries:' . ($section->uid ?? ''))) {
+					$all[] = $section->id ?? 0;
 				} else {
-					$authored[] = $section->id;
+					$authored[] = $section->id ?? 0;
 				}
 			}
 		}
 
-		return $this->sectionsCondition($all, $authored, (int) $user->getId());
+		return $this->sectionsCondition($all, $authored, Fill::int($user->getId()));
 	}
 
 	/**
@@ -495,7 +515,7 @@ class EntryService extends Component
 	 *
 	 * @param int[] $all
 	 * @param int[] $authored
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	public function sectionsCondition(array $all, array $authored, int $userId): array
 	{
@@ -521,7 +541,7 @@ class EntryService extends Component
 	 */
 	private function sortOrder(string $sort, int $direction): array
 	{
-		$review = Hub::getInstance()->review;
+		$review = $this->review;
 
 		$columns = match ($sort) {
 			self::SORT_TITLE => ['elements_sites.title'],

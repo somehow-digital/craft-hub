@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use DateTime;
 
 /**
  * Filters of the entries list. Lists hold their values as they appear in the URL; empty lists and null values don't filter.
+ *
+ * @internal
  */
-class EntryFilter
+final class EntryFilter extends Model
 {
 	/** matched against the title and slug */
 	public string $search = '';

@@ -7,6 +7,7 @@ namespace SomehowDigital\Craft\Hub\services;
 use Closure;
 use Craft;
 use craft\base\FieldInterface;
+use craft\db\Connection;
 use craft\db\Query;
 use craft\helpers\DateTimeHelper;
 use craft\helpers\Json;
@@ -14,35 +15,37 @@ use craft\helpers\Queue;
 use craft\helpers\StringHelper;
 use DateTime;
 use DateTimeZone;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\DataKind;
-use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\jobs\TakeSnapshot;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\helpers\Row;
+use SomehowDigital\Craft\Hub\jobs\TakeSnapshotJob;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\models\LayoutUsage;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
+use SomehowDigital\Craft\Hub\models\Settings;
 use SomehowDigital\Craft\Hub\models\Snapshot;
 use SomehowDigital\Craft\Hub\models\VolumeInfo;
+use WeakMap;
 use yii\base\Component;
+use yii\caching\CacheInterface;
 
 /**
  * Snapshots of the statistics, taken once a day or less often, so the statistics tabs can show how they changed.
  *
  * A snapshot keeps the counts of the entries, assets and references of all sites, by the sets of sites the items are on,
- * so they're counted for any sites later, just like the live ones (see StatisticsService::fromSnapshot()), along with its
+ * so they're counted for any sites later, just like the live ones (see StatisticsService::withSnapshot()), along with its
  * metrics that aren't scoped to sites (see collectMetrics()).
  *
  * Snapshots are taken in the queue, pushed by a control panel request once one is due, or by `./craft hub/snapshots`.
+ *
+ * @internal
  */
-class SnapshotService extends Component
+final class SnapshotService extends Component
 {
-	public const TABLE = '{{%hub_snapshots}}';
-	public const TABLE_ENTRIES = '{{%hub_snapshot_entries}}';
-	public const TABLE_ASSETS = '{{%hub_snapshot_assets}}';
-	public const TABLE_REFERENCES = '{{%hub_snapshot_references}}';
-
 	/** tables of the rows of the snapshots, by the part of the snapshot they are, see Snapshot */
-	private const ROW_TABLES = ['entries' => self::TABLE_ENTRIES, 'assets' => self::TABLE_ASSETS, 'references' => self::TABLE_REFERENCES];
+	private const ROW_TABLES = ['entries' => Tables::SNAPSHOT_ENTRIES, 'assets' => Tables::SNAPSHOT_ASSETS, 'references' => Tables::SNAPSHOT_REFERENCES];
 
 	/** days the charts of the statistics cards can span, the first by default; 0 spans all snapshots */
 	public const RANGES = [30, 90, 365, 0];
@@ -66,6 +69,25 @@ class SnapshotService extends Component
 
 	private ?bool $tableExists = null;
 
+	/** @var WeakMap<Snapshot,StatisticsService>|null */
+	private ?WeakMap $statisticsOf = null;
+
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly StatisticsService $statistics,
+		private readonly StructureService $structure,
+		private readonly VolumeService $volumes,
+		private readonly UserService $users,
+		private readonly Settings $settings,
+		private readonly Connection $db,
+		private readonly CacheInterface $cache,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
+
 	/**
 	 * Takes the snapshot of today, unless there is one already, which it replaces instead if asked to.
 	 *
@@ -74,30 +96,30 @@ class SnapshotService extends Component
 	public function take(bool $replace = false): bool
 	{
 		$date = $this->today();
-		$existing = (new Query())->select(['id'])->from(self::TABLE)->where(['date' => $date])->scalar();
+		$existing = (new Query())->select(['id'])->from(Tables::SNAPSHOTS)->where(['date' => $date])->scalar();
 
 		if ($existing !== false && $existing !== null && !$replace) {
 			return false;
 		}
 
-		$statistics = new StatisticsService();
+		$statistics = $this->statistics;
 		$entries = $statistics->collectEntryRows();
 		$assets = $statistics->collectAssetRows();
 		$references = $statistics->collectReferenceRows();
 		$metrics = $this->collectMetrics();
 
-		$db = Craft::$app->getDb();
+		$db = $this->db;
 		$db->transaction(function () use ($db, $date, $existing, $metrics, $entries, $assets, $references): void {
 			if ($existing !== false && $existing !== null) {
-				$db->createCommand()->delete(self::TABLE, ['id' => (int) $existing])->execute();
+				$db->createCommand()->delete(Tables::SNAPSHOTS, ['id' => (int) $existing])->execute();
 			}
 
-			$db->createCommand()->insert(self::TABLE, ['date' => $date, 'metrics' => Json::encode($metrics)])->execute();
-			$id = (int) $db->getLastInsertID(self::TABLE);
+			$db->createCommand()->insert(Tables::SNAPSHOTS, ['date' => $date, 'metrics' => Json::encode($metrics)])->execute();
+			$id = (int) $db->getLastInsertID(Tables::SNAPSHOTS);
 
-			$this->insertRows(self::TABLE_ENTRIES, $id, $entries);
-			$this->insertRows(self::TABLE_ASSETS, $id, $assets);
-			$this->insertRows(self::TABLE_REFERENCES, $id, $references);
+			$this->insertRows(Tables::SNAPSHOT_ENTRIES, $id, $entries);
+			$this->insertRows(Tables::SNAPSHOT_ASSETS, $id, $assets);
+			$this->insertRows(Tables::SNAPSHOT_REFERENCES, $id, $references);
 		});
 
 		$this->snapshots = [];
@@ -116,7 +138,7 @@ class SnapshotService extends Component
 			return true;
 		}
 
-		$interval = max(1, Hub::getInstance()->settings->snapshotInterval);
+		$interval = max(1, $this->settings->snapshotInterval);
 
 		return $latest->format('Y-m-d') <= $this->now()->modify("-{$interval} days")->format('Y-m-d');
 	}
@@ -126,11 +148,11 @@ class SnapshotService extends Component
 	 */
 	public function pushIfDue(): void
 	{
-		if (!Hub::getInstance()->settings->enableSnapshots) {
+		if (!$this->settings->enableSnapshots) {
 			return;
 		}
 
-		$cache = Craft::$app->getCache();
+		$cache = $this->cache;
 
 		// The cache is checked first, so most requests don't query the database at all.
 		if (!$cache->add(self::CHECKED_KEY, true, self::CHECK_INTERVAL) || !$this->tableExists()) {
@@ -138,21 +160,21 @@ class SnapshotService extends Component
 		}
 
 		if ($this->isDue()) {
-			Queue::push(new TakeSnapshot());
+			Queue::push(new TakeSnapshotJob());
 			$cache->set(self::CHECKED_KEY, true, self::PUSHED_INTERVAL);
 		}
 	}
 
 	public function getLatestDate(): ?DateTime
 	{
-		$date = (new Query())->from(self::TABLE)->max('[[date]]');
+		$date = (new Query())->from(Tables::SNAPSHOTS)->max('[[date]]');
 
 		return is_string($date) ? $this->toDate($date) : null;
 	}
 
 	public function getEarliestDate(): ?DateTime
 	{
-		$date = (new Query())->from(self::TABLE)->min('[[date]]');
+		$date = (new Query())->from(Tables::SNAPSHOTS)->min('[[date]]');
 
 		return is_string($date) ? $this->toDate($date) : null;
 	}
@@ -176,7 +198,7 @@ class SnapshotService extends Component
 	 * before today, or while snapshots are disabled. A range without snapshots has the current values only. Of the ranges,
 	 * only those up to the first one spanning all snapshots are offered, as the longer ones would chart the same.
 	 *
-	 * The card in each snapshot (see Summary::lazyCard()) has its total, and its segments if it has them there too;
+	 * The card in each snapshot (see BaseSummary::lazyCard()) has its total, and its segments if it has them there too;
 	 * those are matched to the current ones by their label, and left out unless any snapshot has them.
 	 *
 	 * @param Closure(Snapshot):array{total:int|float,segments?:array<int,array<string,mixed>>} $card the card in a snapshot
@@ -186,7 +208,7 @@ class SnapshotService extends Component
 	 */
 	public function chart(Closure $card, array $current, int $range = self::RANGES[0]): ?array
 	{
-		if (!Hub::getInstance()->settings->enableSnapshots || !$this->tableExists()) {
+		if (!$this->settings->enableSnapshots || !$this->tableExists()) {
 			return null;
 		}
 
@@ -221,33 +243,33 @@ class SnapshotService extends Component
 		]];
 
 		foreach ($current['segments'] ?? [] as $segment) {
-			$values = array_map(function (array $card) use ($segment) {
+			$values = array_map(function (array $card) use ($segment): int|float|null {
 				foreach ($card['segments'] ?? [] as $past) {
 					if ($past['label'] === $segment['label']) {
-						return $past['value'];
+						return is_int($past['value'] ?? null) || is_float($past['value'] ?? null) ? $past['value'] : null;
 					}
 				}
 
 				return null;
 			}, $cards);
 
-			if (array_filter($values, fn($value): bool => $value !== null) === []) {
+			if (array_filter($values, fn(mixed $value): bool => $value !== null) === []) {
 				continue;
 			}
 
 			$series[] = [
-				'key' => StringHelper::toKebabCase((string) $segment['label']),
-				'label' => (string) $segment['label'],
-				'color' => $segment['color'] ?? null,
+				'key' => StringHelper::toKebabCase(Row::string($segment, 'label')),
+				'label' => Row::string($segment, 'label'),
+				'color' => Fill::text($segment['color'] ?? null),
 				// Segments kept out of the bar aren't part of the total, like drafts.
-				'dashed' => !($segment['bar'] ?? true),
-				'values' => [...$values, $segment['value']],
+				'dashed' => ($segment['bar'] ?? true) === false,
+				'values' => [...$values, is_int($segment['value'] ?? null) || is_float($segment['value'] ?? null) ? $segment['value'] : null],
 			];
 		}
 
 		return [
 			'range' => $range,
-			'ranges' => $this->ranges((int) $earliest->diff($this->now())->days),
+			'ranges' => $this->ranges($earliest->diff($this->now())->days),
 			'since' => $dates !== [] ? $this->toDate($dates[0]) : null,
 			'change' => $cards !== [] ? $current['total'] - $cards[0]['total'] : null,
 			'dates' => [...$dates, $today],
@@ -262,7 +284,7 @@ class SnapshotService extends Component
 	 */
 	public function deleteExpired(): int
 	{
-		$days = Hub::getInstance()->settings->snapshotRetentionDays;
+		$days = $this->settings->snapshotRetentionDays;
 
 		if ($days <= 0 || !$this->tableExists()) {
 			return 0;
@@ -270,7 +292,7 @@ class SnapshotService extends Component
 
 		$before = $this->now()->modify("-{$days} days")->format('Y-m-d');
 
-		return Craft::$app->getDb()->createCommand()->delete(self::TABLE, ['<', 'date', $before])->execute();
+		return $this->db->createCommand()->delete(Tables::SNAPSHOTS, ['<', 'date', $before])->execute();
 	}
 
 	/**
@@ -286,26 +308,25 @@ class SnapshotService extends Component
 	 */
 	public function collectMetrics(): array
 	{
-		$hub = Hub::getInstance();
-		$fields = $hub->structure->getFields();
-		$ids = fn(array $models): array => array_values(array_map(fn($model): int => (int) $model->id, $models));
+		$fields = $this->structure->getFields();
+		$ids = fn(array $models): array => array_values(array_map(fn(mixed $model): int => (int) $model->id, $models));
 
 		return [
 			'sections' => array_map(fn(SectionInfo $info): array => [
 				'type' => $info->section->type,
 				'entryTypes' => $ids($info->entryTypes),
 				'fields' => $ids([...$info->referenceFields, ...$info->linkFields]),
-			], $hub->structure->getSections()),
+			], $this->structure->getSections()),
 			'entryTypes' => array_map(fn(EntryTypeInfo $info): array => [
 				'sections' => count($info->sections),
 				'nestedFields' => count($info->nestedFields),
 				'referenceFields' => count($info->referenceFields),
 				'linkFields' => count($info->linkFields),
 				'fields' => array_count_values(array_map(
-					fn(FieldInterface $field) => ($fields[$field->id] ?? null)?->getDataKind()->value ?? DataKind::Plain->value,
+					fn(FieldInterface $field) => ($fields[(int) $field->id] ?? null)?->getDataKind()->value ?? DataKind::Plain->value,
 					$info->entryType->getFieldLayout()->getCustomFields(),
 				)),
-			], $hub->structure->getEntryTypes()),
+			], $this->structure->getEntryTypes()),
 			'fields' => array_map(fn(FieldInfo $info): array => [
 				'type' => $info->field::class,
 				'kind' => $info->getDataKind()->value,
@@ -315,24 +336,24 @@ class SnapshotService extends Component
 			'volumes' => array_map(fn(VolumeInfo $info): array => [
 				'hasUrls' => $info->hasUrls,
 				'fields' => $ids([...$info->assetFields, ...$info->linkFields]),
-			], $hub->volumes->getVolumes()),
-			'users' => get_object_vars($hub->users->getStatistics()),
-			'userGroups' => array_map(fn(array $info): int => $info['users'], $hub->users->getGroups()),
+			], $this->volumes->getVolumes()),
+			'users' => get_object_vars($this->users->getStatistics()),
+			'userGroups' => array_map(fn(array $info): int => $info['users'], $this->users->getGroups()),
 		];
 	}
 
 	/**
 	 * Whether the tables of the snapshots exist, which they don't while Hub is being installed.
 	 */
-	protected function tableExists(): bool
+	private function tableExists(): bool
 	{
-		return $this->tableExists ??= Craft::$app->getDb()->tableExists(self::TABLE);
+		return $this->tableExists ??= $this->db->tableExists(Tables::SNAPSHOTS);
 	}
 
 	/**
 	 * Ranges up to the first one spanning all snapshots, the earliest of which is as many days old.
 	 *
-	 * @return int[]
+	 * @return list<int>
 	 */
 	private function ranges(int $days): array
 	{
@@ -356,7 +377,7 @@ class SnapshotService extends Component
 	{
 		$results = (new Query())
 			->select(['id', 'date'])
-			->from(self::TABLE)
+			->from(Tables::SNAPSHOTS)
 			->andFilterWhere(['>=', 'date', $since !== '' ? $since : null])
 			->orderBy(['date' => SORT_ASC])
 			->all();
@@ -368,7 +389,7 @@ class SnapshotService extends Component
 			$results = array_map(fn(int $i): mixed => $results[(int) round($i * ($count - 1) / ($limit - 1))], range(0, $limit - 1));
 		}
 
-		$ids = array_map(fn(array $result): int => (int) $result['id'], $results);
+		$ids = array_map(fn(array $result): int => Row::int($result, 'id'), $results);
 		$parts = [];
 
 		// Parts of all the snapshots, loaded once the first one asks for them.
@@ -379,9 +400,9 @@ class SnapshotService extends Component
 		};
 
 		return array_map(fn(array $result): Snapshot => new Snapshot(
-			(int) $result['id'],
-			$this->toDate((string) $result['date']),
-			fn(string $name): array => $part($name, (int) $result['id']),
+			Row::int($result, 'id'),
+			$this->toDate(Row::string($result, 'date')),
+			fn(string $name): array => $part($name, Row::int($result, 'id')),
 		), $results);
 	}
 
@@ -389,13 +410,13 @@ class SnapshotService extends Component
 	 * Metrics of the snapshots, by the snapshot.
 	 *
 	 * @param int[] $ids
-	 * @return array<int,array<string,mixed>>
+	 * @return array<int|string,array<string,mixed>>
 	 */
 	private function loadMetrics(array $ids): array
 	{
-		$metrics = (new Query())->select(['id', 'metrics'])->from(self::TABLE)->where(['id' => $ids])->pairs();
+		$metrics = (new Query())->select(['id', 'metrics'])->from(Tables::SNAPSHOTS)->where(['id' => $ids])->pairs();
 
-		return array_map(fn($json): array => is_string($json) && is_array($decoded = Json::decodeIfJson($json)) ? $decoded : [], $metrics);
+		return array_map(fn(mixed $json): array => is_string($json) ? Fill::map(Json::decodeIfJson($json)) : [], $metrics);
 	}
 
 	/**
@@ -409,7 +430,7 @@ class SnapshotService extends Component
 		$rows = [];
 
 		foreach ((new Query())->from($table)->where(['snapshotId' => $ids])->all() as $row) {
-			$rows[(int) $row['snapshotId']][] = $row;
+			$rows[Row::int($row, 'snapshotId')][] = $row;
 		}
 
 		return $rows;
@@ -427,7 +448,7 @@ class SnapshotService extends Component
 		$columns = ['snapshotId', ...array_keys($rows[0])];
 
 		foreach (array_chunk($rows, self::BATCH_SIZE) as $batch) {
-			Craft::$app->getDb()->createCommand()
+			$this->db->createCommand()
 				->batchInsert($table, $columns, array_map(fn(array $row): array => [$snapshotId, ...array_values($row)], $batch))
 				->execute();
 		}
@@ -443,11 +464,21 @@ class SnapshotService extends Component
 
 	private function now(): DateTime
 	{
-		return DateTimeHelper::now(new DateTimeZone(Craft::$app->getTimeZone()));
+		return DateTimeHelper::now(new DateTimeZone(date_default_timezone_get()));
 	}
 
 	private function toDate(string $date): DateTime
 	{
-		return DateTime::createFromFormat('!Y-m-d', substr($date, 0, 10), new DateTimeZone(Craft::$app->getTimeZone())) ?: $this->now();
+		return Fill::date(DateTime::createFromFormat('!Y-m-d', substr($date, 0, 10), new DateTimeZone(date_default_timezone_get()))) ?? $this->now();
+	}
+
+	/**
+	 * The statistics of a snapshot, counting the rows it kept instead of the content, summed like the live ones.
+	 */
+	public function getStatistics(Snapshot $snapshot): StatisticsService
+	{
+		$this->statisticsOf ??= new WeakMap();
+
+		return $this->statisticsOf[$snapshot] ??= $this->statistics->withSnapshot($snapshot->parts);
 	}
 }

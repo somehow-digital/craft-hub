@@ -116,7 +116,7 @@ $check('reference counts', fn() => $hub->references->getReferenceCounts([1]));
 $check('references of each', fn() => $hub->references->getReferencesOfEach([1], fn(): false => false));
 $check('children of deleted entries', fn() => (fn() => $this->childrenOf([1], [1]))->call($hub->deletion));
 $check('deleters', fn() => $hub->trash->getDeleters(ActivitySubject::Entry, [1]));
-$check('activity list', fn() => $hub->activity->getQuery(new ActivityFilter())->limit(1)->all());
+$check('activity list', fn() => $hub->feed->getQuery(new ActivityFilter())->limit(1)->all());
 $check('garbage collection', function () use ($hub): void {
 	$hub->labels->deleteOrphans();
 	$hub->activity->deleteExpired();

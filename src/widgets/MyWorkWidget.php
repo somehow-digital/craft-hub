@@ -10,8 +10,10 @@ use SomehowDigital\Craft\Hub\Hub;
 
 /**
  * Dashboard widget summing up the "My Work" page of the user, linking to it.
+ *
+ * @internal
  */
-class MyWork extends Widget
+final class MyWorkWidget extends Widget
 {
 	public static function displayName(): string
 	{
@@ -23,7 +25,7 @@ class MyWork extends Widget
 		return Hub::getInstance()->work->canView();
 	}
 
-	public static function icon(): ?string
+	public static function icon(): string
 	{
 		return 'list-check';
 	}

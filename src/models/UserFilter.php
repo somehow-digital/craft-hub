@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use DateTime;
 
 /**
  * Filters of the users list. Lists hold their values as they appear in the URL; empty lists and null values don't filter.
+ *
+ * @internal
  */
-class UserFilter
+final class UserFilter extends Model
 {
 	/** users in no group, as a value of the groups filter */
 	public const GROUP_NONE = 'none';
@@ -69,7 +72,7 @@ class UserFilter
 	public ?int $assetsMax = null;
 
 	/**
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public static function getLogins(): array
 	{

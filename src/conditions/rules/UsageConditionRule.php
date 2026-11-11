@@ -6,6 +6,7 @@ namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
 use craft\base\conditions\BaseMultiSelectConditionRule;
+use SomehowDigital\Craft\Hub\base\InfoConditionRuleInterface;
 use SomehowDigital\Craft\Hub\enums\UsageKind;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
@@ -14,14 +15,19 @@ use SomehowDigital\Craft\Hub\models\VolumeInfo;
 
 /**
  * Matches how an entry type is used, e.g. by sections or nested entry fields, or not at all.
+ *
+ * @internal
  */
-class UsageConditionRule extends BaseMultiSelectConditionRule implements InfoConditionRuleInterface
+final class UsageConditionRule extends BaseMultiSelectConditionRule implements InfoConditionRuleInterface
 {
 	public function getLabel(): string
 	{
 		return Craft::t('hub', 'Usage');
 	}
 
+	/**
+	 * @return list<array{value: string, label: string}|string>
+	 */
 	protected function options(): array
 	{
 		return array_map(fn(UsageKind $kind): array => ['value' => $kind->value, 'label' => $kind->label()], UsageKind::listed());

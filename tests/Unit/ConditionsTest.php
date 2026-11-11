@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use craft\base\conditions\ConditionRuleInterface;
 use craft\models\Section;
+use SomehowDigital\Craft\Hub\conditions\BaseInfoCondition;
 use SomehowDigital\Craft\Hub\conditions\EntryTypeCondition;
 use SomehowDigital\Craft\Hub\conditions\FieldCondition;
 use SomehowDigital\Craft\Hub\conditions\rules\ActivityConditionRule;
@@ -36,6 +37,7 @@ use SomehowDigital\Craft\Hub\conditions\VolumeCondition;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
 
 it('offers the rules that apply to each kind of item', function (string $class, array $rules): void {
+	/** @var class-string<BaseInfoCondition> $class */
 	$selectable = (new $class())->getSelectableConditionRules();
 
 	expect(array_map(fn(ConditionRuleInterface $rule): string => $rule::class, array_values($selectable)))->toBe($rules)

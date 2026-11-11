@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use DateTime;
 
 /**
  * Counts of a set of entries, like those of a section or an entry type.
+ *
+ * @internal
  */
-class EntryStatistics
+final class EntryStatistics extends Model
 {
 	public const ACTIVITY_RECENT = 'recent';
 	public const ACTIVITY_STALE = 'stale';
@@ -43,7 +46,7 @@ class EntryStatistics
 	}
 
 	/**
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public static function getActivities(): array
 	{
@@ -60,7 +63,9 @@ class EntryStatistics
 			return self::ACTIVITY_NONE;
 		}
 
-		$threshold = ($at instanceof DateTime ? clone $at : new DateTime())->modify(sprintf('-%d months', $staleMonths));
+		$now = $at instanceof DateTime ? clone $at : new DateTime();
+		$modified = $now->modify(sprintf('-%d months', $staleMonths));
+		$threshold = $modified instanceof DateTime ? $modified : $now;
 
 		return $this->lastUpdated < $threshold ? self::ACTIVITY_STALE : self::ACTIVITY_RECENT;
 	}

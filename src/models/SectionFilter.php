@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
+
 /**
  * Filters of the sections list. Lists hold their values as they appear in the URL; empty lists and null values don't filter.
+ *
+ * @internal
  */
-class SectionFilter
+final class SectionFilter extends Model
 {
 	/** matched against the name and handle */
 	public string $search = '';

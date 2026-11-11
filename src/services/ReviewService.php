@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\services;
 
+use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
@@ -11,20 +12,36 @@ use craft\elements\db\ElementQuery;
 use craft\elements\db\EntryQuery;
 use craft\elements\Entry;
 use DateTime;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\helpers\Aggregator;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use yii\base\Component;
 
 /**
  * Queries for section entries and assets worth reviewing for cleanup.
+ *
+ * @internal
  */
-class ReviewService extends Component
+final class ReviewService extends Component
 {
 	private const ENTRY_GROUPS = ['sectionId' => 'entries.sectionId', 'typeId' => 'entries.typeId'];
 
 	/** @var array<string,array<string,int>> grouped counts of the review queries, keyed by query and site scope */
 	private array $counts = [];
+
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly SiteScopeService $siteScope,
+		private readonly FilterService $filters,
+		private readonly QueryService $queries,
+		private readonly EditService $edits,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
 
 	/**
 	 * Number of stale entries, counted for all sections and entry types at once.
@@ -37,6 +54,8 @@ class ReviewService extends Component
 	/**
 	 * Entries with drafts that aren't provisional, as `canonicalId`, found in the drafts alone.
 	 * Finding them through the elements would visit each revision of each entry too.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	public function draftedQuery(): Query
 	{
@@ -51,7 +70,7 @@ class ReviewService extends Component
 	/**
 	 * Condition matching the queried entries with drafts on their site, only looking up the drafts of entries that have any.
 	 *
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	public function draftsCondition(): array
 	{
@@ -60,6 +79,8 @@ class ReviewService extends Component
 
 	/**
 	 * Drafts of the queried entry on its site; provisional drafts are unsaved changes of a single user, so they are left out.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	public function draftsQuery(): Query
 	{
@@ -79,7 +100,7 @@ class ReviewService extends Component
 	 * Condition matching the queried entries with drafts a user created, including their unsaved changes, which are
 	 * provisional drafts of that user alone.
 	 *
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	public function userDraftsCondition(int $userId): array
 	{
@@ -96,14 +117,14 @@ class ReviewService extends Component
 	/**
 	 * Condition matching images of the queried assets without alternative text on any of the counted sites.
 	 *
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	public function missingAltCondition(): array
 	{
 		$siteAlt = (new Query())
 			->from(['hubAssetsSites' => Table::ASSETS_SITES])
 			->where('[[hubAssetsSites.assetId]] = [[assets.id]]')
-			->andWhere(['hubAssetsSites.siteId' => Hub::getInstance()->siteScope->getSiteIds()])
+			->andWhere(['hubAssetsSites.siteId' => $this->siteScope->getSiteIds()])
 			->andWhere(['not', ['hubAssetsSites.alt' => null]])
 			->andWhere(['not', ['hubAssetsSites.alt' => '']]);
 
@@ -118,11 +139,11 @@ class ReviewService extends Component
 	/**
 	 * Condition matching images of the queried assets wider or taller than the large image threshold.
 	 *
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	public function largeImageCondition(): array
 	{
-		$pixels = Hub::getInstance()->filters->getThreshold(CheckKind::Assets, 'oversized');
+		$pixels = $this->filters->getThreshold(CheckKind::Assets, 'oversized');
 
 		return [
 			'and',
@@ -133,6 +154,8 @@ class ReviewService extends Component
 
 	/**
 	 * Live relations targeting the queried element.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	public function referencesQuery(): Query
 	{
@@ -149,11 +172,13 @@ class ReviewService extends Component
 
 	/**
 	 * Live reference tags targeting the queried element; drafts and revisions aren't indexed.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	public function tagReferencesQuery(): Query
 	{
 		return (new Query())
-			->from(['hubReferences' => ReferenceService::TABLE])
+			->from(['hubReferences' => Tables::REFERENCES])
 			->innerJoin(['hubTagSources' => Table::ELEMENTS], '[[hubTagSources.id]] = [[hubReferences.sourceId]]')
 			->where('[[hubReferences.targetId]] = [[elements.id]]')
 			->andWhere(['hubTagSources.dateDeleted' => null]);
@@ -164,7 +189,7 @@ class ReviewService extends Component
 	 * photo of a user.
 	 *
 	 * @param bool $photos whether the elements may be photos, which only assets are
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	public function referencedCondition(bool $photos = true): array
 	{
@@ -181,7 +206,7 @@ class ReviewService extends Component
 	 * {@see referencedCondition()}, as databases can only run each of them as an anti join on its own.
 	 *
 	 * @param bool $photos whether the elements may be photos, which only assets are
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	public function unreferencedCondition(bool $photos = true): array
 	{
@@ -216,17 +241,17 @@ class ReviewService extends Component
 	/**
 	 * Counts the elements of a review query by the given columns in a single query, and sums the counts matching the criteria.
 	 *
-	 * @param callable():ElementQuery $query
+	 * @param callable():ElementQuery<array-key,covariant ElementInterface> $query
 	 * @param array<string,string> $columns alias => column to group by
 	 * @param array<int,int|null> $criteria a value for each column, or null for any value
 	 */
 	private function countBy(string $name, callable $query, array $columns, array $criteria): int
 	{
-		$key = $name . ':' . implode(',', Hub::getInstance()->siteScope->getSiteIds());
+		$key = $name . ':' . implode(',', $this->siteScope->getSiteIds());
 
 		if (!isset($this->counts[$key])) {
-			$queries = Hub::getInstance()->queries;
-			$this->counts[$key] = Aggregator::index($queries->count($query(), $columns), array_keys($columns), fn(?int $sum, array $row): int => ($sum ?? 0) + (int) $row['total']);
+			$queries = $this->queries;
+			$this->counts[$key] = Aggregator::index($queries->count($query(), $columns), array_keys($columns), fn(?int $sum, array $row): int => ($sum ?? 0) + Row::int($row, 'total'));
 		}
 
 		return $this->counts[$key][Aggregator::key($criteria)] ?? 0;
@@ -236,26 +261,48 @@ class ReviewService extends Component
 	 * Entries that no person has edited within the given number of months, nested ones included, least recently edited first.
 	 *
 	 * @see EditService
+	 *
+	 * @return EntryQuery<array-key,Entry>
 	 */
 	public function getStaleQuery(int $months, ?int $sectionId = null, ?int $typeId = null, ?int $fieldId = null): EntryQuery
 	{
-		$edits = Hub::getInstance()->edits;
+		$edits = $this->edits;
 		$date = (new DateTime())->modify(sprintf('-%d months', $months));
 
 		return $this->createQuery($sectionId, $typeId, $fieldId)
-			->andWhere($edits->lastEditedCondition('< ' . $date->format(DateTime::ATOM)))
+			->andWhere($edits->lastEditedCondition('< ' . $date->format(DateTime::ATOM)) ?? [])
 			->orderBy([$edits->lastEditedSql() => SORT_ASC, 'elements.id' => SORT_ASC]);
 	}
 
+	/**
+	 * Condition leaving out the nested entries owned by drafts or revisions, which are copies, not content of their own.
+	 * Owners are looked up by their primary key for each entry on purpose: other forms are faster on some data, but need
+	 * memory that grows with all elements, drafts and revisions, failing or taking minutes on large sites.
+	 *
+	 * @return list<mixed>
+	 */
+	public function contentCondition(): array
+	{
+		return [
+			'or',
+			['entries.primaryOwnerId' => null],
+			['exists', (new Query())
+				->from(['hubOwners' => Table::ELEMENTS])
+				->where('[[hubOwners.id]] = [[entries.primaryOwnerId]]')
+				->andWhere(['hubOwners.dateDeleted' => null, 'hubOwners.draftId' => null, 'hubOwners.revisionId' => null])],
+		];
+	}
+
+	/**
+	 * @return EntryQuery<array-key,Entry>
+	 */
 	private function createQuery(?int $sectionId, ?int $typeId, ?int $fieldId = null): EntryQuery
 	{
-		$entries = Hub::getInstance()->entries;
-
 		$query = Entry::find()
-			->siteId(Hub::getInstance()->siteScope->getSiteIds())
+			->siteId($this->siteScope->getSiteIds())
 			->unique()
 			->status(null)
-			->andWhere($entries->contentCondition())
+			->andWhere($this->contentCondition())
 			->orderBy(['elements.dateUpdated' => SORT_ASC]);
 
 		if ($sectionId !== null) {

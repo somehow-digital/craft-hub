@@ -6,11 +6,14 @@ namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
+use craft\base\Model;
 
 /**
  * An element that references a given entry or asset, along with the fields it references it through.
+ *
+ * @internal
  */
-class EntryReference
+final class EntryReference extends Model
 {
 	/**
 	 * @var array<string,array{label:string,field:?FieldInterface}> keyed by label
@@ -19,7 +22,9 @@ class EntryReference
 
 	public function __construct(
 		public ElementInterface $element,
-	) {}
+	) {
+		parent::__construct();
+	}
 
 	/**
 	 * @param string $label field names leading to the reference, joined by arrows for nested entries

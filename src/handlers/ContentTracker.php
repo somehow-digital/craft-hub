@@ -10,7 +10,10 @@ use craft\elements\Entry;
 use craft\events\ElementEvent;
 use craft\events\MultiElementActionEvent;
 use craft\services\Elements;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Ids;
+use SomehowDigital\Craft\Hub\services\EditService;
+use SomehowDigital\Craft\Hub\services\ReferenceService;
+use SomehowDigital\Craft\Hub\services\WorkService;
 use yii\base\Event;
 
 /**
@@ -19,9 +22,17 @@ use yii\base\Event;
  *
  * Elements are indexed once they're saved on all their sites, so the copies saved while propagating are left out, but
  * elements propagated to other sites on their own, like when a site is added, are indexed again.
+ *
+ * @internal
  */
-class ContentTracker
+final readonly class ContentTracker
 {
+	public function __construct(
+		private ReferenceService $references,
+		private EditService $edits,
+		private WorkService $work,
+	) {}
+
 	public function register(): void
 	{
 		Event::on(Elements::class, Elements::EVENT_AFTER_SAVE_ELEMENT, fn(ElementEvent $event) => $this->elementSaved($event));
@@ -38,10 +49,10 @@ class ContentTracker
 			return;
 		}
 
-		Hub::getInstance()->references->index([$element->id]);
+		$this->references->index(Ids::of([$element]));
 
 		if ($element instanceof Entry) {
-			Hub::getInstance()->edits->record($element, $event->isNew || $element->firstSave);
+			$this->edits->record($element, $event->isNew || $element->firstSave);
 		}
 	}
 
@@ -51,14 +62,14 @@ class ContentTracker
 	private function forgetWork(ElementInterface $element): void
 	{
 		if (($element instanceof Entry || $element instanceof Asset) && !$element->propagating && !$element->getIsRevision() && !$element->isProvisionalDraft) {
-			Hub::getInstance()->work->forgetCounts();
+			$this->work->forgetCounts();
 		}
 	}
 
 	private function elementPropagated(MultiElementActionEvent $event): void
 	{
 		if (!$event->element->getIsDraft() && !$event->element->getIsRevision()) {
-			Hub::getInstance()->references->index([$event->element->id]);
+			$this->references->index(Ids::of([$event->element]));
 		}
 	}
 }

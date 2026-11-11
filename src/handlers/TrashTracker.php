@@ -8,7 +8,7 @@ use craft\elements\Asset;
 use craft\events\DeleteElementEvent;
 use craft\events\ElementEvent;
 use craft\services\Elements;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\services\TrashService;
 use yii\base\Event;
 
 /**
@@ -19,9 +19,15 @@ use yii\base\Event;
  *
  * Assets deleted permanently, like those of a folder being deleted, are left as they are, and so are those deleted along
  * with their volume, whose files Craft keeps itself.
+ *
+ * @internal
  */
-class TrashTracker
+final readonly class TrashTracker
 {
+	public function __construct(
+		private TrashService $trash,
+	) {}
+
 	public function register(): void
 	{
 		Event::on(Elements::class, Elements::EVENT_BEFORE_DELETE_ELEMENT, fn(DeleteElementEvent $event) => $this->deleting($event));
@@ -46,20 +52,18 @@ class TrashTracker
 			return;
 		}
 
-		$trash = Hub::getInstance()->trash;
-
 		if ($asset->hardDelete) {
 			// Deleted permanently, along with its file, unless it's kept for another reason.
-			$trash->forgetKeptFile((int) $asset->id);
+			$this->trash->forgetKeptFile((int) $asset->id);
 		} elseif ($asset->keepFileOnDelete && !$asset->deletedWithVolume) {
-			$trash->recordKeptFile($asset);
+			$this->trash->recordKeptFile($asset);
 		}
 	}
 
 	private function restored(ElementEvent $event): void
 	{
 		if ($event->element instanceof Asset) {
-			Hub::getInstance()->trash->forgetKeptFile((int) $event->element->id);
+			$this->trash->forgetKeptFile((int) $event->element->id);
 		}
 	}
 }

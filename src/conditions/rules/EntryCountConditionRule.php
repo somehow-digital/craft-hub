@@ -6,6 +6,7 @@ namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
 use craft\base\conditions\BaseNumberConditionRule;
+use SomehowDigital\Craft\Hub\base\InfoConditionRuleInterface;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
@@ -13,8 +14,10 @@ use SomehowDigital\Craft\Hub\models\VolumeInfo;
 
 /**
  * Matches the number of entries of a section or entry type, or nested in a field, on the selected sites.
+ *
+ * @internal
  */
-class EntryCountConditionRule extends BaseNumberConditionRule implements InfoConditionRuleInterface
+final class EntryCountConditionRule extends BaseNumberConditionRule implements InfoConditionRuleInterface
 {
 	public function getLabel(): string
 	{

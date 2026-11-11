@@ -7,34 +7,56 @@ namespace SomehowDigital\Craft\Hub\statistics;
 use Closure;
 use Craft;
 use craft\elements\User;
+use craft\services\UserGroups;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
-use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\Snapshot;
 use SomehowDigital\Craft\Hub\models\UserFilter;
 use SomehowDigital\Craft\Hub\models\UserStatistics;
+use SomehowDigital\Craft\Hub\services\FilterService;
+use SomehowDigital\Craft\Hub\services\SiteScopeService;
+use SomehowDigital\Craft\Hub\services\SnapshotService;
+use SomehowDigital\Craft\Hub\services\StatisticsService;
+use SomehowDigital\Craft\Hub\services\StructureService;
+use SomehowDigital\Craft\Hub\services\UserService;
+use SomehowDigital\Craft\Hub\services\VolumeService;
 
 /**
  * Statistics of the users list: its summary cards, linking to its filters.
+ *
+ * @internal
  */
-final class UsersSummary extends Summary
+final class UsersSummary extends BaseSummary
 {
+	public function __construct(
+		SiteScopeService $siteScope,
+		SnapshotService $snapshots,
+		StructureService $structure,
+		VolumeService $volumes,
+		StatisticsService $statistics,
+		private readonly FilterService $filters,
+		private readonly UserService $users,
+		private readonly UserGroups $craftUserGroups,
+	) {
+		parent::__construct($siteScope, $snapshots, $structure, $volumes, $statistics);
+	}
+
 	/**
 	 * Summary cards for the users list, linking to its filters.
 	 *
-	 * @return array<int,array<string,mixed>> see lazyCard()
+	 * @return list<array<string,mixed>> see lazyCard()
 	 */
 	public function index(): array
 	{
-		$users = Hub::getInstance()->users;
+		$users = $this->users;
 		$path = 'hub/data/users';
-		$months = Hub::getInstance()->filters->getThreshold(CheckKind::Users, 'idle');
+		$months = $this->filters->getThreshold(CheckKind::Users, 'idle');
 
 		$cards = [
 			$this->lazyCard(Craft::t('app', 'Users'), 'user', fn(): array => $this->usersCard($users->getStatistics(), $path), $this->usersHistory(fn(UserStatistics $stats): array => $this->usersCard($stats, $path))),
 		];
 
 		// Whether there are any groups is known without counting their users.
-		if (Craft::$app->getUserGroups()->getAllGroups() !== []) {
+		if ($this->craftUserGroups->getAllGroups() !== []) {
 			$cards[] = $this->lazyCard(Craft::t('app', 'User Groups'), 'users', function () use ($users, $path): array {
 				$counts = [];
 				$handles = [];

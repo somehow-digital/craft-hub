@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use SomehowDigital\Craft\Hub\enums\Severity;
 
 /**
  * Result of a single diagnostic check on a detail page.
+ *
+ * @internal
  */
-class Check
+final class Check extends Model
 {
 	/** key of the check as configured, see CheckDefinition::getKey() */
 	public ?string $key = null;
@@ -38,7 +41,9 @@ class Check
 		public Severity $severity,
 		public string $icon,
 		public bool $passed,
-	) {}
+	) {
+		parent::__construct();
+	}
 
 	/**
 	 * Links the check to the next step, unless there is nowhere to go, e.g. as the user can't open the page.

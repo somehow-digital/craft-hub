@@ -9,7 +9,7 @@ use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\elements\User;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\models\Check;
 use SomehowDigital\Craft\Hub\models\CheckDefinition;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
@@ -23,11 +23,25 @@ use yii\base\Component;
  * checks of its kind, as their filters match it, and, on the pages of sections, entry types and volumes, how many of
  * their entries or assets fail the checks of those, linking to the list of them. Failed checks come first, the most
  * urgent first.
+ *
+ * @internal
  */
-class CheckService extends Component
+final class CheckService extends Component
 {
 	/** @var array<string,Check[]> by the kind and ID of the item */
 	private array $checks = [];
+
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly DiagnosticsService $diagnostics,
+		private readonly AccessService $access,
+		private readonly SiteScopeService $siteScope,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
 
 	/**
 	 * @return Check[]
@@ -115,15 +129,15 @@ class CheckService extends Component
 
 	/**
 	 * @param array{0:CheckKind,1:array<string,int>,2:string}|null $held
-	 * @return Check[]
+	 * @return list<Check>
 	 */
 	private function check(CheckKind $kind, int $id, ?array $held, bool $counted): array
 	{
-		$diagnostics = Hub::getInstance()->diagnostics;
+		$diagnostics = $this->diagnostics;
 		$checks = [];
 
 		foreach ($diagnostics->getEnabledChecks($kind) as $definition) {
-			$checks[] = $this->create($definition, $definition->name, $definition->description, $definition->passedDescription ?: Craft::t('hub', 'Not flagged by this check.'), !$diagnostics->fails($definition, $id));
+			$checks[] = $this->create($definition, $definition->name, $definition->description, (Fill::text($definition->passedDescription) ?? Craft::t('hub', 'Not flagged by this check.')), !$diagnostics->fails($definition, $id));
 		}
 
 		if ($held !== null) {
@@ -138,21 +152,20 @@ class CheckService extends Component
 	 *
 	 * @param array{0:CheckKind,1:array<string,int>,2:string} $held see forItem()
 	 * @param bool $counted see forItem()
-	 * @return Check[]
+	 * @return list<Check>
 	 */
 	private function heldChecks(array $held, bool $counted): array
 	{
-		$hub = Hub::getInstance();
 		[$kind, $criteria, $path] = $held;
-		$canView = $hub->access->canView($kind->page());
+		$canView = $this->access->canView($kind->page());
 		$checks = [];
 
-		foreach ($hub->diagnostics->getEnabledChecks($kind) as $definition) {
-			$count = $counted ? $hub->diagnostics->countFailing($definition, $criteria) : null;
-			$failed = $count !== null ? $count > 0 : $hub->diagnostics->hasFailing($definition, $criteria);
+		foreach ($this->diagnostics->getEnabledChecks($kind) as $definition) {
+			$count = $counted ? $this->diagnostics->countFailing($definition, $criteria) : null;
+			$failed = $count !== null ? $count > 0 : $this->diagnostics->hasFailing($definition, $criteria);
 			$check = $this->create($definition, $definition->getListName(), $definition->getListDescription(), Craft::t('hub', 'Nothing is flagged by this check.'), !$failed);
-			$check->count = $count ?: null;
-			$checks[] = $check->link($canView ? $hub->siteScope->pageUrl($path, $definition->getFilter()?->getListParams() ?? []) : null, Craft::t('hub', 'Show list'));
+			$check->count = Fill::number($count);
+			$checks[] = $check->link($canView ? $this->siteScope->pageUrl($path, $definition->getFilter()?->getListParams() ?? []) : null, Craft::t('hub', 'Show list'));
 		}
 
 		return $checks;

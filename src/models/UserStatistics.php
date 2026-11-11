@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
+
 /**
  * Counts of the users, by status and by how they sign in.
  * Sign-ins and two-step verification are only counted for active users, as only they can sign in.
+ *
+ * @internal
  */
-class UserStatistics
+final class UserStatistics extends Model
 {
 	public int $total = 0;
 

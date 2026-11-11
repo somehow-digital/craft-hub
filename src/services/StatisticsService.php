@@ -5,16 +5,17 @@ declare(strict_types=1);
 namespace SomehowDigital\Craft\Hub\services;
 
 use Closure;
-use Craft;
+use craft\db\Connection;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
-use craft\helpers\DateTimeHelper;
 use craft\helpers\Db;
 use DateTime;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\helpers\Aggregator;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use SomehowDigital\Craft\Hub\helpers\SiteSet;
-use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\AssetStatistics;
 use SomehowDigital\Craft\Hub\models\EntryStatistics;
 use SomehowDigital\Craft\Hub\models\ReferenceStatistics;
@@ -24,9 +25,11 @@ use yii\db\Expression;
 /**
  * Aggregated entry, asset and reference counts, computed with a few grouped queries per set of sites.
  *
- * The statistics of a snapshot (see fromSnapshot()) count the rows the snapshot kept instead, summed the same way.
+ * The statistics of a snapshot (see withSnapshot()) count the rows the snapshot kept instead, summed the same way.
+ *
+ * @internal
  */
-class StatisticsService extends Component
+final class StatisticsService extends Component
 {
 	/** entries that are drafts, apart from provisional ones and unsaved drafts of new entries, like Craft's element indexes */
 	private const IS_DRAFT = '[[drafts.provisional]] = FALSE AND ([[elements.canonicalId]] IS NOT NULL OR [[drafts.saved]] = TRUE)';
@@ -34,7 +37,7 @@ class StatisticsService extends Component
 	/** when a person last edited an entry, see EditService */
 	private const LAST_EDITED = 'COALESCE([[edits.dateEdited]], [[elements.dateUpdated]])';
 
-	/** @var (Closure(string):array<int|string,mixed>)|null rows of a snapshot by their kind, see fromSnapshot() */
+	/** @var (Closure(string):array<int|string,mixed>)|null rows of a snapshot by their kind, see withSnapshot() */
 	private ?Closure $snapshot = null;
 
 	/** @var array<string,array<int,array{volumeId:int,kind:string,stats:AssetStatistics}>> */
@@ -57,6 +60,17 @@ class StatisticsService extends Component
 
 	/** @var array<string,array<string,AssetStatistics>> */
 	private array $assetSums = [];
+
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly SiteScopeService $siteScope,
+		private readonly Connection $db,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
 
 	/**
 	 * Entries are counted once, even when they exist on several of the given sites.
@@ -133,17 +147,17 @@ class StatisticsService extends Component
 
 		foreach ($results as $result) {
 			$stats = new EntryStatistics();
-			$stats->total = (int) $result['total'];
-			$stats->enabled = (int) $result['enabled'];
-			$stats->pending = (int) $result['pending'];
-			$stats->expired = (int) $result['expired'];
-			$stats->drafts = (int) $result['drafts'];
-			$stats->lastUpdated = $result['lastUpdated'] ? (DateTimeHelper::toDateTime($result['lastUpdated']) ?: null) : null;
+			$stats->total = Row::int($result, 'total');
+			$stats->enabled = Row::int($result, 'enabled');
+			$stats->pending = Row::int($result, 'pending');
+			$stats->expired = Row::int($result, 'expired');
+			$stats->drafts = Row::int($result, 'drafts');
+			$stats->lastUpdated = Row::date($result, 'lastUpdated');
 
 			$rows[] = [
-				'sectionId' => $result['sectionId'] !== null ? (int) $result['sectionId'] : null,
-				'typeId' => (int) $result['typeId'],
-				'fieldId' => $result['fieldId'] !== null ? (int) $result['fieldId'] : null,
+				'sectionId' => Row::intOrNull($result, 'sectionId'),
+				'typeId' => Row::int($result, 'typeId'),
+				'fieldId' => Row::intOrNull($result, 'fieldId'),
 				'stats' => $stats,
 			];
 		}
@@ -180,14 +194,14 @@ class StatisticsService extends Component
 
 		foreach ($results as $result) {
 			$stats = new ReferenceStatistics();
-			$stats->references = (int) $result['references'];
-			$stats->sources = (int) $result['sources'];
-			$stats->targets = (int) $result['targets'];
+			$stats->references = Row::int($result, 'references');
+			$stats->sources = Row::int($result, 'sources');
+			$stats->targets = Row::int($result, 'targets');
 
 			$rows[] = [
-				'fieldId' => (int) $result['fieldId'],
-				'sectionId' => $result['sectionId'] !== null ? (int) $result['sectionId'] : null,
-				'volumeId' => $result['volumeId'] !== null ? (int) $result['volumeId'] : null,
+				'fieldId' => Row::int($result, 'fieldId'),
+				'sectionId' => Row::intOrNull($result, 'sectionId'),
+				'volumeId' => Row::intOrNull($result, 'volumeId'),
 				'stats' => $stats,
 			];
 		}
@@ -208,7 +222,7 @@ class StatisticsService extends Component
 		$sums = $this->entrySums[$this->cacheKey($siteIds) . ':' . json_encode($nested, JSON_THROW_ON_ERROR)] ??= Aggregator::index(
 			$this->getEntryRows($siteIds, $nested),
 			['sectionId', 'typeId', 'fieldId'],
-			fn(?EntryStatistics $sum, array $row): EntryStatistics => ($sum ?? new EntryStatistics())->add($row['stats']),
+			fn(?EntryStatistics $sum, array $row): EntryStatistics => ($sum ?? new EntryStatistics())->add(Row::instance($row, 'stats', EntryStatistics::class)),
 		);
 
 		$sum = $sums[Aggregator::key([$sectionId, $typeId, $fieldId])] ?? null;
@@ -226,7 +240,7 @@ class StatisticsService extends Component
 		$sums = $this->referenceSums[$this->cacheKey($siteIds)] ??= Aggregator::index(
 			$this->getReferenceRows($siteIds),
 			['fieldId', 'sectionId', 'volumeId'],
-			fn(?ReferenceStatistics $sum, array $row): ReferenceStatistics => ($sum ?? new ReferenceStatistics())->add($row['stats']),
+			fn(?ReferenceStatistics $sum, array $row): ReferenceStatistics => ($sum ?? new ReferenceStatistics())->add(Row::instance($row, 'stats', ReferenceStatistics::class)),
 		);
 
 		$sum = $sums[Aggregator::key([$fieldId, $sectionId, $volumeId])] ?? null;
@@ -278,7 +292,7 @@ class StatisticsService extends Component
 			->andWhere(['not', ['hubAssetsSites.alt' => '']]);
 
 		$tagged = (new Query())
-			->from(['hubReferences' => ReferenceService::TABLE])
+			->from(['hubReferences' => Tables::REFERENCES])
 			->innerJoin(['hubTagSources' => Table::ELEMENTS], '[[hubTagSources.id]] = [[hubReferences.sourceId]]')
 			->where('[[hubReferences.targetId]] = [[assets.id]]')
 			->andWhere(['hubTagSources.dateDeleted' => null])
@@ -332,17 +346,17 @@ class StatisticsService extends Component
 
 		foreach ($results as $result) {
 			$stats = new AssetStatistics();
-			$stats->total = (int) $result['total'];
-			$stats->used = (int) $result['used'];
-			$stats->images = (int) $result['images'];
-			$stats->missingAlt = (int) $result['missingAlt'];
-			$stats->size = (int) $result['size'];
-			$stats->unusedSize = (int) $result['unusedSize'];
-			$stats->lastUploaded = $result['lastUploaded'] ? (DateTimeHelper::toDateTime($result['lastUploaded']) ?: null) : null;
+			$stats->total = Row::int($result, 'total');
+			$stats->used = Row::int($result, 'used');
+			$stats->images = Row::int($result, 'images');
+			$stats->missingAlt = Row::int($result, 'missingAlt');
+			$stats->size = Row::int($result, 'size');
+			$stats->unusedSize = Row::int($result, 'unusedSize');
+			$stats->lastUploaded = Row::date($result, 'lastUploaded');
 
 			$rows[] = [
-				'volumeId' => (int) $result['volumeId'],
-				'kind' => (string) $result['kind'],
+				'volumeId' => Row::int($result, 'volumeId'),
+				'kind' => Row::string($result, 'kind'),
 				'stats' => $stats,
 			];
 		}
@@ -371,7 +385,7 @@ class StatisticsService extends Component
 			return array_map(strval(...), array_keys($totals));
 		}
 
-		return $this->assetKinds[$key] ??= array_map(strval(...), $this->assetQuery()
+		return $this->assetKinds[$key] ??= array_map(static fn(mixed $kind): string => Fill::text($kind) ?? '', $this->assetQuery()
 			->select(['assets.kind'])
 			->andWhere(['exists', (new Query())
 				->from(['elements_sites' => Table::ELEMENTS_SITES])
@@ -392,7 +406,7 @@ class StatisticsService extends Component
 		$sums = $this->assetSums[$this->cacheKey($siteIds)] ??= Aggregator::index(
 			$this->getAssetRows($siteIds),
 			['volumeId', 'kind'],
-			fn(?AssetStatistics $sum, array $row): AssetStatistics => ($sum ?? new AssetStatistics())->add($row['stats']),
+			fn(?AssetStatistics $sum, array $row): AssetStatistics => ($sum ?? new AssetStatistics())->add(Row::instance($row, 'stats', AssetStatistics::class)),
 		);
 
 		$sum = $sums[Aggregator::key([$volumeId, $kind])] ?? null;
@@ -407,9 +421,9 @@ class StatisticsService extends Component
 	 * @param Closure(string):array<int|string,mixed> $rows rows of the snapshot by their kind, loaded once asked for: `entries`
 	 * (see collectEntryRows()), `assets` (see collectAssetRows()) or `references` (see collectReferenceRows())
 	 */
-	public static function fromSnapshot(Closure $rows): self
+	public function withSnapshot(Closure $rows): self
 	{
-		$statistics = new self();
+		$statistics = new self($this->siteScope, $this->db);
 		$statistics->snapshot = $rows;
 
 		return $statistics;
@@ -419,7 +433,7 @@ class StatisticsService extends Component
 	 * Entry counts of all sites, for a snapshot: by section, entry type and field, like getEntryRows(), and by the set of
 	 * sites the entries are on and the set of those they're enabled on, so they can be counted for any sites later.
 	 *
-	 * @return array<int,array{sectionId:?int,typeId:int,fieldId:?int,sites:string,enabledSites:?string,total:int,enabled:int,pending:int,expired:int,drafts:int,lastUpdated:?string}>
+	 * @return list<array{sectionId:?int,typeId:int,fieldId:?int,sites:string,enabledSites:?string,total:int,enabled:int,pending:int,expired:int,drafts:int,lastUpdated:?string}>
 	 */
 	public function collectEntryRows(): array
 	{
@@ -460,26 +474,26 @@ class StatisticsService extends Component
 			->groupBy(['sectionId', 'typeId', 'fieldId', 'sites', 'enabledSites'])
 			->all();
 
-		return array_map(fn(array $result): array => [
-			'sectionId' => $result['sectionId'] !== null ? (int) $result['sectionId'] : null,
-			'typeId' => (int) $result['typeId'],
-			'fieldId' => $result['fieldId'] !== null ? (int) $result['fieldId'] : null,
+		return array_values(array_map(fn(array $result): array => [
+			'sectionId' => Row::intOrNull($result, 'sectionId'),
+			'typeId' => Row::int($result, 'typeId'),
+			'fieldId' => Row::intOrNull($result, 'fieldId'),
 			'sites' => (string) SiteSet::format(SiteSet::parse($result['sites'])),
 			'enabledSites' => SiteSet::format(SiteSet::parse($result['enabledSites'])),
-			'total' => (int) $result['total'],
-			'enabled' => (int) $result['enabled'],
-			'pending' => (int) $result['pending'],
-			'expired' => (int) $result['expired'],
-			'drafts' => (int) $result['drafts'],
-			'lastUpdated' => $result['lastUpdated'] ?: null,
-		], $results);
+			'total' => Row::int($result, 'total'),
+			'enabled' => Row::int($result, 'enabled'),
+			'pending' => Row::int($result, 'pending'),
+			'expired' => Row::int($result, 'expired'),
+			'drafts' => Row::int($result, 'drafts'),
+			'lastUpdated' => Fill::text($result['lastUpdated']),
+		], $results));
 	}
 
 	/**
 	 * Asset counts of all sites, for a snapshot: by volume and file kind, like getAssetRows(), and by the set of sites the
 	 * assets are on, the set of those they're used from and the set of those they have alternative text on.
 	 *
-	 * @return array<int,array{volumeId:int,kind:string,sites:string,usedSites:?string,altSites:?string,total:int,size:int,lastUploaded:?string}>
+	 * @return list<array{volumeId:int,kind:string,sites:string,usedSites:?string,altSites:?string,total:int,size:int,lastUploaded:?string}>
 	 */
 	public function collectAssetRows(): array
 	{
@@ -497,7 +511,7 @@ class StatisticsService extends Component
 
 		$tagged = (new Query())
 			->select(new Expression($this->concatIds('[[hubReferences.sourceSiteId]]', true)))
-			->from(['hubReferences' => ReferenceService::TABLE])
+			->from(['hubReferences' => Tables::REFERENCES])
 			->innerJoin(['hubTagSources' => Table::ELEMENTS], '[[hubTagSources.id]] = [[hubReferences.sourceId]]')
 			->where('[[hubReferences.targetId]] = [[assets.id]]')
 			->andWhere(['hubTagSources.dateDeleted' => null]);
@@ -550,18 +564,18 @@ class StatisticsService extends Component
 
 		foreach ($results as $result) {
 			$row = [
-				'volumeId' => (int) $result['volumeId'],
-				'kind' => (string) $result['kind'],
-				'sites' => (string) SiteSet::format(SiteSet::parse($result['sites'])),
-				'usedSites' => SiteSet::union($result['usedSites'], $result['taggedSites']),
-				'altSites' => $result['kind'] === Asset::KIND_IMAGE ? SiteSet::format(SiteSet::parse($result['altSites'])) : null,
+				'volumeId' => Row::int($result, 'volumeId'),
+				'kind' => Row::string($result, 'kind'),
+				'sites' => (string) SiteSet::format(SiteSet::parse(Row::value($result, 'sites'))),
+				'usedSites' => SiteSet::union(Row::value($result, 'usedSites'), Row::value($result, 'taggedSites')),
+				'altSites' => Row::value($result, 'kind') === Asset::KIND_IMAGE ? SiteSet::format(SiteSet::parse(Row::value($result, 'altSites'))) : null,
 			];
 			$key = implode('|', array_map(fn(int|string|null $value): string => (string) $value, $row));
-			$lastUploaded = $result['lastUploaded'] ?: null;
+			$lastUploaded = Fill::text(Row::value($result, 'lastUploaded'));
 
 			$rows[$key] ??= [...$row, 'total' => 0, 'size' => 0, 'lastUploaded' => null];
-			$rows[$key]['total'] += (int) $result['total'];
-			$rows[$key]['size'] += (int) $result['size'];
+			$rows[$key]['total'] += Row::int($result, 'total');
+			$rows[$key]['size'] += Row::int($result, 'size');
 			$rows[$key]['lastUploaded'] = max($rows[$key]['lastUploaded'], $lastUploaded);
 		}
 
@@ -572,7 +586,7 @@ class StatisticsService extends Component
 	 * Reference counts of all sites, for a snapshot: by field and target section or volume, like getReferenceRows(), and by
 	 * the site of their source, null for relations of fields that aren't translatable.
 	 *
-	 * @return array<int,array{fieldId:int,sectionId:?int,volumeId:?int,siteId:?int,references:int,sources:int,targets:int}>
+	 * @return list<array{fieldId:int,sectionId:?int,volumeId:?int,siteId:?int,references:int,sources:int,targets:int}>
 	 */
 	public function collectReferenceRows(): array
 	{
@@ -581,20 +595,22 @@ class StatisticsService extends Component
 			->groupBy(['relations.fieldId', 'targets.sectionId', 'targetAssets.volumeId', 'relations.sourceSiteId'])
 			->all();
 
-		return array_map(fn(array $result): array => [
-			'fieldId' => (int) $result['fieldId'],
-			'sectionId' => $result['sectionId'] !== null ? (int) $result['sectionId'] : null,
-			'volumeId' => $result['volumeId'] !== null ? (int) $result['volumeId'] : null,
-			'siteId' => $result['siteId'] !== null ? (int) $result['siteId'] : null,
-			'references' => (int) $result['references'],
-			'sources' => (int) $result['sources'],
-			'targets' => (int) $result['targets'],
-		], $results);
+		return array_values(array_map(fn(array $result): array => [
+			'fieldId' => Row::int($result, 'fieldId'),
+			'sectionId' => Row::intOrNull($result, 'sectionId'),
+			'volumeId' => Row::intOrNull($result, 'volumeId'),
+			'siteId' => Row::intOrNull($result, 'siteId'),
+			'references' => Row::int($result, 'references'),
+			'sources' => Row::int($result, 'sources'),
+			'targets' => Row::int($result, 'targets'),
+		], $results));
 	}
 
 	/**
 	 * Entries that are content of their own, on any site: neither deleted nor revisions, nor nested entries owned by drafts
 	 * or revisions, which are copies.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	private function entryQuery(): Query
 	{
@@ -602,7 +618,7 @@ class StatisticsService extends Component
 			->from(['entries' => Table::ENTRIES])
 			->innerJoin(['elements' => Table::ELEMENTS], '[[elements.id]] = [[entries.id]]')
 			->leftJoin(['drafts' => Table::DRAFTS], '[[drafts.id]] = [[elements.draftId]]')
-			->leftJoin(['edits' => EditService::TABLE], '[[edits.elementId]] = [[elements.id]]')
+			->leftJoin(['edits' => Tables::EDITS], '[[edits.elementId]] = [[elements.id]]')
 			->leftJoin(['owners' => Table::ELEMENTS], '[[owners.id]] = [[entries.primaryOwnerId]]')
 			->where([
 				'elements.dateDeleted' => null,
@@ -618,14 +634,19 @@ class StatisticsService extends Component
 	/**
 	 * Keeps a subquery of a row for each item apart from the sums over it. PostgreSQL pulls it up into them otherwise,
 	 * evaluating its columns again for each sum referring to them; MySQL keeps subqueries apart that select subqueries already.
+	 *
+	 * @param Query<array-key,mixed> $rows
+	 * @return Query<array-key,mixed>
 	 */
 	private function keepApart(Query $rows): Query
 	{
-		return Craft::$app->getDb()->getIsPgsql() ? $rows->offset(new Expression('0')) : $rows;
+		return $this->db->getIsPgsql() ? $rows->offset(new Expression('0')) : $rows;
 	}
 
 	/**
 	 * Assets of volumes, on any site, apart from deleted ones, drafts and revisions.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	private function assetQuery(): Query
 	{
@@ -643,6 +664,8 @@ class StatisticsService extends Component
 	/**
 	 * Relations from live elements to elements that aren't deleted, from any site, counted by field and target section or
 	 * volume.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	private function referenceQuery(): Query
 	{
@@ -691,46 +714,57 @@ class StatisticsService extends Component
 	 */
 	private function concatIds(string $column, bool $distinct = false): string
 	{
-		$distinct = $distinct ? 'DISTINCT ' : '';
+		$keyword = $distinct ? 'DISTINCT ' : '';
 
-		if (Craft::$app->getDb()->getIsPgsql()) {
+		if ($this->db->getIsPgsql()) {
 			// PostgreSQL sorts distinct values by the aggregated expression only.
-			return "STRING_AGG({$distinct}CAST({$column} AS VARCHAR), ',' ORDER BY CAST({$column} AS VARCHAR))";
+			return "STRING_AGG({$keyword}CAST({$column} AS VARCHAR), ',' ORDER BY CAST({$column} AS VARCHAR))";
 		}
 
-		return "GROUP_CONCAT({$distinct}$column ORDER BY {$column} SEPARATOR ',')";
+		return "GROUP_CONCAT({$keyword}$column ORDER BY {$column} SEPARATOR ',')";
+	}
+
+	/**
+	 * @return list<array<string,mixed>>
+	 */
+	private function snapshotRows(string $kind): array
+	{
+		/** @var list<array<string,mixed>> $rows */
+		$rows = $this->snapshot instanceof Closure ? array_values(($this->snapshot)($kind)) : [];
+
+		return $rows;
 	}
 
 	/**
 	 * Entry rows of a snapshot counted for the sites, like getEntryRows() counts the live ones.
 	 *
 	 * @param int[] $siteIds
-	 * @return array<int,array{sectionId:?int,typeId:int,fieldId:?int,stats:EntryStatistics}>
+	 * @return list<array{sectionId:?int,typeId:int,fieldId:?int,stats:EntryStatistics}>
 	 */
 	private function snapshotEntryRows(array $siteIds, bool $nested): array
 	{
 		$rows = [];
 
-		foreach (($this->snapshot)('entries') as $row) {
-			$sectionId = $row['sectionId'] !== null ? (int) $row['sectionId'] : null;
+		foreach ($this->snapshotRows('entries') as $row) {
+			$sectionId = Row::intOrNull($row, 'sectionId');
 
 			if (($sectionId === null) !== $nested || !SiteSet::matches($row['sites'], $siteIds)) {
 				continue;
 			}
 
 			$stats = new EntryStatistics();
-			$stats->total = (int) $row['total'];
-			$stats->drafts = (int) $row['drafts'];
-			$stats->lastUpdated = $row['lastUpdated'] ? (DateTimeHelper::toDateTime($row['lastUpdated']) ?: null) : null;
+			$stats->total = Row::int($row, 'total');
+			$stats->drafts = Row::int($row, 'drafts');
+			$stats->lastUpdated = Row::date($row, 'lastUpdated');
 
 			// Entries are enabled on the sites when they're enabled on any of them.
 			if (SiteSet::matches($row['enabledSites'], $siteIds)) {
-				$stats->enabled = (int) $row['enabled'];
-				$stats->pending = (int) $row['pending'];
-				$stats->expired = (int) $row['expired'];
+				$stats->enabled = Row::int($row, 'enabled');
+				$stats->pending = Row::int($row, 'pending');
+				$stats->expired = Row::int($row, 'expired');
 			}
 
-			$criteria = [$sectionId, (int) $row['typeId'], $row['fieldId'] !== null ? (int) $row['fieldId'] : null];
+			$criteria = [$sectionId, Row::int($row, 'typeId'), Row::intOrNull($row, 'fieldId')];
 			$rows[Aggregator::key($criteria)] ??= [
 				'sectionId' => $criteria[0],
 				'typeId' => $criteria[1],
@@ -747,13 +781,13 @@ class StatisticsService extends Component
 	 * Asset rows of a snapshot counted for the sites, like getAssetRows() counts the live ones.
 	 *
 	 * @param int[] $siteIds
-	 * @return array<int,array{volumeId:int,kind:string,stats:AssetStatistics}>
+	 * @return list<array{volumeId:int,kind:string,stats:AssetStatistics}>
 	 */
 	private function snapshotAssetRows(array $siteIds): array
 	{
 		$rows = [];
 
-		foreach (($this->snapshot)('assets') as $row) {
+		foreach ($this->snapshotRows('assets') as $row) {
 			if (!SiteSet::matches($row['sites'], $siteIds)) {
 				continue;
 			}
@@ -762,16 +796,16 @@ class StatisticsService extends Component
 			$isImage = $row['kind'] === Asset::KIND_IMAGE;
 
 			$stats = new AssetStatistics();
-			$stats->total = (int) $row['total'];
+			$stats->total = Row::int($row, 'total');
 			$stats->used = $used ? $stats->total : 0;
 			$stats->images = $isImage ? $stats->total : 0;
 			$stats->missingAlt = $isImage && !SiteSet::matches($row['altSites'], $siteIds) ? $stats->total : 0;
-			$stats->size = (int) $row['size'];
+			$stats->size = Row::int($row, 'size');
 			$stats->unusedSize = $used ? 0 : $stats->size;
-			$stats->lastUploaded = $row['lastUploaded'] ? (DateTimeHelper::toDateTime($row['lastUploaded']) ?: null) : null;
+			$stats->lastUploaded = Row::date($row, 'lastUploaded');
 
-			$key = Aggregator::key([(int) $row['volumeId'], (string) $row['kind']]);
-			$rows[$key] ??= ['volumeId' => (int) $row['volumeId'], 'kind' => (string) $row['kind'], 'stats' => new AssetStatistics()];
+			$key = Aggregator::key([Row::int($row, 'volumeId'), Row::string($row, 'kind')]);
+			$rows[$key] ??= ['volumeId' => Row::int($row, 'volumeId'), 'kind' => Row::string($row, 'kind'), 'stats' => new AssetStatistics()];
 			$rows[$key]['stats']->add($stats);
 		}
 
@@ -783,26 +817,26 @@ class StatisticsService extends Component
 	 * are counted once per site, so they're summed for several sites, and may count the same element more than once then.
 	 *
 	 * @param int[] $siteIds
-	 * @return array<int,array{fieldId:int,sectionId:?int,volumeId:?int,stats:ReferenceStatistics}>
+	 * @return list<array{fieldId:int,sectionId:?int,volumeId:?int,stats:ReferenceStatistics}>
 	 */
 	private function snapshotReferenceRows(array $siteIds): array
 	{
 		$rows = [];
 
-		foreach (($this->snapshot)('references') as $row) {
-			if ($row['siteId'] !== null && !in_array((int) $row['siteId'], $siteIds, false)) {
+		foreach ($this->snapshotRows('references') as $row) {
+			if ($row['siteId'] !== null && !in_array(Row::int($row, 'siteId'), $siteIds, true)) {
 				continue;
 			}
 
 			$stats = new ReferenceStatistics();
-			$stats->references = (int) $row['references'];
-			$stats->sources = (int) $row['sources'];
-			$stats->targets = (int) $row['targets'];
+			$stats->references = Row::int($row, 'references');
+			$stats->sources = Row::int($row, 'sources');
+			$stats->targets = Row::int($row, 'targets');
 
 			$criteria = [
-				(int) $row['fieldId'],
-				$row['sectionId'] !== null ? (int) $row['sectionId'] : null,
-				$row['volumeId'] !== null ? (int) $row['volumeId'] : null,
+				Row::int($row, 'fieldId'),
+				Row::intOrNull($row, 'sectionId'),
+				Row::intOrNull($row, 'volumeId'),
 			];
 			$rows[Aggregator::key($criteria)] ??= [
 				'fieldId' => $criteria[0],
@@ -830,10 +864,12 @@ class StatisticsService extends Component
 	 * Condition matching the elements on any of the sites, or nothing on all sites, which every element is on one of.
 	 *
 	 * @param int[] $siteIds
-	 * @return array<int|string,mixed>
+	 * @return list<mixed>
+	 *
+	 * @param Query<array-key,mixed> $onSites
 	 */
 	private function onSitesCondition(array $siteIds, Query $onSites): array
 	{
-		return Hub::getInstance()->siteScope->coversAllSites($siteIds) ? [] : ['exists', $onSites];
+		return $this->siteScope->coversAllSites($siteIds) ? [] : ['exists', $onSites];
 	}
 }

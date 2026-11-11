@@ -13,11 +13,12 @@ use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\UserGroup;
 use craft\models\Volume;
-use SomehowDigital\Craft\Hub\Hub;
 
 /**
  * The pages of Hub's lists, below the "Data" and the "Structure" navigation items, each viewed, labeled and bulk-edited
  * by a permission of its own, nested under the permission accessing its area.
+ *
+ * @internal
  */
 enum Page: string
 {
@@ -67,7 +68,7 @@ enum Page: string
 	 */
 	public function areaPermission(): string
 	{
-		return $this->isStructure() ? Hub::PERMISSION_ACCESS_STRUCTURE : Hub::PERMISSION_ACCESS_DATA;
+		return $this->isStructure() ? Permission::AccessStructure->value : Permission::AccessData->value;
 	}
 
 	public function viewPermission(): string
@@ -95,28 +96,28 @@ enum Page: string
 	{
 		return match ($this) {
 			self::Entries => [
-				Hub::PERMISSION_EXPORT_ENTRIES => Craft::t('hub', 'Export entries'),
-				Hub::PERMISSION_ENABLE_ENTRIES => Craft::t('hub', 'Enable and disable entries'),
-				Hub::PERMISSION_CHANGE_AUTHORS => Craft::t('hub', 'Change the authors of entries'),
-				Hub::PERMISSION_MOVE_ENTRIES => Craft::t('hub', 'Move entries to another section'),
-				Hub::PERMISSION_DELETE_DRAFTS => Craft::t('hub', 'Delete drafts of entries'),
-				Hub::PERMISSION_DELETE_ENTRIES => Craft::t('hub', 'Delete entries'),
+				Permission::ExportEntries->value => Craft::t('hub', 'Export entries'),
+				Permission::EnableEntries->value => Craft::t('hub', 'Enable and disable entries'),
+				Permission::ChangeAuthors->value => Craft::t('hub', 'Change the authors of entries'),
+				Permission::MoveEntries->value => Craft::t('hub', 'Move entries to another section'),
+				Permission::DeleteDrafts->value => Craft::t('hub', 'Delete drafts of entries'),
+				Permission::DeleteEntries->value => Craft::t('hub', 'Delete entries'),
 			],
 			self::Assets => [
-				Hub::PERMISSION_EXPORT_ASSETS => Craft::t('hub', 'Export assets'),
-				Hub::PERMISSION_DOWNLOAD_ASSETS => Craft::t('hub', 'Download assets'),
-				Hub::PERMISSION_MOVE_ASSETS => Craft::t('hub', 'Move assets to another folder'),
-				Hub::PERMISSION_GENERATE_TRANSFORMS => Craft::t('hub', 'Generate asset transforms'),
-				Hub::PERMISSION_DELETE_TRANSFORMS => Craft::t('hub', 'Delete asset transforms'),
-				Hub::PERMISSION_DELETE_ASSETS => Craft::t('hub', 'Delete assets'),
+				Permission::ExportAssets->value => Craft::t('hub', 'Export assets'),
+				Permission::DownloadAssets->value => Craft::t('hub', 'Download assets'),
+				Permission::MoveAssets->value => Craft::t('hub', 'Move assets to another folder'),
+				Permission::GenerateTransforms->value => Craft::t('hub', 'Generate asset transforms'),
+				Permission::DeleteTransforms->value => Craft::t('hub', 'Delete asset transforms'),
+				Permission::DeleteAssets->value => Craft::t('hub', 'Delete assets'),
 			],
 			self::Users => [
-				Hub::PERMISSION_EXPORT_USERS => Craft::t('hub', 'Export users'),
-				Hub::PERMISSION_ASSIGN_USER_GROUPS => Craft::t('hub', 'Change the groups of users'),
-				Hub::PERMISSION_SUSPEND_USERS => Craft::t('hub', 'Suspend users'),
-				Hub::PERMISSION_DELETE_USERS => Craft::t('hub', 'Delete users'),
+				Permission::ExportUsers->value => Craft::t('hub', 'Export users'),
+				Permission::AssignUserGroups->value => Craft::t('hub', 'Change the groups of users'),
+				Permission::SuspendUsers->value => Craft::t('hub', 'Suspend users'),
+				Permission::DeleteUsers->value => Craft::t('hub', 'Delete users'),
 			],
-			default => [],
+			self::EntryTypes, self::Sections, self::Fields, self::Volumes => [],
 		};
 	}
 
@@ -126,9 +127,9 @@ enum Page: string
 	public function trashPermission(): ?string
 	{
 		return match ($this) {
-			self::Entries => Hub::PERMISSION_VIEW_TRASHED_ENTRIES,
-			self::Assets => Hub::PERMISSION_VIEW_TRASHED_ASSETS,
-			default => null,
+			self::Entries => Permission::ViewTrashedEntries->value,
+			self::Assets => Permission::ViewTrashedAssets->value,
+			self::Users, self::EntryTypes, self::Sections, self::Fields, self::Volumes => null,
 		};
 	}
 
@@ -140,7 +141,7 @@ enum Page: string
 		return match ($this) {
 			self::Entries => Craft::t('hub', 'View trashed entries'),
 			self::Assets => Craft::t('hub', 'View trashed assets'),
-			default => null,
+			self::Users, self::EntryTypes, self::Sections, self::Fields, self::Volumes => null,
 		};
 	}
 
@@ -154,16 +155,16 @@ enum Page: string
 	{
 		return match ($this) {
 			self::Entries => [
-				Hub::PERMISSION_EXPORT_TRASHED_ENTRIES => Craft::t('hub', 'Export trashed entries'),
-				Hub::PERMISSION_RESTORE_ENTRIES => Craft::t('hub', 'Restore entries'),
-				Hub::PERMISSION_PURGE_ENTRIES => Craft::t('hub', 'Delete entries permanently'),
+				Permission::ExportTrashedEntries->value => Craft::t('hub', 'Export trashed entries'),
+				Permission::RestoreEntries->value => Craft::t('hub', 'Restore entries'),
+				Permission::PurgeEntries->value => Craft::t('hub', 'Delete entries permanently'),
 			],
 			self::Assets => [
-				Hub::PERMISSION_EXPORT_TRASHED_ASSETS => Craft::t('hub', 'Export trashed assets'),
-				Hub::PERMISSION_RESTORE_ASSETS => Craft::t('hub', 'Restore assets'),
-				Hub::PERMISSION_PURGE_ASSETS => Craft::t('hub', 'Delete assets permanently'),
+				Permission::ExportTrashedAssets->value => Craft::t('hub', 'Export trashed assets'),
+				Permission::RestoreAssets->value => Craft::t('hub', 'Restore assets'),
+				Permission::PurgeAssets->value => Craft::t('hub', 'Delete assets permanently'),
 			],
-			default => [],
+			self::Users, self::EntryTypes, self::Sections, self::Fields, self::Volumes => [],
 		};
 	}
 
@@ -208,7 +209,7 @@ enum Page: string
 	{
 		return match ($this) {
 			self::EntryTypes => 'entry-types',
-			default => $this->value,
+			self::Entries, self::Assets, self::Users, self::Sections, self::Fields, self::Volumes => $this->value,
 		};
 	}
 }

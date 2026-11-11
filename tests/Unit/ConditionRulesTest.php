@@ -9,6 +9,7 @@ use craft\fields\PlainText;
 use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\Volume;
+use ReflectionMethod;
 use SomehowDigital\Craft\Hub\conditions\rules\ActivityConditionRule;
 use SomehowDigital\Craft\Hub\conditions\rules\AssetCountConditionRule;
 use SomehowDigital\Craft\Hub\conditions\rules\DataKindConditionRule;
@@ -38,12 +39,9 @@ use SomehowDigital\Craft\Hub\enums\UsageKind;
 use SomehowDigital\Craft\Hub\models\AssetStatistics;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
-use SomehowDigital\Craft\Hub\models\FileKindInfo;
 use SomehowDigital\Craft\Hub\models\LayoutUsage;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
 use SomehowDigital\Craft\Hub\models\VolumeInfo;
-use SomehowDigital\Craft\Hub\services\StructureService;
-use SomehowDigital\Craft\Hub\services\VolumeService;
 
 function ruleSection(int $references = 0, ?string $lastUpdated = null, int $entries = 0): SectionInfo
 {
@@ -55,6 +53,9 @@ function ruleSection(int $references = 0, ?string $lastUpdated = null, int $entr
 	return $info;
 }
 
+/**
+ * @param list<string> $kinds
+ */
 function ruleVolume(int $size = 0, int $missingAlt = 0, ?string $lastUploaded = null, array $kinds = []): VolumeInfo
 {
 	$info = new VolumeInfo(new Volume(['id' => 1]));
@@ -73,7 +74,13 @@ function ruleVolume(int $size = 0, int $missingAlt = 0, ?string $lastUploaded = 
  */
 function ruleOptions(object $rule): array
 {
-	return array_column((fn() => $this->options())->call($rule), 'label', 'value');
+	$options = [];
+
+	foreach (arrayAt((new ReflectionMethod($rule, 'options'))->invoke($rule)) as $option) {
+		$options[asString(at($option, 'value'))] = asString(at($option, 'label'));
+	}
+
+	return $options;
 }
 
 it('matches the number of references', function (): void {
@@ -96,7 +103,7 @@ it('matches the number of relations of an entry type', function (): void {
 });
 
 it('matches how recently the entries were edited', function (): void {
-	$rule = new ActivityConditionRule(['operator' => 'in', 'values' => ['stale', 'none']]);
+	$rule = conditionRule(ActivityConditionRule::class, ['operator' => 'in', 'values' => ['stale', 'none']]);
 
 	expect($rule->matchInfo(ruleSection(lastUpdated: '-10 years', entries: 1)))->toBeTrue()
 		->and($rule->matchInfo(ruleSection()))->toBeTrue()
@@ -131,24 +138,21 @@ it('matches the date of the last upload', function (): void {
 });
 
 it('matches the types of the layouts a field is placed in', function (): void {
-	$info = new FieldInfo(new PlainText(['id' => 1]));
-	$info->layouts = [new LayoutUsage('Entry Types', 'Article'), new LayoutUsage('Users', 'Users')];
+	$this->createContentModel();
+	$structure = $this->hub()->structure;
+	$summary = present($structure->getField(1));
+	$blocks = present($structure->getField(2));
+	$rule = conditionRule(LayoutOwnerConditionRule::class, ['operator' => 'in', 'values' => ['Users']]);
 
-	$other = new FieldInfo(new PlainText(['id' => 2]));
-	$other->layouts = [new LayoutUsage('Addresses', 'Addresses')];
-
-	$this->mockComponent('hub.structure', StructureService::class)->allows('getFields')->andReturn([$info, $other]);
-	$rule = new LayoutOwnerConditionRule(['operator' => 'in', 'values' => ['Users']]);
-
-	expect($rule->matchInfo($info))->toBeTrue()
-		->and($rule->matchInfo($other))->toBeFalse()
+	expect($rule->matchInfo($summary))->toBeTrue()
+		->and($rule->matchInfo($blocks))->toBeFalse()
 		->and($rule->matchInfo(ruleSection()))->toBeFalse()
-		->and(ruleOptions($rule))->toBe(['Addresses' => 'Addresses', 'Entry Types' => 'Entry Types', 'Users' => 'Users']);
+		->and(array_keys(ruleOptions($rule)))->toContain('Users', 'Entry Type', 'Volume');
 });
 
 it('matches the kinds of files a volume holds', function (): void {
-	$this->mockComponent('hub.volumes', VolumeService::class)->allows('getKinds')->andReturn(['image' => new FileKindInfo('image'), 'pdf' => new FileKindInfo('pdf')]);
-	$rule = new FileKindConditionRule(['operator' => 'in', 'values' => ['pdf']]);
+	$this->db()->respond('FROM {{%assets}} {{assets}}', [['kind' => 'image'], ['kind' => 'pdf']]);
+	$rule = conditionRule(FileKindConditionRule::class, ['operator' => 'in', 'values' => ['pdf']]);
 
 	expect($rule->matchInfo(ruleVolume(kinds: ['image', 'pdf'])))->toBeTrue()
 		->and($rule->matchInfo(ruleVolume(kinds: ['image'])))->toBeFalse()
@@ -237,41 +241,36 @@ it('matches whether entries of an entry type have a title field', function (): v
 });
 
 it('matches the fields in the layout of an entry type or volume', function (): void {
-	$summary = $this->field(PlainText::class, 1, 'summary', ['name' => 'Summary']);
-	$body = $this->field(PlainText::class, 2, 'body', ['name' => 'Body']);
-	$article = new EntryTypeInfo($this->entryType(1, 'article', [$summary, $body]));
-	$images = new VolumeInfo($this->volume(1, 'images', fields: [$summary]));
-	$this->mockComponent('hub.structure', StructureService::class)->allows('getFields')->andReturn([new FieldInfo($summary), new FieldInfo($body)]);
+	$this->createContentModel();
+	$article = present($this->hub()->structure->getEntryType(10));
+	$images = present($this->hub()->volumes->getVolume(1));
 
-	$fields = new LayoutFieldsConditionRule(['operator' => 'in', 'values' => ['field-body']]);
+	$fields = conditionRule(LayoutFieldsConditionRule::class, ['operator' => 'in', 'values' => ['field-blocks']]);
 	$count = new FieldCountConditionRule(['operator' => '>=', 'value' => 1]);
 
 	expect($fields->matchInfo($article))->toBeTrue()
 		->and($fields->matchInfo($images))->toBeFalse()
 		->and($fields->matchInfo(ruleSection()))->toBeFalse()
-		->and(ruleOptions($fields))->toBe(['field-body' => 'Body', 'field-summary' => 'Summary'])
+		->and(array_keys(ruleOptions($fields)))->toContain('field-blocks', 'field-summary')
 		->and($count->matchInfo($article))->toBeTrue()
 		->and($count->matchInfo($images))->toBeTrue()
-		->and($count->matchInfo(new EntryTypeInfo($this->entryType(2, 'empty'))))->toBeFalse()
+		->and($count->matchInfo(present($this->hub()->structure->getEntryType(14))))->toBeFalse()
 		->and($count->matchInfo(ruleSection()))->toBeFalse();
 });
 
 it('matches the type and data of a field', function (): void {
-	$plain = new FieldInfo(new PlainText(['id' => 1]));
-	$nested = new FieldInfo(new Matrix(['id' => 2]));
-	$nested->isNested = true;
+	$this->createContentModel();
+	$plain = present($this->hub()->structure->getField(1));
+	$nested = present($this->hub()->structure->getField(2));
+	$relational = present($this->hub()->structure->getField(3));
 
-	$relational = new FieldInfo(new EntriesField(['id' => 3]));
-	$relational->isRelational = true;
-	$this->mockComponent('hub.structure', StructureService::class)->allows('getFields')->andReturn([$plain, $nested, $relational, new FieldInfo(new PlainText(['id' => 4]))]);
-
-	$type = new FieldTypeConditionRule(['operator' => 'in', 'values' => [Matrix::class]]);
+	$type = conditionRule(FieldTypeConditionRule::class, ['operator' => 'in', 'values' => [Matrix::class]]);
 	$data = new DataKindConditionRule(['operator' => 'in', 'values' => ['relational', 'plain']]);
 
 	expect($type->matchInfo($nested))->toBeTrue()
 		->and($type->matchInfo($plain))->toBeFalse()
 		->and($type->matchInfo(ruleSection()))->toBeFalse()
-		->and(ruleOptions($type))->toBe([EntriesField::class => 'Entries', Matrix::class => 'Matrix', PlainText::class => 'Plain Text'])
+		->and(array_keys(ruleOptions($type)))->toContain(EntriesField::class, Matrix::class, PlainText::class)
 		->and(array_map($data->matchInfo(...), [$plain, $nested, $relational]))->toBe([true, false, true])
 		->and($data->matchInfo(ruleSection()))->toBeFalse()
 		->and(array_keys(ruleOptions($data)))->toBe(['nested', 'relational', 'plain']);

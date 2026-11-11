@@ -6,26 +6,42 @@ namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
 use craft\base\conditions\BaseMultiSelectConditionRule;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\base\InfoConditionRuleInterface;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
 use SomehowDigital\Craft\Hub\models\VolumeInfo;
+use SomehowDigital\Craft\Hub\services\StructureService;
 
 /**
  * Matches the type of a field, among the types of the existing fields.
+ *
+ * @internal
  */
-class FieldTypeConditionRule extends BaseMultiSelectConditionRule implements InfoConditionRuleInterface
+final class FieldTypeConditionRule extends BaseMultiSelectConditionRule implements InfoConditionRuleInterface
 {
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly StructureService $structure,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
+
 	public function getLabel(): string
 	{
 		return Craft::t('app', 'Field Type');
 	}
 
+	/**
+	 * @return list<array{value: string, label: string}|string>
+	 */
 	protected function options(): array
 	{
 		$options = [];
-		foreach (Hub::getInstance()->structure->getFields() as $info) {
+		foreach ($this->structure->getFields() as $info) {
 			$options[$info->field::class] = ['value' => $info->field::class, 'label' => $info->getTypeName()];
 		}
 

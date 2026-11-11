@@ -9,23 +9,22 @@ use craft\fields\ContentBlock;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\helpers\ListSelection;
-use SomehowDigital\Craft\Hub\helpers\ListSort;
-use SomehowDigital\Craft\Hub\helpers\Paginator;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\FieldFilter;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use SomehowDigital\Craft\Hub\services\ListService;
-use SomehowDigital\Craft\Hub\statistics\FieldsSummary;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
 /**
  * The fields page, below the "Structure" navigation item: its list, statistics and diagnostics, and the detail pages of
  * fields.
+ *
+ * @internal
  */
-class FieldsController extends BaseController
+final class FieldsController extends BaseController
 {
 	/** The path of the list. */
 	private const PATH = 'hub/structure/fields';
@@ -46,7 +45,7 @@ class FieldsController extends BaseController
 		$types = [];
 		$owners = [];
 		foreach ($all as $info) {
-			$types[mb_strtolower($info->getTypeName())] = ['label' => $info->getTypeName(), 'icon' => $info->field->getIcon() ?: 'pen-to-square'];
+			$types[mb_strtolower($info->getTypeName())] = ['label' => $info->getTypeName(), 'icon' => (Fill::text($info->field->getIcon()) ?? 'pen-to-square')];
 
 			foreach ($info->getOwnerTypes() as $owner) {
 				$owners[mb_strtolower($owner)] = $owner;
@@ -56,11 +55,11 @@ class FieldsController extends BaseController
 		uasort($types, fn(array $a, array $b): int => strnatcasecmp($a['label'], $b['label']));
 
 		// While reviewing the selection, the filters don't apply.
-		$selection = ListSelection::fromRequest(ColumnService::LIST_FIELDS, self::PATH);
+		$selection = Hub::getInstance()->bulkActions->selectionFor(ColumnService::LIST_FIELDS, self::PATH);
 		/** @var FieldFilter $filter */
 		$filter = $selection->review ? new FieldFilter() : $this->listFilterFromRequest(CheckKind::Fields);
-		$sort = ListSort::fromRequest($lists->getFieldSortColumns(), ListService::SORT_NAME);
-		[$pageInfo, $fields] = Paginator::fromRequest()->items($selection->limitItems($lists->getFields($filter, $sort->column, $sort->direction)));
+		$sort = $this->listSort($lists->getFieldSortColumns(), ListService::SORT_NAME);
+		[$pageInfo, $fields] = $this->paginator()->items($selection->limitItems($lists->getFields($filter, $sort->column, $sort->direction)));
 		$columns = $hub->columns->getColumns(ColumnService::LIST_FIELDS);
 		$shown = $hub->columns->getShownKeys($columns);
 
@@ -76,7 +75,7 @@ class FieldsController extends BaseController
 				'columns' => $columns,
 				...$this->savedFilterVariables(CheckKind::Fields, self::PATH, $filter->savedFilter),
 				...$this->labelVariables(ColumnService::LIST_FIELDS, array_keys($fields)),
-				...$selection->variables($filter),
+				...Hub::getInstance()->selection->variables($selection, $filter),
 				...$sort->variables(self::PATH),
 			],
 		]);
@@ -84,7 +83,7 @@ class FieldsController extends BaseController
 
 	public function actionStatistics(): Response
 	{
-		return $this->renderStatistics(CheckKind::Fields, (new FieldsSummary())->index());
+		return $this->renderStatistics(CheckKind::Fields, Hub::getInstance()->fieldsSummary->index());
 	}
 
 	public function actionDiagnostics(): Response
@@ -103,7 +102,7 @@ class FieldsController extends BaseController
 		}
 
 		// The cards load their data once their panel is opened, so building them all is cheap (see renderCard()).
-		$summary = $tab === self::TAB_STATISTICS ? (new FieldsSummary())->detail($info) : [];
+		$summary = $tab === self::TAB_STATISTICS ? Hub::getInstance()->fieldsSummary->detail($info) : [];
 
 		// A card or panel requested on its own is rendered without the page around it.
 		$part = ($tab === self::TAB_STATISTICS ? $this->renderCard($summary) : null)

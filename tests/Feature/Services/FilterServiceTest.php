@@ -6,21 +6,22 @@ use craft\elements\conditions\SlugConditionRule;
 use craft\elements\db\ElementQuery;
 use craft\elements\User;
 use craft\helpers\Json;
+use LogicException;
 use SomehowDigital\Craft\Hub\conditions\rules\HasUrlsConditionRule;
 use SomehowDigital\Craft\Hub\conditions\SectionCondition;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\EntryFilter;
 use SomehowDigital\Craft\Hub\models\SavedFilter;
 use SomehowDigital\Craft\Hub\models\SectionFilter;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
-use SomehowDigital\Craft\Hub\services\FilterService;
 
 beforeEach(function (): void {
 	$this->createContentModel();
 
 	// Filters offered to everyone have no user; the others are those of user 1.
-	$this->db()->respond(sqlFrom(FilterService::TABLE), fn(string $sql): array => str_contains($sql, GLOBAL_FILTERS) ? [
+	$this->db()->respond(sqlFrom(Tables::FILTERS), fn(string $sql): array => str_contains($sql, GLOBAL_FILTERS) ? [
 		['id' => 1, 'kind' => 'sections', 'handle' => 'withoutUrls', 'userId' => null, 'name' => 'Hidden', 'description' => null, 'icon' => null, 'params' => null, 'matchCondition' => null, 'enabled' => 1, 'sortOrder' => 1, 'uid' => 'without-urls'],
 		[
 			'id' => 2, 'kind' => 'sections', 'handle' => null, 'userId' => null, 'name' => 'Public', 'description' => 'With URLs.', 'icon' => 'globe', 'params' => null,
@@ -38,13 +39,12 @@ beforeEach(function (): void {
 		['id' => 6, 'kind' => 'sections', 'handle' => null, 'userId' => 1, 'name' => 'Empty ones', 'description' => null, 'icon' => null, 'params' => Json::encode(['empty' => '1']), 'matchCondition' => null, 'enabled' => 1, 'sortOrder' => 0, 'uid' => 'empty'],
 	]);
 
-	$this->filters = new FilterService();
 });
 
 it('lists the predefined filters of each kind in their own order, configured ones and custom ones in theirs', function (): void {
-	$sections = array_values($this->filters->getFilters(CheckKind::Sections));
+	$sections = array_values($this->hub()->filters->getFilters(CheckKind::Sections));
 
-	expect(array_keys($this->filters->getFilters(CheckKind::Fields)))->toBe(['fields.unused', 'fields.empty'])
+	expect(array_keys($this->hub()->filters->getFilters(CheckKind::Fields)))->toBe(['fields.unused', 'fields.empty'])
 		->and(array_map(fn(SavedFilter $filter): string => $filter->getKey(), $sections))->toBe(['sections.empty', 'sections.stale', 'sections.withoutUrls', 'sections.public'])
 		->and($sections[0]->id)->toBeNull()
 		->and($sections[0]->getName())->toBe('Empty sections')
@@ -57,26 +57,29 @@ it('lists the predefined filters of each kind in their own order, configured one
 });
 
 it('offers the predefined filters with their configured thresholds, or their defaults', function (): void {
-	$this->db()->respond(sqlFrom(FilterService::TABLE), [thresholdRow('assets', 'large', 12)]);
-	$large = $this->filters->getFilter(CheckKind::Assets, 'large');
+	$this->db()->respond(sqlFrom(Tables::FILTERS), [thresholdRow('assets', 'large', 12)]);
+	$large = $this->hub()->filters->getFilter(CheckKind::Assets, 'large');
 
-	expect($large->params)->toBe(['sizeMin' => '12'])
-		->and($large->getThreshold())->toBe(12)
+	expect($large?->params)->toBe(['sizeMin' => '12'])
+		->and($large?->getThreshold())->toBe(12)
 		->and($large->thresholdField['unit'] ?? null)->not->toBeNull()
-		->and($this->filters->getThreshold(CheckKind::Assets, 'large'))->toBe(12)
-		->and($this->filters->getThreshold(CheckKind::Users, 'idle'))->toBe(12)
-		->and($this->filters->getThreshold(CheckKind::Users, 'locked'))->toBe(0)
-		->and($this->filters->getFilter(CheckKind::Users, 'locked')->thresholdField)->toBeNull();
+		->and($this->hub()->filters->getThreshold(CheckKind::Assets, 'large'))->toBe(12)
+		->and($this->hub()->filters->getThreshold(CheckKind::Users, 'idle'))->toBe(12)
+		->and($this->hub()->filters->getThreshold(CheckKind::Users, 'locked'))->toBe(0)
+		->and($this->hub()->filters->getFilter(CheckKind::Users, 'locked')?->thresholdField)->toBeNull();
 });
 
 it('finds filters by the handle of a predefined one or the UID of a custom one', function (): void {
-	expect($this->filters->getFilter(CheckKind::Sections, 'withoutUrls')?->id)->toBe(1)
-		->and($this->filters->getFilter(CheckKind::Sections, 'public')?->id)->toBe(2)
-		->and($this->filters->getFilter(CheckKind::Sections, 'temporary'))->toBeNull();
+	expect($this->hub()->filters->getFilter(CheckKind::Sections, 'withoutUrls')?->id)->toBe(1)
+		->and($this->hub()->filters->getFilter(CheckKind::Sections, 'public')?->id)->toBe(2)
+		->and($this->hub()->filters->getFilter(CheckKind::Sections, 'temporary'))->toBeNull();
 });
 
 it('builds the filter of a list from its params', function (): void {
 	$filter = Hub::getInstance()->listFilters->createListFilter(CheckKind::Sections, ['type' => 'channel,bogus', 'q' => ' news ', 'filter' => 'public', 'empty' => '1']);
+	if (!$filter instanceof SectionFilter) {
+		throw new LogicException('Not a section filter.');
+	}
 
 	expect($filter)->toBeInstanceOf(SectionFilter::class)
 		->and($filter->types)->toBe(['channel'])
@@ -88,25 +91,25 @@ it('builds the filter of a list from its params', function (): void {
 });
 
 it('finds the custom filters of a kind, whether offered in the filter bar or not', function (): void {
-	expect($this->filters->getCustomFilter(CheckKind::Sections, 'public')?->name)->toBe('Public')
-		->and($this->filters->getCustomFilter(CheckKind::Entries, 'public'))->toBeNull()
-		->and($this->filters->getCustomFilter(CheckKind::Entries, 'temporary')?->enabled)->toBeFalse()
-		->and($this->filters->getCustomFilter(CheckKind::Sections, 'without-urls'))->toBeNull();
+	expect($this->hub()->filters->getCustomFilter(CheckKind::Sections, 'public')?->name)->toBe('Public')
+		->and($this->hub()->filters->getCustomFilter(CheckKind::Entries, 'public'))->toBeNull()
+		->and($this->hub()->filters->getCustomFilter(CheckKind::Entries, 'temporary')?->enabled)->toBeFalse()
+		->and($this->hub()->filters->getCustomFilter(CheckKind::Sections, 'without-urls'))->toBeNull();
 });
 
 it('lists the own filters of a user by their name, with their filters only', function (): void {
-	$own = $this->filters->getOwnFilters(CheckKind::Sections, 1);
+	$own = $this->hub()->filters->getOwnFilters(CheckKind::Sections, 1);
 
 	expect(array_map(fn(SavedFilter $filter): string => $filter->name, $own))->toBe(['Empty ones', 'mine'])
 		->and($own[1]->params)->toBe(['type' => 'channel'])
 		->and($own[1]->isOwn())->toBeTrue()
-		->and($this->filters->getOwnFilterByName(CheckKind::Sections, 1, ' MINE ')?->id)->toBe(5)
-		->and($this->filters->getOwnFilterByName(CheckKind::Sections, 1, 'other'))->toBeNull()
+		->and($this->hub()->filters->getOwnFilterByName(CheckKind::Sections, 1, ' MINE ')?->id)->toBe(5)
+		->and($this->hub()->filters->getOwnFilterByName(CheckKind::Sections, 1, 'other'))->toBeNull()
 		->and($this->db()->queriesMatching('`userId`=1'))->not->toBeEmpty();
 });
 
 it('keeps only the params of a list that are its filters', function (): void {
-	expect($this->filters->normalizeParams([
+	expect($this->hub()->filters->normalizeParams([
 		'type' => 'channel',
 		'q' => '  news ',
 		'empty' => '',
@@ -120,7 +123,7 @@ it('keeps only the params of a list that are its filters', function (): void {
 		'list' => ['a'],
 		'activity' => 'stale,none',
 	]))->toBe(['activity' => 'stale,none', 'q' => 'news', 'type' => 'channel'])
-		->and($this->filters->normalizeParams('type=channel'))->toBe([]);
+		->and($this->hub()->filters->normalizeParams('type=channel'))->toBe([]);
 });
 
 it('saves a new custom filter last in the order of its kind, with its condition', function (): void {
@@ -132,28 +135,28 @@ it('saves a new custom filter last in the order of its kind, with its condition'
 		'condition' => ['class' => SectionCondition::class, 'conditionRules' => [['class' => HasUrlsConditionRule::class, 'value' => true]]],
 	]);
 
-	expect($this->filters->saveFilter($filter))->toBeTrue()
+	expect($this->hub()->filters->saveFilter($filter))->toBeTrue()
 		->and($filter->uid)->not->toBeNull()
-		->and($this->db()->queriesMatching(sqlInsertInto(FilterService::TABLE))[0])->toContain("'Public'")->toContain('HasUrlsConditionRule')->toContain('`userId`');
+		->and($this->db()->queriesMatching(sqlInsertInto(Tables::FILTERS))[0])->toContain("'Public'")->toContain('HasUrlsConditionRule')->toContain('`userId`');
 });
 
 it('saves the own filter of a user with its filters', function (): void {
 	$filter = new SavedFilter(['kind' => CheckKind::Sections, 'userId' => 1, 'name' => 'Channels', 'params' => ['type' => 'channel']]);
 
-	expect($this->filters->saveFilter($filter))->toBeTrue()
+	expect($this->hub()->filters->saveFilter($filter))->toBeTrue()
 		->and($filter->sortOrder)->toBe(0)
-		->and($this->db()->queriesMatching(sqlInsertInto(FilterService::TABLE))[0])->toContain('{\"type\":\"channel\"}')->toContain('`matchCondition`');
+		->and($this->db()->queriesMatching(sqlInsertInto(Tables::FILTERS))[0])->toContain('{\"type\":\"channel\"}')->toContain('`matchCondition`');
 });
 
 it('saves only the name and whether a predefined filter is enabled', function (): void {
-	$filter = $this->filters->getFilterById(1);
+	$filter = $this->hub()->filters->getFilterById(1) ?? throw new LogicException('Not found.');
 	$filter->name = '';
 	$filter->enabled = false;
 	$filter->params = ['bogus' => '1'];
 
-	expect($this->filters->saveFilter($filter))->toBeTrue();
+	expect($this->hub()->filters->saveFilter($filter))->toBeTrue();
 
-	$update = $this->db()->queriesMatching(sqlUpdate(FilterService::TABLE))[0];
+	$update = $this->db()->queriesMatching(sqlUpdate(Tables::FILTERS))[0];
 
 	expect($update)->toContain('`name`=NULL')->toContain('`enabled`=FALSE')->not->toContain('bogus');
 });
@@ -163,57 +166,55 @@ it('fails to save custom filters without a rule and own filters without filters'
 	$own = new SavedFilter(['kind' => CheckKind::Entries, 'userId' => 1, 'name' => 'All']);
 	$unnamed = new SavedFilter(['kind' => CheckKind::Entries, 'userId' => 1, 'params' => ['q' => 'news']]);
 
-	expect($this->filters->saveFilter($custom))->toBeFalse()
+	expect($this->hub()->filters->saveFilter($custom))->toBeFalse()
 		->and($custom->getErrors())->toHaveKey('condition')
-		->and($this->filters->saveFilter($own))->toBeFalse()
+		->and($this->hub()->filters->saveFilter($own))->toBeFalse()
 		->and($own->getErrors())->toHaveKey('params')
-		->and($this->filters->saveFilter($unnamed))->toBeFalse()
+		->and($this->hub()->filters->saveFilter($unnamed))->toBeFalse()
 		->and($unnamed->getErrors())->toHaveKey('name')
-		->and($this->db()->queriesMatching(sqlInsertInto(FilterService::TABLE)))->toBe([]);
+		->and($this->db()->queriesMatching(sqlInsertInto(Tables::FILTERS)))->toBe([]);
 });
 
 it('deletes custom filters, or the own ones of a user', function (): void {
-	$this->filters->deleteFilterById(2);
-	$this->filters->deleteFilterById(5, 1);
+	$this->hub()->filters->deleteFilterById(2);
+	$this->hub()->filters->deleteFilterById(5, 1);
 
-	$deletes = $this->db()->queriesMatching(sqlDeleteFrom(FilterService::TABLE));
+	$deletes = $this->db()->queriesMatching(sqlDeleteFrom(Tables::FILTERS));
 
 	expect($deletes[0])->toContain('`id`=2')->toContain('`handle` IS NULL')->toContain(GLOBAL_FILTERS)
 		->and($deletes[1])->toContain('`id`=5')->toContain('`userId`=1');
 });
 
 it('reorders the filters offered to everyone and gives the predefined ones a row', function (): void {
-	$this->filters->reorderFilters([2, 1]);
-	$this->filters->saveDefaults();
+	$this->hub()->filters->reorderFilters([2, 1]);
+	$this->hub()->filters->saveDefaults();
 
-	expect($this->db()->queriesMatching(sqlUpdate(FilterService::TABLE))[0])->toContain('`sortOrder`=1')->toContain('`id`=2')->toContain(GLOBAL_FILTERS)
-		->and($this->db()->queriesMatching(sqlInsertInto(FilterService::TABLE)))->toHaveCount(33);
+	expect($this->db()->queriesMatching(sqlUpdate(Tables::FILTERS))[0])->toContain('`sortOrder`=1')->toContain('`id`=2')->toContain(GLOBAL_FILTERS)
+		->and($this->db()->queriesMatching(sqlInsertInto(Tables::FILTERS)))->toHaveCount(33);
 });
 
 it('narrows the elements to those a custom filter matches, on the selected sites', function (): void {
-	$this->db()->respond(sqlFrom(FilterService::TABLE), [[
+	$this->db()->respond(sqlFrom(Tables::FILTERS), [[
 		'id' => 3, 'kind' => 'entries', 'handle' => null, 'userId' => null, 'name' => 'Temporary', 'description' => null, 'icon' => null, 'params' => null,
 		'matchCondition' => Json::encode(['conditionRules' => [['class' => SlugConditionRule::class, 'operator' => 'bw', 'value' => '__temp']]]),
 		'enabled' => 1, 'sortOrder' => 1, 'uid' => 'temporary',
 	]]);
-	Hub::getInstance()->set('filters', $this->filters);
 
 	$filter = new EntryFilter();
 	$filter->savedFilter = 'temporary';
 
 	$conditions = conditions(Hub::getInstance()->entries->getQuery($filter));
-	$matching = end($conditions)['elements.id'];
+	$matching = at(end($conditions), 'elements.id');
 
 	expect($matching)->toBeInstanceOf(ElementQuery::class)
-		->and($matching->slug)->toBe('__temp*')
-		->and($matching->siteId)->toBe([1, 2])
-		->and(array_values($matching->select))->toBe(['elements.id'])
-		->and($this->filters->elementCondition(CheckKind::Entries, 'bogus'))->toBe(['elements.id' => 0])
-		->and($this->filters->elementCondition(CheckKind::Sections, 'temporary'))->toBe(['elements.id' => 0]);
+		->and(at($matching, 'slug'))->toBe('__temp*')
+		->and(at($matching, 'siteId'))->toBe([1, 2])
+		->and(array_values(arrayAt($matching, 'select')))->toBe(['elements.id'])
+		->and($this->hub()->filters->elementCondition(CheckKind::Entries, 'bogus'))->toBe(['elements.id' => 0])
+		->and($this->hub()->filters->elementCondition(CheckKind::Sections, 'temporary'))->toBe(['elements.id' => 0]);
 });
 
 it('filters the structure lists by the condition of a custom filter', function (): void {
-	Hub::getInstance()->set('filters', $this->filters);
 
 	$public = new SectionFilter();
 	$public->savedFilter = 'public';
@@ -223,22 +224,22 @@ it('filters the structure lists by the condition of a custom filter', function (
 
 	expect(array_values(array_map(fn(SectionInfo $info): ?string => $info->section->handle, Hub::getInstance()->lists->getSections($public))))->toBe(['news', 'pages'])
 		->and(Hub::getInstance()->lists->getSections($gone))->toBe([])
-		->and($this->filters->infoCondition(CheckKind::Sections, null))->toBeNull()
-		->and($this->filters->infoCondition(CheckKind::Sections, 'bogus'))->toBeFalse();
+		->and($this->hub()->filters->infoCondition(CheckKind::Sections, null))->toBeNull()
+		->and($this->hub()->filters->infoCondition(CheckKind::Sections, 'bogus'))->toBeFalse();
 });
 
 it('lists the saved filters of a list for its filter bar', function (): void {
 	$this->request();
-	Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 1, 'username' => 'admin', 'admin' => true]));
+	mocked(Craft::$app->getUser())->shouldReceive('getIdentity')->andReturn(new User(['id' => 1, 'username' => 'admin', 'admin' => true]));
 
-	$menu = $this->filters->getMenu(CheckKind::Sections, 'hub/structure/sections', 'public');
+	$menu = $this->hub()->filters->getMenu(CheckKind::Sections, 'hub/structure/sections', 'public');
 
 	expect($menu['kind'])->toBe('sections')
 		->and($menu['current'])->toBe('public')
-		->and(array_column($menu['shared'], 'name'))->toBe(['Empty sections', 'Stale sections', 'Hidden', 'Public'])
+		->and(array_column(arrayAt($menu, 'shared'), 'name'))->toBe(['Empty sections', 'Stale sections', 'Hidden', 'Public'])
 		->and($menu['shared'][3]['params'])->toBe(['filter' => 'public'])
 		->and($menu['shared'][3]['custom'])->toBe('public')
-		->and(array_column($menu['own'], 'id'))->toBe([6, 5])
+		->and(array_column(arrayAt($menu, 'own'), 'id'))->toBe([6, 5])
 		->and($menu['canManage'])->toBeTrue()
 		->and($menu['manageUrl'])->toContain('#hub-filters-sections');
 });

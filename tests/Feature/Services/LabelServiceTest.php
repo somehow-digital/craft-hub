@@ -2,24 +2,23 @@
 
 declare(strict_types=1);
 
+use craft\elements\db\ElementQuery;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\models\UserGroup;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
+use SomehowDigital\Craft\Hub\enums\Permission;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\EntryFilter;
 use SomehowDigital\Craft\Hub\models\Label;
 use SomehowDigital\Craft\Hub\models\SectionFilter;
 use SomehowDigital\Craft\Hub\models\UserGroupFilter;
-use SomehowDigital\Craft\Hub\services\ActivityService;
 use SomehowDigital\Craft\Hub\services\ColumnService;
-use SomehowDigital\Craft\Hub\services\EntryService;
 use SomehowDigital\Craft\Hub\services\LabelService;
-use SomehowDigital\Craft\Hub\services\ListService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 
 beforeEach(function (): void {
-	$this->labels = new LabelService();
 
 	// Review, then Keep, as they are ordered; Keep has neither an icon nor a color.
 	$this->db()->respond('FROM {{%hub_labels}}', [
@@ -35,13 +34,11 @@ beforeEach(function (): void {
  */
 function labeled(array $lists): void
 {
-	test()->db()->respond('FROM {{%hub_labeled}}', function (string $sql) use ($lists): array {
+	currentTest()->db()->respond('FROM {{%hub_labeled}}', function (string $sql) use ($lists): array {
 		$rows = [];
-		foreach ($lists as $list => $labeled) {
-			foreach (str_contains($sql, "'{$list}'") ? $labeled : [] as $itemId => $labelIds) {
-				foreach ($labelIds as $labelId) {
-					$rows[] = ['itemId' => $itemId, 'labelId' => $labelId];
-				}
+		foreach (array_filter($lists, fn(string $list): bool => str_contains($sql, "'{$list}'"), ARRAY_FILTER_USE_KEY) as $labeled) {
+			foreach ($labeled as $itemId => $labelIds) {
+				array_push($rows, ...array_map(fn(int $labelId): array => ['itemId' => $itemId, 'labelId' => $labelId], $labelIds));
 			}
 		}
 
@@ -50,7 +47,7 @@ function labeled(array $lists): void
 }
 
 it('reads the labels in their order, by their ID', function (): void {
-	$labels = $this->labels->getAllLabels();
+	$labels = $this->hub()->labels->getAllLabels();
 
 	expect(array_keys($labels))->toBe([2, 1])
 		->and($labels[2]->name)->toBe('Review')
@@ -60,52 +57,52 @@ it('reads the labels in their order, by their ID', function (): void {
 		->and($labels[2]->getColor())->toBe('red')
 		->and($labels[1]->getIcon())->toBe('tag')
 		->and($labels[1]->getColor())->toBe('gray')
-		->and($this->labels->getLabelById(1)?->uid)->toBe('label-keep')
-		->and($this->labels->getLabelById(9))->toBeNull()
+		->and($this->hub()->labels->getLabelById(1)?->uid)->toBe('label-keep')
+		->and($this->hub()->labels->getLabelById(9))->toBeNull()
 		->and($this->db()->queriesMatching('{{%hub_labels}}'))->toHaveCount(1);
 });
 
 it('reads the labels of the items of a list in the order of the labels', function (): void {
 	labeled([ColumnService::LIST_ENTRIES => [5 => [1, 2], 6 => [1], 7 => [9]]]);
 
-	$labels = $this->labels->getLabelsOf(ColumnService::LIST_ENTRIES, [5, 6, 7]);
+	$labels = $this->hub()->labels->getLabelsOf(ColumnService::LIST_ENTRIES, [5, 6, 7]);
 
 	expect(array_keys($labels))->toBe([5, 6])
-		->and(array_map(fn(Label $label): string => $label->name, array_values($labels[5])))->toBe(['Review', 'Keep'])
+		->and(array_map(fn(Label $label): string => $label->name, objectsAt(Label::class, $labels, 5)))->toBe(['Review', 'Keep'])
 		->and($this->db()->queriesMatching("`list`='entries'")[0])->toContain('`itemId` IN (5, 6, 7)')
-		->and($this->labels->getLabelsOf(ColumnService::LIST_ENTRIES, []))->toBe([]);
+		->and($this->hub()->labels->getLabelsOf(ColumnService::LIST_ENTRIES, []))->toBe([]);
 });
 
 it('reads no labeled items while there are no labels', function (): void {
 	$this->db()->respond('FROM {{%hub_labels}}', []);
 
-	expect($this->labels->getLabelsOf(ColumnService::LIST_ENTRIES, [5]))->toBe([])
-		->and($this->labels->getLabeledIds(ColumnService::LIST_SECTIONS))->toBe([])
+	expect($this->hub()->labels->getLabelsOf(ColumnService::LIST_ENTRIES, [5]))->toBe([])
+		->and($this->hub()->labels->getLabeledIds(ColumnService::LIST_SECTIONS))->toBe([])
 		->and($this->db()->queriesMatching('{{%hub_labeled}}'))->toBe([]);
 });
 
 it('offers the labels and unlabeled items as filter values', function (): void {
-	expect($this->labels->getFilterValues())->toBe(['2', '1', 'none']);
+	expect($this->hub()->labels->getFilterValues())->toBe(['2', '1', 'none']);
 });
 
 it('offers no filter values without labels', function (): void {
 	$this->db()->respond('FROM {{%hub_labels}}', []);
 
-	expect($this->labels->getFilterValues())->toBe([]);
+	expect($this->hub()->labels->getFilterValues())->toBe([]);
 });
 
 it('offers no filter values while labels are disabled', function (): void {
-	Hub::getInstance()->getSettings()->enableLabels = false;
+	Hub::getInstance()->settings->enableLabels = false;
 
 	try {
-		expect($this->labels->getFilterValues())->toBe([]);
+		expect($this->hub()->labels->getFilterValues())->toBe([]);
 	} finally {
-		Hub::getInstance()->getSettings()->enableLabels = true;
+		Hub::getInstance()->settings->enableLabels = true;
 	}
 });
 
 it('matches items by any of their labels, or unlabeled ones', function (array $values, array $labelIds, bool $matches): void {
-	expect($this->labels->matches($values, $labelIds))->toBe($matches);
+	expect($this->hub()->labels->matches(strings($values), idsOf($labelIds)))->toBe($matches);
 })->with([
 	'no filter' => [[], [1], true],
 	'any label' => [['1', '2'], [2], true],
@@ -116,7 +113,9 @@ it('matches items by any of their labels, or unlabeled ones', function (array $v
 ]);
 
 it('builds a condition matching items by their labels, or unlabeled ones', function (): void {
-	[$or, [$exists, $labeled], [$notExists, $unlabeled]] = $this->labels->condition(ColumnService::LIST_FILES, ['2', 'none']);
+	[$or, $first, $second] = parts($this->hub()->labels->condition(ColumnService::LIST_FILES, ['2', 'none']));
+	[$exists, $labeled] = parts($first);
+	[$notExists, $unlabeled] = parts($second);
 
 	expect($or)->toBe('or')
 		->and($exists)->toBe('exists')
@@ -125,14 +124,16 @@ it('builds a condition matching items by their labels, or unlabeled ones', funct
 		->and(rawSql($labeled))->toContain('`hubLabeled`.`itemId` = `elements`.`id`')
 		->and(rawSql($labeled))->toContain('`hubLabeled`.`labelId`=2')
 		->and(rawSql($unlabeled))->not->toContain('labelId')
-		->and($this->labels->condition(ColumnService::LIST_FILES, ['1']))->toHaveCount(2);
+		->and($this->hub()->labels->condition(ColumnService::LIST_FILES, ['1']))->toHaveCount(2);
 });
 
 it('filters the entries by their labels', function (): void {
 	$this->site(1, 'en', primary: true);
 	$filter = new EntryFilter();
 	$filter->labels = ['1'];
-	[, [$or, [$exists, $labeled]]] = conditions((new EntryService())->getQuery($filter));
+	[, $condition] = parts(conditions($this->hub()->entries->getQuery($filter)));
+	[$or, $inner] = parts($condition);
+	[$exists, $labeled] = parts($inner);
 
 	expect($or)->toBe('or')
 		->and($exists)->toBe('exists')
@@ -144,12 +145,11 @@ it('filters the lists filtered in memory by their labels', function (): void {
 	$this->userGroup(1, 'editors');
 	$this->userGroup(2, 'authors');
 	labeled([ColumnService::LIST_SECTIONS => [1 => [2], 3 => [1]], ColumnService::LIST_USER_GROUPS => [2 => [1]]]);
-	Hub::getInstance()->set('labels', $this->labels);
-	$lists = new ListService();
+	$lists = $this->hub()->lists;
 
 	$sections = function (array $labels) use ($lists): array {
 		$filter = new SectionFilter();
-		$filter->labels = $labels;
+		$filter->labels = strings($labels);
 
 		return array_keys($lists->getSections($filter));
 	};
@@ -166,9 +166,8 @@ it('filters the lists filtered in memory by their labels', function (): void {
 
 it('only reads the labeled items of lists filtered by labels', function (): void {
 	$this->createContentModel();
-	Hub::getInstance()->set('labels', $this->labels);
 
-	(new ListService())->getSections(new SectionFilter());
+	$this->hub()->lists->getSections(new SectionFilter());
 
 	expect($this->db()->queriesMatching('{{%hub_labeled}}'))->toBe([]);
 });
@@ -176,7 +175,7 @@ it('only reads the labeled items of lists filtered by labels', function (): void
 it('labels an item with the known labels only, adding and removing the changed ones', function (): void {
 	labeled([ColumnService::LIST_SECTIONS => [3 => [1]]]);
 
-	$labels = $this->labels->setLabels(ColumnService::LIST_SECTIONS, 3, [2, 9]);
+	$labels = $this->hub()->labels->setLabels(ColumnService::LIST_SECTIONS, 3, [2, 9]);
 
 	expect($labels)->toBe([2])
 		->and($this->db()->queriesMatching('DELETE FROM {{%hub_labeled}}')[0])->toContain('`labelId`=1')
@@ -186,7 +185,7 @@ it('labels an item with the known labels only, adding and removing the changed o
 it('leaves an item with the same labels alone', function (): void {
 	labeled([ColumnService::LIST_SECTIONS => [3 => [1]]]);
 
-	expect($this->labels->setLabels(ColumnService::LIST_SECTIONS, 3, [1]))->toBe([1])
+	expect($this->hub()->labels->setLabels(ColumnService::LIST_SECTIONS, 3, [1]))->toBe([1])
 		->and($this->db()->queriesMatching('DELETE FROM'))->toBe([])
 		->and($this->db()->queriesMatching('INSERT INTO'))->toBe([]);
 });
@@ -194,7 +193,7 @@ it('leaves an item with the same labels alone', function (): void {
 it('adds and removes labels of items, leaving their other labels alone', function (): void {
 	labeled([ColumnService::LIST_SECTIONS => [3 => [1], 4 => []]]);
 
-	$this->labels->changeLabels(ColumnService::LIST_SECTIONS, [3, 4], [1, 9], [2, 1]);
+	$this->hub()->labels->changeLabels(ColumnService::LIST_SECTIONS, [3, 4], [1, 9], [2, 1]);
 	$delete = $this->db()->queriesMatching('DELETE FROM {{%hub_labeled}}')[0];
 	$insert = $this->db()->queriesMatching('INSERT INTO {{%hub_labeled}}')[0];
 
@@ -207,23 +206,19 @@ it('adds and removes labels of items, leaving their other labels alone', functio
 it('records each item whose labels changed on its own', function (): void {
 	labeled([ColumnService::LIST_USERS => [3 => [1, 2], 4 => [], 5 => [1]]]);
 	ElementQueries::respond(User::class, [new User(['id' => 3, 'username' => 'jane']), new User(['id' => 4, 'username' => 'john'])]);
-	$recorded = [];
-	$this->mockComponent('hub.activity', ActivityService::class)
-		->shouldReceive('record')->andReturnUsing(function (...$args) use (&$recorded): void {
-			$recorded[] = $args;
-		});
+	$this->db()->tables = [Tables::ACTIVITY];
 
-	$this->labels->changeLabels(ColumnService::LIST_USERS, [3, 4, 5], [1], [2]);
+	$this->hub()->labels->changeLabels(ColumnService::LIST_USERS, [3, 4, 5], [1], [2]);
 
-	expect(array_map(fn(array $args): array => array_slice($args, 1, 4), $recorded))->toBe([
+	expect(array_map(fn(array $row): array => array_slice($row, 1, 4), activities()))->toBe([
 		[ActivitySubject::User, 3, 'jane', ['removed' => ['Review']]],
 		[ActivitySubject::User, 4, 'john', ['added' => ['Keep']]],
 	]);
 });
 
 it('changes no labels without items or labels to change', function (): void {
-	$this->labels->changeLabels(ColumnService::LIST_SECTIONS, [], [1], []);
-	$this->labels->changeLabels(ColumnService::LIST_SECTIONS, [3], [9], []);
+	$this->hub()->labels->changeLabels(ColumnService::LIST_SECTIONS, [], [1], []);
+	$this->hub()->labels->changeLabels(ColumnService::LIST_SECTIONS, [3], [9], []);
 
 	expect($this->db()->queriesMatching('{{%hub_labeled}}'))->toBe([]);
 });
@@ -231,16 +226,16 @@ it('changes no labels without items or labels to change', function (): void {
 it('counts the items of a list labeled with each label', function (): void {
 	$this->db()->respond('COUNT(*)', [['labelId' => 1, 'count' => '2']]);
 
-	expect($this->labels->countLabelsOf(ColumnService::LIST_ENTRIES, [5, 6]))->toBe([1 => 2])
+	expect($this->hub()->labels->countLabelsOf(ColumnService::LIST_ENTRIES, [5, 6]))->toBe([1 => 2])
 		->and($this->db()->queriesMatching('COUNT(*)')[0])->toContain('`itemId` IN (5, 6)')
-		->and($this->labels->countLabelsOf(ColumnService::LIST_ENTRIES, []))->toBe([]);
+		->and($this->hub()->labels->countLabelsOf(ColumnService::LIST_ENTRIES, []))->toBe([]);
 });
 
 it('saves a new label last, and the changes to one', function (): void {
 	$this->db()->respond('MAX([[sortOrder]])', 4);
 	$label = new Label(['name' => ' Later ', 'description' => '  ', 'icon' => '', 'color' => 'blue']);
 
-	expect($this->labels->saveLabel($label))->toBeTrue()
+	expect($this->hub()->labels->saveLabel($label))->toBeTrue()
 		->and($label->name)->toBe('Later')
 		->and($label->icon)->toBeNull()
 		->and($label->sortOrder)->toBe(5)
@@ -250,14 +245,14 @@ it('saves a new label last, and the changes to one', function (): void {
 	$label->name = 'Soon';
 	$label->description = ' Later on ';
 
-	expect($this->labels->saveLabel($label))->toBeTrue()
+	expect($this->hub()->labels->saveLabel($label))->toBeTrue()
 		->and($this->db()->queriesMatching('UPDATE {{%hub_labels}}')[0])->toContain("`name`='Soon', `description`='Later on'");
 });
 
 it('rejects labels without a name or with an unknown color', function (array $values, string $attribute): void {
-	$label = new Label($values);
+	$label = new Label(keyed($values));
 
-	expect($this->labels->saveLabel($label))->toBeFalse()
+	expect($this->hub()->labels->saveLabel($label))->toBeFalse()
 		->and($label->hasErrors($attribute))->toBeTrue()
 		->and($this->db()->queriesMatching('INSERT INTO'))->toBe([]);
 })->with([
@@ -266,8 +261,8 @@ it('rejects labels without a name or with an unknown color', function (array $va
 ]);
 
 it('deletes and reorders labels', function (): void {
-	$this->labels->deleteLabelById(2);
-	$this->labels->reorderLabels([1, 2]);
+	$this->hub()->labels->deleteLabelById(2);
+	$this->hub()->labels->reorderLabels([1, 2]);
 
 	expect($this->db()->queriesMatching('DELETE FROM {{%hub_labels}}')[0])->toContain('`id`=2')
 		->and($this->db()->queriesMatching('UPDATE {{%hub_labels}}'))->toHaveCount(2)
@@ -282,7 +277,7 @@ it('counts the items of each list labeled with each label, in the order of the l
 		['labelId' => 1, 'list' => 'bogus', 'count' => '5'],
 	]);
 
-	expect($this->labels->getUsageByList())->toBe([
+	expect($this->hub()->labels->getUsageByList())->toBe([
 		2 => [ColumnService::LIST_ENTRIES => 3, ColumnService::LIST_FIELDS => 1],
 		1 => [],
 	]);
@@ -291,12 +286,12 @@ it('counts the items of each list labeled with each label, in the order of the l
 it('removes a label from all items labeled with it', function (): void {
 	$this->db()->respond('DELETE FROM {{%hub_labeled}}', 4);
 
-	expect($this->labels->clearLabelById(2))->toBe(4)
+	expect($this->hub()->labels->clearLabelById(2))->toBe(4)
 		->and($this->db()->queriesMatching('DELETE FROM {{%hub_labeled}}')[0])->toContain('`labelId`=2');
 });
 
 it('removes the labels of items that no longer exist', function (): void {
-	$this->labels->deleteOrphans();
+	$this->hub()->labels->deleteOrphans();
 	$deletes = $this->db()->queriesMatching('DELETE FROM {{%hub_labeled}}');
 
 	expect($deletes)->toHaveCount(count(LabelService::LISTS))
@@ -309,27 +304,27 @@ it('removes the labels of items that no longer exist', function (): void {
 it('tells whether an item of a list exists', function (): void {
 	$this->createContentModel();
 	$this->userGroup(1, 'editors');
-	Craft::$app->getUserGroups()->shouldReceive('getGroupById')->andReturnUsing(fn(int $id): ?UserGroup => $this->userGroups[$id] ?? null);
-	ElementQueries::respond(Entry::class, fn($query): array => (array) $query->id === [5] ? [new Entry(['id' => 5])] : []);
+	mocked(Craft::$app->getUserGroups())->shouldReceive('getGroupById')->andReturnUsing(fn(int $id): ?UserGroup => $this->userGroups[$id] ?? null);
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => listOf($query->id) === [5] ? [new Entry(['id' => 5])] : []);
 
-	expect($this->labels->itemExists(ColumnService::LIST_ENTRIES, 5))->toBeTrue()
-		->and($this->labels->itemExists(ColumnService::LIST_ENTRIES, 6))->toBeFalse()
-		->and($this->labels->itemExists(ColumnService::LIST_FILES, 6))->toBeFalse()
-		->and($this->labels->itemExists(ColumnService::LIST_USERS, 6))->toBeFalse()
-		->and($this->labels->itemExists(ColumnService::LIST_SECTIONS, 1))->toBeTrue()
-		->and($this->labels->itemExists(ColumnService::LIST_ENTRY_TYPES, 10))->toBeTrue()
-		->and($this->labels->itemExists(ColumnService::LIST_FIELDS, 99))->toBeFalse()
-		->and($this->labels->itemExists(ColumnService::LIST_VOLUMES, 1))->toBeTrue()
-		->and($this->labels->itemExists(ColumnService::LIST_USER_GROUPS, 1))->toBeTrue()
-		->and($this->labels->itemExists('bogus', 1))->toBeFalse()
-		->and($this->labels->existingIds(ColumnService::LIST_USER_GROUPS, [1, 2]))->toBe([1])
-		->and($this->labels->existingIds(ColumnService::LIST_ENTRIES, []))->toBe([]);
+	expect($this->hub()->labels->itemExists(ColumnService::LIST_ENTRIES, 5))->toBeTrue()
+		->and($this->hub()->labels->itemExists(ColumnService::LIST_ENTRIES, 6))->toBeFalse()
+		->and($this->hub()->labels->itemExists(ColumnService::LIST_FILES, 6))->toBeFalse()
+		->and($this->hub()->labels->itemExists(ColumnService::LIST_USERS, 6))->toBeFalse()
+		->and($this->hub()->labels->itemExists(ColumnService::LIST_SECTIONS, 1))->toBeTrue()
+		->and($this->hub()->labels->itemExists(ColumnService::LIST_ENTRY_TYPES, 10))->toBeTrue()
+		->and($this->hub()->labels->itemExists(ColumnService::LIST_FIELDS, 99))->toBeFalse()
+		->and($this->hub()->labels->itemExists(ColumnService::LIST_VOLUMES, 1))->toBeTrue()
+		->and($this->hub()->labels->itemExists(ColumnService::LIST_USER_GROUPS, 1))->toBeTrue()
+		->and($this->hub()->labels->itemExists('bogus', 1))->toBeFalse()
+		->and($this->hub()->labels->existingIds(ColumnService::LIST_USER_GROUPS, [1, 2]))->toBe([1])
+		->and($this->hub()->labels->existingIds(ColumnService::LIST_ENTRIES, []))->toBe([]);
 });
 
 it('lets users with the permission manage the labels', function (): void {
-	expect($this->labels->canManage())->toBeTrue();
+	expect($this->hub()->labels->canManage())->toBeTrue();
 
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA]);
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessData->value]);
 
-	expect($this->labels->canManage())->toBeFalse();
+	expect($this->hub()->labels->canManage())->toBeFalse();
 });

@@ -11,7 +11,7 @@ $rows = [
 	['sectionId' => null, 'typeId' => 10, 'total' => 7],
 ];
 
-$sum = fn(?int $sum, array $row): int|float => ($sum ?? 0) + $row['total'];
+$sum = fn(int|float|null $sum, array $row): int|float => ($sum ?? 0) + asInt(at($row, 'total'));
 
 it('sums rows by any combination of criteria', function () use ($rows, $sum): void {
 	$sums = Aggregator::index($rows, ['sectionId', 'typeId'], $sum);

@@ -10,25 +10,33 @@ use craft\base\ElementInterface;
 use craft\web\Controller;
 use craft\web\View;
 use SomehowDigital\Craft\Hub\bulk\BulkPreview;
+use SomehowDigital\Craft\Hub\conditions\ConditionFactory;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\helpers\FilterParams;
-use SomehowDigital\Craft\Hub\helpers\ListSelection;
+use SomehowDigital\Craft\Hub\enums\Permission;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\models\FilterParams;
+use SomehowDigital\Craft\Hub\models\ListSort;
+use SomehowDigital\Craft\Hub\models\Paginator;
 use SomehowDigital\Craft\Hub\models\Settings;
+use SomehowDigital\Craft\Hub\models\Snapshot;
 use SomehowDigital\Craft\Hub\services\SnapshotService;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
+use yii\web\Session;
 
 /**
  * Base of Hub's controllers, requiring access to the plugin and, for those of a page, to the page, and rendering what
  * the pages have in common: their tabs, lists, statistics and diagnostics.
+ *
+ * @internal
  */
 abstract class BaseController extends Controller
 {
-	use ListVariables;
+	use ListVariablesTrait;
 
 	/** tabs of the detail pages, each on its own URL, the overview on that of the page itself */
 	public const TAB_OVERVIEW = 'overview';
@@ -46,11 +54,10 @@ abstract class BaseController extends Controller
 	/** sent by requests only reading the results of a list, swapped in below its filters, so their options aren't needed */
 	public const RESULTS_HEADER = 'X-Hub-Results';
 
-	/** query param of a statistics tab loading the card of that key alone, see Summary::lazyCard() */
+	/** query param of a statistics tab loading the card of that key alone, see BaseSummary::lazyCard() */
 	public const CARD_PARAM = 'card';
 
 	/** query param of a page loading the body of its collapsible panel of that key, see the `panel` component */
-	public const PANEL_PARAM = 'panel';
 
 	/** query param of a card of a statistics tab with the days its chart spans, see SnapshotService::chart() */
 	public const RANGE_PARAM = 'range';
@@ -69,7 +76,7 @@ abstract class BaseController extends Controller
 		$this->requireCpRequest();
 
 		// Craft only requires it of requests by the plugin's URLs, not of its actions.
-		$this->requirePermission('accessPlugin-' . Hub::getInstance()->id);
+		$this->requirePermission(Permission::PLUGIN);
 
 		if ($this->page instanceof Page && !Hub::getInstance()->access->canView($this->page)) {
 			throw new ForbiddenHttpException('User is not authorized to perform this action.');
@@ -117,7 +124,7 @@ abstract class BaseController extends Controller
 	 */
 	protected function postedListPath(): ?string
 	{
-		$path = Craft::$app->getRequest()->getBodyParam('path');
+		$path = $this->request->getBodyParam('path');
 
 		return is_string($path) && preg_match('#^hub/[a-z0-9/-]+$#', $path) === 1 ? $path : null;
 	}
@@ -135,7 +142,7 @@ abstract class BaseController extends Controller
 	/**
 	 * Adds the site scope and whether diagnostics and statistics are enabled to every Hub template.
 	 *
-	 * @param array<string,mixed> $variables
+	 * @param array<mixed> $variables
 	 */
 	public function renderTemplate(string $template, array $variables = [], ?string $templateMode = null): Response
 	{
@@ -189,7 +196,7 @@ abstract class BaseController extends Controller
 
 		return [
 			'settings' => $settings ?? $hub->settings,
-			'overrides' => array_keys(Craft::$app->getConfig()->getConfigFromFile($hub->handle)),
+			'overrides' => is_array($file = Craft::$app->getConfig()->getConfigFromFile($hub->handle)) ? array_keys($file) : [],
 			'readOnly' => !Craft::$app->getConfig()->getGeneral()->allowAdminChanges,
 		];
 	}
@@ -233,15 +240,20 @@ abstract class BaseController extends Controller
 	 */
 	protected function keepFilters(string $path): ?Response
 	{
-		$request = Craft::$app->getRequest();
+		$request = $this->request;
 
-		if (ListSelection::isRequested()) {
+		if (Hub::getInstance()->selection->isRequested()) {
 			return null;
 		}
 
 		$session = Craft::$app->getSession();
+
+		if (!$session instanceof Session) {
+			return null;
+		}
+
 		$key = "hub:filters:{$path}";
-		$params = FilterParams::listParams($request->getQueryParamsWithoutPath());
+		$params = FilterParams::listParams($this->queryParams());
 
 		if ($params !== [] || $request->getHeaders()->has(self::FILTERS_HEADER)) {
 			$params !== [] ? $session->set($key, $params) : $session->remove($key);
@@ -264,7 +276,8 @@ abstract class BaseController extends Controller
 	protected function conditionConfig(CheckKind $kind, mixed $posted): ?array
 	{
 		$rules = is_array($posted) && is_array($posted['conditionRules'] ?? null) ? $posted['conditionRules'] : [];
-		$config = $kind->createCondition(['conditionRules' => $rules])->getConfig();
+		/** @var array<string,mixed> $config */
+		$config = ConditionFactory::create($kind, ['conditionRules' => $rules])->getConfig();
 
 		return ($config['conditionRules'] ?? []) !== [] ? $config : null;
 	}
@@ -286,31 +299,39 @@ abstract class BaseController extends Controller
 	}
 
 	/**
-	 * Panel of the card of a statistics tab requested by its key (see Summary::lazyCard()), with its data loaded.
+	 * Panel of the card of a statistics tab requested by its key (see BaseSummary::lazyCard()), with its data loaded.
 	 *
-	 * @param array<int,array{key:string,label:string,icon:string,load:Closure,history?:Closure}> $cards
+	 * @param array<int,array<string,mixed>> $cards
 	 * @return Response|null null unless a card is requested
 	 * @throws NotFoundHttpException for cards the tab doesn't have
 	 */
 	protected function renderCard(array $cards): ?Response
 	{
-		$key = Craft::$app->getRequest()->getQueryParam(self::CARD_PARAM);
+		$key = $this->request->getQueryParam(self::CARD_PARAM);
 
 		if (!is_string($key)) {
 			return null;
 		}
 
 		foreach ($cards as $card) {
-			if ($card['key'] === $key) {
-				$data = ($card['load'])();
-
-				if (isset($card['history'], $data['total'])) {
-					$range = (int) Craft::$app->getRequest()->getQueryParam(self::RANGE_PARAM, SnapshotService::RANGES[0]);
-					$data['chart'] = Hub::getInstance()->snapshots->chart($card['history'], [...$card, ...$data], $range);
-				}
-
-				return $this->renderTemplate('hub/_components/statistics-card', ['card' => [...$card, ...$data]]);
+			if ($card['key'] !== $key) {
+				continue;
 			}
+
+			$load = $card['load'] ?? null;
+			/** @var array<string,mixed> $data */
+			$data = $load instanceof Closure ? $load() : [];
+			$history = $card['history'] ?? null;
+
+			if ($history instanceof Closure && isset($data['total'])) {
+				$range = Fill::int($this->request->getQueryParam(self::RANGE_PARAM, SnapshotService::RANGES[0]));
+				/** @var array{label:string,total:int|float,segments?:array<int,array<string,mixed>>} $current */
+				$current = [...$card, ...$data];
+				/** @var Closure(Snapshot):array{total:int|float,segments?:array<int,array<string,mixed>>} $history */
+				$data['chart'] = Hub::getInstance()->snapshots->chart($history, $current, $range);
+			}
+
+			return $this->renderTemplate('hub/_components/statistics-card', ['card' => [...$card, ...$data]]);
 		}
 
 		throw new NotFoundHttpException('Card not found.');
@@ -327,7 +348,7 @@ abstract class BaseController extends Controller
 	 */
 	protected function renderPanel(array $panels): ?Response
 	{
-		$key = Craft::$app->getRequest()->getQueryParam(self::PANEL_PARAM);
+		$key = $this->request->getQueryParam(FilterParams::PANEL_PARAM);
 
 		if (!is_string($key)) {
 			return null;
@@ -342,7 +363,7 @@ abstract class BaseController extends Controller
 	/**
 	 * Panel of the checks of the diagnostics tab of a detail page, see renderPanel().
 	 *
-	 * @param Closure():array<int,mixed> $checks the checks of the page's item
+	 * @param Closure():array<mixed> $checks the checks of the page's item
 	 * @return array<string,Closure():array{0:string,1:array<string,mixed>}>
 	 */
 	protected function checksPanel(Closure $checks): array
@@ -353,7 +374,7 @@ abstract class BaseController extends Controller
 	/**
 	 * Statistics tab of an index page: the summary cards of its items, or the one requested (see renderCard()).
 	 *
-	 * @param array<int,array{key:string,label:string,icon:string,load:Closure,history?:Closure}> $cards
+	 * @param array<int,array<string,mixed>> $cards
 	 * @param bool $siteScoped whether the elements are scoped to the selected sites, which users aren't
 	 * @param array<string,string> $extraTabs labels of the tabs between the list and the statistics, by their path segment
 	 */
@@ -415,5 +436,86 @@ abstract class BaseController extends Controller
 			'siteScoped' => $siteScoped,
 			'extraTabs' => $extraTabs,
 		]);
+	}
+
+	/**
+	 * The paginator of the page of the URL.
+	 */
+	protected function paginator(): Paginator
+	{
+		return new Paginator($this->request->getPageNum());
+	}
+
+	/**
+	 * The query params of the request without the path param.
+	 *
+	 * @return array<string,mixed>
+	 */
+	protected function queryParams(): array
+	{
+		return array_filter($this->request->getQueryParamsWithoutPath(), is_string(...), ARRAY_FILTER_USE_KEY);
+	}
+
+	/**
+	 * The sorting of a list by the query params of the request.
+	 *
+	 * @param array<string,int> $columns see {@see ListSort}
+	 */
+	protected function listSort(array $columns, string $default): ListSort
+	{
+		return new ListSort($columns, $default, $this->queryParams());
+	}
+
+	protected function bodyString(string $name, string $default = ''): string
+	{
+		$value = $this->request->getBodyParam($name, $default);
+
+		return is_scalar($value) ? (string) $value : $default;
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	protected function bodyParams(): array
+	{
+		return array_filter($this->request->getBodyParams(), is_string(...), ARRAY_FILTER_USE_KEY);
+	}
+
+	protected function bodyInt(string $name, int $default = 0): int
+	{
+		$value = $this->request->getBodyParam($name, $default);
+
+		return is_numeric($value) ? (int) $value : $default;
+	}
+
+	protected function bodyBool(string $name, bool $default = false): bool
+	{
+		return filter_var($this->request->getBodyParam($name, $default), FILTER_VALIDATE_BOOLEAN);
+	}
+
+	protected function requiredBodyString(string $name): string
+	{
+		$value = $this->request->getRequiredBodyParam($name);
+
+		return is_scalar($value) ? (string) $value : throw new BadRequestHttpException("Invalid {$name}.");
+	}
+
+	protected function requiredBodyInt(string $name): int
+	{
+		$value = $this->request->getRequiredBodyParam($name);
+
+		return is_numeric($value) ? (int) $value : throw new BadRequestHttpException("Invalid {$name}.");
+	}
+
+	protected function requiredBodyBool(string $name): bool
+	{
+		return filter_var($this->request->getRequiredBodyParam($name), FILTER_VALIDATE_BOOLEAN);
+	}
+
+	protected function queryInt(string $name, int $default = 0): int
+	{
+		$value = $this->request->getQueryParam($name, $default);
+
+		return is_numeric($value) ? (int) $value : $default;
 	}
 }

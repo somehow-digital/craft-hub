@@ -9,6 +9,8 @@ namespace SomehowDigital\Craft\Hub\helpers;
  *
  * Counts of items are kept by the set of sites the items are on, so they can be counted for any of the sites later:
  * an item is counted for some sites when any of them is in its set, see matches().
+ *
+ * @internal
  */
 final class SiteSet
 {
@@ -16,15 +18,17 @@ final class SiteSet
 	public const ANY = 0;
 
 	/**
-	 * @return int[]
+	 * @return list<int>
 	 */
-	public static function parse(?string $value): array
+	public static function parse(mixed $value): array
 	{
-		if ($value === null || $value === '') {
+		$value = Fill::text($value);
+
+		if ($value === null) {
 			return [];
 		}
 
-		return array_map(intval(...), explode(',', $value));
+		return array_map(Fill::int(...), explode(',', $value));
 	}
 
 	/**
@@ -53,7 +57,7 @@ final class SiteSet
 	 *
 	 * @param int[] $siteIds
 	 */
-	public static function matches(?string $set, array $siteIds): bool
+	public static function matches(mixed $set, array $siteIds): bool
 	{
 		$ids = self::parse($set);
 
@@ -63,7 +67,7 @@ final class SiteSet
 	/**
 	 * The set of the sites of both sets.
 	 */
-	public static function union(?string $a, ?string $b): ?string
+	public static function union(mixed $a, mixed $b): ?string
 	{
 		return self::format([...self::parse($a), ...self::parse($b)]);
 	}

@@ -15,8 +15,10 @@ use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 /**
  * Who maintains a section, entry type, field or volume an element is stored in, so editors know who to ask about the
  * element.
+ *
+ * @internal
  */
-class MaintainerSource
+final readonly class MaintainerSource
 {
 	/**
 	 * @param string $list list of the item, see ColumnService::LIST_*

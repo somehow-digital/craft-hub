@@ -2,17 +2,11 @@
 
 declare(strict_types=1);
 
-use craft\db\Query;
 use craft\db\QueryBatcher;
-use SomehowDigital\Craft\Hub\jobs\IndexReferences;
-use SomehowDigital\Craft\Hub\services\ReferenceService;
+use SomehowDigital\Craft\Hub\jobs\IndexReferencesJob;
 
 it('indexes the references of the elements a batch at a time', function (): void {
-	$references = $this->mockComponent('hub.references', ReferenceService::class);
-	$references->shouldReceive('indexableQuery')->andReturn(new Query());
-	$references->shouldReceive('index')->once()->with([3, 4]);
-	$references->shouldReceive('index')->once()->with([5]);
-	$job = new IndexReferences();
+	$job = new IndexReferencesJob();
 
 	(function (): void {
 		expect($this->loadData())->toBeInstanceOf(QueryBatcher::class)
@@ -24,4 +18,10 @@ it('indexes the references of the elements a batch at a time', function (): void
 			$this->afterBatch();
 		}
 	})->call($job);
+
+	$lookups = $this->db()->queriesMatching('FROM `elements_sites`');
+
+	expect($lookups)->toHaveCount(2)
+		->and($lookups[0])->toContain('`elements_sites`.`elementId` IN (3, 4)')
+		->and($lookups[1])->toContain('`elements_sites`.`elementId`=5');
 });

@@ -8,6 +8,8 @@ use Craft;
 
 /**
  * What kind of data a field holds.
+ *
+ * @internal
  */
 enum DataKind: string
 {

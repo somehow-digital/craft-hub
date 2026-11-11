@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
+use SomehowDigital\Craft\Hub\enums\Permission;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\Settings;
 use yii\web\Response;
@@ -14,8 +15,10 @@ use yii\web\Response;
  * read-only while admin changes aren't allowed. The settings page itself leads to its first tab the user may open: the
  * filters, the labels or the diagnostics tab, or the statistics tab. Each tab saves only its own settings, the labels
  * and diagnostics tabs switching theirs too.
+ *
+ * @internal
  */
-class SettingsController extends BaseController
+final class SettingsController extends BaseController
 {
 	/**
 	 * Leads to the first tab of the settings page the user may open.
@@ -24,9 +27,9 @@ class SettingsController extends BaseController
 	{
 		$user = Craft::$app->getUser();
 		$tabs = [
-			'filters' => Hub::PERMISSION_MANAGE_FILTERS,
-			'labels' => Hub::PERMISSION_MANAGE_LABELS,
-			'diagnostics' => Hub::PERMISSION_MANAGE_DIAGNOSTICS,
+			'filters' => Permission::ManageFilters->value,
+			'labels' => Permission::ManageLabels->value,
+			'diagnostics' => Permission::ManageDiagnostics->value,
 		];
 
 		foreach ($tabs as $tab => $permission) {
@@ -89,14 +92,14 @@ class SettingsController extends BaseController
 		$this->requireAdmin();
 
 		$hub = Hub::getInstance();
-		$values = Craft::$app->getRequest()->getBodyParam('settings');
+		$values = $this->request->getBodyParam('settings');
 
 		if (!Craft::$app->getPlugins()->savePluginSettings($hub, is_array($values) ? $values : [])) {
-			return $this->asModelFailure($hub->getSettings(), Craft::t('hub', 'Couldn’t save the settings.'), 'settings');
+			return $this->asModelFailure($hub->settings, Craft::t('hub', 'Couldn’t save the settings.'), 'settings');
 		}
 
 		$redirect = $this->getPostedRedirectUrl() ?? $this->hubUrl('hub/manage/settings/statistics');
 
-		return $this->asModelSuccess($hub->getSettings(), Craft::t('hub', 'Settings saved.'), 'settings', redirect: $redirect);
+		return $this->asModelSuccess($hub->settings, Craft::t('hub', 'Settings saved.'), 'settings', redirect: $redirect);
 	}
 }

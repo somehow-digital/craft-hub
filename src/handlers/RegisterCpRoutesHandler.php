@@ -8,8 +8,10 @@ use craft\events\RegisterUrlRulesEvent;
 
 /**
  * Registers the URLs of Hub's pages in the control panel.
+ *
+ * @internal
  */
-class RegisterCpRoutesHandler
+final class RegisterCpRoutesHandler
 {
 	/** index pages by their path, each with a statistics and a diagnostics tab and detail pages with tabs of their own, mapped to their controller */
 	private const PAGES = [

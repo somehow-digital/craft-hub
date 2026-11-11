@@ -2,14 +2,15 @@
 
 declare(strict_types=1);
 
-namespace SomehowDigital\Craft\Hub\helpers;
+namespace SomehowDigital\Craft\Hub\models;
 
-use Craft;
 use craft\helpers\UrlHelper;
 
 /**
  * The column and direction a list sorted on the server is sorted by, as its query params say (`sort` and `dir`): columns
  * sort in their natural direction unless `dir` says otherwise, and unknown ones sort by the default column.
+ *
+ * @internal
  */
 final readonly class ListSort
 {
@@ -36,16 +37,6 @@ final readonly class ListSort
 			'desc' => SORT_DESC,
 			default => $columns[$this->column],
 		};
-	}
-
-	/**
-	 * The sorting of a list by the query params of the request.
-	 *
-	 * @param array<string,int> $columns see the constructor
-	 */
-	public static function fromRequest(array $columns, string $default): self
-	{
-		return new self($columns, $default, Craft::$app->getRequest()->getQueryParamsWithoutPath());
 	}
 
 	/**
