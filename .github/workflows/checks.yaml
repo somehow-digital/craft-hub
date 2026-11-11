@@ -40,13 +40,16 @@ jobs:
             coverage: pcov
           - name: mutation testing
             script: mutate
-            # Mutation testing runs the tests against the mutants that they cover.
+            # Mutation testing runs the tests against the mutants that they cover. Pull requests only mutate the classes they
+            # change, as the whole plugin takes too long; the whole plugin is mutated on main.
             coverage: pcov
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          # The base of a pull request, to tell the classes it changes in mutation testing.
+          fetch-depth: 0
 
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
@@ -57,4 +60,12 @@ jobs:
       - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
 
       - name: Run ${{ matrix.script }}
+        if: ${{ !(matrix.script == 'mutate' && github.event_name == 'pull_request') }}
         run: composer ${{ matrix.script }}
+
+      - name: Run ${{ matrix.script }} of the changed classes
+        if: ${{ matrix.script == 'mutate' && github.event_name == 'pull_request' }}
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: .github/scripts/mutate-changed.sh "$BASE_REF"
+
