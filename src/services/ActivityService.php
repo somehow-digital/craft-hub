@@ -13,7 +13,6 @@ use craft\helpers\Db;
 use craft\helpers\Json;
 use craft\services\Users;
 use craft\web\Request as WebRequest;
-use craft\web\Session as WebSession;
 use craft\web\User as WebUser;
 use DateTime;
 use SomehowDigital\Craft\Hub\db\Tables;
@@ -24,6 +23,7 @@ use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\models\Settings;
 use Throwable;
 use yii\base\Component;
+use yii\web\Session as WebSession;
 
 /**
  * Records the activity log: what users did, as Craft's own events tell it (see ActivityTracker), along with what they did

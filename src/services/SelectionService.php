@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace SomehowDigital\Craft\Hub\services;
 
 use craft\web\Request as WebRequest;
-use craft\web\Session;
 use SomehowDigital\Craft\Hub\models\ListSelection;
 use yii\base\Component;
+use yii\web\Session;
 
 /**
  * The items selected in a list for its bulk actions, kept in the session, per list and the page it is on (its path), so the

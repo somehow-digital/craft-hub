@@ -23,7 +23,6 @@ use craft\services\UserPermissions;
 use craft\web\Application as WebApplication;
 use craft\web\Request as WebRequest;
 use craft\web\Response as WebResponse;
-use craft\web\Session;
 use craft\web\twig\variables\Cp;
 use craft\web\UrlManager;
 use craft\web\User as WebUser;
@@ -85,6 +84,7 @@ use yii\base\ActionEvent;
 use yii\base\Controller;
 use yii\base\Event;
 use yii\caching\CacheInterface;
+use yii\web\Session;
 
 /**
  * @property AccessService $access

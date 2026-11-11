@@ -9,10 +9,10 @@ use craft\helpers\UrlHelper;
 use craft\models\Site;
 use craft\services\Sites;
 use craft\web\Request;
-use craft\web\Session;
 use SomehowDigital\Craft\Hub\models\FilterParams;
 use yii\base\Component;
 use yii\base\Request as BaseRequest;
+use yii\web\Session;
 
 /**
  * The sites Hub's pages are scoped to, picked by the `hubSite` query param and kept in the session, so coming back to Hub from
