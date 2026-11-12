@@ -6,7 +6,6 @@ use craft\base\ElementInterface;
 use craft\behaviors\DraftBehavior;
 use craft\elements\Asset;
 use craft\elements\db\ElementQuery;
-use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
 use craft\elements\exporters\Expanded;
 use craft\elements\exporters\Raw;
@@ -45,6 +44,7 @@ use SomehowDigital\Craft\Hub\models\VolumeFilter;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use SomehowDigital\Craft\Hub\services\SelectionService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
+use SomehowDigital\Craft\Hub\Tests\Support\UnformattedExporter;
 use SomehowDigital\Craft\Hub\Tests\TestCase;
 use yii\base\Event;
 use yii\base\Exception;
@@ -747,22 +747,6 @@ it('fails exporting when the user may view none of the selected items', function
 
 	expect(at($response->data, 'message'))->toContain('couldn’t be applied');
 });
-
-/**
- * An exporter whose data is sent as it is, rather than formatted by Craft.
- */
-final class UnformattedExporter extends Raw
-{
-	public static function isFormattable(): bool
-	{
-		return false;
-	}
-
-	public function export(ElementQueryInterface $query): string
-	{
-		return 'a,b';
-	}
-}
 
 /**
  * Assets that the user may view, which have a file to send.
