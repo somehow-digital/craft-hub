@@ -28,6 +28,9 @@ use craft\web\UrlManager;
 use craft\web\User as WebUser;
 use LogicException;
 use RuntimeException;
+use SomehowDigital\Craft\Hub\base\FieldsProviderInterface;
+use SomehowDigital\Craft\Hub\base\FileKindsProviderInterface;
+use SomehowDigital\Craft\Hub\base\ThresholdsProviderInterface;
 use SomehowDigital\Craft\Hub\bulk\BulkActions;
 use SomehowDigital\Craft\Hub\handlers\activity\AccountActivity;
 use SomehowDigital\Craft\Hub\handlers\activity\ConfigActivity;
@@ -42,6 +45,7 @@ use SomehowDigital\Craft\Hub\handlers\RegisterPermissionsHandler;
 use SomehowDigital\Craft\Hub\handlers\TrashTracker;
 use SomehowDigital\Craft\Hub\handlers\UserGroupSidebarHandler;
 use SomehowDigital\Craft\Hub\jobs\IndexReferencesJob;
+use SomehowDigital\Craft\Hub\jobs\TakeSnapshotJob;
 use SomehowDigital\Craft\Hub\models\Settings;
 use SomehowDigital\Craft\Hub\services\AccessService;
 use SomehowDigital\Craft\Hub\services\ActivityFeedService;
@@ -211,6 +215,10 @@ final class Hub extends Plugin
 			VolumesSummary::class => fn(): VolumesSummary => new VolumesSummary(Craft::createObject(SiteScopeService::class), Craft::createObject(SnapshotService::class), Craft::createObject(StructureService::class), Craft::createObject(VolumeService::class), Craft::createObject(StatisticsService::class), Craft::createObject(FileService::class)),
 			WorkService::class => fn(): WorkService => new WorkService(Craft::createObject(SiteScopeService::class), $this->settings, Craft::createObject(MaintainerService::class), Craft::createObject(AccessService::class), Craft::createObject(DiagnosticsService::class), Craft::createObject(EntryService::class), Craft::createObject(StructureService::class), Craft::createObject(CheckService::class), Craft::createObject(VolumeService::class), Craft::createObject(QueryService::class), $this->cache(), Craft::$app->getDb(), $this->webUser()),
 			// </wiring>
+			// The rules of the conditions are created by Craft, and ask for these by their interfaces.
+			FieldsProviderInterface::class => fn(): FieldsProviderInterface => Craft::createObject(StructureService::class),
+			FileKindsProviderInterface::class => fn(): FileKindsProviderInterface => Craft::createObject(VolumeService::class),
+			ThresholdsProviderInterface::class => fn(): ThresholdsProviderInterface => Craft::createObject(FilterService::class),
 		]);
 	}
 
@@ -404,14 +412,18 @@ final class Hub extends Plugin
 
 	/**
 	 * Pushes a job taking a snapshot of the statistics once one is due, after a control panel request, so snapshots are
-	 * taken without a cron job too, see SnapshotService::pushIfDue().
+	 * taken without a cron job too, see SnapshotService::claimPush().
 	 */
 	protected function registerSnapshots(): void
 	{
 		Event::on(
 			WebApplication::class,
 			WebApplication::EVENT_AFTER_REQUEST,
-			fn() => $this->snapshots->pushIfDue()
+			function (): void {
+				if ($this->snapshots->claimPush()) {
+					Queue::push(new TakeSnapshotJob());
+				}
+			}
 		);
 	}
 

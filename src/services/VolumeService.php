@@ -13,6 +13,7 @@ use craft\helpers\Assets as AssetsHelper;
 use craft\models\Volume;
 use craft\services\Fields;
 use craft\services\Volumes;
+use SomehowDigital\Craft\Hub\base\FileKindsProviderInterface;
 use SomehowDigital\Craft\Hub\helpers\Classifier;
 use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\models\AssetStatistics;
@@ -26,7 +27,7 @@ use yii\base\Component;
  *
  * @internal
  */
-final class VolumeService extends Component
+final class VolumeService extends Component implements FileKindsProviderInterface
 {
 	/** @var array<string,array<int,VolumeInfo>> */
 	private array $graphs = [];

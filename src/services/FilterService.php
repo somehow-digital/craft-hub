@@ -14,6 +14,7 @@ use craft\elements\db\ElementQuery;
 use craft\helpers\Json;
 use craft\helpers\StringHelper;
 use craft\web\User as WebUser;
+use SomehowDigital\Craft\Hub\base\ThresholdsProviderInterface;
 use SomehowDigital\Craft\Hub\conditions\BaseInfoCondition;
 use SomehowDigital\Craft\Hub\conditions\ConditionFactory;
 use SomehowDigital\Craft\Hub\db\Tables;
@@ -36,7 +37,7 @@ use yii\base\Component;
  *
  * @internal
  */
-final class FilterService extends Component
+final class FilterService extends Component implements ThresholdsProviderInterface
 {
 	/** query param of a list applying the condition of a custom filter, by its UID */
 	public const PARAM = 'filter';

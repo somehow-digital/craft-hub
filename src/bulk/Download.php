@@ -7,21 +7,19 @@ namespace SomehowDigital\Craft\Hub\bulk;
 use Craft;
 use craft\elements\Asset;
 use craft\helpers\App;
-use craft\helpers\FileHelper;
 use craft\helpers\StringHelper;
 use craft\services\Path;
-use craft\web\Response;
 use SomehowDigital\Craft\Hub\base\SendsFileInterface;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\Page;
 use SomehowDigital\Craft\Hub\enums\Permission;
+use SomehowDigital\Craft\Hub\models\FileDownload;
 use SomehowDigital\Craft\Hub\models\Paginator;
 use SomehowDigital\Craft\Hub\services\AccessService;
 use SomehowDigital\Craft\Hub\services\ActivityService;
 use SomehowDigital\Craft\Hub\services\BulkService;
 use yii\base\Exception;
-use yii\web\Response as YiiResponse;
 use ZipArchive;
 
 /**
@@ -65,7 +63,7 @@ final class Download extends BaseBulkAction implements SendsFileInterface
 		]);
 	}
 
-	public function send(Response $response, array $ids, array $params): ?Response
+	public function download(array $ids, array $params): ?FileDownload
 	{
 		$assets = $this->bulk->getDownloadableFiles($ids);
 
@@ -85,10 +83,7 @@ final class Download extends BaseBulkAction implements SendsFileInterface
 		if (count($assets) === 1) {
 			$asset = $assets[0];
 
-			return $response->sendStreamAsFile($asset->getStream(), $asset->getFilename(), [
-				'fileSize' => $asset->size,
-				'mimeType' => $asset->getMimeType(),
-			]);
+			return FileDownload::stream($asset->getStream(), $asset->getFilename(), $asset->getMimeType(), $asset->size);
 		}
 
 		$path = $this->craftPath->getTempPath() . '/' . StringHelper::UUID() . '.zip';
@@ -105,8 +100,7 @@ final class Download extends BaseBulkAction implements SendsFileInterface
 		}
 
 		$zip->close();
-		$response->on(YiiResponse::EVENT_AFTER_SEND, fn(): bool => FileHelper::unlink($path));
 
-		return $response->sendFile($path, 'files.zip');
+		return FileDownload::temporaryFile($path, 'files.zip');
 	}
 }

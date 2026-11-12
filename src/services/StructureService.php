@@ -30,6 +30,7 @@ use craft\services\Globals;
 use craft\services\Sites;
 use craft\services\Tags;
 use craft\services\Volumes;
+use SomehowDigital\Craft\Hub\base\FieldsProviderInterface;
 use SomehowDigital\Craft\Hub\helpers\Classifier;
 use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\models\EntryStatistics;
@@ -46,7 +47,7 @@ use yii\base\Component;
  *
  * @internal
  */
-final class StructureService extends Component
+final class StructureService extends Component implements FieldsProviderInterface
 {
 	/** @var array<string,array{sections:array<int,SectionInfo>,entryTypes:array<int,EntryTypeInfo>,fields:array<int,FieldInfo>}> */
 	private array $graphs = [];

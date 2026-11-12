@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
+use craft\helpers\FileHelper;
+use InvalidArgumentException;
 use SomehowDigital\Craft\Hub\bulk\BulkActions;
+use SomehowDigital\Craft\Hub\enums\FileDownloadKind;
 use SomehowDigital\Craft\Hub\helpers\Ids;
 use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\models\FileDownload;
 use SomehowDigital\Craft\Hub\services\SelectionService;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
@@ -49,8 +53,11 @@ final class BulkController extends BaseController
 		$keep = $actions[$action]['keep'] ?? false;
 
 		if ($actions[$action]['file'] ?? false) {
-			return $bulk->getFileAction($list, $action)?->send($this->response, $ids, $this->bodyParams())
-				?? $this->asFailure(Craft::t('hub', '“{action}” couldn’t be applied to the selected items.', ['action' => $label]));
+			$download = $bulk->getFileAction($list, $action)?->download($ids, $this->bodyParams());
+
+			return $download instanceof FileDownload
+				? $this->sendDownload($download)
+				: $this->asFailure(Craft::t('hub', '“{action}” couldn’t be applied to the selected items.', ['action' => $label]));
 		}
 
 		$applied = $bulk->apply($list, $action, $ids, $this->bodyParams());
@@ -166,6 +173,49 @@ final class BulkController extends BaseController
 	{
 		if ($item <= 0 && !Hub::getInstance()->bulkActions->canSelect($list)) {
 			throw new ForbiddenHttpException('User is not authorized to bulk-edit these items.');
+		}
+	}
+
+	private function sendDownload(FileDownload $download): Response
+	{
+		$response = $this->response;
+		$content = $download->content;
+
+		switch ($download->kind) {
+			case FileDownloadKind::Stream:
+				if (!is_resource($content)) {
+					throw new InvalidArgumentException('A stream download holds a stream.');
+				}
+
+				return $response->sendStreamAsFile($content, $download->filename, [
+					'fileSize' => $download->size,
+					'mimeType' => $download->mimeType,
+				]);
+			case FileDownloadKind::TemporaryFile:
+				$path = is_string($content) ? $content : throw new InvalidArgumentException('A file download holds a path.');
+				$response->on(Response::EVENT_AFTER_SEND, fn(): bool => FileHelper::unlink($path));
+
+				return $response->sendFile($path, $download->filename);
+			case FileDownloadKind::Formatted:
+				$format = (string) $download->format;
+				$current = $response->formatters[$format] ?? [];
+				$response->format = $format;
+				$response->setDownloadHeaders($download->filename);
+				$response->formatters[$format] = [...(is_array($current) ? $current : []), ...$download->formatter];
+				$response->data = $content;
+
+				return $response;
+			case FileDownloadKind::Raw:
+				$response->setDownloadHeaders($download->filename);
+
+				if (is_callable($content) || is_resource($content) || (is_array($content) && isset($content[0]) && is_resource($content[0]))) {
+					$response->stream = $content;
+				} else {
+					$response->data = $content;
+					$response->format = Response::FORMAT_RAW;
+				}
+
+				return $response;
 		}
 	}
 }

@@ -18,11 +18,11 @@
 #     Jobs           queue jobs                                       jobs
 #   Application
 #     Handlers       handlers of the events of Craft                  handlers
+#     Bulk           the bulk actions of the lists, above the services bulk
+#     Statistics     the cards of the statistics, above the services  statistics
 #     Services       components that hold the logic                   services
-#   Below the services, which hand them what they need
-#     Bulk           the bulk actions of the lists                    bulk
-#     Conditions     conditions of the filters and checks             conditions
-#     Statistics     the cards of the statistics                      statistics
+#     Conditions     conditions of the filters and checks; their rules take what they offer from services through
+#                    the interfaces of the contracts                  conditions
 #   Infrastructure
 #     Elements       element queries                                  elements
 #     Migrations     schema migrations                                migrations
@@ -142,25 +142,20 @@ deptrac:
         - type: classNameRegex
           value: '#^%plugin%\\enums\\#'
 
-    # Not shipped, so no layer depends on them.
-    - name: Tests
-      collectors:
-        - type: classNameRegex
-          value: '#^%plugin%\\Tests\\#'
-
-    # Only the plugin registers class-level handlers, so they're all in one place.
+    # The plugin and the handlers register class-level handlers.
     - name: YiiEvent
       collectors:
         - type: classNameRegex
           value: '#^yii\\base\\Event$#'
 
-    # Only entry points read these, and pass on plain data.
+    # Entry points read these and pass on plain data. Services, bulk actions and handlers take the user or request they act
+    # for as ambient context (who acts, the page, the IP), as Craft's own services do; the contracts know nothing of them.
     - name: WebContext
       collectors:
         - type: classNameRegex
-          value: '#^((yii|craft)\\web\\(Request|Response|Session|User|UploadedFile|Cookie|CookieCollection)|craft\\console\\Request)$#'
+          value: '#^((yii|craft)\\web\\(Request|Response|User|UploadedFile|Cookie|CookieCollection)|craft\\console\\Request)$#'
 
-    # For services, elements and migrations. Expressions are plain values, which helpers may take.
+    # For services, handlers, jobs and migrations. Expressions are plain values, which helpers may take.
     - name: Database
       collectors:
         - type: classNameRegex
@@ -177,6 +172,13 @@ deptrac:
       collectors:
         - type: classNameRegex
           value: '#^((yii\\(base|web)|craft\\web)\\View$|craft\\web\\twig\\(?!variables\\Paginate$)|craft\\helpers\\(Html|Cp)$|Twig\\)#'
+
+    # Projects replace the session, queue, cache and mutex of Craft with others, like Redis ones, which are instances of
+    # their Yii base class (yii\web\Session) but not of these.
+    - name: Replaceable
+      collectors:
+        - type: classNameRegex
+          value: '#^craft\\(web\\Session|queue\\Queue|cache\\|mutex\\)#'
 
     # Craft wraps these, so no layer reads them.
     - name: Superglobals
@@ -195,38 +197,41 @@ deptrac:
 
   ruleset:
     # Registers everything and wires the components of the plugin, and the handlers with their services.
-    Plugin: [Http, Console, View, Handlers, Jobs, Bulk, Statistics, Services, Elements, Assets, Contracts, Models, Helpers, Enums, YiiEvent, WebContext, CraftServices, Rendering]
+    Plugin: [View, Handlers, Jobs, Bulk, Statistics, Services, Contracts, Models, YiiEvent, WebContext, CraftServices, Rendering]
 
     # Entry points stay thin: read input, call services, render output.
-    Http: [Plugin, Services, Bulk, Statistics, Conditions, Elements, Assets, Contracts, Models, Helpers, Enums, WebContext, CraftServices, Rendering]
-    Console: [Plugin, Services, Jobs, Contracts, Models, Helpers, Enums, WebContext, CraftServices]
-    View: [Plugin, Services, Assets, Models, Helpers, Enums, CraftServices, Rendering]
-    Jobs: [Plugin, Services, Models, Helpers, Enums, Database, CraftServices]
+    Http: [Plugin, Services, Bulk, Conditions, Models, Helpers, Enums, WebContext, Rendering]
+    Console: [Plugin, Jobs, Helpers]
+    View: [Plugin]
+    Jobs: [Plugin, Helpers, Database]
 
     # Handlers react to the events of Craft, whatever the event is about, with their services injected.
-    Handlers: [Services, Jobs, Elements, Assets, Contracts, Models, Helpers, Enums, YiiEvent, WebContext, Database, CraftServices, Rendering]
+    Handlers: [Services, Assets, Models, Helpers, Enums, YiiEvent, WebContext, Database, CraftServices, Rendering]
 
     # Services get their collaborators injected, so they know no entry point, and don't render.
-    Services: [Conditions, Jobs, Elements, Contracts, Models, Schema, Helpers, Enums, Database, WebContext, CraftServices]
+    Services: [Conditions, Elements, Contracts, Models, Schema, Helpers, Enums, Database, WebContext, CraftServices]
     # Bulk actions are use cases above the services they apply, which know nothing of them. Actions sending a file respond
-    # with the response of the request. Statistics, the summary cards of the lists, are use cases above the services too. Conditions are handed what they need by the services running them.
-    Bulk: [Services, Elements, Contracts, Models, Helpers, Enums, WebContext, CraftServices]
-    # The condition builder of Craft creates the rules, handing them the services that tell their options through the container.
-    Conditions: [Services, Contracts, Models, Helpers, Enums, CraftServices]
+    # with the response of the request. Statistics, the summary cards of the lists, are use cases above the services too.
+    Bulk: [Services, Contracts, Models, Helpers, Enums, WebContext, CraftServices]
+    # The condition builder of Craft creates the rules, handing them what tells their options through the container, by interfaces.
+    Conditions: [Contracts, Models, Enums]
     Statistics: [Services, Models, Helpers, Enums, CraftServices]
 
     # The infrastructure doesn't know the services.
-    Elements: [Schema, Models, Helpers, Enums, CraftServices]
+    Elements: [Schema]
     # Migrations depend on nothing that changes later.
-    Migrations: [Schema, Enums, Database]
+    Migrations: [Schema, Database]
     # Asset bundles register their files with the view.
     Assets: [Rendering]
 
     # The domain depends only on itself and the leaves.
-    Contracts: [Models, Enums, WebContext]
+    Contracts: [Models, Enums]
     Models: [Helpers, Enums]
 
     # Leaves depend on nothing but enums.
     Schema: ~
     Helpers: [Enums]
     Enums: ~
+
+    # Nothing depends on these (see Replaceable).
+    Replaceable: ~

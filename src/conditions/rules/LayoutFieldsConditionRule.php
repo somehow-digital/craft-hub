@@ -7,12 +7,12 @@ namespace SomehowDigital\Craft\Hub\conditions\rules;
 use Craft;
 use craft\base\conditions\BaseMultiSelectConditionRule;
 use craft\base\FieldInterface;
+use SomehowDigital\Craft\Hub\base\FieldsProviderInterface;
 use SomehowDigital\Craft\Hub\base\InfoConditionRuleInterface;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
 use SomehowDigital\Craft\Hub\models\VolumeInfo;
-use SomehowDigital\Craft\Hub\services\StructureService;
 
 /**
  * Matches the custom fields in the field layout of an entry type or volume.
@@ -25,7 +25,7 @@ final class LayoutFieldsConditionRule extends BaseMultiSelectConditionRule imple
 	 * @param array<string,mixed> $config
 	 */
 	public function __construct(
-		private readonly StructureService $structure,
+		private readonly FieldsProviderInterface $structure,
 		array $config = [],
 	) {
 		parent::__construct($config);

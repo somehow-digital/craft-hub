@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace SomehowDigital\Craft\Hub\base;
 
-use craft\web\Response;
+use SomehowDigital\Craft\Hub\models\FileDownload;
 
 /**
  * A bulk action sending a file rather than changing the items.
@@ -14,10 +14,10 @@ use craft\web\Response;
 interface SendsFileInterface
 {
 	/**
-	 * Sends the file of the items with the IDs, or null if there's nothing to send.
+	 * Prepares the file of the items with the IDs, which the controller sends, or null if there's nothing to send.
 	 *
 	 * @param int[] $ids
 	 * @param array<string,mixed> $params what was picked in its preview
 	 */
-	public function send(Response $response, array $ids, array $params): ?Response;
+	public function download(array $ids, array $params): ?FileDownload;
 }

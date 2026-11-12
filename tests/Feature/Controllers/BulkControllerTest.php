@@ -6,12 +6,14 @@ use craft\base\ElementInterface;
 use craft\behaviors\DraftBehavior;
 use craft\elements\Asset;
 use craft\elements\db\ElementQuery;
+use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
 use craft\elements\exporters\Expanded;
 use craft\elements\exporters\Raw;
 use craft\elements\User;
 use craft\enums\CmsEdition;
 use craft\events\RegisterElementExportersEvent;
+use craft\helpers\FileHelper;
 use craft\imagetransforms\FallbackTransformer;
 use craft\imagetransforms\ImageTransformer;
 use craft\models\ImageTransform;
@@ -744,6 +746,162 @@ it('fails exporting when the user may view none of the selected items', function
 	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'export', 'ids' => ['1']]);
 
 	expect(at($response->data, 'message'))->toContain('couldn’t be applied');
+});
+
+/**
+ * An exporter whose data is sent as it is, rather than formatted by Craft.
+ */
+final class UnformattedExporter extends Raw
+{
+	public static function isFormattable(): bool
+	{
+		return false;
+	}
+
+	public function export(ElementQueryInterface $query): string
+	{
+		return 'a,b';
+	}
+}
+
+/**
+ * Assets that the user may view, which have a file to send.
+ *
+ * @param array<int,string> $contents
+ */
+function downloadableAssets(array $contents): void
+{
+	currentTest()->volume(1, 'images');
+	$assets = [];
+
+	foreach ($contents as $id => $content) {
+		$assets[$id] = new class (['id' => $id, 'siteId' => 1, 'volumeId' => 1, 'kind' => 'image', 'filename' => "file-{$id}.txt", 'title' => "File {$id}", 'size' => strlen($content)], $content) extends Asset {
+			/**
+			 * @param array<string,mixed> $config
+			 */
+			public function __construct(
+				array $config,
+				private readonly string $content
+			) {
+				parent::__construct($config);
+			}
+
+			public function getStream()
+			{
+				$stream = fopen('php://memory', 'r+');
+				if ($stream === false) {
+					throw new LogicException('No stream.');
+				}
+
+				fwrite($stream, $this->content);
+				rewind($stream);
+
+				return $stream;
+			}
+
+			public function getContents(): string
+			{
+				return $this->content;
+			}
+
+			public function getPath(?string $uri = null): string
+			{
+				return 'dir/file-' . (int) $this->id . '.txt';
+			}
+		};
+	}
+
+	ElementQueries::respond(Asset::class, fn(ElementQuery $query): array => array_values(array_filter($assets, fn(Asset $asset): bool => in_array($asset->id, listOf($query->id), true))));
+	mocked(Craft::$app->getElements())->shouldReceive('canView')->andReturn(true);
+}
+
+it('sends a single downloaded file as it is', function (): void {
+	downloadableAssets([1 => 'hello']);
+
+	$response = bulkApply($this, ['list' => 'files', 'bulkAction' => 'download', 'ids' => ['1']]);
+
+	expect($response->getHeaders()->get('Content-Disposition'))->toContain('file-1.txt')
+		->and($response->getHeaders()->get('Content-Type'))->toContain('text/plain')
+		->and(is_array($response->stream) && is_resource($response->stream[0]) ? stream_get_contents($response->stream[0]) : null)->toBe('hello');
+});
+
+it('sends several downloaded files in a zip archive, deleted once it is sent', function (): void {
+	$dir = sys_get_temp_dir() . '/hub-download-' . bin2hex(random_bytes(4));
+	mkdir($dir);
+	downloadableAssets([1 => 'one', 2 => 'two']);
+	$buffers = ob_get_level();
+	$path = Mockery::mock(Craft::$app->getPath())->makePartial();
+	$path->shouldReceive('getTempPath')->andReturn($dir);
+	Craft::$app->set('path', $path);
+
+	try {
+		$response = bulkApply($this, ['list' => 'files', 'bulkAction' => 'download', 'ids' => ['1', '2']]);
+		$files = FileHelper::findFiles($dir, ['only' => ['*.zip']]);
+		$zip = new ZipArchive();
+		$zip->open(stringAt($files, 0));
+		$names = [$zip->getNameIndex(0), $zip->getNameIndex(1)];
+		$zip->close();
+
+		expect($response->getHeaders()->get('Content-Disposition'))->toContain('files.zip')
+			->and($files)->toHaveCount(1)
+			->and($names)->toBe(['Images/dir/file-1.txt', 'Images/dir/file-2.txt']);
+
+		$response->trigger(WebResponse::EVENT_AFTER_SEND);
+
+		expect(FileHelper::findFiles($dir, ['only' => ['*.zip']]))->toBe([]);
+	} finally {
+		// Sending a file closes the output buffers, including the one of the test runner.
+		while (ob_get_level() < $buffers) {
+			ob_start();
+		}
+
+		FileHelper::removeDirectory($dir);
+	}
+});
+
+it('fails downloading when the user may view none of the selected files', function (): void {
+	ElementQueries::respond(Asset::class, []);
+
+	$response = bulkApply($this, ['list' => 'files', 'bulkAction' => 'download', 'ids' => ['1']]);
+
+	expect(at($response->data, 'message'))->toContain('couldn’t be applied');
+});
+
+it('exports as JSON pretty-printed, and as XML with the items as its root', function (string $format, array $options): void {
+	$this->section(1, 'news', entryTypes: [$this->entryType(10, 'article')]);
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => array_map(
+		fn(int $id): Entry|array => $query->asArray ? ['id' => $id] : new Entry(['id' => $id, 'siteId' => 1, 'sectionId' => 1, 'typeId' => 10]),
+		idsOf($query->id),
+	));
+	mocked(Craft::$app->getElements())->shouldReceive('canView')->andReturn(true);
+
+	$response = bulkApply($this, ['list' => 'entries', 'bulkAction' => 'export', 'exporter' => Raw::class, 'format' => $format, 'ids' => ['1']]);
+
+	expect($response->format)->toBe($format)
+		->and($response->formatters[$format])->toMatchArray($options)
+		->and($response->getHeaders()->get('Content-Disposition'))->toContain("entries.{$format}");
+})->with([
+	'json' => ['json', ['prettyPrint' => true]],
+	'xml' => ['xml', ['rootTag' => 'entries']],
+]);
+
+it('sends what an exporter that is not formattable returns as it is', function (): void {
+	$handler = function (RegisterElementExportersEvent $event): void {
+		$event->exporters = [UnformattedExporter::class];
+	};
+	Event::on(User::class, User::EVENT_REGISTER_EXPORTERS, $handler);
+	ElementQueries::respond(User::class, fn(ElementQuery $query): array => array_map(fn(int $id): User => new User(['id' => $id, 'username' => "user{$id}"]), idsOf($query->id)));
+	mocked(Craft::$app->getElements())->shouldReceive('canView')->andReturn(true);
+
+	try {
+		$response = bulkApply($this, ['list' => 'users', 'bulkAction' => 'export', 'exporter' => UnformattedExporter::class, 'ids' => ['4']]);
+	} finally {
+		Event::off(User::class, User::EVENT_REGISTER_EXPORTERS, $handler);
+	}
+
+	expect($response->format)->toBe(WebResponse::FORMAT_RAW)
+		->and($response->data)->toBe('a,b')
+		->and($response->getHeaders()->get('Content-Disposition'))->toContain('users');
 });
 
 it('rejects exporting by exporters or in formats Craft does not offer', function (array $body): void {

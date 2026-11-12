@@ -11,7 +11,6 @@ use craft\db\Connection;
 use craft\db\Query;
 use craft\helpers\DateTimeHelper;
 use craft\helpers\Json;
-use craft\helpers\Queue;
 use craft\helpers\StringHelper;
 use DateTime;
 use DateTimeZone;
@@ -19,7 +18,6 @@ use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\DataKind;
 use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\helpers\Row;
-use SomehowDigital\Craft\Hub\jobs\TakeSnapshotJob;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\models\LayoutUsage;
@@ -144,25 +142,29 @@ final class SnapshotService extends Component
 	}
 
 	/**
-	 * Pushes a job taking a snapshot to the queue once one is due, checked at most once an hour.
+	 * Whether a job taking a snapshot is to be pushed to the queue, which is once one is due, checked at most once an hour.
+	 * The caller pushes it, as a service doesn't know the jobs.
 	 */
-	public function pushIfDue(): void
+	public function claimPush(): bool
 	{
 		if (!$this->settings->enableSnapshots) {
-			return;
+			return false;
 		}
 
 		$cache = $this->cache;
 
 		// The cache is checked first, so most requests don't query the database at all.
 		if (!$cache->add(self::CHECKED_KEY, true, self::CHECK_INTERVAL) || !$this->tableExists()) {
-			return;
+			return false;
 		}
 
-		if ($this->isDue()) {
-			Queue::push(new TakeSnapshotJob());
-			$cache->set(self::CHECKED_KEY, true, self::PUSHED_INTERVAL);
+		if (!$this->isDue()) {
+			return false;
 		}
+
+		$cache->set(self::CHECKED_KEY, true, self::PUSHED_INTERVAL);
+
+		return true;
 	}
 
 	public function getLatestDate(): ?DateTime

@@ -3,10 +3,8 @@
 declare(strict_types=1);
 
 use craft\helpers\DateTimeHelper;
-use craft\queue\Queue;
 use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\jobs\TakeSnapshotJob;
 use SomehowDigital\Craft\Hub\models\Snapshot;
 
 beforeEach(function (): void {
@@ -80,10 +78,9 @@ it('is due without a snapshot, or once the last one is as old as the interval', 
 
 it('pushes a snapshot once one is due, checking at most once an hour', function (): void {
 	$this->db()->respond('MAX(`date`)', '2026-10-20');
-	$this->mockComponent('queue', Queue::class)->makePartial()->shouldReceive('push')->once()->with(Mockery::type(TakeSnapshotJob::class));
 
-	$this->hub()->snapshots->pushIfDue();
-	$this->hub()->snapshots->pushIfDue();
+	expect($this->hub()->snapshots->claimPush())->toBeTrue()
+		->and($this->hub()->snapshots->claimPush())->toBeFalse();
 
 	expect($this->db()->queriesMatching('SELECT MAX(`date`)'))->toHaveCount(1);
 });
@@ -92,9 +89,8 @@ it('pushes no snapshot while none is due, snapshots are disabled or their tables
 	$this->hub()->settings->enableSnapshots = $enabled;
 	$this->db()->tables = $tables ? [Tables::SNAPSHOTS] : [];
 	$this->db()->respond('MAX(`date`)', $latest);
-	$this->mockComponent('queue', Queue::class)->makePartial()->shouldNotReceive('push');
 
-	$this->hub()->snapshots->pushIfDue();
+	expect($this->hub()->snapshots->claimPush())->toBeFalse();
 })->with([
 	[true, true, '2026-10-27'],
 	[false, true, null],

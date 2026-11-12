@@ -10,7 +10,6 @@ use craft\base\ElementInterface;
 use craft\elements\db\ElementQuery;
 use craft\elements\User;
 use craft\helpers\StringHelper;
-use craft\web\Response;
 use SomehowDigital\Craft\Hub\base\SendsFileInterface;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
@@ -18,6 +17,7 @@ use SomehowDigital\Craft\Hub\enums\ListType;
 use SomehowDigital\Craft\Hub\enums\Page;
 use SomehowDigital\Craft\Hub\enums\Permission;
 use SomehowDigital\Craft\Hub\helpers\Row;
+use SomehowDigital\Craft\Hub\models\FileDownload;
 use SomehowDigital\Craft\Hub\services\AccessService;
 use SomehowDigital\Craft\Hub\services\ActivityService;
 use SomehowDigital\Craft\Hub\services\BulkService;
@@ -85,11 +85,11 @@ final class Export extends BaseBulkAction implements SendsFileInterface
 		]);
 	}
 
-	public function send(Response $response, array $ids, array $params): ?Response
+	public function download(array $ids, array $params): ?FileDownload
 	{
 		$exporters = $this->bulk->getExporters($this->list);
 		$exporter = $exporters[Row::stringOrNull($params, 'exporter') ?? (string) array_key_first($exporters)] ?? null;
-		$format = Row::stringOrNull($params, 'format') ?? Response::FORMAT_CSV;
+		$format = Row::stringOrNull($params, 'format') ?? 'csv';
 
 		if ($exporter === null || ($exporter::isFormattable() && !isset($this->bulk->getExportFormats()[$format]))) {
 			throw new BadRequestHttpException('Unknown exporter or format.');
@@ -104,20 +104,17 @@ final class Export extends BaseBulkAction implements SendsFileInterface
 
 		$this->record($elements);
 
-		// The filename is set before exporting, in case the exporter starts sending the data.
 		$filename = $exporter->getFilename();
 
 		if ($exporter::isFormattable()) {
-			$response->format = $format;
 			$filename .= '.' . $format;
 		}
 
-		$response->setDownloadHeaders($filename);
 		$export = $exporter->export($query);
 
 		return $exporter::isFormattable()
-			? $this->formatted($response, $exporter, $export, $format, $query)
-			: $this->raw($response, $export);
+			? $this->formatted($exporter, $export, $filename, $format, $query)
+			: FileDownload::raw($export, $filename);
 	}
 
 	/**
@@ -142,7 +139,7 @@ final class Export extends BaseBulkAction implements SendsFileInterface
 	/**
 	 * @param ElementQuery<int,ElementInterface> $query
 	 */
-	private function formatted(Response $response, ElementExporterInterface $exporter, mixed $export, string $format, ElementQuery $query): Response
+	private function formatted(ElementExporterInterface $exporter, mixed $export, string $filename, string $format, ElementQuery $query): FileDownload
 	{
 		$export = is_callable($export) ? $export() : $export;
 
@@ -150,36 +147,15 @@ final class Export extends BaseBulkAction implements SendsFileInterface
 			throw new InvalidValueException($exporter::class . '::export() must return an array or generator function since isFormattable() returns true.');
 		}
 
-		$response->data = $export;
+		$options = [];
 
-		if ($format === Response::FORMAT_JSON) {
-			$this->format($response, Response::FORMAT_JSON, ['prettyPrint' => true]);
-		} elseif ($format === Response::FORMAT_XML) {
+		if ($format === 'json') {
+			$options = ['prettyPrint' => true];
+		} elseif ($format === 'xml') {
 			$this->craftApp->language = 'en-US';
-			$this->format($response, Response::FORMAT_XML, ['rootTag' => StringHelper::toCamelCase($query->elementType::pluralLowerDisplayName())]);
+			$options = ['rootTag' => StringHelper::toCamelCase($query->elementType::pluralLowerDisplayName())];
 		}
 
-		return $response;
-	}
-
-	/**
-	 * @param array<string,mixed> $options
-	 */
-	private function format(Response $response, string $format, array $options): void
-	{
-		$current = $response->formatters[$format] ?? [];
-		$response->formatters[$format] = [...(is_array($current) ? $current : []), ...$options];
-	}
-
-	private function raw(Response $response, mixed $export): Response
-	{
-		if (is_callable($export) || is_resource($export) || (is_array($export) && isset($export[0]) && is_resource($export[0]))) {
-			$response->stream = $export;
-		} else {
-			$response->data = $export;
-			$response->format = Response::FORMAT_RAW;
-		}
-
-		return $response;
+		return FileDownload::formatted($export, $filename, $format, $options);
 	}
 }
