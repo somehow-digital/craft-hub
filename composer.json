@@ -21,7 +21,7 @@
 		"email": "support@somehow.digital",
 		"issues": "https://github.com/somehow-digital/craft-hub/issues",
 		"source": "https://github.com/somehow-digital/craft-hub",
-		"docs": "https://github.com/somehow-digital/craft-hub"
+		"docs": "https://craft-hub.somehow-digital.dev"
 	},
 	"require": {
 		"php": "^8.2",

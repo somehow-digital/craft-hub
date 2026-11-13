@@ -2,3 +2,13 @@
 /.deptrac.cache
 /.phpunit.cache/
 /.twig-cs-fixer.cache
+/.vite-hooks/_/
+/node_modules/
+/docs/node_modules/
+/docs/dist/
+/docs/.astro/
+/docs/.void/
+/docs/.wrangler/
+/docs/.void-wrangler.jsonc
+.env
+*.tsbuildinfo
