@@ -94,8 +94,7 @@
 			"@deptrac",
 			"@deps",
 			"@test",
-			"@coverage",
-			"@mutate"
+			"@coverage"
 		],
 		"composer-normalize": "@composer normalize --dry-run --diff --no-check-lock --no-update-lock \"$(pwd)/composer.json\"",
 		"composer-normalize-fix": "@composer normalize --no-check-lock --no-update-lock \"$(pwd)/composer.json\"",
