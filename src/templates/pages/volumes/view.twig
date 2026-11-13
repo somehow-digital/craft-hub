@@ -7,12 +7,12 @@
 {% set title = volume.name|t('site') %}
 {% set area = 'structure' %}
 {% set selectedSubnavItem = 'volumes' %}
-{% set listTabs = [{ id: 'assets', label: 'Assets'|t('app') }] %}
+{% set listTabs = [{id: 'assets', label: 'Assets'|t('app')}] %}
 {% set statisticsTab = true %}
 {% set path = 'hub/structure/volumes/' ~ volume.id %}
 {% set crumbs = [
-	{ label: 'Volumes'|t('app'), url: url('hub/structure/volumes', { hubSite: hubSite }) },
-	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+	{label: 'Volumes'|t('app'), url: url('hub/structure/volumes', {hubSite: hubSite})},
+	{label: title, url: url(path, {hubSite: hubSite}), current: true},
 ] %}
 
 {% block pageTitle %}
@@ -34,7 +34,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'volumes', id: volume.id } only %}
+		{{ include('hub/_components/detail-labels', {list: 'volumes', id: volume.id}, false) }}
 		<div class="data">
 			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
 			<dd class="value"><code>{{ volume.handle }}</code></dd>
@@ -66,11 +66,11 @@
 			</div>
 		{% endif %}
 		<div class="data">
-			<dt class="heading">{{ '{name} Translation Method'|t('app', { name: 'Title'|t('app') }) }}</dt>
+			<dt class="heading">{{ '{name} Translation Method'|t('app', {name: 'Title'|t('app')}) }}</dt>
 			<dd class="value">{{ hub.translationMethod(volume.titleTranslationMethod) }}</dd>
 		</div>
 		<div class="data">
-			<dt class="heading">{{ '{name} Translation Method'|t('app', { name: 'Alternative Text'|t('app') }) }}</dt>
+			<dt class="heading">{{ '{name} Translation Method'|t('app', {name: 'Alternative Text'|t('app')}) }}</dt>
 			<dd class="value">{{ hub.translationMethod(volume.altTranslationMethod) }}</dd>
 		</div>
 		<div class="data">
@@ -90,17 +90,17 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/maintainers' with { list: 'volumes', item: volume, hubSite: hubSite } only %}
+	{{ include('hub/_panels/maintainers', {list: 'volumes', item: volume, hubSite: hubSite}, false) }}
 
-	{% include 'hub/_panels/volumes/types' with { info: info } only %}
+	{{ include('hub/_panels/volumes/types', {info: info}, false) }}
 
-	{% include 'hub/_panels/volumes/relations' with { info: info, volume: volume, siteIds: siteIds } only %}
+	{{ include('hub/_panels/volumes/relations', {info: info, volume: volume, siteIds: siteIds}, false) }}
 
-	{% include 'hub/_panels/field-layout' with { layout: volume.getFieldLayout() } only %}
+	{{ include('hub/_panels/field-layout', {layout: volume.getFieldLayout()}, false) }}
 
-	{% include 'hub/_panels/activity' with { subject: 'volume', id: volume.id } only %}
+	{{ include('hub/_panels/activity', {subject: 'volume', id: volume.id}, false) }}
 {% endblock %}
 
 {% block list %}
-	{% include 'hub/_components/file-list' with { list: list, hubSite: hubSite } only %}
+	{{ include('hub/_components/file-list', {list: list, hubSite: hubSite}, false) }}
 {% endblock %}

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\Tests\Support;
 
 use craft\elements\User;
@@ -9,6 +11,7 @@ use craft\fields\Link;
 use craft\fields\Matrix;
 use craft\fields\PlainText;
 use craft\models\Section;
+use DateTime;
 
 /**
  * A content model with sections, entry types, fields and a volume used in all the ways Hub tells apart,
@@ -57,15 +60,16 @@ trait ContentModel
 		// Layouts of element types that no longer exist are left out.
 		$this->layouts[] = $this->layout('Missing\\Element', 'missing', [$summary]);
 
+		$ago = fn(string $modifier): string => (new DateTime($modifier))->format('Y-m-d H:i:s');
 		$this->db()->respondToEntryRows([
-			['sectionId' => 1, 'typeId' => 10, 'fieldId' => null, 'total' => 5, 'enabled' => 4, 'pending' => 1, 'expired' => 1, 'drafts' => 1, 'lastUpdated' => (new \DateTime('-1 month'))->format('Y-m-d H:i:s')],
-			['sectionId' => 2, 'typeId' => 11, 'fieldId' => null, 'total' => 2, 'enabled' => 2, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => (new \DateTime('-2 months'))->format('Y-m-d H:i:s')],
-			['sectionId' => 3, 'typeId' => 11, 'fieldId' => null, 'total' => 1, 'enabled' => 1, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => (new \DateTime('-2 years'))->format('Y-m-d H:i:s')],
-			['sectionId' => null, 'typeId' => 12, 'fieldId' => 2, 'total' => 7, 'enabled' => 7, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => (new \DateTime('-1 month'))->format('Y-m-d H:i:s')],
+			['sectionId' => 1, 'typeId' => 10, 'fieldId' => null, 'total' => 5, 'enabled' => 4, 'pending' => 1, 'expired' => 1, 'drafts' => 1, 'lastUpdated' => $ago('-1 month')],
+			['sectionId' => 2, 'typeId' => 11, 'fieldId' => null, 'total' => 2, 'enabled' => 2, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => $ago('-2 months')],
+			['sectionId' => 3, 'typeId' => 11, 'fieldId' => null, 'total' => 1, 'enabled' => 1, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => $ago('-2 years')],
+			['sectionId' => null, 'typeId' => 12, 'fieldId' => 2, 'total' => 7, 'enabled' => 7, 'pending' => 0, 'expired' => 0, 'drafts' => 0, 'lastUpdated' => $ago('-1 month')],
 		]);
 
 		// Only the relations by field and target, not the relations of single elements.
-		$this->db()->respond('FROM {{%relations}} {{relations}}', fn (string $sql) => str_contains($sql, 'GROUP BY `relations`.`fieldId`') ? [
+		$this->db()->respond('FROM {{%relations}} {{relations}}', fn(string $sql): array => str_contains($sql, 'GROUP BY `relations`.`fieldId`') ? [
 			['fieldId' => 3, 'sectionId' => 1, 'volumeId' => null, 'references' => 4, 'sources' => 2, 'targets' => 3],
 			['fieldId' => 4, 'sectionId' => 2, 'volumeId' => null, 'references' => 1, 'sources' => 1, 'targets' => 1],
 			['fieldId' => 5, 'sectionId' => null, 'volumeId' => 1, 'references' => 3, 'sources' => 3, 'targets' => 2],

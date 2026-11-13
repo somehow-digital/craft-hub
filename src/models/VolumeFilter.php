@@ -1,13 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use DateTime;
 
 /**
  * Filters of the volumes list. Lists hold their values as they appear in the URL; empty lists and null values don't filter.
+ *
+ * @internal
  */
-class VolumeFilter
+final class VolumeFilter extends Model
 {
 	/** matched against the name and handle */
 	public string $search = '';
@@ -25,18 +30,22 @@ class VolumeFilter
 	public ?string $urls = null;
 
 	public ?int $assetsMin = null;
+
 	public ?int $assetsMax = null;
 
 	/** total size in megabytes */
 	public ?float $sizeMin = null;
+
 	public ?float $sizeMax = null;
 
 	/** number of images without alternative text */
 	public ?int $altMin = null;
+
 	public ?int $altMax = null;
 
 	/** dates of the last upload, both days included */
 	public ?DateTime $uploadedFrom = null;
+
 	public ?DateTime $uploadedTo = null;
 
 	/** only volumes without assets */

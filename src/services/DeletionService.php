@@ -1,22 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
+use Closure;
 use Craft;
 use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
 use craft\elements\Entry;
-use craft\elements\User;
-use SomehowDigital\Craft\Hub\Hub;
+use craft\i18n\Formatter;
+use craft\services\Elements;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use SomehowDigital\Craft\Hub\models\DeletionItem;
 use SomehowDigital\Craft\Hub\models\DeletionPreview;
 use SomehowDigital\Craft\Hub\models\EntryReference;
 use yii\base\Component;
 
 /**
- * Previews what deleting the items of a list takes along, before they're deleted (see BulkService::apply()).
+ * Previews what deleting the items of a list takes along, before they're deleted (see BulkActions::apply()).
  *
  * Deleting entries also deletes their nested entries and drafts, and moves their children in a structure up a level.
  * Deleting files also deletes their transforms and unsets them as user photos. The elements referencing what is
@@ -25,11 +30,27 @@ use yii\base\Component;
  *
  * The totals cover all items; the items of a page (see Paginator::PAGE_SIZE) are detailed one by one, listing
  * what deleting each takes along.
+ *
+ * @internal
  */
-class DeletionService extends Component
+final class DeletionService extends Component
 {
 	/** levels of nested entries counted, as nested entries may hold nested entries themselves */
 	private const NESTING_DEPTH = 5;
+
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly ReferenceService $references,
+		private readonly FileService $files,
+		private readonly UserService $users,
+		private readonly Elements $craftElements,
+		private readonly Formatter $formatter,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
 
 	/**
 	 * @param int[] $ids
@@ -40,11 +61,11 @@ class DeletionService extends Component
 		$preview = new DeletionPreview();
 		$preview->page = $page;
 
-		match ($list) {
-			ColumnService::LIST_ENTRIES => $this->previewEntries($preview, $ids),
-			ColumnService::LIST_FILES => $this->previewFiles($preview, $ids),
-			default => null,
-		};
+		if ($list === ColumnService::LIST_ENTRIES) {
+			$this->previewEntries($preview, $ids);
+		} elseif ($list === ColumnService::LIST_FILES) {
+			$this->previewFiles($preview, $ids);
+		}
 
 		$preview->skipped = count(array_unique($ids)) - $preview->total;
 
@@ -56,12 +77,12 @@ class DeletionService extends Component
 	 */
 	private function previewEntries(DeletionPreview $preview, array $ids): void
 	{
-		$service = Craft::$app->getElements();
+		$service = $this->craftElements;
 		$entries = array_values(array_filter(
 			$ids !== [] ? Entry::find()->id($ids)->site('*')->unique()->status(null)->all() : [],
-			fn (Entry $entry) => $service->canDelete($entry),
+			fn(Entry $entry): bool => $service->canDelete($entry),
 		));
-		$ids = array_map(fn (Entry $entry) => (int)$entry->id, $entries);
+		$ids = array_map(fn(Entry $entry): int => (int) $entry->id, $entries);
 
 		$preview->setItems($entries, '{count, plural, =1{One entry} other{# entries}}', 'newspaper');
 
@@ -69,8 +90,8 @@ class DeletionService extends Component
 			return;
 		}
 
-		$references = Hub::getInstance()->references;
-		$deleted = fn (ElementInterface $root) => in_array($root->id, $ids, true);
+		$references = $this->references;
+		$deleted = fn(ElementInterface $root): bool => in_array($root->id, $ids, true);
 
 		$this->addEntryEffects($preview, $ids, ['elements.canonicalId' => $ids]);
 		$this->addChildrenEffect($preview, $ids);
@@ -80,8 +101,8 @@ class DeletionService extends Component
 		$shown = $preview->getItemIds();
 		$children = $this->childrenOf($shown, $ids);
 		$referencing = $references->getReferencesOfEach($shown, $deleted);
-		$nested = $this->groupBy(Entry::find()->primaryOwnerId($shown)->site('*')->unique()->status(null)->all(), 'primaryOwnerId');
-		$drafts = $this->groupBy(Entry::find()->drafts()->draftOf($shown)->site('*')->unique()->status(null)->all(), 'canonicalId');
+		$nested = $this->groupBy(Entry::find()->primaryOwnerId($shown)->site('*')->unique()->status(null)->all(), static fn(Entry $entry): ?int => $entry->primaryOwnerId);
+		$drafts = $this->groupBy(Entry::find()->drafts()->draftOf($shown)->site('*')->unique()->status(null)->all(), static fn(Entry $entry): ?int => $entry->getCanonicalId());
 
 		foreach ($preview->items as $item) {
 			/** @var Entry $entry */
@@ -91,7 +112,7 @@ class DeletionService extends Component
 			$item->addGroup(DeletionPreview::TONE_DELETED, 'layer-group', Craft::t('hub', '{count, plural, =1{Nested entry} other{Nested entries}}', ['count' => count($nested[$id] ?? [])]), count($nested[$id] ?? []), $nested[$id] ?? []);
 			$item->addGroup(DeletionPreview::TONE_DELETED, 'pen-to-square', Craft::t('hub', '{count, plural, =1{Draft} other{Drafts}}', ['count' => count($drafts[$id] ?? [])]), count($drafts[$id] ?? []), $drafts[$id] ?? []);
 
-			if ($entry->structureId) {
+			if ($entry->structureId !== null) {
 				$moved = $children[$id] ?? [];
 				$item->addGroup(DeletionPreview::TONE_CHANGED, 'turn-up', Craft::t('hub', '{count, plural, =1{Child entry moves} other{Child entries move}} up a level', ['count' => count($moved)]), count($moved), $moved);
 			}
@@ -105,13 +126,13 @@ class DeletionService extends Component
 	 */
 	private function previewFiles(DeletionPreview $preview, array $ids): void
 	{
-		$service = Craft::$app->getElements();
+		$service = $this->craftElements;
 		/** @var Asset[] $assets */
 		$assets = array_values(array_filter(
 			$ids !== [] ? Asset::find()->id($ids)->site('*')->unique()->all() : [],
-			fn (Asset $asset) => $service->canDelete($asset),
+			fn(Asset $asset): bool => $service->canDelete($asset),
 		));
-		$ids = array_map(fn (Asset $asset) => (int)$asset->id, $assets);
+		$ids = array_map(fn(Asset $asset): int => (int) $asset->id, $assets);
 
 		$preview->setItems($assets, '{count, plural, =1{One file} other{# files}}', 'image');
 
@@ -119,26 +140,25 @@ class DeletionService extends Component
 			return;
 		}
 
-		$hub = Hub::getInstance();
-		$size = array_sum(array_map(fn (Asset $asset) => (int)$asset->size, $assets));
-		$transforms = $hub->files->getTransformsOf($assets);
-		$transformCount = array_sum(array_map('count', $transforms));
+		$size = array_sum(array_map(fn(Asset $asset): int => (int) $asset->size, $assets));
+		$transforms = $this->files->getTransformsOf($assets);
+		$transformCount = array_sum(array_map(count(...), $transforms));
 		$photos = $this->photosOf($ids);
 
 		$preview->addEffect(DeletionPreview::TONE_DELETED, 'hard-drive', $size, $this->size($size), Craft::t('hub', 'File size'));
 		$preview->addEffect(DeletionPreview::TONE_DELETED, 'crop', $transformCount, $this->number($transformCount), Craft::t('hub', '{count, plural, =1{Transform} other{Transforms}}', ['count' => $transformCount]));
 		$preview->addEffect(DeletionPreview::TONE_CHANGED, 'user', count($photos), $this->number(count($photos)), Craft::t('hub', '{count, plural, =1{User photo} other{User photos}}', ['count' => count($photos)]));
-		$this->addReferencesEffect($preview, $hub->references->getReferencesTo($ids, fn () => false));
+		$this->addReferencesEffect($preview, $this->references->getReferencesTo($ids, fn(): false => false));
 
-		$users = Hub::getInstance()->users->getUsers(array_keys($photos));
-		$referencing = $hub->references->getReferencesOfEach($preview->getItemIds(), fn () => false);
+		$users = $this->users->getUsers(array_keys($photos));
+		$referencing = $this->references->getReferencesOfEach($preview->getItemIds(), fn(): false => false);
 
 		foreach ($preview->items as $item) {
 			$id = $item->getId();
 			$own = $transforms[$id] ?? [];
-			$photoOf = array_values(array_filter(array_map(fn (int $userId) => $users[$userId] ?? null, array_keys($photos, $id, true))));
+			$photoOf = array_values(array_filter(array_map(fn(int $userId) => $users[$userId] ?? null, array_keys($photos, $id, true))));
 
-			$item->addGroup(DeletionPreview::TONE_DELETED, 'crop', Craft::t('hub', '{count, plural, =1{Transform} other{Transforms}}', ['count' => count($own)]), count($own), array_map(fn (array $transform) => (string)$transform['transformString'], $own));
+			$item->addGroup(DeletionPreview::TONE_DELETED, 'crop', Craft::t('hub', '{count, plural, =1{Transform} other{Transforms}}', ['count' => count($own)]), count($own), array_map(fn(array $transform): string => Row::string($transform, 'transformString'), $own));
 			$item->addGroup(DeletionPreview::TONE_CHANGED, 'user', Craft::t('hub', '{count, plural, =1{User loses their photo} other{Users lose their photo}}', ['count' => count($photoOf)]), count($photoOf), $photoOf);
 			$this->addReferencesGroup($item, $referencing[$id] ?? []);
 		}
@@ -166,7 +186,7 @@ class DeletionService extends Component
 	 */
 	private function addChildrenEffect(DeletionPreview $preview, array $ids): void
 	{
-		$children = (int)(new Query())
+		$children = (int) (new Query())
 			->from(['children' => Table::STRUCTUREELEMENTS])
 			->innerJoin(
 				['parents' => Table::STRUCTUREELEMENTS],
@@ -200,13 +220,13 @@ class DeletionService extends Component
 			->orderBy(['children.lft' => SORT_ASC])
 			->all();
 
-		$ids = array_map(fn (array $row) => (int)$row['childId'], $rows);
+		$ids = array_map(fn(array $row): int => Row::int($row, 'childId'), $rows);
 		$entries = $ids !== [] ? Entry::find()->id($ids)->site('*')->unique()->status(null)->indexBy('id')->all() : [];
 
 		$children = [];
 		foreach ($rows as $row) {
-			if (isset($entries[(int)$row['childId']])) {
-				$children[(int)$row['parentId']][] = $entries[(int)$row['childId']];
+			if (isset($entries[Row::int($row, 'childId')])) {
+				$children[Row::int($row, 'parentId')][] = $entries[Row::int($row, 'childId')];
 			}
 		}
 
@@ -241,7 +261,7 @@ class DeletionService extends Component
 
 		for ($depth = 0; $depth < self::NESTING_DEPTH; $depth++) {
 			$nested = $this->liveEntries(['entries.primaryOwnerId' => $ownerIds]);
-			$count = (int)(clone $nested)->count();
+			$count = (int) (clone $nested)->count();
 
 			if ($count === 0) {
 				break;
@@ -262,7 +282,7 @@ class DeletionService extends Component
 	 */
 	private function countDrafts(array $condition): int
 	{
-		return (int)(new Query())
+		return (int) (new Query())
 			->from(['elements' => Table::ELEMENTS])
 			->innerJoin(['entries' => Table::ENTRIES], '[[entries.id]] = [[elements.id]]')
 			->innerJoin(['drafts' => Table::DRAFTS], '[[drafts.id]] = [[elements.draftId]]')
@@ -280,7 +300,7 @@ class DeletionService extends Component
 	 */
 	private function photosOf(array $assetIds): array
 	{
-		return array_map('intval', (new Query())
+		return Fill::counts((new Query())
 			->select(['id', 'photoId'])
 			->from([Table::USERS])
 			->where(['photoId' => $assetIds])
@@ -288,15 +308,17 @@ class DeletionService extends Component
 	}
 
 	/**
-	 * @param ElementInterface[] $elements
-	 * @return array<int,ElementInterface[]> by the value of the property
+	 * @template T of ElementInterface
+	 * @param array<T> $elements
+	 * @param Closure(T):?int $key
+	 * @return array<int,list<T>> by the key
 	 */
-	private function groupBy(array $elements, string $property): array
+	private function groupBy(array $elements, Closure $key): array
 	{
 		$grouped = [];
 
 		foreach ($elements as $element) {
-			$grouped[(int)$element->$property][] = $element;
+			$grouped[$key($element) ?? 0][] = $element;
 		}
 
 		return $grouped;
@@ -306,6 +328,8 @@ class DeletionService extends Component
 	 * IDs of the live entries matching the condition, those that aren't deleted, drafts or revisions.
 	 *
 	 * @param array<string,mixed> $condition on the `entries` table
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	private function liveEntries(array $condition): Query
 	{
@@ -319,11 +343,11 @@ class DeletionService extends Component
 
 	private function number(int $value): string
 	{
-		return Craft::$app->getFormatter()->asInteger($value);
+		return $this->formatter->asInteger($value);
 	}
 
 	private function size(int $bytes): string
 	{
-		return Craft::$app->getFormatter()->asShortSize($bytes, 1);
+		return $this->formatter->asShortSize($bytes, 1);
 	}
 }

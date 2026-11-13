@@ -1,10 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\web\assets\cp\CpAsset;
 use SomehowDigital\Craft\Hub\assets\HubAsset;
 use SomehowDigital\Craft\Hub\assets\SidebarAsset;
 
-it('bundles the styles and scripts of the Hub pages', function () {
+it('bundles the styles and scripts of the Hub pages', function (): void {
 	$bundle = new HubAsset();
 
 	expect($bundle->sourcePath)->toBe(Craft::getAlias('@hub/assets/dist'))
@@ -13,7 +15,7 @@ it('bundles the styles and scripts of the Hub pages', function () {
 		->and($bundle->js)->toBe(['scripts.js']);
 });
 
-it('bundles the styles and scripts of the sidebar panels', function () {
+it('bundles the styles and scripts of the sidebar panels', function (): void {
 	$bundle = new SidebarAsset();
 
 	expect($bundle->sourcePath)->toBe(Craft::getAlias('@hub/assets/dist'))
@@ -22,6 +24,6 @@ it('bundles the styles and scripts of the sidebar panels', function () {
 		->and($bundle->js)->toBe(['sidebar.js']);
 });
 
-it('ships the files it bundles', function (string $file) {
-	expect(Craft::getAlias("@hub/assets/dist/$file"))->toBeFile();
+it('ships the files it bundles', function (string $file): void {
+	expect(Craft::getAlias("@hub/assets/dist/{$file}"))->toBeFile();
 })->with(['components.css', 'styles.css', 'scripts.js', 'sidebar.css', 'sidebar.js']);

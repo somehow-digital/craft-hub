@@ -1,11 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\enums;
 
 use Craft;
 
 /**
  * How an entry type is used.
+ *
+ * @internal
  */
 enum UsageKind: string
 {
@@ -20,11 +24,11 @@ enum UsageKind: string
 	/**
 	 * Kinds shown as usage on the entry types list.
 	 *
-	 * @return self[]
+	 * @return list<self>
 	 */
 	public static function listed(): array
 	{
-		return array_values(array_filter(self::cases(), fn (self $kind) => $kind !== self::HasUrls));
+		return array_values(array_filter(self::cases(), fn(self $kind): bool => $kind !== self::HasUrls));
 	}
 
 	public function label(): string

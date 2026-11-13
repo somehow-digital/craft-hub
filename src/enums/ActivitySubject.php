@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\enums;
 
 use Craft;
@@ -10,11 +12,12 @@ use craft\elements\Entry;
 use craft\elements\GlobalSet;
 use craft\elements\Tag;
 use craft\elements\User;
-use SomehowDigital\Craft\Hub\services\ColumnService;
 
 /**
  * What an activity of the activity log was done to: an element, something holding the content, a part of the system's
  * settings, something of Hub's own, or the system itself.
+ *
+ * @internal
  */
 enum ActivitySubject: string
 {

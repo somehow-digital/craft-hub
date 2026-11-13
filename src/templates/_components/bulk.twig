@@ -9,7 +9,7 @@
 	and to review the selection: the list then shows only the selected items, whatever the filters, and offers the actions
 	in a menu in their place, which apply to all of them.
 	Other lists, like the transforms of a file, select the rows of their page only, offering the actions in a menu.
-	Labeling (see BulkService::getActions()) opens a dialog with the labels of the selection (see the `bulkLabels` macro) to
+	Labeling (see BulkActions::getActions()) opens a dialog with the labels of the selection (see the `bulkLabels` macro) to
 	pick the labels to add and remove first. Deleting opens a dialog previewing what is deleted along with the items, changed or
 	kept, and the elements referencing them (see the `deletion-preview` component), to confirm it there; downloading opens
 	one listing the files downloaded and their size (see the `download-preview` component), exporting one picking the
@@ -29,8 +29,8 @@
 	browser's own menu.
 
 	Variables: list, the variables of the list (see BaseController::entryListVariables()), with bulkActions (see
-	BulkService::getActions(); those of lists not keeping their selection may load their preview from an action of their own,
-	see the `previewDialog` macro), bulkMultiple (see BulkService::canSelect()), bulkSelection, pageInfo (of a paginated list),
+	BulkActions::getActions(); those of lists not keeping their selection may load their preview from an action of their own,
+	see the `previewDialog` macro), bulkMultiple (see BulkActions::canSelect()), bulkSelection, pageInfo (of a paginated list),
 	labels, labelList and canManageLabels; bulkList, bulkNone (the label while none is selected), bulkAction and bulkParams,
 	for actions of other controllers than BulkController
 	Blocks: table, footer (e.g. the pagination, before the bulk bar)
@@ -49,7 +49,7 @@
 		{{ csrfInput() }}
 		{{ actionInput(bulkAction ?? 'hub/bulk/apply') }}
 		{{ redirectInput(craft.app.request.url) }}
-		{% for name, value in bulkParams ?? { list: bulkList, path: selection.path ?? null } %}
+		{% for name, value in bulkParams ?? {list: bulkList, path: selection.path ?? null} %}
 			{{ hiddenInput(name, value) }}
 		{% endfor %}
 {% endif %}
@@ -165,13 +165,13 @@
 							<div class="hub-menu__group" role="group" aria-labelledby="{{ menuId }}-matching">
 								<h6 class="hub-menu__heading" id="{{ menuId }}-matching">{{ 'All pages'|t('hub') }}</h6>
 								<button type="button" class="hub-bulk__action" role="menuitem" data-hub-bulk-select="matching"
-									{%- if matching > selection.limit %} disabled data-hub-bulk-over title="{{ 'Up to {limit, number} items can be selected at once.'|t('hub', { limit: selection.limit }) }}"{% endif %}>
+									{%- if matching > selection.limit %} disabled data-hub-bulk-over title="{{ 'Up to {limit, number} items can be selected at once.'|t('hub', {limit: selection.limit}) }}"{% endif %}>
 									<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('filter') }}</span>
-									<span>{{ 'Select all {count, number} matching'|t('hub', { count: matching }) }}</span>
+									<span>{{ 'Select all {count, number} matching'|t('hub', {count: matching}) }}</span>
 								</button>
 								<button type="button" class="hub-bulk__action" role="menuitem" data-hub-bulk-select="unmatching">
 									<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('filter-circle-xmark') }}</span>
-									<span>{{ 'Unselect all {count, number} matching'|t('hub', { count: matching }) }}</span>
+									<span>{{ 'Unselect all {count, number} matching'|t('hub', {count: matching}) }}</span>
 								</button>
 							</div>
 						{% endif %}

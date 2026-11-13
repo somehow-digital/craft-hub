@@ -1,27 +1,30 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Asset;
 use craft\elements\db\UserQuery;
 use craft\elements\Entry;
 use craft\elements\User;
+use craft\web\twig\variables\Paginate;
 use SomehowDigital\Craft\Hub\controllers\UsersController;
 use SomehowDigital\Craft\Hub\enums\Page;
+use SomehowDigital\Craft\Hub\enums\Permission;
 use SomehowDigital\Craft\Hub\enums\Severity;
-use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\Check;
+use SomehowDigital\Craft\Hub\models\UserFilter;
 use SomehowDigital\Craft\Hub\services\ColumnService;
-use SomehowDigital\Craft\Hub\services\UserService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->userGroup(1, 'editors', ['accessCp']);
 
 	// The lists of single users, not the subqueries of the counts.
-	$this->db()->respond('{{%entries_authors}}', fn (string $sql) => str_starts_with($sql, 'SELECT `hubAuthors`.`authorId`') ? [['authorId' => '3', 'count' => '5']] : []);
-	$this->db()->respond('{{%authenticator}}', fn (string $sql) => str_starts_with($sql, 'SELECT `userId`') ? [['userId' => '4']] : []);
-	$this->db()->respond('FROM {{%users}} {{users}}', fn (string $sql) => str_contains($sql, 'JOIN `usergroups_users`')
+	$this->db()->respond('{{%entries_authors}}', fn(string $sql): array => str_starts_with($sql, 'SELECT `hubAuthors`.`authorId`') ? [['authorId' => '3', 'count' => '5']] : []);
+	$this->db()->respond('{{%authenticator}}', fn(string $sql): array => str_starts_with($sql, 'SELECT `userId`') ? [['userId' => '4']] : []);
+	$this->db()->respond('FROM {{%users}} {{users}}', fn(string $sql): array => str_contains($sql, 'JOIN `usergroups_users`')
 		? [['groupId' => '1', 'count' => '2']]
 		: [[
 			'total' => '6', 'active' => '4', 'pending' => '1', 'suspended' => '0', 'locked' => '1', 'inactive' => '1', 'admins' => '1',
@@ -33,11 +36,11 @@ beforeEach(function () {
  * Headings of the checks, failed ones only unless said otherwise.
  *
  * @param Check[] $checks
- * @return string[]
+ * @return list<string>
  */
 function checkHeadings(array $checks, bool $failed = true): array
 {
-	return array_values(array_map(fn (Check $check) => $check->heading, array_filter($checks, fn (Check $check) => !$failed || !$check->passed)));
+	return array_values(array_map(fn(Check $check): string => $check->heading, array_filter($checks, fn(Check $check): bool => !$failed || !$check->passed)));
 }
 
 /**
@@ -47,17 +50,17 @@ function checkHeadings(array $checks, bool $failed = true): array
  */
 function listedUsers(int ...$ids): array
 {
-	return array_map(fn (int $id) => new User([
+	return array_map(fn(int $id): User => new User([
 		'id' => $id,
 		'siteId' => 1,
-		'username' => "user$id",
+		'username' => "user{$id}",
 		'active' => true,
-		'admin' => $id === max($ids),
+		'admin' => $id === max([0, ...$ids]),
 		'lastLoginDate' => new DateTime('-1 day'),
 	]), $ids);
 }
 
-it('lists the users', function () {
+it('lists the users', function (): void {
 	$users = listedUsers(3, 4);
 	ElementQueries::respond(User::class, $users);
 
@@ -65,24 +68,25 @@ it('lists the users', function () {
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/users/index')
-		->and($variables['list']['users'])->toBe($users)
-		->and($variables['list']['pageInfo']->total)->toBe(2)
-		->and($variables['list']['entryCounts'])->toBe([3 => 5])
-		->and($variables['list']['twoFactor'])->toEqualCanonicalizing([3 => false, 4 => true])
-		->and(array_keys($variables['list']['groups']))->toBe([1])
-		->and(array_keys($variables['list']['statuses']))->toBe(['active', 'pending', 'suspended', 'locked', 'inactive'])
-		->and($variables['list']['idleMonths'])->toBe(12)
-		->and(array_column($variables['list']['columns'], 'key'))->toContain('groups')
-		->and($variables['list']['sort'])->toBeNull();
+		->and(at($variables, 'list', 'users'))->toBe($users)
+		->and(objectAt(Paginate::class, $variables, 'list', 'pageInfo')->total)->toBe(2)
+		->and(at($variables, 'list', 'entryCounts'))->toBe([3 => 5])
+		->and(at($variables, 'list', 'twoFactor'))->toEqualCanonicalizing([3 => false, 4 => true])
+		->and(array_keys(arrayAt($variables, 'list', 'groups')))->toBe([1])
+		->and(array_keys(arrayAt($variables, 'list', 'statuses')))->toBe(['active', 'pending', 'suspended', 'locked', 'inactive'])
+		->and(at($variables, 'list', 'idleMonths'))->toBe(12)
+		->and(array_column(arrayAt($variables, 'list', 'columns'), 'key'))->toContain('groups')
+		->and(at($variables, 'list', 'sort'))->toBeNull();
 
 	// Photos are shown with all users, and groups with the column showing them.
 	$query = ElementQueries::executed(User::class)[0];
 	expect($query->with)->toBe([$this->hub()->users->photoPlan()])
-		->and($query->withGroups)->toBeTrue();
+		->and(at($query, 'withGroups'))->toBeTrue();
 });
 
-it('reads the filters of the users list', function () {
-	$filter = $this->runAction(UsersController::class, 'index', query: [
+it('reads the filters of the users list', function (): void {
+	/** @var UserFilter $filter */
+	$filter = at($this->runAction(UsersController::class, 'index', query: [
 		'q' => ' jane ',
 		'group' => 'editors,none,bogus',
 		'status' => 'active,bogus',
@@ -96,15 +100,15 @@ it('reads the filters of the users list', function () {
 		'entriesMax' => 'many',
 		'assetsMin' => '1',
 		'assetsMax' => '10',
-	])->variables['list']['filter'];
+	])->variables, 'list', 'filter');
 
 	expect($filter->search)->toBe('jane')
 		->and($filter->groups)->toBe(['editors', 'none'])
 		->and($filter->statuses)->toBe(['active'])
 		->and($filter->admin)->toBeTrue()
 		->and($filter->logins)->toBe(['idle'])
-		->and($filter->loginFrom->format('Y-m-d'))->toBe('2024-01-01')
-		->and($filter->createdTo->format('Y-m-d'))->toBe('2024-02-01')
+		->and($filter->loginFrom?->format('Y-m-d'))->toBe('2024-01-01')
+		->and($filter->createdTo?->format('Y-m-d'))->toBe('2024-02-01')
 		->and($filter->twoFactor)->toBe('without')
 		->and($filter->unverifiedEmail)->toBeTrue()
 		->and($filter->entriesMin)->toBe(2)
@@ -113,66 +117,65 @@ it('reads the filters of the users list', function () {
 		->and($filter->assetsMax)->toBe(10);
 });
 
-it('offers neither groups nor their column without any groups', function () {
+it('offers neither groups nor their column without any groups', function (): void {
 	$this->userGroups = [];
 	ElementQueries::respond(User::class, listedUsers(3));
 
 	$variables = $this->runAction(UsersController::class, 'index', query: ['group' => 'none'])->variables;
 
-	expect($variables['list']['filter']->groups)->toBe([])
-		->and(array_column($variables['list']['columns'], 'key'))->not->toContain('groups')
-		->and(ElementQueries::executed(User::class)[0]->withGroups)->toBeFalse();
+	expect(at($variables, 'list', 'filter', 'groups'))->toBe([])
+		->and(array_column(arrayAt($variables, 'list', 'columns'), 'key'))->not->toContain('groups')
+		->and(at(ElementQueries::executed(User::class)[0], 'withGroups'))->toBeFalse();
 });
 
-it('leaves out the data of hidden columns', function () {
+it('leaves out the data of hidden columns', function (): void {
 	$this->preferences[1] = [ColumnService::PREFERENCE => [ColumnService::LIST_USERS => ['order' => [], 'hidden' => ['entries', 'assets', 'twoFactor', 'groups']]]];
-	$users = Mockery::mock(UserService::class)->makePartial();
-	$users->shouldNotReceive('getEntryCounts', 'getAssetCounts', 'getTwoFactor');
-	$this->hub()->set('users', $users);
 	ElementQueries::respond(User::class, listedUsers(3));
 
 	$variables = $this->runAction(UsersController::class, 'index')->variables;
 
-	expect($variables['list']['entryCounts'])->toBe([])
-		->and($variables['list']['assetCounts'])->toBe([])
-		->and($variables['list']['twoFactor'])->toBe([])
-		->and(ElementQueries::executed(User::class)[0]->withGroups)->toBeFalse();
+	expect(at($variables, 'list', 'entryCounts'))->toBe([])
+		->and(at($variables, 'list', 'assetCounts'))->toBe([])
+		->and(at($variables, 'list', 'twoFactor'))->toBe([])
+		->and($this->db()->queriesMatching('{{%entries_authors}}'))->toBe([])
+		->and($this->db()->queriesMatching('{{%authenticator}}'))->toBe([])
+		->and(at(ElementQueries::executed(User::class)[0], 'withGroups'))->toBeFalse();
 });
 
-it('summarizes the users', function () {
-	$cards = loadCards($this->runAction(UsersController::class, 'statistics')->variables['cards']);
+it('summarizes the users', function (): void {
+	$cards = loadCards(at($this->runAction(UsersController::class, 'statistics')->variables, 'cards'));
 	[$users, $groups, $logins, $twoFactor] = $cards;
 
 	expect($cards)->toHaveCount(4)
 		->and($users['total'])->toBe(6)
-		->and(array_column($users['segments'], 'value', 'label'))->toBe(['Active' => 4, 'Pending' => 1, 'Suspended' => 0, 'Inactive' => 1, 'Locked' => 1])
-		->and($users['segments'][4]['bar'])->toBeFalse()
-		->and($users['segments'][1]['url'])->toContain('hub/data/users')->toContain('status=pending')
-		->and(array_column($users['details'], 'value', 'label'))->toBe(['Admins' => 1, 'Unverified email addresses' => 2])
-		->and(array_column($groups['table']['rows'], 'cells', 'label')['Editors'][0])->toBeInt()
-		->and(array_column($groups['segments'], 'value', 'label'))->toBe(['Editors' => 2])
-		->and($groups['segments'][0]['url'])->toContain('group=editors')
-		->and(array_column($logins['segments'], 'value', 'label'))->toBe(['Recently' => 2, 'Idle' => 1, 'Not yet' => 1])
-		->and($logins['segments'][1]['url'])->toContain('login=idle')
+		->and(array_column(arrayAt($users, 'segments'), 'value', 'label'))->toBe(['Active' => 4, 'Pending' => 1, 'Suspended' => 0, 'Inactive' => 1, 'Locked' => 1])
+		->and(at($users, 'segments', 4, 'bar'))->toBeFalse()
+		->and(at($users, 'segments', 1, 'url'))->toContain('hub/data/users')->toContain('status=pending')
+		->and(array_column(arrayAt($users, 'details'), 'value', 'label'))->toBe(['Admins' => 1, 'Unverified email addresses' => 2])
+		->and(at(array_column(arrayAt($groups, 'table', 'rows'), 'cells', 'label'), 'Editors', 0))->toBeInt()
+		->and(array_column(arrayAt($groups, 'segments'), 'value', 'label'))->toBe(['Editors' => 2])
+		->and(at($groups, 'segments', 0, 'url'))->toContain('group=editors')
+		->and(array_column(arrayAt($logins, 'segments'), 'value', 'label'))->toBe(['Recently' => 2, 'Idle' => 1, 'Not yet' => 1])
+		->and(at($logins, 'segments', 1, 'url'))->toContain('login=idle')
 		->and($twoFactor['total'])->toBe(4)
-		->and(array_column($twoFactor['segments'], 'value'))->toBe([1, 3])
-		->and($twoFactor['segments'][1]['url'])->toContain('twoFactor=without');
+		->and(array_column(arrayAt($twoFactor, 'segments'), 'value'))->toBe([1, 3])
+		->and(at($twoFactor, 'segments', 1, 'url'))->toContain('twoFactor=without');
 });
 
-it('summarizes the users without groups', function () {
+it('summarizes the users without groups', function (): void {
 	$this->userGroups = [];
 
-	$labels = array_column(loadCards($this->runAction(UsersController::class, 'statistics')->variables['cards']), 'label');
+	$labels = array_column(loadCards(at($this->runAction(UsersController::class, 'statistics')->variables, 'cards')), 'label');
 
 	expect($labels)->toBe(['Users', 'Sign-ins', 'Two-step verification']);
 });
 
-it('lists the users to do, the ones to do first, regardless of the selected sites', function () {
-	$this->db()->respondToCounts(fn (UserQuery $query) => [['total' => $query->status === [User::STATUS_PENDING] ? 2 : 0]]);
+it('lists the users to do, the ones to do first, regardless of the selected sites', function (): void {
+	$this->db()->respondToCounts(fn(UserQuery $query): array => [['total' => $query->status === [User::STATUS_PENDING] ? 2 : 0]]);
 
 	$variables = $this->runAction(UsersController::class, 'diagnostics')->variables;
 
-	expect(array_column($variables['tasks'], 'value', 'label'))->toBe([
+	expect(array_column(arrayAt($variables, 'tasks'), 'value', 'label'))->toBe([
 		'Pending users' => 2,
 		'Locked users' => 0,
 		'Admins without two-step verification' => 0,
@@ -180,15 +183,15 @@ it('lists the users to do, the ones to do first, regardless of the selected site
 		'Suspended users' => 0,
 		'Users with unverified email' => 0,
 	])
-		->and($variables['tasks'][0]['severity'])->toBe(Severity::Notice)
-		->and($variables['tasks'][2]['url'])->toContain('admin=1')->toContain('twoFactor=without')
-		->and($variables['tasks'][5]['url'])->toContain('unverified=1')
+		->and(at($variables, 'tasks', 0, 'severity'))->toBe(Severity::Notice)
+		->and(at($variables, 'tasks', 2, 'url'))->toContain('admin=1')->toContain('twoFactor=without')
+		->and(at($variables, 'tasks', 5, 'url'))->toContain('unverified=1')
 		->and($variables['siteScoped'])->toBeFalse();
 });
 
-it('shows a user', function () {
+it('shows a user', function (): void {
 	[$user] = listedUsers(3);
-	ElementQueries::respond(User::class, fn (UserQuery $query) => $query->id === 3 ? [$user] : []);
+	ElementQueries::respond(User::class, fn(UserQuery $query): array => $query->id === 3 ? [$user] : []);
 
 	$response = $this->runAction(UsersController::class, 'view', ['id' => 3]);
 	$variables = $response->variables;
@@ -203,26 +206,21 @@ it('shows a user', function () {
 		->and($variables)->not->toHaveKeys(['permissions', 'references', 'referenced', 'maintained'])
 		->and($variables['twoFactor'])->toBeFalse()
 		->and($variables['requires2fa'])->toBeFalse()
-		->and(checkHeadings($variables['checks'], failed: false))->toBe(['Locked', 'Two-step verification', 'Sign-ins', 'Pending', 'Suspended', 'Email'])
+		->and(checkHeadings(objectsAt(Check::class, $variables, 'checks'), failed: false))->toBe(['Locked', 'Two-step verification', 'Sign-ins', 'Pending', 'Suspended', 'Email'])
 		->and($variables)->not->toHaveKeys(['entries', 'assets']);
 });
 
-it('does not list the permissions of admins', function () {
+it('does not list the permissions of admins', function (): void {
 	$user = new User(['id' => 3, 'siteId' => 1, 'admin' => true]);
 	ElementQueries::respond(User::class, [$user]);
-	$users = Mockery::mock(UserService::class)->makePartial();
-	$users->shouldNotReceive('getPermissions');
-	$this->hub()->set('users', $users);
-
-	$users->shouldNotReceive('countPermissions');
-
-	expect($this->runAction(UsersController::class, 'view', ['id' => 3])->variables['permissionCount'])->toBe(0)
-		->and($this->runAction(UsersController::class, 'view', ['id' => 3], ['panel' => 'permissions'])->variables['permissions'])->toBe([]);
+	expect(at($this->runAction(UsersController::class, 'view', ['id' => 3])->variables, 'permissionCount'))->toBe(0)
+		->and(at($this->runAction(UsersController::class, 'view', ['id' => 3], ['panel' => 'permissions'])->variables, 'permissions'))->toBe([])
+		->and($this->db()->queriesMatching('{{%userpermissions_users}}'))->toBe([]);
 });
 
-it('loads a panel of a user alone, with what it lists', function (string $panel, string $template, string $variable) {
+it('loads a panel of a user alone, with what it lists', function (string $panel, string $template, string $variable): void {
 	[$user] = listedUsers(3);
-	ElementQueries::respond(User::class, fn (UserQuery $query) => $query->id === 3 ? [$user] : []);
+	ElementQueries::respond(User::class, fn(UserQuery $query): array => $query->id === 3 ? [$user] : []);
 
 	$response = $this->runAction(UsersController::class, 'view', ['id' => 3], ['panel' => $panel]);
 
@@ -238,17 +236,17 @@ it('loads a panel of a user alone, with what it lists', function (string $panel,
 	['activity', 'hub/_panels/activity', 'subject'],
 ]);
 
-it('remembers the filters of the list tabs', function (string $tab) {
+it('remembers the filters of the list tabs', function (string $tab): void {
 	[$user] = listedUsers(3);
 	ElementQueries::respond(User::class, [$user]);
 
 	$this->runAction(UsersController::class, 'view', ['id' => 3, 'tab' => $tab], ['q' => 'news']);
 	$this->runAction(UsersController::class, 'view', ['id' => 3, 'tab' => $tab]);
 
-	expect(Craft::$app->getResponse()->getHeaders()->get('Location'))->toContain("hub/data/users/3/$tab&q=news");
+	expect(webResponse()->getHeaders()->get('Location'))->toContain("hub/data/users/3/{$tab}&q=news");
 })->with(['entries', 'assets']);
 
-it('lists the entries of a user on a tab of their own', function () {
+it('lists the entries of a user on a tab of their own', function (): void {
 	[$user] = listedUsers(3);
 	ElementQueries::respond(User::class, [$user]);
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 1, 'siteId' => 1, 'title' => 'News', 'sectionId' => 1, 'typeId' => 10])]);
@@ -256,16 +254,16 @@ it('lists the entries of a user on a tab of their own', function () {
 	$variables = $this->runAction(UsersController::class, 'view', ['id' => 3, 'tab' => 'entries'], ['author' => '4'])->variables;
 
 	expect($variables['selectedTab'])->toBe('entries')
-		->and($variables['list']['listFixed'])->toBe('author')
-		->and($variables['list']['listPath'])->toBe('hub/data/users/3/entries')
-		->and($variables['list']['filter']->authors)->toBe([3])
-		->and($variables['list']['authorOptions'])->toBe([])
-		->and($variables['list']['entries'])->toHaveCount(1)
+		->and(at($variables, 'list', 'listFixed'))->toBe('author')
+		->and(at($variables, 'list', 'listPath'))->toBe('hub/data/users/3/entries')
+		->and(at($variables, 'list', 'filter', 'authors'))->toBe([3])
+		->and(at($variables, 'list', 'authorOptions'))->toBe([])
+		->and(at($variables, 'list', 'entries'))->toHaveCount(1)
 		->and($variables['checks'])->not->toBeEmpty()
 		->and($variables)->not->toHaveKeys(['permissions', 'references', 'assets']);
 });
 
-it('lists the files a user uploaded on a tab of their own', function () {
+it('lists the files a user uploaded on a tab of their own', function (): void {
 	[$user] = listedUsers(3);
 	ElementQueries::respond(User::class, [$user]);
 	$asset = new Asset(['id' => 1, 'siteId' => 1, 'kind' => 'image', 'filename' => 'a.jpg', 'size' => 10]);
@@ -274,70 +272,70 @@ it('lists the files a user uploaded on a tab of their own', function () {
 	$variables = $this->runAction(UsersController::class, 'view', ['id' => 3, 'tab' => 'assets'])->variables;
 
 	expect($variables['selectedTab'])->toBe('assets')
-		->and($variables['list']['listFixed'])->toBe('uploader')
-		->and($variables['list']['listPath'])->toBe('hub/data/users/3/assets')
-		->and($variables['list']['filter']->uploaders)->toBe([3])
-		->and($variables['list']['uploaderOptions'])->toBe([])
-		->and($variables['list']['assets'])->toBe([$asset])
+		->and(at($variables, 'list', 'listFixed'))->toBe('uploader')
+		->and(at($variables, 'list', 'listPath'))->toBe('hub/data/users/3/assets')
+		->and(at($variables, 'list', 'filter', 'uploaders'))->toBe([3])
+		->and(at($variables, 'list', 'uploaderOptions'))->toBe([])
+		->and(at($variables, 'list', 'assets'))->toBe([$asset])
 		->and($variables)->not->toHaveKeys(['permissions', 'references', 'entries']);
 });
 
-it('fails for tabs that users do not have', function () {
+it('fails for tabs that users do not have', function (): void {
 	ElementQueries::respond(User::class, listedUsers(3));
 
 	$this->runAction(UsersController::class, 'view', ['id' => 3, 'tab' => 'transforms']);
 })->throws(NotFoundHttpException::class);
 
-it('fails for users that do not exist', function () {
+it('fails for users that do not exist', function (): void {
 	$this->runAction(UsersController::class, 'view', ['id' => 99]);
 })->throws(NotFoundHttpException::class);
 
-it('lists the user groups on a tab of their own', function () {
+it('lists the user groups on a tab of their own', function (): void {
 	$response = $this->runAction(UsersController::class, 'groups');
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/users/groups')
-		->and(array_keys($variables['list']['groups']))->toBe([1])
-		->and($variables['list']['groups'][1]['users'])->toBe(2)
-		->and($variables['list']['pageInfo']->total)->toBe(1)
-		->and($variables['list']['listPath'])->toBe('hub/data/users/groups')
-		->and(array_column($variables['list']['columns'], 'key'))->toBe(['description', 'users', 'permissions', 'twoFactor', 'settings'])
-		->and($variables['list']['sort'])->toBeNull()
+		->and(array_keys(arrayAt($variables, 'list', 'groups')))->toBe([1])
+		->and(at($variables, 'list', 'groups', 1, 'users'))->toBe(2)
+		->and(objectAt(Paginate::class, $variables, 'list', 'pageInfo')->total)->toBe(1)
+		->and(at($variables, 'list', 'listPath'))->toBe('hub/data/users/groups')
+		->and(array_column(arrayAt($variables, 'list', 'columns'), 'key'))->toBe(['description', 'users', 'permissions', 'twoFactor', 'settings'])
+		->and(at($variables, 'list', 'sort'))->toBeNull()
 		->and($variables['extraTabs'])->toBe(['groups' => 'Groups']);
 
 	// The list and the diagnostics offer the tab too.
-	expect($this->runAction(UsersController::class, 'index')->variables['extraTabs'])->toBe(['groups' => 'Groups'])
-		->and($this->runAction(UsersController::class, 'diagnostics')->variables['extraTabs'])->toBe(['groups' => 'Groups']);
+	expect(at($this->runAction(UsersController::class, 'index')->variables, 'extraTabs'))->toBe(['groups' => 'Groups'])
+		->and(at($this->runAction(UsersController::class, 'diagnostics')->variables, 'extraTabs'))->toBe(['groups' => 'Groups']);
 });
 
-it('offers no groups tab without groups', function () {
+it('offers no groups tab without groups', function (): void {
 	$this->userGroups = [];
 
-	expect($this->runAction(UsersController::class, 'index')->variables['extraTabs'])->toBe([])
-		->and(fn () => $this->runAction(UsersController::class, 'groups'))->toThrow(NotFoundHttpException::class);
+	expect(at($this->runAction(UsersController::class, 'index')->variables, 'extraTabs'))->toBe([])
+		->and(fn() => $this->runAction(UsersController::class, 'groups'))->toThrow(NotFoundHttpException::class);
 });
 
-it('filters the user groups', function () {
+it('filters the user groups', function (): void {
 	$this->userGroup(2, 'guests');
 
 	$variables = $this->runAction(UsersController::class, 'groups', [], ['empty' => '1', 'twoFactor' => 'optional', 'usersMin' => 'x', 'sort' => 'users'])->variables;
 
-	expect(array_keys($variables['list']['groups']))->toBe([2])
-		->and($variables['list']['filter']->empty)->toBeTrue()
-		->and($variables['list']['filter']->twoFactor)->toBe('optional')
-		->and($variables['list']['filter']->usersMin)->toBeNull()
-		->and($variables['list']['sort'])->toBe('users');
+	expect(array_keys(arrayAt($variables, 'list', 'groups')))->toBe([2])
+		->and(at($variables, 'list', 'filter', 'empty'))->toBeTrue()
+		->and(at($variables, 'list', 'filter', 'twoFactor'))->toBe('optional')
+		->and(at($variables, 'list', 'filter', 'usersMin'))->toBeNull()
+		->and(at($variables, 'list', 'sort'))->toBe('users');
 });
 
-it('shows a user group', function () {
+it('shows a user group', function (): void {
 	$group = $this->userGroups[1];
 
 	$response = $this->runAction(UsersController::class, 'group', ['id' => 1]);
 	$variables = $response->variables;
 
 	expect($response->template)->toBe('hub/pages/users/group')
-		->and($variables['info']['group'])->toBe($group)
-		->and($variables['info']['users'])->toBe(2)
+		->and(at($variables, 'info', 'group'))->toBe($group)
+		->and(at($variables, 'info', 'users'))->toBe(2)
 		->and($variables['selectedTab'])->toBe('overview')
 		->and($variables['maintainedCount'])->toBe(0)
 		->and($variables)->not->toHaveKeys(['users', 'permissions', 'maintained']);
@@ -345,35 +343,35 @@ it('shows a user group', function () {
 	$panel = $this->runAction(UsersController::class, 'group', ['id' => 1], ['panel' => 'permissions']);
 
 	expect($panel->template)->toBe('hub/_panels/groups/permissions')
-		->and(array_column($panel->variables['permissions'][0]['permissions'], 'name'))->toBe(['accesscp']);
+		->and(array_column(arrayAt($panel->variables, 'permissions', 0, 'permissions'), 'name'))->toBe(['accesscp']);
 });
 
-it('lists the users of a user group on a tab of their own', function () {
+it('lists the users of a user group on a tab of their own', function (): void {
 	$users = listedUsers(3, 4);
 	ElementQueries::respond(User::class, $users);
 
 	$variables = $this->runAction(UsersController::class, 'group', ['id' => 1, 'tab' => 'users'], ['group' => 'none'])->variables;
 
 	expect($variables['selectedTab'])->toBe('users')
-		->and($variables['list']['listFixed'])->toBe('group')
-		->and($variables['list']['listPath'])->toBe('hub/data/users/groups/1/users')
-		->and($variables['list']['filter']->groups)->toBe(['editors'])
-		->and($variables['list']['users'])->toBe($users)
-		->and(array_column($variables['list']['columns'], 'key'))->not->toContain('groups')
-		->and(ElementQueries::executed(User::class)[0]->withGroups)->toBeFalse()
+		->and(at($variables, 'list', 'listFixed'))->toBe('group')
+		->and(at($variables, 'list', 'listPath'))->toBe('hub/data/users/groups/1/users')
+		->and(at($variables, 'list', 'filter', 'groups'))->toBe(['editors'])
+		->and(at($variables, 'list', 'users'))->toBe($users)
+		->and(array_column(arrayAt($variables, 'list', 'columns'), 'key'))->not->toContain('groups')
+		->and(at(ElementQueries::executed(User::class)[0], 'withGroups'))->toBeFalse()
 		->and($variables)->not->toHaveKeys(['permissions', 'maintained']);
 });
 
-it('fails for tabs that user groups do not have', function () {
+it('fails for tabs that user groups do not have', function (): void {
 	$this->runAction(UsersController::class, 'group', ['id' => 1, 'tab' => 'diagnostics']);
 })->throws(NotFoundHttpException::class);
 
-it('fails for user groups that do not exist', function () {
+it('fails for user groups that do not exist', function (): void {
 	$this->runAction(UsersController::class, 'group', ['id' => 99]);
 })->throws(NotFoundHttpException::class);
 
-it('requires the permission to view the users', function () {
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_DATA, Page::Users->labelPermission(), Hub::PERMISSION_ACCESS_STRUCTURE, Page::Sections->viewPermission()]);
+it('requires the permission to view the users', function (): void {
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessData->value, Page::Users->labelPermission(), Permission::AccessStructure->value, Page::Sections->viewPermission()]);
 
 	$this->runAction(UsersController::class, 'index');
 })->throws(ForbiddenHttpException::class);

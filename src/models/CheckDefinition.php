@@ -1,19 +1,24 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
+use Closure;
 use Craft;
 use craft\base\Model;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Severity;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 
 /**
  * A check listed on the diagnostics tabs of a kind of pages, as configured on the diagnostics tab of the settings page,
  * flagging the items a filter of the kind offered to everyone matches: one of Hub's default checks, of one of Hub's
  * predefined filters, which can be disabled and given another severity, or a custom one, of any filter of the kind.
+ *
+ * @internal
  */
-class CheckDefinition extends Model
+final class CheckDefinition extends Model
 {
 	public ?int $id = null;
 
@@ -49,6 +54,9 @@ class CheckDefinition extends Model
 
 	public ?string $uid = null;
 
+	/** @var (Closure(CheckKind,string):?SavedFilter)|null */
+	private ?Closure $filterLookup = null;
+
 	public function isDefault(): bool
 	{
 		return $this->handle !== null;
@@ -59,7 +67,7 @@ class CheckDefinition extends Model
 	 */
 	public function getKey(): string
 	{
-		return $this->kind->value . '.' . ($this->handle ?? $this->uid);
+		return $this->kind->value . '.' . ($this->handle ?? $this->uid ?? '');
 	}
 
 	/**
@@ -67,7 +75,15 @@ class CheckDefinition extends Model
 	 */
 	public function getFilter(): ?SavedFilter
 	{
-		return $this->filter !== '' ? Hub::getInstance()->filters->getFilter($this->kind, $this->filter) : null;
+		return $this->filter !== '' && $this->filterLookup instanceof Closure ? ($this->filterLookup)($this->kind, $this->filter) : null;
+	}
+
+	/**
+	 * @param Closure(CheckKind,string):?SavedFilter $lookup finds a filter by the kind and the handle or UID
+	 */
+	public function setFilterLookup(Closure $lookup): void
+	{
+		$this->filterLookup = $lookup;
 	}
 
 	/**
@@ -89,7 +105,7 @@ class CheckDefinition extends Model
 
 	public function getIcon(): string
 	{
-		return $this->icon ?: $this->getFilter()?->getIcon() ?? 'list-check';
+		return Fill::text($this->icon) ?? $this->getFilter()?->getIcon() ?? 'list-check';
 	}
 
 	public function getSeverity(): Severity
@@ -98,13 +114,13 @@ class CheckDefinition extends Model
 	}
 
 	/**
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	protected function defineRules(): array
 	{
 		return [
 			[['name', 'description', 'passedDescription'], 'trim'],
-			[['name', 'description'], 'required', 'when' => fn () => !$this->isDefault()],
+			[['name', 'description'], 'required', 'when' => fn(): bool => !$this->isDefault()],
 			[['name', 'icon'], 'string', 'max' => 255],
 			[['icon'], 'match', 'pattern' => Label::ICON_PATTERN],
 			[['filter'], 'validateFilter', 'skipOnEmpty' => false],
@@ -116,7 +132,7 @@ class CheckDefinition extends Model
 	 */
 	public function validateFilter(): void
 	{
-		if (!$this->isDefault() && $this->getFilter() === null) {
+		if (!$this->isDefault() && !$this->getFilter() instanceof SavedFilter) {
 			$this->addError('filter', Craft::t('hub', 'Choose the filter whose items are flagged.'));
 		}
 	}

@@ -6,7 +6,7 @@
 #}
 {% set labelable = list.canApplyLabels and (list.labels|length > 0 or list.canManageLabels) %}
 
-{% embed 'hub/_components/panel' with { list: list, hubSite: hubSite, labelable: labelable } only %}
+{% embed 'hub/_components/panel' with {list: list, hubSite: hubSite, labelable: labelable} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		<form method="get" class="hub-filters" action="{{ url(list.listPath) }}" data-hub-submit{% if list.bulkSelection.review ?? false %} hidden{% endif %}>
@@ -14,9 +14,9 @@
 			{{ hub.dropdown('Users'|t('app'), 'user', hub.range('users', 'Number of users'|t('hub'), list.filter.usersMin, list.filter.usersMax)) }}
 			{{ hub.dropdown('Permissions'|t('app'), 'key', hub.range('permissions', 'Number of permissions'|t('hub'), list.filter.permissionsMin, list.filter.permissionsMax)) }}
 			{{ hub.dropdown('Two-step verification'|t('hub'), 'shield-halved', hub.choices('twoFactor', {
-				required: { label: 'Required'|t('app'), color: 'green' },
-				optional: { label: 'Optional'|t('hub'), color: 'gray' },
-			}, list.filter.twoFactor, { multiple: false })) }}
+				required: {label: 'Required'|t('app'), color: 'green'},
+				optional: {label: 'Optional'|t('hub'), color: 'gray'},
+			}, list.filter.twoFactor, {multiple: false})) }}
 			{{ hub.labelFilter(list.labelOptions, list.filter.labels) }}
 			{{ hub.toggle('empty', 'Empty only'|t('hub'), list.filter.empty) }}
 			{{ hub.addFilter() }}
@@ -55,7 +55,7 @@
 												{{ hub.icon('users', 'violet') }}
 												<div class="hub-name__text">
 													<span class="hub-name__title">
-														<a href="{{ url('hub/data/users/groups/' ~ group.id, { hubSite: hubSite }) }}">{{ group.name|t('site') }}</a>
+														<a href="{{ url('hub/data/users/groups/' ~ group.id, {hubSite: hubSite}) }}">{{ group.name|t('site') }}</a>
 														{{- hub.labels(list.itemLabels[group.id] ?? [], group.id, group.name|t('site'), labelable) -}}
 													</span>
 													<code>{{ group.handle }}</code>
@@ -89,11 +89,11 @@
 					</div>
 				{% endblock %}
 				{% block footer %}
-					{% include '_includes/pagination' with {
+					{{ include('_includes/pagination', {
 						pageInfo: list.pageInfo,
 						itemLabel: 'group'|t('hub'),
 						itemsLabel: 'groups'|t('hub'),
-					} only %}
+					}, false) }}
 				{% endblock %}
 			{% endembed %}
 		{% else %}

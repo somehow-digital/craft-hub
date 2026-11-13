@@ -1,18 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\FieldInterface;
+use craft\base\Model;
 use craft\models\EntryType;
 use craft\models\Section;
+use LogicException;
 use SomehowDigital\Craft\Hub\enums\DataKind;
 
 /**
  * What Hub knows of a field: the layouts it's placed in, what it offers, and the data it holds.
+ *
+ * @property EntryStatistics $stats
+ * @property ReferenceStatistics $references
+ *
+ * @internal
  */
-class FieldInfo
+final class FieldInfo extends Model
 {
-	use LazyProperties;
+	use LazyPropertiesTrait;
 
 	/** @var LayoutUsage[] */
 	public array $layouts = [];
@@ -29,14 +38,42 @@ class FieldInfo
 
 	public bool $hasUrls = false;
 
-	public EntryStatistics $stats;
+	public function __construct(
+		public FieldInterface $field
+	) {
+		parent::__construct();
+		$this->setStats(new EntryStatistics());
+		$this->setReferences(new ReferenceStatistics());
+	}
 
-	public ReferenceStatistics $references;
-
-	public function __construct(public FieldInterface $field)
+	public function getStats(): EntryStatistics
 	{
-		$this->stats = new EntryStatistics();
-		$this->references = new ReferenceStatistics();
+		$value = $this->getLazyValue('stats');
+		if (!$value instanceof EntryStatistics) {
+			throw new LogicException('Not EntryStatistics.');
+		}
+
+		return $value;
+	}
+
+	public function setStats(EntryStatistics $value): void
+	{
+		$this->setLazyValue('stats', $value);
+	}
+
+	public function getReferences(): ReferenceStatistics
+	{
+		$value = $this->getLazyValue('references');
+		if (!$value instanceof ReferenceStatistics) {
+			throw new LogicException('Not ReferenceStatistics.');
+		}
+
+		return $value;
+	}
+
+	public function setReferences(ReferenceStatistics $value): void
+	{
+		$this->setLazyValue('references', $value);
 	}
 
 	public function getTypeName(): string
@@ -55,7 +92,7 @@ class FieldInfo
 
 	public function getInstanceCount(): int
 	{
-		return array_sum(array_map(fn (LayoutUsage $usage) => $usage->instances, $this->layouts));
+		return array_sum(array_map(fn(LayoutUsage $usage): int => $usage->instances, $this->layouts));
 	}
 
 	public function isUnused(): bool
@@ -84,10 +121,10 @@ class FieldInfo
 	}
 
 	/**
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public function getOwnerTypes(): array
 	{
-		return array_values(array_unique(array_map(fn (LayoutUsage $usage) => $usage->ownerType, $this->layouts)));
+		return array_values(array_unique(array_map(fn(LayoutUsage $usage): string => $usage->ownerType, $this->layouts)));
 	}
 }

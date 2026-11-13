@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub;
 
 use Craft;
@@ -9,16 +11,31 @@ use craft\controllers\UserSettingsController;
 use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\elements\User;
+use craft\enums\CmsEdition;
+use craft\events\DefineHtmlEvent;
 use craft\events\RegisterComponentTypesEvent;
+use craft\events\RegisterCpNavItemsEvent;
+use craft\helpers\Queue;
 use craft\helpers\UrlHelper;
 use craft\services\Dashboard;
 use craft\services\Gc;
 use craft\services\UserPermissions;
 use craft\web\Application as WebApplication;
+use craft\web\Request as WebRequest;
+use craft\web\Response as WebResponse;
 use craft\web\twig\variables\Cp;
 use craft\web\UrlManager;
+use craft\web\User as WebUser;
+use LogicException;
 use RuntimeException;
-use SomehowDigital\Craft\Hub\enums\Page;
+use SomehowDigital\Craft\Hub\base\FieldsProviderInterface;
+use SomehowDigital\Craft\Hub\base\FileKindsProviderInterface;
+use SomehowDigital\Craft\Hub\base\ThresholdsProviderInterface;
+use SomehowDigital\Craft\Hub\bulk\BulkActions;
+use SomehowDigital\Craft\Hub\handlers\activity\AccountActivity;
+use SomehowDigital\Craft\Hub\handlers\activity\ConfigActivity;
+use SomehowDigital\Craft\Hub\handlers\activity\ContentActivity;
+use SomehowDigital\Craft\Hub\handlers\activity\SystemActivity;
 use SomehowDigital\Craft\Hub\handlers\ActivityTracker;
 use SomehowDigital\Craft\Hub\handlers\ContentTracker;
 use SomehowDigital\Craft\Hub\handlers\DefineSidebarHtmlHandler;
@@ -27,8 +44,11 @@ use SomehowDigital\Craft\Hub\handlers\RegisterCpRoutesHandler;
 use SomehowDigital\Craft\Hub\handlers\RegisterPermissionsHandler;
 use SomehowDigital\Craft\Hub\handlers\TrashTracker;
 use SomehowDigital\Craft\Hub\handlers\UserGroupSidebarHandler;
+use SomehowDigital\Craft\Hub\jobs\IndexReferencesJob;
+use SomehowDigital\Craft\Hub\jobs\TakeSnapshotJob;
 use SomehowDigital\Craft\Hub\models\Settings;
 use SomehowDigital\Craft\Hub\services\AccessService;
+use SomehowDigital\Craft\Hub\services\ActivityFeedService;
 use SomehowDigital\Craft\Hub\services\ActivityService;
 use SomehowDigital\Craft\Hub\services\BulkService;
 use SomehowDigital\Craft\Hub\services\CheckService;
@@ -56,14 +76,32 @@ use SomehowDigital\Craft\Hub\services\TrashService;
 use SomehowDigital\Craft\Hub\services\UserService;
 use SomehowDigital\Craft\Hub\services\VolumeService;
 use SomehowDigital\Craft\Hub\services\WorkService;
-use SomehowDigital\Craft\Hub\widgets\MyWork;
+use SomehowDigital\Craft\Hub\statistics\EntriesSummary;
+use SomehowDigital\Craft\Hub\statistics\EntryTypesSummary;
+use SomehowDigital\Craft\Hub\statistics\FieldsSummary;
+use SomehowDigital\Craft\Hub\statistics\FilesSummary;
+use SomehowDigital\Craft\Hub\statistics\SectionsSummary;
+use SomehowDigital\Craft\Hub\statistics\UsersSummary;
+use SomehowDigital\Craft\Hub\statistics\VolumesSummary;
+use SomehowDigital\Craft\Hub\widgets\MyWorkWidget;
+use yii\base\ActionEvent;
 use yii\base\Controller;
 use yii\base\Event;
-use yii\web\Response;
+use yii\caching\CacheInterface;
+use yii\web\Session;
 
 /**
  * @property AccessService $access
  * @property ActivityService $activity
+ * @property ActivityFeedService $feed
+ * @property BulkActions $bulkActions
+ * @property VolumesSummary $volumesSummary
+ * @property UsersSummary $usersSummary
+ * @property SectionsSummary $sectionsSummary
+ * @property FilesSummary $filesSummary
+ * @property FieldsSummary $fieldsSummary
+ * @property EntryTypesSummary $entryTypesSummary
+ * @property EntriesSummary $entriesSummary
  * @property BulkService $bulk
  * @property CheckService $checks
  * @property ColumnService $columns
@@ -92,45 +130,12 @@ use yii\web\Response;
  * @property WorkService $work
  * @property Settings $settings
  */
-class Hub extends Plugin
+final class Hub extends Plugin
 {
-	/** the permissions of the pages are nested under these, see Page */
-	public const PERMISSION_ACCESS_DATA = 'hub-accessData';
-	public const PERMISSION_ACCESS_STRUCTURE = 'hub-accessStructure';
-	public const PERMISSION_EXPORT_ENTRIES = 'hub-exportEntries';
-	public const PERMISSION_ENABLE_ENTRIES = 'hub-enableEntries';
-	public const PERMISSION_CHANGE_AUTHORS = 'hub-changeAuthors';
-	public const PERMISSION_MOVE_ENTRIES = 'hub-moveEntries';
-	public const PERMISSION_DELETE_DRAFTS = 'hub-deleteDrafts';
-	public const PERMISSION_DELETE_ENTRIES = 'hub-deleteEntries';
-	public const PERMISSION_VIEW_TRASHED_ENTRIES = 'hub-viewTrashedEntries';
-	public const PERMISSION_EXPORT_TRASHED_ENTRIES = 'hub-exportTrashedEntries';
-	public const PERMISSION_RESTORE_ENTRIES = 'hub-restoreEntries';
-	public const PERMISSION_PURGE_ENTRIES = 'hub-purgeEntries';
-	public const PERMISSION_EXPORT_ASSETS = 'hub-exportAssets';
-	public const PERMISSION_DOWNLOAD_ASSETS = 'hub-downloadAssets';
-	public const PERMISSION_MOVE_ASSETS = 'hub-moveAssets';
-	public const PERMISSION_GENERATE_TRANSFORMS = 'hub-generateTransforms';
-	public const PERMISSION_DELETE_TRANSFORMS = 'hub-deleteTransforms';
-	public const PERMISSION_DELETE_ASSETS = 'hub-deleteAssets';
-	public const PERMISSION_VIEW_TRASHED_ASSETS = 'hub-viewTrashedAssets';
-	public const PERMISSION_EXPORT_TRASHED_ASSETS = 'hub-exportTrashedAssets';
-	public const PERMISSION_RESTORE_ASSETS = 'hub-restoreAssets';
-	public const PERMISSION_PURGE_ASSETS = 'hub-purgeAssets';
-	public const PERMISSION_EXPORT_USERS = 'hub-exportUsers';
-	public const PERMISSION_ASSIGN_USER_GROUPS = 'hub-assignUserGroups';
-	public const PERMISSION_SUSPEND_USERS = 'hub-suspendUsers';
-	public const PERMISSION_DELETE_USERS = 'hub-deleteUsers';
-	public const PERMISSION_MANAGE_LABELS = 'hub-manageLabels';
-	public const PERMISSION_MANAGE_MAINTAINERS = 'hub-manageMaintainers';
-	public const PERMISSION_MANAGE_DIAGNOSTICS = 'hub-manageDiagnostics';
-	public const PERMISSION_MANAGE_FILTERS = 'hub-manageFilters';
-	public const PERMISSION_VIEW_ACTIVITY = 'hub-viewActivity';
-	public const PERMISSION_VIEW_WORK = 'hub-viewWork';
-	public const SITE_PARAM = 'hubSite';
-
 	public bool $hasCpSection = true;
+
 	public bool $hasCpSettings = true;
+
 	public string $schemaVersion = '1.0.0';
 
 	/**
@@ -144,6 +149,8 @@ class Hub extends Plugin
 	public function init(): void
 	{
 		parent::init();
+
+		$this->define();
 
 		Craft::setAlias('@hub', $this->getBasePath());
 
@@ -163,6 +170,87 @@ class Hub extends Plugin
 	}
 
 	/**
+	 * The services are shared, and get what they depend on in their constructors, which is resolved when they are created, as
+	 * tests and projects replace the services of Craft.
+	 */
+	private function define(): void
+	{
+		Craft::$container->setSingletons([
+			// <wiring>
+			AccessService::class => fn(): AccessService => new AccessService($this->settings, Craft::createObject(ActivityService::class), $this->webUser()),
+			ActivityFeedService::class => fn(): ActivityFeedService => new ActivityFeedService(Craft::createObject(UserService::class), Craft::createObject(QueryService::class), Craft::createObject(SiteScopeService::class), Craft::createObject(AccessService::class), Craft::createObject(LabelService::class), Craft::createObject(DiagnosticsService::class), Craft::createObject(FilterService::class), Craft::$app->getFields(), Craft::$app->getSites(), Craft::$app->getEntries(), Craft::$app->getVolumes(), Craft::$app->getUserGroups(), Craft::$app->getCategories(), Craft::$app->getTags(), Craft::$app->getGql(), $this->webUser()),
+			ActivityService::class => fn(): ActivityService => new ActivityService($this->settings, Craft::$app->getDb(), $this->webRequest(), Craft::$app->getUsers(), $this->webUser(), $this->webSession()),
+			BulkActions::class => fn(): BulkActions => new BulkActions(Craft::createObject(AccessService::class), Craft::createObject(ActivityService::class), Craft::createObject(BulkService::class), Craft::createObject(DeletionService::class), Craft::createObject(EntryService::class), Craft::createObject(FileService::class), Craft::createObject(UserService::class), Craft::createObject(TrashService::class), Craft::createObject(LabelService::class), Craft::createObject(SelectionService::class), Craft::$app->getElements(), Craft::$app->getUsers(), Craft::$app->getAssets(), Craft::$app->getEntries(), Craft::$app->getPath(), Craft::$app, static fn(): CmsEdition => Craft::$app->edition, $this->webUser()),
+			BulkService::class => fn(): BulkService => new BulkService(Craft::createObject(SiteScopeService::class), Craft::createObject(EntryService::class), Craft::createObject(FileService::class), Craft::createObject(UserService::class), Craft::createObject(TrashService::class), Craft::createObject(ListService::class), Craft::$app->getElements()),
+			CheckService::class => fn(): CheckService => new CheckService(Craft::createObject(DiagnosticsService::class), Craft::createObject(AccessService::class), Craft::createObject(SiteScopeService::class)),
+			ColumnService::class => fn(): ColumnService => new ColumnService(Craft::createObject(MaintainerService::class), Craft::$app->getUsers(), $this->webUser()),
+			DeletionService::class => fn(): DeletionService => new DeletionService(Craft::createObject(ReferenceService::class), Craft::createObject(FileService::class), Craft::createObject(UserService::class), Craft::$app->getElements(), Craft::$app->getFormatter()),
+			DiagnosticsService::class => fn(): DiagnosticsService => new DiagnosticsService(Craft::createObject(FilterService::class), Craft::createObject(QueryService::class), Craft::createObject(SiteScopeService::class), Craft::createObject(EntryService::class), Craft::createObject(FileService::class), Craft::createObject(UserService::class), Craft::createObject(BulkService::class), Craft::createObject(ListFilterService::class), Craft::$app->getDb()),
+			EditService::class => fn(): EditService => new EditService(Craft::createObject(UserService::class), Craft::$app->getDb(), $this->webRequest(), $this->webUser()),
+			EntriesSummary::class => fn(): EntriesSummary => new EntriesSummary(Craft::createObject(SiteScopeService::class), Craft::createObject(SnapshotService::class), Craft::createObject(StructureService::class), Craft::createObject(VolumeService::class), Craft::createObject(StatisticsService::class), Craft::createObject(EntryService::class), Craft::createObject(FilterService::class), Craft::createObject(ReviewService::class)),
+			EntryService::class => fn(): EntryService => new EntryService(Craft::createObject(ReviewService::class), Craft::createObject(SiteScopeService::class), Craft::createObject(QueryService::class), Craft::createObject(LabelService::class), Craft::createObject(FilterService::class), Craft::createObject(UserService::class), Craft::createObject(EditService::class), Craft::$app->getEntries(), Craft::$app->getFields(), Craft::$app->getElements(), Craft::$app->getRequest(), $this->webUser()),
+			EntryTypesSummary::class => fn(): EntryTypesSummary => new EntryTypesSummary(Craft::createObject(SiteScopeService::class), Craft::createObject(SnapshotService::class), Craft::createObject(StructureService::class), Craft::createObject(VolumeService::class), Craft::createObject(StatisticsService::class), Craft::createObject(EntryService::class), Craft::createObject(FilterService::class)),
+			FieldsSummary::class => fn(): FieldsSummary => new FieldsSummary(Craft::createObject(SiteScopeService::class), Craft::createObject(SnapshotService::class), Craft::createObject(StructureService::class), Craft::createObject(VolumeService::class), Craft::createObject(StatisticsService::class)),
+			FileService::class => fn(): FileService => new FileService(Craft::createObject(ReviewService::class), Craft::createObject(SiteScopeService::class), Craft::createObject(QueryService::class), Craft::createObject(LabelService::class), Craft::createObject(FilterService::class), Craft::createObject(UserService::class), Craft::createObject(ActivityService::class), Craft::$app->getDb(), Craft::$app->getElements(), Craft::$app->getImageTransforms(), Craft::$app->getVolumes(), Craft::$app->getAssets(), Craft::$app->getRequest(), $this->webUser()),
+			FilesSummary::class => fn(): FilesSummary => new FilesSummary(Craft::createObject(SiteScopeService::class), Craft::createObject(SnapshotService::class), Craft::createObject(StructureService::class), Craft::createObject(VolumeService::class), Craft::createObject(StatisticsService::class), Craft::createObject(FileService::class)),
+			FilterService::class => fn(): FilterService => new FilterService(Craft::createObject(SiteScopeService::class), Craft::$app->getDb(), $this->webUser()),
+			LabelService::class => fn(): LabelService => new LabelService($this->settings, Craft::createObject(AccessService::class), Craft::createObject(ActivityService::class), Craft::$app->getDb(), Craft::$app->getEntries(), Craft::$app->getFields(), Craft::$app->getVolumes(), Craft::$app->getUserGroups(), $this->webUser()),
+			ListFilterService::class => fn(): ListFilterService => new ListFilterService(Craft::createObject(LabelService::class), Craft::createObject(FilterService::class), Craft::createObject(StructureService::class), Craft::createObject(EntryService::class), Craft::createObject(VolumeService::class), Craft::createObject(UserService::class), Craft::$app->getEntries(), Craft::$app->getVolumes()),
+			ListService::class => fn(): ListService => new ListService(Craft::createObject(FilterService::class), Craft::createObject(StructureService::class), Craft::createObject(VolumeService::class), Craft::createObject(LabelService::class)),
+			MaintainerService::class => fn(): MaintainerService => new MaintainerService($this->settings, Craft::createObject(AccessService::class), Craft::createObject(ActivityService::class), Craft::createObject(UserService::class), Craft::$app->getEntries(), Craft::$app->getFields(), Craft::$app->getVolumes(), Craft::$app->getUserGroups(), Craft::$app->getDb(), $this->webUser()),
+			NavigationService::class => fn(): NavigationService => new NavigationService(Craft::createObject(AccessService::class), Craft::createObject(WorkService::class), Craft::createObject(ActivityService::class), Craft::createObject(SiteScopeService::class), $this->webRequest()),
+			QueryService::class => fn(): QueryService => new QueryService(Craft::createObject(SiteScopeService::class), Craft::$app->getDb(), Craft::$app->getSites()),
+			ReferenceService::class => fn(): ReferenceService => new ReferenceService(Craft::$app->getSites(), Craft::$app->getElements(), Craft::$app->getFields(), Craft::$app->getDb()),
+			ReviewService::class => fn(): ReviewService => new ReviewService(Craft::createObject(SiteScopeService::class), Craft::createObject(FilterService::class), Craft::createObject(QueryService::class), Craft::createObject(EditService::class)),
+			SectionsSummary::class => fn(): SectionsSummary => new SectionsSummary(Craft::createObject(SiteScopeService::class), Craft::createObject(SnapshotService::class), Craft::createObject(StructureService::class), Craft::createObject(VolumeService::class), Craft::createObject(StatisticsService::class), Craft::createObject(AccessService::class), Craft::createObject(EntryService::class), Craft::createObject(FilterService::class)),
+			SelectionService::class => fn(): SelectionService => new SelectionService(Craft::createObject(BulkService::class), Craft::createObject(SiteScopeService::class), $this->webRequest(), $this->webSession()),
+			SiteScopeService::class => fn(): SiteScopeService => new SiteScopeService(Craft::$app->getSites(), Craft::$app->getRequest(), $this->webSession()),
+			SnapshotService::class => fn(): SnapshotService => new SnapshotService(Craft::createObject(StatisticsService::class), Craft::createObject(StructureService::class), Craft::createObject(VolumeService::class), Craft::createObject(UserService::class), $this->settings, Craft::$app->getDb(), $this->cache()),
+			StatisticsService::class => fn(): StatisticsService => new StatisticsService(Craft::createObject(SiteScopeService::class), Craft::$app->getDb()),
+			StructureService::class => fn(): StructureService => new StructureService(Craft::createObject(SiteScopeService::class), Craft::createObject(StatisticsService::class), Craft::$app->getEntries(), Craft::$app->getFields(), Craft::$app->getSites(), Craft::$app->getVolumes(), Craft::$app->getCategories(), Craft::$app->getTags(), Craft::$app->getGlobals()),
+			TrashService::class => fn(): TrashService => new TrashService(Craft::createObject(EntryService::class), Craft::createObject(SiteScopeService::class), Craft::createObject(ReviewService::class), Craft::createObject(QueryService::class), Craft::createObject(FileService::class), Craft::createObject(UserService::class), Craft::$app->getVolumes(), Craft::$app->getDb()),
+			UserService::class => fn(): UserService => new UserService(Craft::createObject(QueryService::class), Craft::createObject(LabelService::class), Craft::createObject(FilterService::class), Craft::$app->getUserGroups(), Craft::$app->getUserPermissions(), Craft::$app->getElements(), Craft::$app->getProjectConfig(), Craft::$app->getDb(), static fn(): CmsEdition => Craft::$app->edition, $this->webUser()),
+			UsersSummary::class => fn(): UsersSummary => new UsersSummary(Craft::createObject(SiteScopeService::class), Craft::createObject(SnapshotService::class), Craft::createObject(StructureService::class), Craft::createObject(VolumeService::class), Craft::createObject(StatisticsService::class), Craft::createObject(FilterService::class), Craft::createObject(UserService::class), Craft::$app->getUserGroups()),
+			VolumeService::class => fn(): VolumeService => new VolumeService(Craft::createObject(SiteScopeService::class), Craft::createObject(StatisticsService::class), Craft::$app->getVolumes(), Craft::$app->getFields()),
+			VolumesSummary::class => fn(): VolumesSummary => new VolumesSummary(Craft::createObject(SiteScopeService::class), Craft::createObject(SnapshotService::class), Craft::createObject(StructureService::class), Craft::createObject(VolumeService::class), Craft::createObject(StatisticsService::class), Craft::createObject(FileService::class)),
+			WorkService::class => fn(): WorkService => new WorkService(Craft::createObject(SiteScopeService::class), $this->settings, Craft::createObject(MaintainerService::class), Craft::createObject(AccessService::class), Craft::createObject(DiagnosticsService::class), Craft::createObject(EntryService::class), Craft::createObject(StructureService::class), Craft::createObject(CheckService::class), Craft::createObject(VolumeService::class), Craft::createObject(QueryService::class), $this->cache(), Craft::$app->getDb(), $this->webUser()),
+			// </wiring>
+			// The rules of the conditions are created by Craft, and ask for these by their interfaces.
+			FieldsProviderInterface::class => fn(): FieldsProviderInterface => Craft::createObject(StructureService::class),
+			FileKindsProviderInterface::class => fn(): FileKindsProviderInterface => Craft::createObject(VolumeService::class),
+			ThresholdsProviderInterface::class => fn(): ThresholdsProviderInterface => Craft::createObject(FilterService::class),
+		]);
+	}
+
+	/**
+	 * The user of the web application, which the console has none of, where what takes it acts without one.
+	 */
+	private function webUser(): ?WebUser
+	{
+		return Craft::$app instanceof WebApplication ? Craft::$app->getUser() : null;
+	}
+
+	private function webSession(): ?Session
+	{
+		return Craft::$app instanceof WebApplication ? Craft::$app->getSession() : null;
+	}
+
+	private function cache(): CacheInterface
+	{
+		return Craft::$app->getCache() ?? throw new LogicException('The app has no cache.');
+	}
+
+	private function webRequest(): ?WebRequest
+	{
+		return Craft::$app instanceof WebApplication ? Craft::$app->getRequest() : null;
+	}
+
+	private function webResponse(): ?WebResponse
+	{
+		return Craft::$app instanceof WebApplication ? Craft::$app->getResponse() : null;
+	}
+
+	/**
 	 * @return array<string,mixed>
 	 */
 	public static function config(): array
@@ -171,7 +259,16 @@ class Hub extends Plugin
 			'components' => [
 				'access' => ['class' => AccessService::class],
 				'activity' => ['class' => ActivityService::class],
+				'feed' => ['class' => ActivityFeedService::class],
 				'bulk' => ['class' => BulkService::class],
+				'bulkActions' => ['class' => BulkActions::class],
+				'volumesSummary' => ['class' => VolumesSummary::class],
+				'usersSummary' => ['class' => UsersSummary::class],
+				'sectionsSummary' => ['class' => SectionsSummary::class],
+				'filesSummary' => ['class' => FilesSummary::class],
+				'fieldsSummary' => ['class' => FieldsSummary::class],
+				'entryTypesSummary' => ['class' => EntryTypesSummary::class],
+				'entriesSummary' => ['class' => EntriesSummary::class],
 				'checks' => ['class' => CheckService::class],
 				'columns' => ['class' => ColumnService::class],
 				'deletion' => ['class' => DeletionService::class],
@@ -216,10 +313,12 @@ class Hub extends Plugin
 
 	/**
 	 * Gives the predefined filters and default checks their rows, so they can be reordered and toggled by their ID. A release
-	 * adding some has to do so in a migration too.
+	 * adding some has to do so in a migration too. The last edits of the entries already there are backfilled, and their references indexed in the background.
 	 */
 	protected function afterInstall(): void
 	{
+		$this->edits->backfill();
+		Queue::push(new IndexReferencesJob());
 		$this->filters->saveDefaults();
 		$this->diagnostics->saveDefaults();
 	}
@@ -232,9 +331,9 @@ class Hub extends Plugin
 	/**
 	 * Craft's settings page of the plugin leads to Hub's own settings page.
 	 */
-	public function getSettingsResponse(): Response
+	public function getSettingsResponse(): WebResponse
 	{
-		return Craft::$app->getResponse()->redirect(UrlHelper::cpUrl('hub/manage/settings'));
+		return $this->webResponse()?->redirect(UrlHelper::cpUrl('hub/manage/settings')) ?? throw new LogicException('Settings open in the control panel.');
 	}
 
 	protected function registerCpRoutes(): void
@@ -251,19 +350,18 @@ class Hub extends Plugin
 		Event::on(
 			Cp::class,
 			Cp::EVENT_REGISTER_CP_NAV_ITEMS,
-			new RegisterCpNavItemsHandler()
+			fn(RegisterCpNavItemsEvent $event) => $this->navHandler()($event)
 		);
 	}
 
 	protected function registerSidebar(): void
 	{
-		$handler = new DefineSidebarHtmlHandler();
-
+		// The handlers are created once the events happen, with the services they need.
 		foreach ([Entry::class, Asset::class, User::class] as $class) {
-			Event::on($class, Element::EVENT_DEFINE_SIDEBAR_HTML, $handler);
+			Event::on($class, Element::EVENT_DEFINE_SIDEBAR_HTML, fn(DefineHtmlEvent $event) => $this->sidebarHandler()($event));
 		}
 
-		Event::on(UserSettingsController::class, Controller::EVENT_AFTER_ACTION, new UserGroupSidebarHandler());
+		Event::on(UserSettingsController::class, Controller::EVENT_AFTER_ACTION, fn(ActionEvent $event) => $this->groupSidebarHandler()($event));
 	}
 
 	/**
@@ -275,8 +373,8 @@ class Hub extends Plugin
 		Event::on(
 			Dashboard::class,
 			Dashboard::EVENT_REGISTER_WIDGET_TYPES,
-			function (RegisterComponentTypesEvent $event) {
-				$event->types[] = MyWork::class;
+			function (RegisterComponentTypesEvent $event): void {
+				$event->types[] = MyWorkWidget::class;
 			}
 		);
 	}
@@ -286,7 +384,7 @@ class Hub extends Plugin
 		Event::on(
 			Gc::class,
 			Gc::EVENT_RUN,
-			function () {
+			function (): void {
 				$this->labels->deleteOrphans();
 				$this->maintainers->deleteOrphans();
 				$this->activity->deleteExpired();
@@ -303,20 +401,29 @@ class Hub extends Plugin
 	protected function registerActivityTracking(): void
 	{
 		if ($this->settings->enableActivity) {
-			(new ActivityTracker())->register();
+			(new ActivityTracker(
+				new ContentActivity($this->activity, $this->settings, Craft::$app->getElements(), $this->webRequest()),
+				new AccountActivity($this->activity, Craft::$app->getUsers(), Craft::$app->getUserGroups(), $this->cache(), $this->webRequest(), $this->webResponse(), $this->webUser()),
+				new ConfigActivity($this->activity, static fn(): string => Craft::$app->getVersion(), Craft::$app->getUserGroups(), Craft::$app->getPlugins(), Craft::$app->getProjectConfig(), Craft::$app->getGql()),
+				new SystemActivity($this->activity, Craft::$app->getVolumes(), $this->webRequest(), $this->webResponse()),
+			))->register();
 		}
 	}
 
 	/**
 	 * Pushes a job taking a snapshot of the statistics once one is due, after a control panel request, so snapshots are
-	 * taken without a cron job too, see SnapshotService::pushIfDue().
+	 * taken without a cron job too, see SnapshotService::claimPush().
 	 */
 	protected function registerSnapshots(): void
 	{
 		Event::on(
 			WebApplication::class,
 			WebApplication::EVENT_AFTER_REQUEST,
-			fn () => $this->snapshots->pushIfDue()
+			function (): void {
+				if ($this->snapshots->claimPush()) {
+					Queue::push(new TakeSnapshotJob());
+				}
+			}
 		);
 	}
 
@@ -325,7 +432,7 @@ class Hub extends Plugin
 	 */
 	protected function registerContentTracking(): void
 	{
-		(new ContentTracker())->register();
+		$this->contentTracker()->register();
 	}
 
 	/**
@@ -334,7 +441,7 @@ class Hub extends Plugin
 	protected function registerTrashTracking(): void
 	{
 		if ($this->settings->keepTrashedFiles) {
-			(new TrashTracker())->register();
+			$this->trashTracker()->register();
 		}
 	}
 
@@ -345,5 +452,41 @@ class Hub extends Plugin
 			UserPermissions::EVENT_REGISTER_PERMISSIONS,
 			new RegisterPermissionsHandler()
 		);
+	}
+
+	protected function navHandler(): RegisterCpNavItemsHandler
+	{
+		return new RegisterCpNavItemsHandler($this->navigation);
+	}
+
+	protected function sidebarHandler(): DefineSidebarHtmlHandler
+	{
+		return new DefineSidebarHtmlHandler(
+			$this->access,
+			$this->maintainers,
+			$this->labels,
+			$this->checks,
+			$this->edits,
+			$this->references,
+			$this->activity,
+			$this->feed,
+			$this->settings,
+			Craft::$app->getView(),
+		);
+	}
+
+	protected function groupSidebarHandler(): UserGroupSidebarHandler
+	{
+		return new UserGroupSidebarHandler($this->access, $this->labels, $this->maintainers, $this->activity, $this->feed, Craft::$app->getView(), Craft::$app->getUserGroups());
+	}
+
+	protected function contentTracker(): ContentTracker
+	{
+		return new ContentTracker($this->references, $this->edits, $this->work);
+	}
+
+	protected function trashTracker(): TrashTracker
+	{
+		return new TrashTracker($this->trash);
 	}
 }

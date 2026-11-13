@@ -1,16 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
+use craft\base\ElementExporterInterface;
+use craft\base\ElementInterface;
+use craft\elements\db\ElementQuery;
 use craft\elements\User;
 use craft\helpers\StringHelper;
-use craft\web\Response;
+use SomehowDigital\Craft\Hub\base\SendsFileInterface;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
+use SomehowDigital\Craft\Hub\enums\ListType;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\services\ColumnService;
+use SomehowDigital\Craft\Hub\enums\Permission;
+use SomehowDigital\Craft\Hub\helpers\Row;
+use SomehowDigital\Craft\Hub\models\FileDownload;
+use SomehowDigital\Craft\Hub\services\AccessService;
+use SomehowDigital\Craft\Hub\services\ActivityService;
+use SomehowDigital\Craft\Hub\services\BulkService;
+use yii\base\Application;
 use yii\base\InvalidValueException;
 use yii\web\BadRequestHttpException;
 
@@ -18,16 +29,28 @@ use yii\web\BadRequestHttpException;
  * Sends the items the user may view exported by the exporter picked (`exporter`, the first one by default), in the
  * format picked (`format`, CSV by default) for formattable ones, like Craft's export of element indexes, recording them
  * in the activity log as a batch.
+ *
+ * @internal
  */
-class Export extends BulkAction implements SendsFile
+final class Export extends BaseBulkAction implements SendsFileInterface
 {
+	public function __construct(
+		string $list,
+		AccessService $access,
+		private readonly BulkService $bulk,
+		private readonly ActivityService $activity,
+		private readonly Application $craftApp,
+	) {
+		parent::__construct($list, $access);
+	}
+
 	/** page and permission of exporting each list */
 	private const PERMISSIONS = [
-		ColumnService::LIST_ENTRIES => [Page::Entries, Hub::PERMISSION_EXPORT_ENTRIES],
-		ColumnService::LIST_FILES => [Page::Assets, Hub::PERMISSION_EXPORT_ASSETS],
-		ColumnService::LIST_USERS => [Page::Users, Hub::PERMISSION_EXPORT_USERS],
-		ColumnService::LIST_TRASHED_ENTRIES => [Page::Entries, Hub::PERMISSION_EXPORT_TRASHED_ENTRIES],
-		ColumnService::LIST_TRASHED_FILES => [Page::Assets, Hub::PERMISSION_EXPORT_TRASHED_ASSETS],
+		ListType::Entries->value => [Page::Entries, Permission::ExportEntries->value],
+		ListType::Files->value => [Page::Assets, Permission::ExportAssets->value],
+		ListType::Users->value => [Page::Users, Permission::ExportUsers->value],
+		ListType::TrashedEntries->value => [Page::Entries, Permission::ExportTrashedEntries->value],
+		ListType::TrashedFiles->value => [Page::Assets, Permission::ExportTrashedAssets->value],
 	];
 
 	public function definition(): array
@@ -49,12 +72,12 @@ class Export extends BulkAction implements SendsFile
 	{
 		[$page, $permission] = self::PERMISSIONS[$this->list];
 
-		return $this->hub()->access->canAct($page, $permission);
+		return $this->access->canAct($page, $permission);
 	}
 
-	public function preview(array $ids, int $page): ?BulkPreview
+	public function preview(array $ids, int $page): BulkPreview
 	{
-		$bulk = $this->hub()->bulk;
+		$bulk = $this->bulk;
 
 		return new BulkPreview('export-preview', count($bulk->getExportableElements($this->list, $ids)), [
 			'exporters' => $bulk->getExporters($this->list),
@@ -62,68 +85,77 @@ class Export extends BulkAction implements SendsFile
 		]);
 	}
 
-	public function send(Response $response, array $ids, array $params): ?Response
+	public function download(array $ids, array $params): ?FileDownload
 	{
-		$hub = $this->hub();
-		$exporters = $hub->bulk->getExporters($this->list);
-		$exporter = $exporters[(string)($params['exporter'] ?? array_key_first($exporters))] ?? null;
-		$format = (string)($params['format'] ?? Response::FORMAT_CSV);
+		$exporters = $this->bulk->getExporters($this->list);
+		$exporter = $exporters[Row::stringOrNull($params, 'exporter') ?? (string) array_key_first($exporters)] ?? null;
+		$format = Row::stringOrNull($params, 'format') ?? 'csv';
 
-		if ($exporter === null || ($exporter::isFormattable() && !isset($hub->bulk->getExportFormats()[$format]))) {
+		if ($exporter === null || ($exporter::isFormattable() && !isset($this->bulk->getExportFormats()[$format]))) {
 			throw new BadRequestHttpException('Unknown exporter or format.');
 		}
 
-		$elements = $hub->bulk->getExportableElements($this->list, $ids);
-		$query = $hub->bulk->getExportQuery($this->list, $elements);
+		$elements = $this->bulk->getExportableElements($this->list, $ids);
+		$query = $this->bulk->getExportQuery($this->list, $elements);
 
-		if ($elements === [] || $query === null) {
+		if ($elements === [] || !$query instanceof ElementQuery) {
 			return null;
 		}
 
-		$subject = ActivitySubject::fromList($this->list) ?? ActivitySubject::Element;
-		$hub->activity->beginBatch(ActivityAction::Bulk, $subject, $this->definition()['label']);
+		$this->record($elements);
 
-		try {
-			foreach ($elements as $element) {
-				$hub->activity->record(ActivityAction::Exported, $subject, (int)$element->id, $element->getUiLabel(), siteId: $element instanceof User ? null : $element->siteId);
-			}
-		} finally {
-			$hub->activity->endBatch();
-		}
-
-		// The filename is set before exporting, in case the exporter starts sending the data.
 		$filename = $exporter->getFilename();
 
 		if ($exporter::isFormattable()) {
-			$response->format = $format;
 			$filename .= '.' . $format;
 		}
 
-		$response->setDownloadHeaders($filename);
 		$export = $exporter->export($query);
 
-		if ($exporter::isFormattable()) {
-			$export = is_callable($export) ? $export() : $export;
+		return $exporter::isFormattable()
+			? $this->formatted($exporter, $export, $filename, $format, $query)
+			: FileDownload::raw($export, $filename);
+	}
 
-			if (!is_iterable($export)) {
-				throw new InvalidValueException(get_class($exporter) . '::export() must return an array or generator function since isFormattable() returns true.');
+	/**
+	 * Records the elements exported, as a batch.
+	 *
+	 * @param ElementInterface[] $elements
+	 */
+	private function record(array $elements): void
+	{
+		$subject = ActivitySubject::fromList($this->list) ?? ActivitySubject::Element;
+		$this->activity->beginBatch(ActivityAction::Bulk, $subject, $this->definition()['label']);
+
+		try {
+			foreach ($elements as $element) {
+				$this->activity->record(ActivityAction::Exported, $subject, (int) $element->id, $element->getUiLabel(), siteId: $element instanceof User ? null : $element->siteId);
 			}
+		} finally {
+			$this->activity->endBatch();
+		}
+	}
 
-			$response->data = $export;
+	/**
+	 * @param ElementQuery<int,ElementInterface> $query
+	 */
+	private function formatted(ElementExporterInterface $exporter, mixed $export, string $filename, string $format, ElementQuery $query): FileDownload
+	{
+		$export = is_callable($export) ? $export() : $export;
 
-			if ($format === Response::FORMAT_JSON) {
-				$response->formatters[Response::FORMAT_JSON]['prettyPrint'] = true;
-			} elseif ($format === Response::FORMAT_XML) {
-				Craft::$app->language = 'en-US';
-				$response->formatters[Response::FORMAT_XML]['rootTag'] = StringHelper::toCamelCase($query->elementType::pluralLowerDisplayName());
-			}
-		} elseif (is_callable($export) || is_resource($export) || (is_array($export) && isset($export[0]) && is_resource($export[0]))) {
-			$response->stream = $export;
-		} else {
-			$response->data = $export;
-			$response->format = Response::FORMAT_RAW;
+		if (!is_iterable($export)) {
+			throw new InvalidValueException($exporter::class . '::export() must return an array or generator function since isFormattable() returns true.');
 		}
 
-		return $response;
+		$options = [];
+
+		if ($format === 'json') {
+			$options = ['prettyPrint' => true];
+		} elseif ($format === 'xml') {
+			$this->craftApp->language = 'en-US';
+			$options = ['rootTag' => StringHelper::toCamelCase($query->elementType::pluralLowerDisplayName())];
+		}
+
+		return FileDownload::formatted($export, $filename, $format, $options);
 	}
 }

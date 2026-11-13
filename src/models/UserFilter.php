@@ -1,13 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use DateTime;
 
 /**
  * Filters of the users list. Lists hold their values as they appear in the URL; empty lists and null values don't filter.
+ *
+ * @internal
  */
-class UserFilter
+final class UserFilter extends Model
 {
 	/** users in no group, as a value of the groups filter */
 	public const GROUP_NONE = 'none';
@@ -42,10 +47,12 @@ class UserFilter
 
 	/** dates of the last sign-in, both days included */
 	public ?DateTime $loginFrom = null;
+
 	public ?DateTime $loginTo = null;
 
 	/** creation dates, both days included */
 	public ?DateTime $createdFrom = null;
+
 	public ?DateTime $createdTo = null;
 
 	/** whether the users have set up an authenticator app or a passkey (`with` or `without`) */
@@ -56,14 +63,16 @@ class UserFilter
 
 	/** number of entries the users are authors of */
 	public ?int $entriesMin = null;
+
 	public ?int $entriesMax = null;
 
 	/** number of assets the users uploaded */
 	public ?int $assetsMin = null;
+
 	public ?int $assetsMax = null;
 
 	/**
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public static function getLogins(): array
 	{

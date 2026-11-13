@@ -1,34 +1,37 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Closure;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\helpers\ListSelection;
-use SomehowDigital\Craft\Hub\helpers\ListSort;
-use SomehowDigital\Craft\Hub\helpers\Paginator;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\SectionFilter;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use SomehowDigital\Craft\Hub\services\ListService;
-use SomehowDigital\Craft\Hub\statistics\SectionsSummary;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
 /**
  * The sections page, below the "Structure" navigation item: its list, statistics and diagnostics, and the detail pages
  * of sections.
+ *
+ * @internal
  */
-class SectionsController extends BaseController
+final class SectionsController extends BaseController
 {
+	/** The path of the list. */
+	private const PATH = 'hub/structure/sections';
+
 	protected ?Page $page = Page::Sections;
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/structure/sections')) !== null) {
+		if (($redirect = $this->keepFilters(self::PATH)) instanceof Response) {
 			return $redirect;
 		}
 
@@ -38,11 +41,11 @@ class SectionsController extends BaseController
 		$all = $hub->structure->getSections();
 
 		// While reviewing the selection, the filters don't apply.
-		$selection = ListSelection::fromRequest(ColumnService::LIST_SECTIONS, 'hub/structure/sections');
+		$selection = Hub::getInstance()->bulkActions->selectionFor(ColumnService::LIST_SECTIONS, self::PATH);
 		/** @var SectionFilter $filter */
 		$filter = $selection->review ? new SectionFilter() : $this->listFilterFromRequest(CheckKind::Sections);
-		$sort = ListSort::fromRequest($lists->getSectionSortColumns(), ListService::SORT_NAME);
-		[$pageInfo, $sections] = Paginator::fromRequest()->items($selection->limitItems($lists->getSections($filter, $sort->column, $sort->direction)));
+		$sort = $this->listSort($lists->getSectionSortColumns(), ListService::SORT_NAME);
+		[$pageInfo, $sections] = $this->paginator()->items($selection->limitItems($lists->getSections($filter, $sort->column, $sort->direction)));
 		$columns = $hub->columns->getColumns(ColumnService::LIST_SECTIONS);
 		$shown = $hub->columns->getShownKeys($columns);
 
@@ -51,20 +54,20 @@ class SectionsController extends BaseController
 				'sections' => $sections,
 				'pageInfo' => $pageInfo,
 				'total' => count($all),
-				'activities' => in_array('updated', $shown, true) ? array_map(fn (SectionInfo $info) => $info->stats->getActivity($months), $sections) : [],
+				'activities' => in_array('updated', $shown, true) ? array_map(fn(SectionInfo $info): string => $info->stats->getActivity($months), $sections) : [],
 				'filter' => $filter,
 				'columns' => $columns,
-				...$this->savedFilterVariables(CheckKind::Sections, 'hub/structure/sections', $filter->savedFilter),
+				...$this->savedFilterVariables(CheckKind::Sections, self::PATH, $filter->savedFilter),
 				...$this->labelVariables(ColumnService::LIST_SECTIONS, array_keys($sections)),
-				...$selection->variables($filter),
-				...$sort->variables('hub/structure/sections'),
+				...Hub::getInstance()->selection->variables($selection, $filter),
+				...$sort->variables(self::PATH),
 			],
 		]);
 	}
 
 	public function actionStatistics(): Response
 	{
-		return $this->renderStatistics(CheckKind::Sections, (new SectionsSummary())->index());
+		return $this->renderStatistics(CheckKind::Sections, Hub::getInstance()->sectionsSummary->index());
 	}
 
 	public function actionDiagnostics(): Response
@@ -77,18 +80,18 @@ class SectionsController extends BaseController
 		$tab = $this->detailTab($tab, [self::TAB_ENTRIES, self::TAB_STATISTICS]);
 		$info = Hub::getInstance()->structure->getSection($id) ?? throw new NotFoundHttpException('Section not found.');
 
-		if ($tab === self::TAB_ENTRIES && ($redirect = $this->keepFilters("hub/structure/sections/$id/entries")) !== null) {
+		if ($tab === self::TAB_ENTRIES && ($redirect = $this->keepFilters("hub/structure/sections/{$id}/entries")) instanceof Response) {
 			return $redirect;
 		}
 
 		// The cards load their data once their panel is opened, so building them all is cheap (see renderCard()).
-		$summary = $tab === self::TAB_STATISTICS ? (new SectionsSummary())->detail($info) : [];
+		$summary = $tab === self::TAB_STATISTICS ? Hub::getInstance()->sectionsSummary->detail($info) : [];
 
 		// A card or panel requested on its own is rendered without the page around it.
 		$part = ($tab === self::TAB_STATISTICS ? $this->renderCard($summary) : null)
-			?? $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn () => Hub::getInstance()->checks->forSection($info)) : $this->overviewPanels($info));
+			?? $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn() => Hub::getInstance()->checks->forSection($info)) : $this->overviewPanels($info));
 
-		if ($part !== null) {
+		if ($part instanceof Response) {
 			return $part;
 		}
 
@@ -98,7 +101,7 @@ class SectionsController extends BaseController
 			'selectedTab' => $tab,
 			'checks' => Hub::getInstance()->checks->forSection($info),
 			...match ($tab) {
-				self::TAB_ENTRIES => $this->entryListVariables("hub/structure/sections/$id/entries", section: $info->section),
+				self::TAB_ENTRIES => $this->entryListVariables("hub/structure/sections/{$id}/entries", section: $info->section),
 				self::TAB_STATISTICS => ['summary' => $summary],
 				self::TAB_DIAGNOSTICS => [],
 				default => [],
@@ -117,12 +120,12 @@ class SectionsController extends BaseController
 		$section = $info->section;
 
 		return [
-			'maintainers' => fn () => ['hub/_panels/maintainers', ['list' => ColumnService::LIST_SECTIONS, 'item' => $section]],
-			'sites' => fn () => ['hub/_panels/sections/sites', ['section' => $section]],
-			'previewTargets' => fn () => ['hub/_panels/sections/preview-targets', ['section' => $section]],
-			'entryTypes' => fn () => ['hub/_panels/sections/entry-types', ['info' => $info, 'section' => $section, 'entryTypes' => $hub->structure->getEntryTypes(), 'statistics' => $hub->statistics]],
-			'relations' => fn () => ['hub/_panels/sections/relations', ['info' => $info, 'section' => $section, 'statistics' => $hub->statistics]],
-			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::Section->value, 'id' => $section->id]],
+			'maintainers' => fn(): array => ['hub/_panels/maintainers', ['list' => ColumnService::LIST_SECTIONS, 'item' => $section]],
+			'sites' => fn(): array => ['hub/_panels/sections/sites', ['section' => $section]],
+			'previewTargets' => fn(): array => ['hub/_panels/sections/preview-targets', ['section' => $section]],
+			'entryTypes' => fn(): array => ['hub/_panels/sections/entry-types', ['info' => $info, 'section' => $section, 'entryTypes' => $hub->structure->getEntryTypes(), 'statistics' => $hub->statistics]],
+			'relations' => fn(): array => ['hub/_panels/sections/relations', ['info' => $info, 'section' => $section, 'statistics' => $hub->statistics]],
+			'activity' => fn(): array => ['hub/_panels/activity', ['subject' => ActivitySubject::Section->value, 'id' => $section->id]],
 		];
 	}
 }

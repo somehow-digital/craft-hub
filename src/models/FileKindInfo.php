@@ -1,23 +1,30 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use craft\elements\Asset;
 use craft\helpers\Assets as AssetsHelper;
 use craft\models\Volume;
 
 /**
  * What Hub knows of a file kind: the volumes holding such files, and their counts.
+ *
+ * @internal
  */
-class FileKindInfo
+final class FileKindInfo extends Model
 {
 	/** @var Volume[] volumes holding files of this kind */
 	public array $volumes = [];
 
 	public AssetStatistics $stats;
 
-	public function __construct(public string $kind)
-	{
+	public function __construct(
+		public string $kind
+	) {
+		parent::__construct();
 		$this->stats = new AssetStatistics();
 	}
 

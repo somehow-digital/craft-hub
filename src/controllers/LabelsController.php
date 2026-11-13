@@ -1,15 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
 use craft\helpers\Json;
 use SomehowDigital\Craft\Hub\enums\ListType;
+use SomehowDigital\Craft\Hub\enums\Permission;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\helpers\Ids;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\Label;
 use SomehowDigital\Craft\Hub\models\Settings;
 use SomehowDigital\Craft\Hub\services\LabelService;
+use stdClass;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
@@ -18,8 +23,10 @@ use yii\web\Response;
 /**
  * Manages the labels, the same for all lists, for users who may manage them, and labels the items of the lists, for users
  * who may label them, while labels are enabled.
+ *
+ * @internal
  */
-class LabelsController extends BaseController
+final class LabelsController extends BaseController
 {
 	/** paths of the pages of the lists, by their name, which link to them filtered by a label */
 	/**
@@ -27,7 +34,7 @@ class LabelsController extends BaseController
 	 */
 	public function actionIndex(?Settings $settings = null): Response
 	{
-		$this->requirePermission(Hub::PERMISSION_MANAGE_LABELS);
+		$this->requirePermission(Permission::ManageLabels->value);
 
 		$labels = Hub::getInstance()->labels;
 		$usage = $labels->getUsageByList();
@@ -50,9 +57,9 @@ class LabelsController extends BaseController
 	 */
 	public function actionEdit(?int $labelId = null, ?Label $label = null): Response
 	{
-		$this->requirePermission(Hub::PERMISSION_MANAGE_LABELS);
+		$this->requirePermission(Permission::ManageLabels->value);
 
-		if ($label === null && $labelId !== null) {
+		if (!$label instanceof Label && $labelId !== null) {
 			$label = Hub::getInstance()->labels->getLabelById($labelId) ?? throw new NotFoundHttpException('Label not found.');
 		}
 
@@ -68,18 +75,17 @@ class LabelsController extends BaseController
 	public function actionSave(): ?Response
 	{
 		$this->requirePostRequest();
-		$this->requirePermission(Hub::PERMISSION_MANAGE_LABELS);
+		$this->requirePermission(Permission::ManageLabels->value);
 
-		$request = Craft::$app->getRequest();
 		$labels = Hub::getInstance()->labels;
-		$id = $request->getBodyParam('labelId');
-		$label = $id ? $labels->getLabelById((int)$id) ?? throw new NotFoundHttpException('Label not found.') : new Label();
+		$id = $this->bodyInt('labelId');
+		$label = $id > 0 ? $labels->getLabelById($id) ?? throw new NotFoundHttpException('Label not found.') : new Label();
 
-		$label->name = (string)$request->getBodyParam('name', '');
-		$label->description = (string)$request->getBodyParam('description', '');
-		$label->icon = (string)$request->getBodyParam('icon', '') ?: null;
+		$label->name = $this->bodyString('name', '');
+		$label->description = $this->bodyString('description', '');
+		$label->icon = Fill::text($this->bodyString('icon', ''));
 		// Craft's color select sends its blank option as `__blank__`.
-		$color = (string)$request->getBodyParam('color', '');
+		$color = $this->bodyString('color', '');
 		$label->color = $color !== '' && $color !== '__blank__' ? $color : null;
 
 		if (!$labels->saveLabel($label)) {
@@ -98,9 +104,9 @@ class LabelsController extends BaseController
 	public function actionDelete(): ?Response
 	{
 		$this->requirePostRequest();
-		$this->requirePermission(Hub::PERMISSION_MANAGE_LABELS);
+		$this->requirePermission(Permission::ManageLabels->value);
 
-		Hub::getInstance()->labels->deleteLabelById((int)Craft::$app->getRequest()->getRequiredBodyParam('id'));
+		Hub::getInstance()->labels->deleteLabelById($this->requiredBodyInt('id'));
 
 		return $this->asSuccess(Craft::t('hub', 'Label deleted.'), redirect: $this->hubUrl('hub/manage/settings/labels'));
 	}
@@ -112,10 +118,10 @@ class LabelsController extends BaseController
 	public function actionClear(): ?Response
 	{
 		$this->requirePostRequest();
-		$this->requirePermission(Hub::PERMISSION_MANAGE_LABELS);
+		$this->requirePermission(Permission::ManageLabels->value);
 
 		$labels = Hub::getInstance()->labels;
-		$id = (int)Craft::$app->getRequest()->getRequiredBodyParam('id');
+		$id = $this->requiredBodyInt('id');
 		$label = $labels->getLabelById($id) ?? throw new NotFoundHttpException('Label not found.');
 		$count = $labels->clearLabelById($id);
 
@@ -128,13 +134,13 @@ class LabelsController extends BaseController
 	/**
 	 * Orders the labels by the JSON-encoded IDs sent by Craft's admin table.
 	 */
-	public function actionReorder(): Response
+	public function actionReorder(): ?Response
 	{
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
-		$this->requirePermission(Hub::PERMISSION_MANAGE_LABELS);
+		$this->requirePermission(Permission::ManageLabels->value);
 
-		$ids = Json::decode((string)Craft::$app->getRequest()->getRequiredBodyParam('ids'));
+		$ids = Json::decode($this->requiredBodyString('ids'));
 		Hub::getInstance()->labels->reorderLabels(Ids::positive($ids));
 
 		return $this->asSuccess();
@@ -148,14 +154,15 @@ class LabelsController extends BaseController
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
 
-		$request = Craft::$app->getRequest();
+		$request = $this->request;
 		$labels = Hub::getInstance()->labels;
-		$list = (string)$request->getRequiredBodyParam('list');
+		$list = $this->requiredBodyString('list');
 
 		if (!Hub::getInstance()->labels->isEnabled()) {
 			throw new ForbiddenHttpException('Labels are disabled.');
 		}
-		$id = (int)$request->getRequiredBodyParam('id');
+
+		$id = $this->requiredBodyInt('id');
 
 		if (!isset(LabelService::LISTS[$list])) {
 			throw new BadRequestHttpException('Unknown list.');
@@ -185,8 +192,7 @@ class LabelsController extends BaseController
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
 
-		$request = Craft::$app->getRequest();
-		$list = (string)$request->getRequiredBodyParam('list');
+		$list = $this->requiredBodyString('list');
 
 		if (!Hub::getInstance()->labels->isEnabled()) {
 			throw new ForbiddenHttpException('Labels are disabled.');
@@ -197,15 +203,18 @@ class LabelsController extends BaseController
 		}
 
 		// Only the items of lists the user may bulk-edit are selected.
-		if (!Hub::getInstance()->labels->canApply($list) || !Hub::getInstance()->bulk->canSelect($list)) {
+		if (!Hub::getInstance()->labels->canApply($list) || !Hub::getInstance()->bulkActions->canSelect($list)) {
 			throw new ForbiddenHttpException('User is not authorized to label these items.');
 		}
 
 		$ids = Hub::getInstance()->selection->getSelection($list, $this->requirePostedListPath());
 
+		$counts = Hub::getInstance()->labels->countLabelsOf($list, $ids);
+
+		// Without any, the counts still encode as an object.
 		return $this->asJson([
 			'total' => count($ids),
-			'counts' => (object)Hub::getInstance()->labels->countLabelsOf($list, $ids),
+			'counts' => $counts === [] ? new stdClass() : $counts,
 		]);
 	}
 
@@ -223,7 +232,7 @@ class LabelsController extends BaseController
 			$type = ListType::tryFrom($list);
 
 			if ($type?->path() !== null) {
-				$usage[$list] = ['label' => $type->label(), 'count' => $count, 'url' => Hub::getInstance()->access->canViewList($list) ? $this->hubUrl($type->path(), ['label' => $labelId]) : null];
+				$usage[$list] = ['label' => $type->label() ?? '', 'count' => $count, 'url' => Hub::getInstance()->access->canViewList($list) ? $this->hubUrl($type->path(), ['label' => $labelId]) : null];
 			}
 		}
 

@@ -1,9 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
-use Craft;
 use SomehowDigital\Craft\Hub\enums\Page;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\Hub;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
@@ -12,8 +14,10 @@ use yii\web\Response;
 /**
  * The options of the filters of the lists that are read from the database, which are only loaded as their dropdowns first
  * open, as most users never open most of them.
+ *
+ * @internal
  */
-class OptionsController extends BaseController
+final class OptionsController extends BaseController
 {
 	/** pages of the lists offering each filter, which the user must be able to view; the users filter is of the activity log */
 	private const PAGES = [
@@ -54,7 +58,7 @@ class OptionsController extends BaseController
 				'kind' => $this->kindOptions($hub->volumes->getKinds()),
 				'extension' => $this->extensionOptions($volume),
 				'uploader' => $this->userOptions($hub->files->getUploaders($volume)),
-				'user' => $this->activityUserOptions($hub->activity->getUserOptions()),
+				'user' => $this->activityUserOptions($hub->feed->getUserOptions()),
 			},
 		]);
 	}
@@ -66,7 +70,7 @@ class OptionsController extends BaseController
 	 */
 	private function extensionOptions(?int $volume): array
 	{
-		$extensions = array_map('strval', array_keys(Hub::getInstance()->files->getExtensions($volume)));
+		$extensions = array_map(strval(...), array_keys(Hub::getInstance()->files->getExtensions($volume)));
 
 		return array_combine($extensions, $extensions);
 	}
@@ -76,6 +80,6 @@ class OptionsController extends BaseController
 	 */
 	private function scope(string $name): ?int
 	{
-		return (int)Craft::$app->getRequest()->getQueryParam($name) ?: null;
+		return Fill::number($this->queryInt($name));
 	}
 }

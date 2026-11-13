@@ -1,17 +1,24 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers\activity;
 
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
-use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\services\ActivityService;
 
 /**
  * Records one kind of what users do in the activity log, as Craft's events tell it.
+ *
+ * @internal
  */
-abstract class ActivitySubscriber
+abstract class BaseActivitySubscriber
 {
+	public function __construct(
+		protected readonly ActivityService $activity,
+	) {}
+
 	abstract public function register(): void;
 
 	/**
@@ -24,12 +31,7 @@ abstract class ActivitySubscriber
 		$revoked = $before !== null ? array_values(array_diff($before, $after)) : [];
 
 		if ($granted !== [] || $revoked !== []) {
-			$this->activity()->record(ActivityAction::PermissionsChanged, $subject, $id, $title, array_filter(['granted' => $granted, 'revoked' => $revoked]));
+			$this->activity->record(ActivityAction::PermissionsChanged, $subject, $id, $title, array_filter(['granted' => $granted, 'revoked' => $revoked]));
 		}
-	}
-
-	protected function activity(): ActivityService
-	{
-		return Hub::getInstance()->activity;
 	}
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\helpers;
 
 use DateTime;
@@ -7,6 +9,8 @@ use yii\db\ExpressionInterface;
 
 /**
  * Conditions for range filters, where either bound may be left open.
+ *
+ * @internal
  */
 final class Range
 {
@@ -35,17 +39,17 @@ final class Range
 	 */
 	public static function dateParam(?DateTime $from, ?DateTime $to): ?array
 	{
-		if ($from === null && $to === null) {
+		if (!$from instanceof DateTime && !$to instanceof DateTime) {
 			return null;
 		}
 
 		$param = ['and'];
 
-		if ($from !== null) {
+		if ($from instanceof DateTime) {
 			$param[] = '>= ' . (clone $from)->setTime(0, 0)->format(DateTime::ATOM);
 		}
 
-		if ($to !== null) {
+		if ($to instanceof DateTime) {
 			$param[] = '< ' . (clone $to)->setTime(0, 0)->modify('+1 day')->format(DateTime::ATOM);
 		}
 

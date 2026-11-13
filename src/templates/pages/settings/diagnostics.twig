@@ -17,16 +17,16 @@
 
 {% block content %}
 	{% if settings is defined %}
-		{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/diagnostics', readOnly: readOnly, overrides: overrides, settings: settings } only %}
+		{% embed 'hub/_components/settings-form' with {path: 'hub/manage/settings/diagnostics', readOnly: readOnly, overrides: overrides, settings: settings} only %}
 			{% block fields %}
-				{% include 'hub/_components/setting' with { name: 'enableDiagnostics', field: {
+				{{ include('hub/_components/setting', {name: 'enableDiagnostics', field: {
 					first: true,
 					label: 'Diagnostics'|t('hub'),
 					instructions: 'Whether the index and detail pages have a diagnostics tab, listing the checks of their items.'|t('hub'),
 				},
 				overrides: overrides,
 				readOnly: readOnly,
-				settings: settings, } only %}
+				settings: settings}, false) }}
 			{% endblock %}
 		{% endembed %}
 		<hr>
@@ -39,7 +39,7 @@
 
 	<div class="hub-checks-settings">
 		{% for item in kinds %}
-			{% include 'hub/_panels/settings/checks' with { kind: item.kind, checks: item.checks } only %}
+			{{ include('hub/_panels/settings/checks', {kind: item.kind, checks: item.checks}, false) }}
 		{% endfor %}
 	</div>
 {% endblock %}

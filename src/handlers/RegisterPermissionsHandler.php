@@ -1,51 +1,55 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers;
 
 use Craft;
 use craft\events\RegisterUserPermissionsEvent;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\enums\Permission;
 
 /**
  * Registers the permissions accessing the data and the structure, each with those of its pages nested under it: viewing
  * the page, and labeling, bulk-editing and applying actions to its items nested under that, as well as viewing its trash,
  * with the actions applied to the items in it nested under that in turn (see Page).
+ *
+ * @internal
  */
-class RegisterPermissionsHandler
+final class RegisterPermissionsHandler
 {
 	public function __invoke(RegisterUserPermissionsEvent $event): void
 	{
 		$event->permissions[] = [
 			'heading' => Craft::t('hub', 'Hub'),
 			'permissions' => [
-				Hub::PERMISSION_VIEW_WORK => [
+				Permission::ViewWork->value => [
 					'label' => Craft::t('hub', 'View my work'),
 					'info' => Craft::t('hub', 'The user’s drafts, the issues of their items and what they maintain, as far as they may view it.'),
 				],
-				Hub::PERMISSION_ACCESS_DATA => [
+				Permission::AccessData->value => [
 					'label' => Craft::t('hub', 'Access data'),
 					'nested' => $this->pages([Page::Entries, Page::Assets, Page::Users]),
 				],
-				Hub::PERMISSION_ACCESS_STRUCTURE => [
+				Permission::AccessStructure->value => [
 					'label' => Craft::t('hub', 'Access structure'),
 					'nested' => $this->pages([Page::EntryTypes, Page::Sections, Page::Fields, Page::Volumes]),
 				],
-				Hub::PERMISSION_MANAGE_LABELS => [
+				Permission::ManageLabels->value => [
 					'label' => Craft::t('hub', 'Manage labels'),
 				],
-				Hub::PERMISSION_MANAGE_MAINTAINERS => [
+				Permission::ManageMaintainers->value => [
 					'label' => Craft::t('hub', 'Manage maintainers'),
 					'info' => Craft::t('hub', 'Who is shown as maintainer of the sections, entry types, fields and volumes the user may view.'),
 				],
-				Hub::PERMISSION_MANAGE_DIAGNOSTICS => [
+				Permission::ManageDiagnostics->value => [
 					'label' => Craft::t('hub', 'Manage diagnostic checks'),
 				],
-				Hub::PERMISSION_MANAGE_FILTERS => [
+				Permission::ManageFilters->value => [
 					'label' => Craft::t('hub', 'Manage saved filters'),
 					'info' => Craft::t('hub', 'The predefined and custom filters offered to everyone. Users save their own filters in the lists they may view.'),
 				],
-				Hub::PERMISSION_VIEW_ACTIVITY => [
+				Permission::ViewActivity->value => [
 					'label' => Craft::t('hub', 'View the activity log'),
 				],
 			],
@@ -72,20 +76,20 @@ class RegisterPermissionsHandler
 				}
 
 				$actions[$trash] = [
-					'label' => $page->trashPermissionLabel(),
+					'label' => $page->trashPermissionLabel() ?? '',
 					'info' => Craft::t('hub', 'The trash tab of the page, while the trash is enabled.'),
 					'nested' => $trashActions,
 				];
 			}
 
-			[$view, $label, $bulkEdit] = $page->permissionLabels();
+			[$viewLabel, $labelLabel, $bulkEditLabel] = $page->permissionLabels();
 			$permissions[$page->viewPermission()] = [
-				'label' => $view,
+				'label' => $viewLabel,
 				...($page === Page::Users ? ['info' => Craft::t('hub', 'Includes the user groups and the users’ personal data.')] : []),
 				'nested' => [
-					$page->labelPermission() => ['label' => $label],
+					$page->labelPermission() => ['label' => $labelLabel],
 					$page->bulkEditPermission() => [
-						'label' => $bulkEdit,
+						'label' => $bulkEditLabel,
 						'info' => Craft::t('hub', 'Select several items at once, to label them or apply actions to all of them.'),
 					],
 					...$actions,

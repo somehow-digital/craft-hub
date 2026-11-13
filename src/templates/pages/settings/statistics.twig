@@ -10,26 +10,26 @@
 {% set selectedTab = 'statistics' %}
 
 {% block content %}
-	{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/statistics', readOnly: readOnly, overrides: overrides, settings: settings } only %}
+	{% embed 'hub/_components/settings-form' with {path: 'hub/manage/settings/statistics', readOnly: readOnly, overrides: overrides, settings: settings} only %}
 		{% block fields %}
-			{% include 'hub/_components/setting' with { name: 'enableStatistics', field: {
+			{{ include('hub/_components/setting', {name: 'enableStatistics', field: {
 				first: true,
 				label: 'Statistics'|t('hub'),
 				instructions: 'Whether the index and detail pages have a statistics tab, summarizing their items.'|t('hub'),
 			},
 			overrides: overrides,
 			readOnly: readOnly,
-			settings: settings, } only %}
+			settings: settings}, false) }}
 
-			{% include 'hub/_components/setting' with { name: 'enableSnapshots', field: {
+			{{ include('hub/_components/setting', {name: 'enableSnapshots', field: {
 				label: 'Snapshots'|t('hub'),
 				instructions: 'Whether snapshots of the statistics are taken, so the statistics tabs show how they changed. They’re taken in the queue once due, or by `./craft hub/snapshots`, e.g. from a cron job.'|t('hub'),
 			},
 			overrides: overrides,
 			readOnly: readOnly,
-			settings: settings, } only %}
+			settings: settings}, false) }}
 
-			{% include 'hub/_components/setting' with { name: 'snapshotInterval', field: {
+			{{ include('hub/_components/setting', {name: 'snapshotInterval', field: {
 				label: 'Snapshot Interval'|t('hub'),
 				instructions: 'A snapshot is taken every this many days.'|t('hub'),
 				min: 1,
@@ -37,9 +37,9 @@
 			},
 			overrides: overrides,
 			readOnly: readOnly,
-			settings: settings, } only %}
+			settings: settings}, false) }}
 
-			{% include 'hub/_components/setting' with { name: 'snapshotRetentionDays', field: {
+			{{ include('hub/_components/setting', {name: 'snapshotRetentionDays', field: {
 				label: 'Snapshot Retention'|t('hub'),
 				instructions: 'Snapshots are kept for this many days, then deleted along with Craft’s garbage. Set it to 0 to keep them forever.'|t('hub'),
 				min: 0,
@@ -47,7 +47,7 @@
 			},
 			overrides: overrides,
 			readOnly: readOnly,
-			settings: settings, } only %}
+			settings: settings}, false) }}
 		{% endblock %}
 	{% endembed %}
 {% endblock %}

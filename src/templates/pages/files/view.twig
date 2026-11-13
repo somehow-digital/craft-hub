@@ -8,11 +8,11 @@
 {% set area = 'data' %}
 {% set selectedSubnavItem = 'assets' %}
 {% set path = 'hub/data/assets/' ~ asset.id %}
-{% set listTabs = hasTransforms ? [{ id: 'transforms', label: 'Transforms'|t('hub') }] : [] %}
+{% set listTabs = hasTransforms ? [{id: 'transforms', label: 'Transforms'|t('hub')}] : [] %}
 {% set crumbs = [
-	{ label: 'Assets'|t('app'), url: url('hub/data/assets', { hubSite: hubSite }) },
-	{ label: volume.name|t('site'), url: url('hub/data/assets', { hubSite: hubSite, volume: volume.handle }) },
-	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+	{label: 'Assets'|t('app'), url: url('hub/data/assets', {hubSite: hubSite})},
+	{label: volume.name|t('site'), url: url('hub/data/assets', {hubSite: hubSite, volume: volume.handle})},
+	{label: title, url: url(path, {hubSite: hubSite}), current: true},
 ] %}
 
 {% block pageTitle %}
@@ -31,11 +31,11 @@
 		{% if canDownload %}
 			{# Previews the download like downloading the file from the list, see BulkController::actionPreview(). #}
 			{% set downloadId = 'hub-download-' ~ random() %}
-			<a class="btn" href="{{ actionUrl('hub/files/download', { id: asset.id }) }}" aria-haspopup="dialog" data-hub-preview-open="{{ downloadId }}" data-hub-preview-name="{{ title }}" data-hub-preview-params="{{ { list: 'files', bulkAction: 'download', item: asset.id }|json_encode }}">
+			<a class="btn" href="{{ actionUrl('hub/files/download', {id: asset.id}) }}" aria-haspopup="dialog" data-hub-preview-open="{{ downloadId }}" data-hub-preview-name="{{ title }}" data-hub-preview-params="{{ {list: 'files', bulkAction: 'download', item: asset.id}|json_encode }}">
 				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('download') }}</span>
 				<span>{{ 'Download'|t('app') }}</span>
 			</a>
-			{{ hub.previewDialog('download', { label: 'Download'|t('app'), icon: 'download', file: true }, downloadId) }}
+			{{ hub.previewDialog('download', {label: 'Download'|t('app'), icon: 'download', file: true}, downloadId) }}
 		{% endif %}
 		{% if asset.canView(currentUser) %}
 			<a class="btn" href="{{ asset.cpEditUrl }}">
@@ -48,7 +48,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'files', id: asset.id } only %}
+		{{ include('hub/_components/detail-labels', {list: 'files', id: asset.id}, false) }}
 		<div class="data">
 			<dt class="heading">{{ 'Filename'|t('app') }}</dt>
 			<dd class="value"><code>{{ asset.filename }}</code></dd>
@@ -124,18 +124,18 @@
 
 {% block overview %}
 	{% if isImage or (isPlayable and asset.url) %}
-		{% include 'hub/_panels/files/preview' with { asset: asset, isImage: isImage } only %}
+		{{ include('hub/_panels/files/preview', {asset: asset, isImage: isImage}, false) }}
 	{% endif %}
 
-	{% include 'hub/_panels/element-maintainers' with { element: asset } only %}
+	{{ include('hub/_panels/element-maintainers', {element: asset}, false) }}
 
-	{% include 'hub/_panels/files/sites' with { count: siteCount, isImage: isImage } only %}
+	{{ include('hub/_panels/files/sites', {count: siteCount, isImage: isImage}, false) }}
 
-	{% include 'hub/_panels/files/references' with { count: referenceCount } only %}
+	{{ include('hub/_panels/files/references', {count: referenceCount}, false) }}
 
-	{% include 'hub/_panels/referenced' with { count: referencedCount } only %}
+	{{ include('hub/_panels/referenced', {count: referencedCount}, false) }}
 
-	{% include 'hub/_panels/activity' with { subject: 'asset', id: asset.id } only %}
+	{{ include('hub/_panels/activity', {subject: 'asset', id: asset.id}, false) }}
 {% endblock %}
 
 {% block list %}
@@ -153,20 +153,20 @@
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			{# Transforms are selected for deletion by users who can save the file, previewing the transforms deleted. #}
-			{% set bulkActions = canDeleteTransforms ? { delete: {
+			{% set bulkActions = canDeleteTransforms ? {delete: {
 				label: 'Delete'|t('app'),
 				icon: 'trash',
 				confirm: 'Are you sure you want to delete the selected transforms?'|t('hub'),
 				preview: true,
 				previewAction: 'hub/files/preview-transforms',
-				titles: { one: 'Delete “{name}”?'|t('hub'), some: 'Delete {count} selected transforms?'|t('hub') },
-			} } : {} %}
+				titles: {one: 'Delete “{name}”?'|t('hub'), some: 'Delete {count} selected transforms?'|t('hub')},
+			}} : {} %}
 			{% if transforms|length %}
 				{% embed 'hub/_components/bulk' with {
-					list: { bulkActions: bulkActions, bulkSelection: null },
+					list: {bulkActions: bulkActions, bulkSelection: null},
 					bulkNone: 'No transforms selected'|t('hub'),
 					bulkAction: 'hub/files/delete-transforms',
-					bulkParams: { assetId: asset.id },
+					bulkParams: {assetId: asset.id},
 					transforms: transforms,
 				} only %}
 					{% block table %}

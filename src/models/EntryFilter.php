@@ -1,13 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use DateTime;
 
 /**
  * Filters of the entries list. Lists hold their values as they appear in the URL; empty lists and null values don't filter.
+ *
+ * @internal
  */
-class EntryFilter
+final class EntryFilter extends Model
 {
 	/** matched against the title and slug */
 	public string $search = '';
@@ -43,14 +48,17 @@ class EntryFilter
 	public ?string $usage = null;
 
 	public ?int $referencesMin = null;
+
 	public ?int $referencesMax = null;
 
 	/** post dates, both days included */
 	public ?DateTime $postedFrom = null;
+
 	public ?DateTime $postedTo = null;
 
 	/** dates of the last update, both days included */
 	public ?DateTime $updatedFrom = null;
+
 	public ?DateTime $updatedTo = null;
 
 	/** only entries no person has edited within this many months */

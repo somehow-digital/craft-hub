@@ -1,35 +1,52 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\statistics;
 
 use Craft;
 use craft\base\FieldInterface;
-use craft\elements\Entry;
-use craft\models\EntryType;
 use SomehowDigital\Craft\Hub\enums\DataKind;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\helpers\Ids;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\models\Snapshot;
+use SomehowDigital\Craft\Hub\services\SiteScopeService;
+use SomehowDigital\Craft\Hub\services\SnapshotService;
 use SomehowDigital\Craft\Hub\services\StatisticsService;
+use SomehowDigital\Craft\Hub\services\StructureService;
+use SomehowDigital\Craft\Hub\services\VolumeService;
 
 /**
  * Statistics of the fields: the summary cards of their list and those of a field's page.
+ *
+ * @internal
  */
-final class FieldsSummary extends Summary
+final class FieldsSummary extends BaseSummary
 {
+	public function __construct(
+		SiteScopeService $siteScope,
+		SnapshotService $snapshots,
+		StructureService $structure,
+		VolumeService $volumes,
+		StatisticsService $statistics,
+	) {
+		parent::__construct($siteScope, $snapshots, $structure, $volumes, $statistics);
+	}
+
 	/**
 	 * Summary cards for the fields list.
 	 *
-	 * @return array<int,array<string,mixed>> see lazyCard()
+	 * @return list<array<string,mixed>> see lazyCard()
 	 */
 	public function index(): array
 	{
 		$path = 'hub/structure/fields';
-		$siteIds = Hub::getInstance()->siteScope->getSiteIds();
-		$fields = fn () => Hub::getInstance()->structure->getFields();
+		$siteIds = $this->siteScope->getSiteIds();
+		$fields = fn(): array => $this->structure->getFields();
 
 		return [
-			$this->lazyCard(Craft::t('app', 'Fields'), 'pen-ruler', function () use ($fields) {
+			$this->lazyCard(Craft::t('app', 'Fields'), 'pen-ruler', function () use ($fields): array {
 				$instances = 0;
 				$layouts = 0;
 				foreach ($fields() as $info) {
@@ -39,8 +56,8 @@ final class FieldsSummary extends Summary
 
 				$card = $this->fieldsCard(
 					count($fields()),
-					count(array_filter($fields(), fn (FieldInfo $info) => $info->isEmpty())),
-					count(array_filter($fields(), fn (FieldInfo $info) => $info->isUnused())),
+					count(array_filter($fields(), fn(FieldInfo $info): bool => $info->isEmpty())),
+					count(array_filter($fields(), fn(FieldInfo $info): bool => $info->isUnused())),
 				);
 				$card['details'] = [
 					['label' => Craft::t('hub', 'Instances'), 'value' => $instances],
@@ -49,7 +66,7 @@ final class FieldsSummary extends Summary
 				];
 
 				return $card;
-			}, function (Snapshot $snapshot) use ($siteIds) {
+			}, function (Snapshot $snapshot) use ($siteIds): array {
 				$empty = 0;
 				$unused = 0;
 				foreach ($snapshot->getFields() as $id => $field) {
@@ -57,16 +74,16 @@ final class FieldsSummary extends Summary
 					if ($field['owners'] === []) {
 						$unused++;
 					} elseif ($field['kind'] === DataKind::Nested->value) {
-						$empty += $snapshot->statistics->sumEntries($siteIds, fieldId: $id)->total === 0 ? 1 : 0;
+						$empty += $this->snapshots->getStatistics($snapshot)->sumEntries($siteIds, fieldId: $id)->total === 0 ? 1 : 0;
 					} elseif ($field['kind'] === DataKind::Relational->value) {
-						$empty += $snapshot->statistics->sumReferences($siteIds, $id)->references === 0 ? 1 : 0;
+						$empty += $this->snapshots->getStatistics($snapshot)->sumReferences($siteIds, $id)->references === 0 ? 1 : 0;
 					}
 				}
 
 				return $this->fieldsCard(count($snapshot->getFields()), $empty, $unused);
 			}),
-			$this->lazyCard(Craft::t('hub', 'Data'), 'database', function () use ($fields, $path) {
-				$kinds = array_count_values(array_map(fn (FieldInfo $info) => $info->getDataKind()->value, $fields()));
+			$this->lazyCard(Craft::t('hub', 'Data'), 'database', function () use ($fields, $path): array {
+				$kinds = array_count_values(array_map(fn(FieldInfo $info) => $info->getDataKind()->value, $fields()));
 				$nestedEntries = 0;
 				$references = 0;
 				foreach ($fields() as $info) {
@@ -81,12 +98,12 @@ final class FieldsSummary extends Summary
 						'references' => $references,
 					]),
 				];
-			}, fn (Snapshot $snapshot) => $this->dataCard(
-				array_count_values(array_map(fn (array $field) => (string)$field['kind'], $snapshot->getFields())),
+			}, fn(Snapshot $snapshot): array => $this->dataCard(
+				array_count_values(array_map(fn(array $field): string => $field['kind'], $snapshot->getFields())),
 				$path,
 			)),
-			$this->lazyCard(Craft::t('hub', 'Field Types'), 'puzzle-piece', function () use ($fields, $path) {
-				$counts = array_count_values(array_map(fn (FieldInfo $info) => $info->getTypeName(), $fields()));
+			$this->lazyCard(Craft::t('hub', 'Field Types'), 'puzzle-piece', function () use ($fields, $path): array {
+				$counts = array_count_values(array_map(fn(FieldInfo $info): string => $info->getTypeName(), $fields()));
 				$cells = [];
 				foreach ($fields() as $info) {
 					$type = $info->getTypeName();
@@ -105,18 +122,18 @@ final class FieldsSummary extends Summary
 					],
 					$cells,
 				);
-			}, fn (Snapshot $snapshot) => $this->topHistory(array_count_values(array_map(
+			}, fn(Snapshot $snapshot): array => $this->topHistory(array_count_values(array_map(
 				// Labeled by the name of the type now, as the language of the snapshot may be another one.
-				fn (array $field) => is_subclass_of($field['type'], FieldInterface::class) ? $field['type']::displayName() : (string)$field['type'],
+				fn(array $field): string => is_subclass_of($field['type'], FieldInterface::class) ? $field['type']::displayName() : $field['type'],
 				$snapshot->getFields(),
 			)))),
-			$this->lazyCard(Craft::t('hub', 'Relations'), 'link', function () use ($fields, $path) {
+			$this->lazyCard(Craft::t('hub', 'Relations'), 'link', function () use ($fields, $path): array {
 				$counts = [];
 				$owners = [];
 				foreach ($fields() as $info) {
 					foreach ($info->layouts as $usage) {
 						$counts[$usage->ownerType] = ($counts[$usage->ownerType] ?? 0) + 1;
-						$owners[$usage->ownerType][$info->field->id] = true;
+						$owners[$usage->ownerType][(int) $info->field->id] = true;
 					}
 				}
 
@@ -124,13 +141,13 @@ final class FieldsSummary extends Summary
 					$this->topCard(Craft::t('hub', 'Relations'), 'link', $counts, 'owner', path: $path, sum: true),
 					Craft::t('hub', 'Field layouts'),
 					[['label' => Craft::t('app', 'Fields'), 'type' => 'number']],
-					array_map(fn (array $ids) => [count($ids)], $owners),
+					array_map(fn(array $ids): array => [count($ids)], $owners),
 				);
-			}, function (Snapshot $snapshot) {
+			}, function (Snapshot $snapshot): array {
 				$counts = [];
 				foreach ($snapshot->getFields() as $field) {
 					foreach ($field['owners'] as $ownerType => $layouts) {
-						$counts[$ownerType] = ($counts[$ownerType] ?? 0) + (int)$layouts;
+						$counts[$ownerType] = ($counts[$ownerType] ?? 0) + $layouts;
 					}
 				}
 
@@ -140,13 +157,13 @@ final class FieldsSummary extends Summary
 	}
 
 	/**
-	 * @return array<int,array<string,mixed>> see lazyCard()
+	 * @return list<array<string,mixed>> see lazyCard()
 	 */
 	public function detail(FieldInfo $info): array
 	{
-		$siteIds = Hub::getInstance()->siteScope->getSiteIds();
+		$siteIds = $this->siteScope->getSiteIds();
 		$summary = [
-			$this->lazyCard(Craft::t('hub', 'Relations'), 'link', function () use ($info) {
+			$this->lazyCard(Craft::t('hub', 'Relations'), 'link', function () use ($info): array {
 				$owners = [];
 				foreach ($info->layouts as $usage) {
 					$owners[$usage->ownerType] = ($owners[$usage->ownerType] ?? 0) + 1;
@@ -156,29 +173,29 @@ final class FieldsSummary extends Summary
 				$card['note'] = Craft::t('hub', '{count, plural, =0{No instances} =1{One instance} other{# instances}}', ['count' => $info->getInstanceCount()]);
 
 				return $card;
-			}, fn (Snapshot $snapshot) => $this->topHistory(
-				array_map('intval', (array)($snapshot->getFields()[$info->field->id]['owners'] ?? [])),
+			}, fn(Snapshot $snapshot): array => $this->topHistory(
+				array_map(Fill::int(...), ($snapshot->getFields()[(int) $info->field->id]['owners'] ?? [])),
 				true,
 			)),
 		];
 
 		if ($info->isNested) {
-			$summary[] = $this->lazyCard(Craft::t('app', 'Entries'), 'file-lines', fn () => $this->entriesCard($info->stats, path: "hub/structure/fields/{$info->field->id}/entries"), $this->entriesHistory(fieldId: $info->field->id));
-			$summary[] = $this->lazyCard(Craft::t('hub', 'Entry Types'), 'shapes', fn () => $this->nestedEntryTypesCard(
-				Hub::getInstance()->statistics,
-				array_map(fn (EntryType $entryType) => $entryType->id, $info->entryTypes),
-				$info->field->id,
+			$summary[] = $this->lazyCard(Craft::t('app', 'Entries'), 'file-lines', fn(): array => $this->entriesCard($info->stats, path: 'hub/structure/fields/' . ($info->field->id ?? '') . '/entries'), $this->entriesHistory(fieldId: Fill::id($info->field->id)));
+			$summary[] = $this->lazyCard(Craft::t('hub', 'Entry Types'), 'shapes', fn(): array => $this->nestedEntryTypesCard(
+				$this->statistics,
+				Ids::of($info->entryTypes),
+				Fill::int($info->field->id),
 				$siteIds,
-			), fn (Snapshot $snapshot) => $this->nestedEntryTypesCard(
-				$snapshot->statistics,
-				array_map('intval', $snapshot->getFields()[$info->field->id]['entryTypes'] ?? []),
-				$info->field->id,
+			), fn(Snapshot $snapshot): array => $this->nestedEntryTypesCard(
+				$this->snapshots->getStatistics($snapshot),
+				array_map(Fill::int(...), $snapshot->getFields()[(int) $info->field->id]['entryTypes'] ?? []),
+				Fill::int($info->field->id),
 				$siteIds,
 			));
 		}
 
 		if ($info->isRelational) {
-			$summary[] = $this->lazyCard(Craft::t('hub', 'References'), DataKind::Relational->icon(), fn () => [
+			$summary[] = $this->lazyCard(Craft::t('hub', 'References'), DataKind::Relational->icon(), fn(): array => [
 				'label' => Craft::t('hub', 'References'),
 				'icon' => DataKind::Relational->icon(),
 				'url' => null,
@@ -188,7 +205,7 @@ final class FieldsSummary extends Summary
 					'sources' => $info->references->sources,
 					'targets' => $info->references->targets,
 				]),
-			], fn (Snapshot $snapshot) => ['total' => $snapshot->statistics->sumReferences($siteIds, $info->field->id)->references]);
+			], fn(Snapshot $snapshot): array => ['total' => $this->snapshots->getStatistics($snapshot)->sumReferences($siteIds, Fill::id($info->field->id))->references]);
 		}
 
 		return $summary;
@@ -206,7 +223,7 @@ final class FieldsSummary extends Summary
 	{
 		$withEntries = count(array_filter(
 			$entryTypeIds,
-			fn (int $typeId) => $statistics->sumEntries($siteIds, null, $typeId, $fieldId)->total > 0,
+			fn(int $typeId): bool => $statistics->sumEntries($siteIds, null, $typeId, $fieldId)->total > 0,
 		));
 
 		return [
@@ -220,6 +237,7 @@ final class FieldsSummary extends Summary
 			],
 		];
 	}
+
 	/**
 	 * Summary card for fields, split by whether they are placed and empty.
 	 *
@@ -253,7 +271,7 @@ final class FieldsSummary extends Summary
 			'icon' => 'database',
 			'url' => null,
 			'total' => array_sum($kinds),
-			'segments' => array_map(fn (DataKind $kind) => [
+			'segments' => array_map(fn(DataKind $kind): array => [
 				'label' => $kind->label(),
 				'value' => $kinds[$kind->value] ?? 0,
 				'color' => $kind->color(),

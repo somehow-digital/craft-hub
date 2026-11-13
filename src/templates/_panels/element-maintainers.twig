@@ -36,7 +36,7 @@
 							{% set item %}
 								<td><span class="hub-inline">{{ hub.chip(source.item) }} <span class="hub-muted">{{ source.getKind() }}</span></span></td>
 							{% endset %}
-							{{ hub.maintainerRows({ users: source.users, groups: source.groups }, item) }}
+							{{ hub.maintainerRows({users: source.users, groups: source.groups}, item) }}
 						{% endfor %}
 					</tbody>
 				</table>

@@ -60,7 +60,7 @@
 								<td>{% if revision.revisionNotes %}{{ revision.revisionNotes }}{% else %}<span class="hub-muted">—</span>{% endif %}</td>
 								{% if viewRevisions %}
 									<td class="hub-visit-cell">
-										<a class="hub-visit" href="{{ actionUrl('hub/entries/view-revision', { id: entry.id, revisionId: revision.id }) }}" target="_blank" rel="noopener" title="{{ 'View revision'|t('hub') }}">{{ iconSvg('arrow-up-right-from-square') }}<span class="visually-hidden">{{ 'View revision'|t('hub') }}</span></a>
+										<a class="hub-visit" href="{{ actionUrl('hub/entries/view-revision', {id: entry.id, revisionId: revision.id}) }}" target="_blank" rel="noopener" title="{{ 'View revision'|t('hub') }}">{{ iconSvg('arrow-up-right-from-square') }}<span class="visually-hidden">{{ 'View revision'|t('hub') }}</span></a>
 									</td>
 								{% endif %}
 							</tr>
@@ -70,11 +70,11 @@
 			</div>
 
 			<footer class="hub-panel__footer">
-				{% include '_includes/pagination' with {
+				{{ include('_includes/pagination', {
 					pageInfo: pageInfo,
 					itemLabel: 'revision'|t('app'),
 					itemsLabel: 'revisions'|t('app'),
-				} only %}
+				}, false) }}
 			</footer>
 		{% else %}
 			{{ hub.emptyState('clock-rotate-left', 'The entry has no revisions on this site yet.'|t('hub')) }}

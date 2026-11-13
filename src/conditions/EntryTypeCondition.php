@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions;
 
 use SomehowDigital\Craft\Hub\conditions\rules\ActivityConditionRule;
@@ -16,9 +18,14 @@ use SomehowDigital\Craft\Hub\conditions\rules\UsageConditionRule;
 /**
  * A condition on entry types, matched against what Hub knows about them, see {@see
  * \SomehowDigital\Craft\Hub\models\EntryTypeInfo}.
+ *
+ * @internal
  */
-class EntryTypeCondition extends InfoCondition
+final class EntryTypeCondition extends BaseInfoCondition
 {
+	/**
+	 * @return list<array{class: string}|string>
+	 */
 	protected function selectableConditionRules(): array
 	{
 		return [

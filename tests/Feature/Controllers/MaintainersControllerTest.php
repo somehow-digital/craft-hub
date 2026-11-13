@@ -1,82 +1,73 @@
 <?php
 
+declare(strict_types=1);
+
+use craft\elements\db\ElementQuery;
 use craft\elements\User;
 use craft\models\Section;
+use craft\models\UserGroup;
 use craft\services\Entries;
+use craft\services\UserGroups;
 use SomehowDigital\Craft\Hub\controllers\MaintainersController;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\enums\Permission;
 use SomehowDigital\Craft\Hub\services\ColumnService;
-use SomehowDigital\Craft\Hub\services\MaintainerService;
+use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
-use yii\web\Response;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
-	$this->hub()->getSettings()->enableMaintainers = true;
-
-	// Posts the body params to the action as a signed-in user, asking for JSON.
-	$this->post = function (array $body): ?Response {
-		$this->request();
-		$request = Craft::$app->getRequest();
-		$request->enableCsrfValidation = false;
-		$request->enableCookieValidation = false;
-		$request->setBodyParams($body);
-		$request->getHeaders()->set('Accept', 'application/json');
-		$_SERVER['REQUEST_METHOD'] = 'POST';
-		Craft::$app->getUser()->shouldReceive('getIdentity')->andReturn(new User(['id' => 1, 'username' => 'admin', 'admin' => $this->isAdmin]));
-
-		try {
-			return Craft::createObject(MaintainersController::class, ['maintainers', $this->hub()])->runAction('save');
-		} finally {
-			unset($_SERVER['REQUEST_METHOD']);
-		}
-	};
+	$this->hub()->settings->enableMaintainers = true;
 
 	$this->mockComponent('entries', Entries::class)
-		->shouldReceive('getSectionById')->andReturnUsing(fn (int $id) => $id === 1 ? new Section(['id' => 1, 'name' => 'News']) : null);
+		->shouldReceive('getSectionById')->andReturnUsing(fn(int $id): ?Section => $id === 1 ? new Section(['id' => 1, 'name' => 'News']) : null);
+
+	$users = [new User(['id' => 3, 'username' => 'jane']), new User(['id' => 4, 'username' => 'john'])];
+	ElementQueries::respond(User::class, fn(ElementQuery $query): array => array_filter($users, fn(User $user): bool => in_array($user->id, listOf($query->id), true)));
+	$this->mockComponent('userGroups', UserGroups::class)
+		->shouldReceive('getGroupById')->andReturnUsing(fn(int $id): ?UserGroup => $id === 7 ? new UserGroup(['id' => 7, 'name' => 'Editors']) : null);
 });
 
-afterEach(function () {
-	$this->hub()->getSettings()->enableMaintainers = false;
+afterEach(function (): void {
+	$this->hub()->settings->enableMaintainers = false;
 });
 
-it('sets the maintainers of an item, ignoring invalid IDs', function () {
-	$service = Mockery::mock(MaintainerService::class)->makePartial();
-	$service->shouldReceive('setMaintainers')->once()->with(ColumnService::LIST_SECTIONS, 1, [3, 4], [7]);
-	$this->hub()->set('maintainers', $service);
+it('sets the maintainers of an item, ignoring invalid IDs', function (): void {
+	$response = $this->postTo(MaintainersController::class, 'save', ['list' => ColumnService::LIST_SECTIONS, 'id' => 1, 'users' => ['3', '', '4'], 'groups' => ['7']]);
+	$insert = $this->db()->queriesMatching(sqlInsertInto(Tables::MAINTAINERS))[0];
 
-	$response = ($this->post)(['list' => ColumnService::LIST_SECTIONS, 'id' => 1, 'users' => ['3', '', '4'], 'groups' => ['7']]);
-
-	expect($response->data['message'] ?? null)->toBe('Maintainers saved.');
+	expect($insert)->toContain("('sections', 1, 3, NULL)")
+		->and($insert)->toContain("('sections', 1, 4, NULL)")
+		->and($insert)->toContain("('sections', 1, NULL, 7)")
+		->and(at($response->data, 'message'))->toBe('Maintainers saved.');
 });
 
-it('clears the maintainers without any sent', function () {
-	$service = Mockery::mock(MaintainerService::class)->makePartial();
-	$service->shouldReceive('setMaintainers')->once()->with(ColumnService::LIST_SECTIONS, 1, [], []);
-	$this->hub()->set('maintainers', $service);
+it('clears the maintainers without any sent', function (): void {
+	$this->postTo(MaintainersController::class, 'save', ['list' => ColumnService::LIST_SECTIONS, 'id' => 1, 'users' => '']);
 
-	($this->post)(['list' => ColumnService::LIST_SECTIONS, 'id' => 1, 'users' => '']);
+	expect($this->db()->queriesMatching(sqlDeleteFrom(Tables::MAINTAINERS)))->toHaveCount(1)
+		->and($this->db()->queriesMatching(sqlInsertInto(Tables::MAINTAINERS)))->toBe([]);
 });
 
-it('rejects maintainers while disabled', function () {
-	$this->hub()->getSettings()->enableMaintainers = false;
+it('rejects maintainers while disabled', function (): void {
+	$this->hub()->settings->enableMaintainers = false;
 
-	($this->post)(['list' => ColumnService::LIST_SECTIONS, 'id' => 1]);
+	$this->postTo(MaintainersController::class, 'save', ['list' => ColumnService::LIST_SECTIONS, 'id' => 1]);
 })->throws(ForbiddenHttpException::class);
 
-it('rejects lists without maintainers', function () {
-	($this->post)(['list' => ColumnService::LIST_ENTRIES, 'id' => 1]);
+it('rejects lists without maintainers', function (): void {
+	$this->postTo(MaintainersController::class, 'save', ['list' => ColumnService::LIST_ENTRIES, 'id' => 1]);
 })->throws(BadRequestHttpException::class);
 
-it('rejects users who may not manage maintainers', function () {
-	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Hub::PERMISSION_ACCESS_STRUCTURE, Page::Sections->viewPermission()]);
+it('rejects users who may not manage maintainers', function (): void {
+	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessStructure->value, Page::Sections->viewPermission()]);
 
-	($this->post)(['list' => ColumnService::LIST_SECTIONS, 'id' => 1]);
+	$this->postTo(MaintainersController::class, 'save', ['list' => ColumnService::LIST_SECTIONS, 'id' => 1]);
 })->throws(ForbiddenHttpException::class);
 
-it('rejects items that do not exist', function () {
-	($this->post)(['list' => ColumnService::LIST_SECTIONS, 'id' => 2]);
+it('rejects items that do not exist', function (): void {
+	$this->postTo(MaintainersController::class, 'save', ['list' => ColumnService::LIST_SECTIONS, 'id' => 2]);
 })->throws(NotFoundHttpException::class);

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use SomehowDigital\Craft\Hub\helpers\Aggregator;
 
 $rows = [
@@ -9,9 +11,9 @@ $rows = [
 	['sectionId' => null, 'typeId' => 10, 'total' => 7],
 ];
 
-$sum = fn (?int $sum, array $row) => ($sum ?? 0) + $row['total'];
+$sum = fn(int|float|null $sum, array $row): int|float => ($sum ?? 0) + asInt(at($row, 'total'));
 
-it('sums rows by any combination of criteria', function () use ($rows, $sum) {
+it('sums rows by any combination of criteria', function () use ($rows, $sum): void {
 	$sums = Aggregator::index($rows, ['sectionId', 'typeId'], $sum);
 
 	expect($sums[Aggregator::key([null, null])])->toBe(19);
@@ -21,21 +23,21 @@ it('sums rows by any combination of criteria', function () use ($rows, $sum) {
 	expect($sums[Aggregator::key([2, 11])] ?? null)->toBeNull();
 });
 
-it('leaves rows out of sums by a criterion they have no value for', function () use ($rows, $sum) {
+it('leaves rows out of sums by a criterion they have no value for', function () use ($rows, $sum): void {
 	$sums = Aggregator::index($rows, ['sectionId', 'typeId'], $sum);
 
 	expect($sums[Aggregator::key([1, null])] + $sums[Aggregator::key([2, null])])->toBe(12);
 	expect(count($sums))->toBe(8);
 });
 
-it('matches string criteria against database values', function () use ($sum) {
+it('matches string criteria against database values', function () use ($sum): void {
 	$sums = Aggregator::index([['volumeId' => '3', 'kind' => 'image', 'total' => 2]], ['volumeId', 'kind'], $sum);
 
 	expect($sums[Aggregator::key([3, 'image'])])->toBe(2);
 	expect($sums[Aggregator::key([3, null])])->toBe(2);
 });
 
-it('sums a column of all rows', function () use ($rows) {
+it('sums a column of all rows', function () use ($rows): void {
 	expect(Aggregator::sum($rows))->toBe(19)
 		->and(Aggregator::sum([]))->toBe(0);
 });

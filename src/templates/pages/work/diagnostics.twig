@@ -14,22 +14,22 @@
 {% block content %}
 	{% set checkOptions = {} %}
 	{% for check in allChecks %}
-		{% set checkOptions = checkOptions|merge({ (check.key): { label: check.heading, icon: check.icon, color: check.severity.color() } }) %}
+		{% set checkOptions = checkOptions|merge({(check.key): {label: check.heading, icon: check.icon, color: check.severity.color()}}) %}
 	{% endfor %}
 	{% set severityOptions = {} %}
 	{% for severity in enum('SomehowDigital\\Craft\\Hub\\enums\\Severity').sorted() %}
-		{% set severityOptions = severityOptions|merge({ (severity.value): { label: severity.label(), color: severity.color() } }) %}
+		{% set severityOptions = severityOptions|merge({(severity.value): {label: severity.label(), color: severity.color()}}) %}
 	{% endfor %}
 
-	{% embed 'hub/_components/panel' with { workPath: workPath, checkOptions: checkOptions, filter: filter, severityOptions: severityOptions } only %}
+	{% embed 'hub/_components/panel' with {workPath: workPath, checkOptions: checkOptions, filter: filter, severityOptions: severityOptions} only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			<form method="get" class="hub-filters" action="{{ url(workPath ~ '/diagnostics') }}" data-hub-submit>
 				{{ hub.dropdown('Issue'|t('hub'), 'list-check', hub.choices('check', checkOptions, filter.checks)) }}
 				{{ hub.dropdown('Urgency'|t('hub'), 'triangle-exclamation', hub.choices('severity', severityOptions, filter.severities)) }}
 				{{ hub.dropdown('Type'|t('app'), 'shapes', hub.choices('kind', {
-					entries: { label: 'Entries'|t('app'), icon: 'newspaper', color: 'blue' },
-					assets: { label: 'Assets'|t('app'), icon: 'image', color: 'teal' },
+					entries: {label: 'Entries'|t('app'), icon: 'newspaper', color: 'blue'},
+					assets: {label: 'Assets'|t('app'), icon: 'image', color: 'teal'},
 				}, filter.kinds)) }}
 				{{ hub.clearFilters() }}
 			</form>
@@ -37,12 +37,12 @@
 	{% endembed %}
 
 	{% for check in checks %}
-		{% include 'hub/_panels/work/check' with { check: check, snoozeDays: snoozeDays } only %}
+		{{ include('hub/_panels/work/check', {check: check, snoozeDays: snoozeDays}, false) }}
 	{% else %}
 		{{ hub.emptyState('circle-check', 'All clear'|t('hub'), allChecks|length ? 'No issues match these filters.'|t('hub') : 'No issues in your entries and assets.'|t('hub')) }}
 	{% endfor %}
 
 	{% if snoozedCount %}
-		{% include 'hub/_panels/work/snoozed' with { count: snoozedCount } only %}
+		{{ include('hub/_panels/work/snoozed', {count: snoozedCount}, false) }}
 	{% endif %}
 {% endblock %}

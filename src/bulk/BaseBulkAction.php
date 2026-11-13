@@ -1,19 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use craft\base\ElementInterface;
-use SomehowDigital\Craft\Hub\Hub;
+use craft\elements\User;
+use SomehowDigital\Craft\Hub\services\AccessService;
 
 /**
- * An action applied to the items of a list (see ColumnService::LIST_*), offered by BulkService. It holds all there is to the
+ * An action applied to the items of a list (see ListType), offered by BulkService. It holds all there is to the
  * action: how it's offered, who it's offered to, what it applies to, its preview and what it does.
+ *
+ * @internal
  */
-abstract class BulkAction
+abstract class BaseBulkAction
 {
-	public function __construct(protected readonly string $list)
-	{
-	}
+	public function __construct(
+		protected readonly string $list,
+		protected readonly AccessService $access,
+	) {}
 
 	/**
 	 * How the action is offered in the menu of the list.
@@ -56,24 +62,19 @@ abstract class BulkAction
 		return null;
 	}
 
-	protected function hub(): Hub
-	{
-		return Hub::getInstance();
-	}
-
 	/**
 	 * IDs of the elements the callback succeeded for.
 	 *
 	 * @template T of ElementInterface
 	 * @param T[] $items
 	 * @param callable(T):bool $callback
-	 * @return int[]
+	 * @return list<int>
 	 */
 	protected function succeeded(array $items, callable $callback): array
 	{
 		return array_values(array_map(
-			fn (ElementInterface $item) => (int)$item->id,
-			array_filter($items, fn (mixed $item) => $callback($item)),
+			fn(ElementInterface $item): int => (int) $item->id,
+			array_filter($items, fn(mixed $item) => $callback($item)),
 		));
 	}
 
@@ -86,16 +87,26 @@ abstract class BulkAction
 	{
 		$value = $params[$name] ?? null;
 
-		return is_numeric($value) && (int)$value > 0 ? (int)$value : 0;
+		return is_numeric($value) && (int) $value > 0 ? (int) $value : 0;
 	}
 
 	/**
 	 * Definition of an action picking what it changes the items to in its preview.
 	 *
-	 * @return array<string,mixed>
+	 * @return array{label:string,icon:string,preview:true,fields:true,titles:array{one:string,some:string},loading:string}
 	 */
 	protected function picked(string $label, string $icon, string $one, string $some, string $loading): array
 	{
 		return ['label' => $label, 'icon' => $icon, 'preview' => true, 'fields' => true, 'titles' => ['one' => $one, 'some' => $some], 'loading' => $loading];
+	}
+
+	/**
+	 * The active user with the ID, if there is one.
+	 */
+	protected function activeUser(int $id): ?User
+	{
+		$user = $id > 0 ? User::find()->id($id)->status(User::STATUS_ACTIVE)->one() : null;
+
+		return $user instanceof User ? $user : null;
 	}
 }

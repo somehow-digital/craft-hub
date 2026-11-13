@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\enums;
 
 use Craft;
@@ -7,6 +9,8 @@ use craft\models\Section;
 
 /**
  * The types of Craft's sections, along with their labels.
+ *
+ * @internal
  */
 enum SectionType: string
 {

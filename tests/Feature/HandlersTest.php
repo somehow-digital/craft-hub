@@ -1,5 +1,8 @@
 <?php
 
+declare(strict_types=1);
+
+use craft\base\ElementInterface;
 use craft\controllers\UserSettingsController;
 use craft\elements\Asset;
 use craft\elements\Category;
@@ -8,37 +11,31 @@ use craft\elements\User;
 use craft\events\DefineHtmlEvent;
 use craft\events\RegisterCpNavItemsEvent;
 use craft\events\RegisterUrlRulesEvent;
-use craft\models\Section;
 use craft\models\UserGroup;
 use craft\services\UserGroups;
 use craft\web\CpScreenResponseBehavior;
 use craft\web\Response;
 use craft\web\View;
+use Mockery\MockInterface;
 use SomehowDigital\Craft\Hub\assets\SidebarAsset;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\Page;
+use SomehowDigital\Craft\Hub\enums\Permission;
 use SomehowDigital\Craft\Hub\enums\Severity;
 use SomehowDigital\Craft\Hub\handlers\DefineSidebarHtmlHandler;
 use SomehowDigital\Craft\Hub\handlers\RegisterCpNavItemsHandler;
 use SomehowDigital\Craft\Hub\handlers\RegisterCpRoutesHandler;
 use SomehowDigital\Craft\Hub\handlers\UserGroupSidebarHandler;
-use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\models\Activity;
 use SomehowDigital\Craft\Hub\models\Check;
-use SomehowDigital\Craft\Hub\models\EntryReference;
-use SomehowDigital\Craft\Hub\models\Label;
 use SomehowDigital\Craft\Hub\models\MaintainerSource;
-use SomehowDigital\Craft\Hub\services\ActivityService;
-use SomehowDigital\Craft\Hub\services\CheckService;
 use SomehowDigital\Craft\Hub\services\ColumnService;
-use SomehowDigital\Craft\Hub\services\EditService;
-use SomehowDigital\Craft\Hub\services\LabelService;
-use SomehowDigital\Craft\Hub\services\MaintainerService;
-use SomehowDigital\Craft\Hub\services\ReferenceService;
+use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
+use SomehowDigital\Craft\Hub\Tests\TestCase;
 use yii\base\Action;
 use yii\base\ActionEvent;
 
-it('routes the Hub pages to their controllers', function () {
+it('routes the Hub pages to their controllers', function (): void {
 	$event = new RegisterUrlRulesEvent();
 	(new RegisterCpRoutesHandler())($event);
 
@@ -89,47 +86,51 @@ it('routes the Hub pages to their controllers', function () {
 		'hub/manage/settings/trash' => 'hub/settings/trash',
 	])->and($event->rules)->toHaveCount(60);
 
-	foreach (array_unique($event->rules) as $route) {
+	foreach (array_unique(array_filter($event->rules, is_string(...))) as $route) {
 		[, $controller, $action] = explode('/', $route);
 		$class = 'SomehowDigital\\Craft\\Hub\\controllers\\' . ucfirst($controller) . 'Controller';
 
-		expect(method_exists($class, 'action' . ucfirst($action)))->toBeTrue("$route has no action");
+		expect(method_exists($class, 'action' . ucfirst($action)))->toBeTrue("{$route} has no action");
 	}
 });
 
-it('adds the hub navigation item right before the data one and the structure one right after it', function () {
+it('adds the hub navigation item right before the data one and the structure one right after it', function (): void {
 	$event = new RegisterCpNavItemsEvent(['navItems' => [
 		['label' => 'Entries', 'url' => 'entries'],
 		['label' => 'Data', 'url' => 'hub/data'],
 		['label' => 'Settings', 'url' => 'settings'],
 	]]);
-	(new RegisterCpNavItemsHandler())($event);
+	$this->handler('navHandler', RegisterCpNavItemsHandler::class)($event);
 
 	expect(array_column($event->navItems, 'url'))->toBe(['entries', 'hub/manage', 'hub/data', 'hub/structure', 'settings']);
 });
 
-it('puts the navigation items in place of the structure one, as the plugin\'s own, for users who may not open the data', function () {
+it("puts the navigation items in place of the structure one, as the plugin's own, for users who may not open the data", function (): void {
 	$this->request();
-	$this->actingAs(permissions: [Hub::PERMISSION_ACCESS_STRUCTURE, Page::Fields->viewPermission(), Hub::PERMISSION_MANAGE_LABELS]);
+	$this->actingAs(permissions: [Permission::AccessStructure->value, Page::Fields->viewPermission(), Permission::ManageLabels->value]);
 	$event = new RegisterCpNavItemsEvent(['navItems' => [
 		['label' => 'Entries', 'url' => 'entries'],
 		['label' => 'Structure', 'url' => 'hub/structure'],
 		['label' => 'Settings', 'url' => 'settings'],
 	]]);
-	(new RegisterCpNavItemsHandler())($event);
+	$this->handler('navHandler', RegisterCpNavItemsHandler::class)($event);
 
 	expect(array_column($event->navItems, 'url'))->toBe(['entries', 'hub/manage', 'hub/structure', 'settings']);
 });
 
-it('adds no structure navigation item without the data one', function () {
+it('adds no structure navigation item without the data one', function (): void {
 	$event = new RegisterCpNavItemsEvent(['navItems' => [['label' => 'Entries', 'url' => 'entries']]]);
-	(new RegisterCpNavItemsHandler())($event);
+	$this->handler('navHandler', RegisterCpNavItemsHandler::class)($event);
 
 	expect($event->navItems)->toHaveCount(1);
 });
 
 function sidebarEvent(mixed $sender): DefineHtmlEvent
 {
+	if (!is_object($sender)) {
+		throw new LogicException('No sender.');
+	}
+
 	$event = new DefineHtmlEvent(['html' => '<existing>']);
 	$event->sender = $sender;
 
@@ -137,144 +138,140 @@ function sidebarEvent(mixed $sender): DefineHtmlEvent
 }
 
 /**
- * Mocks the services the sidebar reads, with labels enabled but none existing, unless expected otherwise.
+ * Mocks the view the sidebar renders in, to keep the variables it renders the panel with.
  *
- * @return array{labels:Mockery\MockInterface,checks:Mockery\MockInterface,edits:Mockery\MockInterface,references:Mockery\MockInterface,view:Mockery\MockInterface}
+ * @return ArrayObject<string,mixed>
  */
-function sidebarServices(object $test): array
+function sidebarRendered(TestCase $test): ArrayObject
 {
-	$mock = fn (string $id, string $class) => (fn () => $this->mockComponent($id, $class))->call($test);
-
-	$labels = $mock('hub.labels', LabelService::class);
-	$labels->shouldReceive('isEnabled')->andReturnTrue()->byDefault();
-	$labels->shouldReceive('canManage')->andReturnFalse()->byDefault();
-	$labels->shouldReceive('canApply')->andReturnTrue()->byDefault();
-	$labels->shouldReceive('getAllLabels')->andReturn([])->byDefault();
-	$labels->shouldReceive('getLabelsOf')->andReturn([])->byDefault();
-	$labels->shouldReceive('getItemVariables')->passthru()->byDefault();
-
-	$activity = $mock('hub.activity', ActivityService::class);
-	$activity->shouldReceive('canView')->andReturnFalse()->byDefault();
-
-	$view = $mock('view', View::class);
+	/** @var ArrayObject<string,mixed> $rendered */
+	$rendered = new ArrayObject();
+	$view = $test->mockComponent('view', View::class);
 	$view->shouldReceive('registerAssetBundle')->once()->with(SidebarAsset::class);
+	$view->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(function (array $variables) use ($rendered): bool {
+		$rendered->exchangeArray($variables);
 
-	$references = $mock('hub.references', ReferenceService::class);
-	$references->shouldReceive('getReferenced')->andReturn([])->byDefault();
+		return true;
+	}))->andReturn('<hub>');
 
-	return [
-		'labels' => $labels,
-		'checks' => $mock('hub.checks', CheckService::class),
-		'edits' => $mock('hub.edits', EditService::class),
-		'references' => $references,
-		'activity' => $activity,
-		'view' => $view,
-	];
+	return $rendered;
 }
 
-it('adds a panel with the labels, checks, last edit and references of an entry to its sidebar', function () {
-	$entry = new Entry(['id' => 5, 'siteId' => 1]);
-	$label = new Label(['id' => 1, 'name' => 'Review']);
-	$other = new Label(['id' => 2, 'name' => 'Keep']);
-	$checks = [new Check('Stale', 'Edit it.', 'Fresh.', Severity::Warning, 'clock', false)];
-	$lastEdit = ['date' => new DateTime('2026-01-01'), 'user' => null];
-	$referencing = [new EntryReference(new Entry(['id' => 6]))];
+/**
+ * Sets the labels and what they label, as `[list, itemId, labelId]`.
+ *
+ * @param list<array{0:string,1:int,2:int}> $labeled
+ */
+function sidebarLabels(TestCase $test, array $labeled): void
+{
+	$test->db()->respond(sqlFrom(Tables::LABELS), [
+		['id' => 1, 'name' => 'Review', 'description' => null, 'icon' => null, 'color' => null, 'sortOrder' => 1, 'uid' => 'review'],
+		['id' => 2, 'name' => 'Keep', 'description' => null, 'icon' => null, 'color' => null, 'sortOrder' => 2, 'uid' => 'keep'],
+	]);
+	$test->db()->respond(sqlFrom(Tables::LABELED), array_map(fn(array $row): array => ['list' => $row[0], 'itemId' => $row[1], 'labelId' => $row[2]], $labeled));
+}
 
-	$services = sidebarServices($this);
-	$services['labels']->shouldReceive('canManage')->andReturnTrue();
-	$services['labels']->shouldReceive('getAllLabels')->andReturn([1 => $label, 2 => $other]);
-	$services['labels']->shouldReceive('canApply')->with(ColumnService::LIST_ENTRIES)->andReturnTrue();
-	$services['labels']->shouldReceive('getLabelsOf')->with(ColumnService::LIST_ENTRIES, [5])->andReturn([5 => [$label]]);
-	$services['checks']->shouldReceive('forEntry')->once()->with($entry)->andReturn($checks);
-	$services['edits']->shouldReceive('getLastEdit')->once()->with($entry)->andReturn($lastEdit);
-	$services['references']->shouldReceive('getReferences')->once()->with($entry)->andReturn($referencing);
-	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', [
-		'element' => $entry,
-		'list' => ColumnService::LIST_ENTRIES,
-		'maintainers' => [],
-		'activitySubject' => 'entry',
-		'labels' => [$label],
-		'allLabels' => [$label, $other],
-		'canManageLabels' => true,
-		'checks' => $checks,
-		'lastEdit' => $lastEdit,
-		'references' => $referencing,
-		'referenced' => [],
-		'maintained' => [],
-		'activities' => null,
-	])->andReturn('<hub>');
+/**
+ * @return list<mixed>
+ */
+function namesOf(mixed $items): array
+{
+	return array_values(array_map(fn(mixed $item): mixed => at($item, 'name'), listOf($items)));
+}
+
+/**
+ * @return list<string|null>
+ */
+function keysOf(mixed $checks): array
+{
+	return array_map(fn(Check $check): ?string => $check->key, objectsAt(Check::class, ['checks' => $checks], 'checks'));
+}
+
+it('adds a panel with the labels, checks, last edit and references of an entry to its sidebar', function (): void {
+	$entry = new Entry(['id' => 5, 'siteId' => 1]);
+	onlyChecks(['entries.stale' => Severity::Warning]);
+	ElementQueries::respond(Entry::class, [$entry]);
+	sidebarLabels($this, [[ColumnService::LIST_ENTRIES, 5, 1]]);
+	$this->db()->respond(sqlFrom(Tables::EDITS), [['elementId' => 5, 'userId' => null, 'dateEdited' => '2026-01-01 00:00:00']]);
+	$rendered = sidebarRendered($this);
 
 	$event = sidebarEvent($entry);
-	(new DefineSidebarHtmlHandler())($event);
+	$this->handler('sidebarHandler', DefineSidebarHtmlHandler::class)($event);
 
-	expect($event->html)->toBe('<existing><hub>');
+	expect($event->html)->toBe('<existing><hub>')
+		->and($rendered['element'])->toBe($entry)
+		->and($rendered['list'])->toBe(ColumnService::LIST_ENTRIES)
+		->and($rendered['activitySubject'])->toBe('entry')
+		->and($rendered['maintainers'])->toBe([])
+		->and(namesOf($rendered['labels']))->toBe(['Review'])
+		->and(namesOf($rendered['allLabels']))->toBe(['Review', 'Keep'])
+		->and($rendered['canManageLabels'])->toBeTrue()
+		->and(keysOf($rendered['checks']))->toBe(['entries.stale'])
+		->and(asDateTime(at($rendered['lastEdit'], 'date'))->format('Y'))->toBe('2026')
+		->and($rendered['references'])->toBe([])
+		->and($rendered['referenced'])->toBe([])
+		->and($rendered['maintained'])->toBe([]);
 });
 
-it('adds the panel to the sidebar of assets and users, with their own list and checks', function (Closure $sender, string $list, string $checks) {
+it('adds the panel to the sidebar of assets and users, with their own list and checks', function (Closure $sender, string $list, string $check): void {
+	/** @var ElementInterface $element */
 	$element = $sender();
-	$failed = [new Check('Check', 'Fix it.', 'Fine.', Severity::Notice, 'flag', false)];
-
-	$services = sidebarServices($this);
-	$services['checks']->shouldReceive($checks)->once()->with($element)->andReturn($failed);
-	$services['edits']->shouldNotReceive('getLastEdit');
-	$services['references']->shouldReceive('getReferences')->once()->with($element)->andReturn([]);
-	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', [
-		'element' => $element,
-		'list' => $list,
-		'maintainers' => [],
-		'activitySubject' => ActivitySubject::fromElement($element)->value,
-		'labels' => [],
-		'allLabels' => null,
-		'canManageLabels' => false,
-		'checks' => $failed,
-		'lastEdit' => null,
-		'references' => [],
-		'referenced' => [],
-		'maintained' => [],
-		'activities' => null,
-	])->andReturn('<hub>');
+	onlyChecks([$check => Severity::Notice]);
+	ElementQueries::respond($element::class, [$element]);
+	$rendered = sidebarRendered($this);
 
 	$event = sidebarEvent($element);
-	(new DefineSidebarHtmlHandler())($event);
+	$this->handler('sidebarHandler', DefineSidebarHtmlHandler::class)($event);
 
-	expect($event->html)->toBe('<existing><hub>');
+	expect($event->html)->toBe('<existing><hub>')
+		->and($rendered['element'])->toBe($element)
+		->and($rendered['list'])->toBe($list)
+		->and($rendered['activitySubject'])->toBe(ActivitySubject::fromElement($element)->value)
+		->and(keysOf($rendered['checks']))->toBe([$check])
+		->and($rendered['lastEdit'])->toBeNull();
 })->with([
-	'asset' => [fn () => new Asset(['id' => 5]), ColumnService::LIST_FILES, 'forFile'],
-	'user' => [fn () => new User(['id' => 5]), ColumnService::LIST_USERS, 'forUser'],
+	'asset' => [fn(): Asset => new Asset(['id' => 5]), ColumnService::LIST_FILES, 'assets.large'],
+	'user' => [fn(): User => new User(['id' => 5]), ColumnService::LIST_USERS, 'users.locked'],
 ]);
 
-it('shows the labels and checks of the canonical entry on its drafts, with its references', function () {
+it('shows the labels and checks of the canonical entry on its drafts, with its references', function (): void {
 	$canonical = new Entry(['id' => 5]);
+	/** @var Entry&MockInterface $draft */
 	$draft = Mockery::mock(Entry::class)->makePartial();
 	$draft->id = 7;
 	$draft->shouldReceive('getIsUnpublishedDraft')->andReturnFalse();
 	$draft->shouldReceive('getCanonical')->with(true)->andReturn($canonical);
-
-	$services = sidebarServices($this);
-	$services['labels']->shouldReceive('getLabelsOf')->once()->with(ColumnService::LIST_ENTRIES, [5])->andReturn([]);
-	$services['checks']->shouldReceive('forEntry')->once()->with($canonical)->andReturn([]);
-	$services['edits']->shouldReceive('getLastEdit')->once()->with($canonical)->andReturn(['date' => null, 'user' => null]);
-	$services['references']->shouldReceive('getReferences')->once()->with($draft)->andReturn([]);
-	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn (array $variables) => $variables['element'] === $canonical && $variables['references'] === []))->andReturn('<hub>');
+	onlyChecks([]);
+	sidebarLabels($this, [[ColumnService::LIST_ENTRIES, 5, 2], [ColumnService::LIST_ENTRIES, 7, 1]]);
+	$this->db()->respond(sqlFrom(Tables::EDITS), [['elementId' => 5, 'userId' => null, 'dateEdited' => '2026-01-01 00:00:00']]);
+	$rendered = sidebarRendered($this);
 
 	$event = sidebarEvent($draft);
-	(new DefineSidebarHtmlHandler())($event);
+	$this->handler('sidebarHandler', DefineSidebarHtmlHandler::class)($event);
 
-	expect($event->html)->toBe('<existing><hub>');
+	expect($event->html)->toBe('<existing><hub>')
+		->and($rendered['element'])->toBe($canonical)
+		->and(namesOf($rendered['labels']))->toBe(['Keep'])
+		->and(asDateTime(at($rendered['lastEdit'], 'date'))->format('Y'))->toBe('2026')
+		->and($rendered['references'])->toBe([]);
 });
 
-it('offers no labels to pick on revisions, nor to users who may not label the element', function (Closure $sender, bool $canApply) {
-	$services = sidebarServices($this);
-	$services['labels']->shouldReceive('getAllLabels')->andReturn([1 => new Label(['id' => 1, 'name' => 'Review'])]);
-	$services['labels']->shouldReceive('canApply')->andReturn($canApply);
-	$services['checks']->shouldReceive('forEntry')->andReturn([]);
-	$services['edits']->shouldReceive('getLastEdit')->andReturn(['date' => null, 'user' => null]);
-	$services['references']->shouldReceive('getReferences')->andReturn([]);
-	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn (array $variables) => $variables['labels'] === [] && $variables['allLabels'] === null))->andReturn('<hub>');
+it('offers no labels to pick on revisions, nor to users who may not label the element', function (Closure $sender, bool $canApply): void {
+	if (!$canApply) {
+		$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', Permission::AccessData->value, Page::Entries->viewPermission()]);
+	}
 
-	(new DefineSidebarHtmlHandler())(sidebarEvent($sender()));
+	onlyChecks([]);
+	sidebarLabels($this, []);
+	$rendered = sidebarRendered($this);
+
+	$this->handler('sidebarHandler', DefineSidebarHtmlHandler::class)(sidebarEvent($sender()));
+
+	expect($rendered['labels'])->toBe([])
+		->and($rendered['allLabels'])->toBeNull();
 })->with([
-	'revision' => [function () {
+	'revision' => [function (): Entry {
+		/** @var Entry&MockInterface $revision */
 		$revision = Mockery::mock(Entry::class)->makePartial();
 		$revision->id = 7;
 		$revision->shouldReceive('getIsUnpublishedDraft')->andReturnFalse();
@@ -283,95 +280,105 @@ it('offers no labels to pick on revisions, nor to users who may not label the el
 
 		return $revision;
 	}, true],
-	'without the permission' => [fn () => new Entry(['id' => 5]), false],
+	'without the permission' => [fn(): Entry => new Entry(['id' => 5]), false],
 ]);
 
-it('shows the maintainers of an element along with those of its fields, on top of what Hub knows of it', function () {
-	$entry = new Entry(['id' => 5]);
-	$sources = [new MaintainerSource(ColumnService::LIST_SECTIONS, new Section(['id' => 1]), [new User(['id' => 3])], [])];
+it('shows the maintainers of an element along with those of its fields, on top of what Hub knows of it', function (): void {
+	$this->createContentModel();
+	$this->hub()->settings->enableMaintainers = true;
+	$this->db()->respond(sqlFrom(Tables::MAINTAINERS), [['list' => ColumnService::LIST_SECTIONS, 'itemId' => 1, 'userId' => 3, 'groupId' => null]]);
+	ElementQueries::respond(User::class, [new User(['id' => 3, 'username' => 'jane'])]);
+	onlyChecks([]);
+	$entry = new Entry(['id' => 5, 'sectionId' => 1, 'typeId' => 10]);
+	$rendered = sidebarRendered($this);
 
-	$services = sidebarServices($this);
-	$this->mockComponent('hub.maintainers', MaintainerService::class)
-		->shouldReceive('getSources')->once()->with($entry, true)->andReturn($sources);
-	$services['checks']->shouldReceive('forEntry')->andReturn([]);
-	$services['edits']->shouldReceive('getLastEdit')->andReturn(['date' => null, 'user' => null]);
-	$services['references']->shouldReceive('getReferences')->once()->andReturn([]);
-	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn (array $variables) => $variables['maintainers'] === $sources && $variables['references'] === []))->andReturn('<hub>');
+	try {
+		$event = sidebarEvent($entry);
+		$this->handler('sidebarHandler', DefineSidebarHtmlHandler::class)($event);
+	} finally {
+		$this->hub()->settings->enableMaintainers = false;
+	}
 
-	$event = sidebarEvent($entry);
-	(new DefineSidebarHtmlHandler())($event);
+	$sources = objectsAt(MaintainerSource::class, $rendered->getArrayCopy(), 'maintainers');
 
-	expect($event->html)->toBe('<existing><hub>');
+	expect($event->html)->toBe('<existing><hub>')
+		->and($sources)->toHaveCount(1)
+		->and($sources[0]->list)->toBe(ColumnService::LIST_SECTIONS)
+		->and(array_map(fn(User $user): ?string => $user->username, $sources[0]->users))->toBe(['jane']);
 });
 
-it('shows only the maintainers to users who may not view the Hub page of the element', function () {
+it('shows only the maintainers to users who may not view the Hub page of the element', function (): void {
 	$this->actingAs(permissions: ['accessCp']);
-	$entry = new Entry(['id' => 5]);
-	$sources = [new MaintainerSource(ColumnService::LIST_SECTIONS, new Section(['id' => 1]), [new User(['id' => 3])], [])];
+	$this->createContentModel();
+	$this->hub()->settings->enableMaintainers = true;
+	$this->db()->respond(sqlFrom(Tables::MAINTAINERS), [['list' => ColumnService::LIST_SECTIONS, 'itemId' => 1, 'userId' => 3, 'groupId' => null]]);
+	ElementQueries::respond(User::class, [new User(['id' => 3, 'username' => 'jane'])]);
+	$entry = new Entry(['id' => 5, 'sectionId' => 1, 'typeId' => 10]);
+	$rendered = sidebarRendered($this);
 
-	$services = sidebarServices($this);
-	$this->mockComponent('hub.maintainers', MaintainerService::class)
-		->shouldReceive('getSources')->once()->with($entry, true)->andReturn($sources);
-	$services['references']->shouldNotReceive('getReferences');
-	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', [
-		'element' => $entry,
-		'list' => ColumnService::LIST_ENTRIES,
-		'maintainers' => $sources,
-		'activitySubject' => 'entry',
-		'labels' => null,
-		'allLabels' => null,
-		'canManageLabels' => false,
-		'checks' => null,
-		'lastEdit' => null,
-		'references' => null,
-		'referenced' => null,
-		'maintained' => null,
-		'activities' => null,
-	])->andReturn('<hub>');
+	try {
+		$event = sidebarEvent($entry);
+		$this->handler('sidebarHandler', DefineSidebarHtmlHandler::class)($event);
+	} finally {
+		$this->hub()->settings->enableMaintainers = false;
+	}
 
-	$event = sidebarEvent($entry);
-	(new DefineSidebarHtmlHandler())($event);
-
-	expect($event->html)->toBe('<existing><hub>');
+	expect($event->html)->toBe('<existing><hub>')
+		->and($rendered['maintainers'])->toHaveCount(1)
+		->and($rendered->getArrayCopy())->toMatchArray([
+			'element' => $entry,
+			'list' => ColumnService::LIST_ENTRIES,
+			'activitySubject' => 'entry',
+			'labels' => null,
+			'allLabels' => null,
+			'canManageLabels' => false,
+			'checks' => null,
+			'lastEdit' => null,
+			'references' => null,
+			'referenced' => null,
+			'maintained' => null,
+			'activities' => null,
+		]);
 });
 
-it('adds nothing for users who may not view the Hub page of an element without maintainers', function () {
+it('adds nothing for users who may not view the Hub page of an element without maintainers', function (): void {
 	$this->actingAs(permissions: ['accessCp']);
 
 	$event = sidebarEvent(new Entry(['id' => 5]));
-	(new DefineSidebarHtmlHandler())($event);
+	$this->handler('sidebarHandler', DefineSidebarHtmlHandler::class)($event);
 
 	expect($event->html)->toBe('<existing>');
 });
 
-it('leaves out the labels and checks while they are disabled', function () {
-	$this->hub()->getSettings()->enableDiagnostics = false;
+it('leaves out the labels and checks while they are disabled', function (): void {
+	$this->hub()->settings->enableDiagnostics = false;
+	$this->hub()->settings->enableLabels = false;
+	$rendered = sidebarRendered($this);
 
 	try {
-		$services = sidebarServices($this);
-		$services['labels']->shouldReceive('isEnabled')->andReturnFalse();
-		$services['labels']->shouldNotReceive('getLabelsOf');
-		$services['checks']->shouldNotReceive('forFile');
-		$services['references']->shouldReceive('getReferences')->andReturn([]);
-		$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn (array $variables) => $variables['labels'] === null && $variables['allLabels'] === null && $variables['checks'] === null))->andReturn('<hub>');
-
-		(new DefineSidebarHtmlHandler())(sidebarEvent(new Asset(['id' => 5])));
+		$this->handler('sidebarHandler', DefineSidebarHtmlHandler::class)(sidebarEvent(new Asset(['id' => 5])));
 	} finally {
-		$this->hub()->getSettings()->enableDiagnostics = true;
+		$this->hub()->settings->enableDiagnostics = true;
+		$this->hub()->settings->enableLabels = true;
 	}
+
+	expect($rendered['labels'])->toBeNull()
+		->and($rendered['allLabels'])->toBeNull()
+		->and($rendered['checks'])->toBeNull();
 });
 
-it('leaves the sidebar of other elements, new entries and unpublished drafts alone', function (Closure $sender) {
-	$this->mockComponent('hub.references', ReferenceService::class)->shouldNotReceive('getReferences');
+it('leaves the sidebar of other elements, new entries and unpublished drafts alone', function (Closure $sender): void {
+	$this->mockComponent('view', View::class)->shouldNotReceive('registerAssetBundle');
 
 	$event = sidebarEvent($sender());
-	(new DefineSidebarHtmlHandler())($event);
+	$this->handler('sidebarHandler', DefineSidebarHtmlHandler::class)($event);
 
 	expect($event->html)->toBe('<existing>');
 })->with([
-	'category' => fn () => new Category(['id' => 5]),
-	'new entry' => fn () => new Entry(),
-	'unpublished draft' => function () {
+	'category' => fn(): Category => new Category(['id' => 5]),
+	'new entry' => fn(): Entry => new Entry(),
+	'unpublished draft' => function (): Entry {
+		/** @var Entry&MockInterface $draft */
 		$draft = Mockery::mock(Entry::class)->makePartial();
 		$draft->id = 5;
 		$draft->shouldReceive('getIsUnpublishedDraft')->andReturnTrue();
@@ -380,53 +387,58 @@ it('leaves the sidebar of other elements, new entries and unpublished drafts alo
 	},
 ]);
 
-it('leaves the sidebar alone for users without access', function (Closure $sender, Page $page) {
+it('leaves the sidebar alone for users without access', function (Closure $sender, Page $page): void {
 	$this->actingAs(permissions: ['accessCp']);
-	$this->mockComponent('hub.references', ReferenceService::class)->shouldNotReceive('getReferences');
+	$this->mockComponent('view', View::class)->shouldNotReceive('registerAssetBundle');
 
 	$event = sidebarEvent($sender());
-	(new DefineSidebarHtmlHandler())($event);
+	$this->handler('sidebarHandler', DefineSidebarHtmlHandler::class)($event);
 
 	expect($event->html)->toBe('<existing>')
 		->and(Craft::$app->getUser()->checkPermission($page->viewPermission()))->toBeFalse();
 })->with([
-	'entry' => [fn () => new Entry(['id' => 5]), Page::Entries],
-	'asset' => [fn () => new Asset(['id' => 5]), Page::Assets],
-	'user' => [fn () => new User(['id' => 5]), Page::Users],
+	'entry' => [fn(): Entry => new Entry(['id' => 5]), Page::Entries],
+	'asset' => [fn(): Asset => new Asset(['id' => 5]), Page::Assets],
+	'user' => [fn(): User => new User(['id' => 5]), Page::Users],
 ]);
 
-it('adds the latest activity, what the element references and what a user maintains to the sidebar', function () {
+it('adds the latest activity and what a user maintains to the sidebar', function (): void {
+	$this->createContentModel();
+	$this->hub()->settings->enableMaintainers = true;
+	$this->db()->tables = [Tables::ACTIVITY];
+	$this->db()->respond(sqlFrom(Tables::MAINTAINERS), [['list' => ColumnService::LIST_SECTIONS, 'itemId' => 1, 'userId' => 5, 'groupId' => null]]);
+	$this->db()->respond(sqlFrom(Tables::ACTIVITY), [activityRow(['subject' => 'user', 'subjectId' => 5])]);
 	$user = new User(['id' => 5, 'username' => 'jane']);
-	$referenced = [new EntryReference(new Entry(['id' => 6]))];
-	$activities = [new Activity()];
-	$sources = [new MaintainerSource(ColumnService::LIST_SECTIONS, new Section(['id' => 1]), [$user], [])];
+	ElementQueries::respond(User::class, [$user]);
+	onlyChecks([]);
+	$rendered = sidebarRendered($this);
 
-	$services = sidebarServices($this);
-	$maintainers = $this->mockComponent('hub.maintainers', MaintainerService::class);
-	$maintainers->shouldReceive('getSources')->andReturn([]);
-	$maintainers->shouldReceive('getMaintainedBy')->once()->with($user)->andReturn($sources);
-	$this->mockComponent('hub.checks', CheckService::class)->shouldReceive('forUser')->andReturn([]);
-	$services['references']->shouldReceive('getReferences')->andReturn([]);
-	$services['references']->shouldReceive('getReferenced')->once()->with($user)->andReturn($referenced);
-	$services['activity']->shouldReceive('canView')->andReturnTrue();
-	$services['activity']->shouldReceive('getItemActivities')->once()->with(ActivitySubject::User, 5, 5)->andReturn($activities);
-	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', Mockery::on(fn (array $variables) => $variables['referenced'] === $referenced
-		&& $variables['maintained'] === $sources
-		&& $variables['activities'] === $activities
-		&& $variables['activitySubject'] === 'user'))->andReturn('<hub>');
+	try {
+		$this->handler('sidebarHandler', DefineSidebarHtmlHandler::class)(sidebarEvent($user));
+	} finally {
+		$this->hub()->settings->enableMaintainers = false;
+	}
 
-	(new DefineSidebarHtmlHandler())(sidebarEvent($user));
+	$maintained = objectsAt(MaintainerSource::class, $rendered->getArrayCopy(), 'maintained');
+
+	expect($maintained)->toHaveCount(1)
+		->and($maintained[0]->list)->toBe(ColumnService::LIST_SECTIONS)
+		->and($rendered['activities'])->toHaveCount(1)
+		->and($rendered['activitySubject'])->toBe('user');
 });
 
 /**
  * Event of Craft's user group page, with the given params of its action and, unless given, a screen as its result.
+ */
+/**
+ * @param array<string,mixed> $params
  */
 function userGroupEvent(array $params, string $action = 'edit-group', ?Response $result = null): ActionEvent
 {
 	$controller = new UserSettingsController('user-settings', Craft::$app);
 	$controller->actionParams = $params;
 
-	if ($result === null) {
+	if (!$result instanceof Response) {
 		$result = new Response();
 		$result->attachBehavior(CpScreenResponseBehavior::NAME, CpScreenResponseBehavior::class);
 	}
@@ -437,73 +449,91 @@ function userGroupEvent(array $params, string $action = 'edit-group', ?Response 
 	return $event;
 }
 
-function userGroupSidebar(ActionEvent $event): mixed
+function userGroupScreen(ActionEvent $event): CpScreenResponseBehavior
 {
-	return $event->result->getBehavior(CpScreenResponseBehavior::NAME)?->metaSidebarHtml;
+	$result = $event->result;
+	if (!$result instanceof Response) {
+		throw new LogicException('No response.');
+	}
+
+	$behavior = $result->getBehavior(CpScreenResponseBehavior::NAME);
+	if (!$behavior instanceof CpScreenResponseBehavior) {
+		throw new LogicException('No screen.');
+	}
+
+	return $behavior;
 }
 
-it('adds a panel with the labels, what it maintains and the latest activity to the sidebar of a user group', function (array $params) {
+function userGroupSidebar(ActionEvent $event): mixed
+{
+	$result = $event->result;
+	if (!$result instanceof Response) {
+		throw new LogicException('No response.');
+	}
+
+	$behavior = $result->getBehavior(CpScreenResponseBehavior::NAME);
+
+	return $behavior instanceof CpScreenResponseBehavior ? $behavior->metaSidebarHtml : null;
+}
+
+it('adds a panel with the labels, what it maintains and the latest activity to the sidebar of a user group', function (array $params): void {
 	$group = new UserGroup(['id' => 3, 'name' => 'Editors']);
-	$label = new Label(['id' => 1, 'name' => 'Review']);
-	$sources = [new MaintainerSource(ColumnService::LIST_SECTIONS, new Section(['id' => 1]), [], [$group])];
-	$activities = [new Activity()];
+	$this->createContentModel();
+	$this->hub()->settings->enableMaintainers = true;
+	$this->db()->tables = [Tables::ACTIVITY];
+	$this->db()->respond(sqlFrom(Tables::MAINTAINERS), [['list' => ColumnService::LIST_SECTIONS, 'itemId' => 1, 'userId' => null, 'groupId' => 3]]);
+	$this->db()->respond(sqlFrom(Tables::ACTIVITY), [activityRow(['subject' => 'userGroup', 'subjectId' => 3])]);
+	sidebarLabels($this, [[ColumnService::LIST_USER_GROUPS, 3, 1]]);
+	$this->mockComponent('userGroups', UserGroups::class)->shouldReceive('getGroupById')->with(3)->andReturn($group);
+	$rendered = sidebarRendered($this);
 
-	$services = sidebarServices($this);
-	$this->mockComponent('userGroups', UserGroups::class)->shouldReceive('getGroupById')->once()->with(3)->andReturn($group);
-	$this->mockComponent('hub.maintainers', MaintainerService::class)->shouldReceive('getMaintainedByGroup')->once()->with($group)->andReturn($sources);
-	$services['labels']->shouldReceive('getLabelsOf')->with(ColumnService::LIST_USER_GROUPS, [3])->andReturn([3 => [$label]]);
-	$services['activity']->shouldReceive('canView')->andReturnTrue();
-	$services['activity']->shouldReceive('getItemActivities')->once()->with(ActivitySubject::UserGroup, 3, 5)->andReturn($activities);
-	$services['view']->shouldReceive('renderTemplate')->once()->with('hub/_sidebar/hub', [
-		'labels' => [$label],
-		'allLabels' => null,
-		'canManageLabels' => false,
-		'element' => $group,
-		'list' => ColumnService::LIST_USER_GROUPS,
-		'maintainers' => [],
-		'activitySubject' => 'userGroup',
-		'checks' => null,
-		'lastEdit' => null,
-		'references' => null,
-		'referenced' => null,
-		'maintained' => $sources,
-		'activities' => $activities,
-	])->andReturn('<hub>');
-
+	/** @var array<string,mixed> $params */
 	$event = userGroupEvent($params);
-	$event->result->getBehavior(CpScreenResponseBehavior::NAME)->metaSidebarHtml(fn () => '<existing>');
-	(new UserGroupSidebarHandler())($event);
+	userGroupScreen($event)->metaSidebarHtml(fn(): string => '<existing>');
 
-	expect(userGroupSidebar($event))->toBe('<existing><hub>');
+	try {
+		$this->handler('groupSidebarHandler', UserGroupSidebarHandler::class)($event);
+	} finally {
+		$this->hub()->settings->enableMaintainers = false;
+	}
+
+	expect(userGroupSidebar($event))->toBe('<existing><hub>')
+		->and($rendered['element'])->toBe($group)
+		->and($rendered['list'])->toBe(ColumnService::LIST_USER_GROUPS)
+		->and($rendered['activitySubject'])->toBe('userGroup')
+		->and(namesOf($rendered['labels']))->toBe(['Review'])
+		->and($rendered['maintainers'])->toBe([])
+		->and($rendered['maintained'])->toHaveCount(1)
+		->and($rendered['activities'])->toHaveCount(1);
 })->with([
 	'of the URL' => [['groupId' => 3]],
 	'failed to save' => [['groupId' => null, 'group' => new UserGroup(['id' => 3])]],
 ]);
 
-it('leaves user group pages alone without a group to show or a screen to add to', function (ActionEvent $event) {
+it('leaves user group pages alone without a group to show or a screen to add to', function (ActionEvent $event): void {
 	$this->mockComponent('view', View::class)->shouldNotReceive('registerAssetBundle');
 
-	(new UserGroupSidebarHandler())($event);
+	$this->handler('groupSidebarHandler', UserGroupSidebarHandler::class)($event);
 
 	expect(userGroupSidebar($event))->toBeNull();
 })->with([
-	'new group' => fn () => userGroupEvent(['groupId' => null]),
-	'other action' => fn () => userGroupEvent(['groupId' => 3], 'save-group'),
-	'template of Craft Team' => fn () => userGroupEvent(['groupId' => 3], result: new Response()),
+	'new group' => fn(): ActionEvent => userGroupEvent(['groupId' => null]),
+	'other action' => fn(): ActionEvent => userGroupEvent(['groupId' => 3], 'save-group'),
+	'template of Craft Team' => fn(): ActionEvent => userGroupEvent(['groupId' => 3], result: new Response()),
 ]);
 
-it('leaves user group pages alone for users without access', function () {
+it('leaves user group pages alone for users without access', function (): void {
 	$this->actingAs(permissions: ['accessCp']);
 	$this->mockComponent('userGroups', UserGroups::class)->shouldReceive('getGroupById')->andReturn(new UserGroup(['id' => 3]));
 	$this->mockComponent('view', View::class)->shouldNotReceive('registerAssetBundle');
 
 	$event = userGroupEvent(['groupId' => 3]);
-	(new UserGroupSidebarHandler())($event);
+	$this->handler('groupSidebarHandler', UserGroupSidebarHandler::class)($event);
 
 	expect(userGroupSidebar($event))->toBeNull();
 });
 
-it('renders the panel of a user group, linking to its Hub page', function () {
+it('renders the panel of a user group, linking to its Hub page', function (): void {
 	$plugins = Mockery::mock(Craft::$app->getPlugins())->makePartial();
 	$plugins->shouldReceive('getPlugin')->with('hub')->andReturn($this->hub());
 	Craft::$app->set('plugins', $plugins);

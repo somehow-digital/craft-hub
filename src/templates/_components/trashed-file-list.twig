@@ -8,21 +8,21 @@
 #}
 {% set volumeOptions = {} %}
 {% for volume in list.volumes %}
-	{% set volumeOptions = volumeOptions|merge({ (volume.handle): { label: volume.name|t('site'), icon: 'folder-open', color: 'amber' } }) %}
+	{% set volumeOptions = volumeOptions|merge({(volume.handle): {label: volume.name|t('site'), icon: 'folder-open', color: 'amber'}}) %}
 {% endfor %}
 
-{% embed 'hub/_components/panel' with { list: list, volumeOptions: volumeOptions } only %}
+{% embed 'hub/_components/panel' with {list: list, volumeOptions: volumeOptions} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		<form method="get" class="hub-filters" action="{{ url(list.listPath) }}" data-hub-submit{% if list.bulkSelection.review ?? false %} hidden{% endif %}>
 			{{ hub.search('Search by filename or title'|t('hub'), list.filter.search) }}
 			{{ hub.dropdown('Volume'|t('app'), 'folder-open', hub.choices('volume', volumeOptions, list.filter.volumes)) }}
-			{{ hub.dropdown('Type'|t('app'), 'file', hub.choices('kind', list.kindOptions, list.filter.kinds, { label: 'Kind'|t('hub'), lazy: list.optionsUrls.kind })) }}
+			{{ hub.dropdown('Type'|t('app'), 'file', hub.choices('kind', list.kindOptions, list.filter.kinds, {label: 'Kind'|t('hub'), lazy: list.optionsUrls.kind})) }}
 			{{ hub.dropdown('File'|t('hub'), 'file-circle-check', hub.choices('file', {
-				kept: { label: 'Kept'|t('hub'), color: 'green' },
-				deleted: { label: 'Deleted'|t('hub'), color: 'red' },
-			}, list.filter.file, { multiple: false, label: 'File'|t('hub') })) }}
-			{{ hub.dropdown('Deleted'|t('hub'), 'calendar', hub.range('deleted', 'Deletion date'|t('hub'), list.filter.deletedFrom, list.filter.deletedTo, { type: 'date' })) }}
+				kept: {label: 'Kept'|t('hub'), color: 'green'},
+				deleted: {label: 'Deleted'|t('hub'), color: 'red'},
+			}, list.filter.file, {multiple: false, label: 'File'|t('hub')})) }}
+			{{ hub.dropdown('Deleted'|t('hub'), 'calendar', hub.range('deleted', 'Deletion date'|t('hub'), list.filter.deletedFrom, list.filter.deletedTo, {type: 'date'})) }}
 			{{ hub.addFilter() }}
 			{{ hiddenInput('sort', list.sort) }}
 			{{ hiddenInput('dir', list.dir) }}
@@ -31,7 +31,7 @@
 		</form>
 
 		{% if list.assets|length %}
-			{% embed 'hub/_components/bulk' with { bulkList: 'trashedFiles', bulkNone: 'No files selected'|t('hub'), list: list } only %}
+			{% embed 'hub/_components/bulk' with {bulkList: 'trashedFiles', bulkNone: 'No files selected'|t('hub'), list: list} only %}
 				{% block table %}
 					{% import 'hub/_components/macros' as hub %}
 					<div class="hub-table">
@@ -86,11 +86,11 @@
 					</div>
 				{% endblock %}
 				{% block footer %}
-					{% include '_includes/pagination' with {
+					{{ include('_includes/pagination', {
 						pageInfo: list.pageInfo,
 						itemLabel: 'file'|t('hub'),
 						itemsLabel: 'files'|t('hub'),
-					} only %}
+					}, false) }}
 				{% endblock %}
 			{% endembed %}
 		{% elseif list.filtered or (list.bulkSelection.review ?? false) %}

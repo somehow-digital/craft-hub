@@ -1,13 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
 use craft\helpers\Json;
 use craft\web\View;
+use SomehowDigital\Craft\Hub\conditions\ConditionFactory;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
+use SomehowDigital\Craft\Hub\enums\Permission;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\helpers\Ids;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\CheckDefinition;
@@ -22,8 +27,10 @@ use yii\web\Response;
  * may manage them: Hub's predefined filters can be disabled, reordered, renamed and given another threshold, custom ones
  * created, changed and deleted too, unless checks flag their items; changes are recorded in the activity log. The lists
  * save, rename and delete the users' own filters, for users who may view them.
+ *
+ * @internal
  */
-class FiltersController extends BaseController
+final class FiltersController extends BaseController
 {
 	/** actions of the users' own filters, from the lists, rather than of the settings page */
 	private const OWN_ACTIONS = ['save-own', 'rename-own', 'delete-own'];
@@ -35,7 +42,7 @@ class FiltersController extends BaseController
 		}
 
 		if (!in_array($action->id, self::OWN_ACTIONS, true)) {
-			$this->requirePermission(Hub::PERMISSION_MANAGE_FILTERS);
+			$this->requirePermission(Permission::ManageFilters->value);
 		}
 
 		return true;
@@ -52,10 +59,10 @@ class FiltersController extends BaseController
 		$panels = [];
 		foreach (CheckKind::cases() as $kind) {
 			$kinds[$kind->value] = ['kind' => $kind, 'filters' => array_values($filters->getFilters($kind))];
-			$panels["hub-filters-$kind->value"] = fn () => ['hub/_panels/settings/filters', $kinds[$kind->value]];
+			$panels["hub-filters-{$kind->value}"] = fn(): array => ['hub/_panels/settings/filters', $kinds[$kind->value]];
 		}
 
-		if (($panel = $this->renderPanel($panels)) !== null) {
+		if (($panel = $this->renderPanel($panels)) instanceof Response) {
 			return $panel;
 		}
 
@@ -67,41 +74,44 @@ class FiltersController extends BaseController
 	 */
 	public function actionEdit(?int $filterId = null, ?string $kind = null, ?SavedFilter $filter = null): Response
 	{
-		if ($filter === null && $filterId !== null) {
+		if (!$filter instanceof SavedFilter && $filterId !== null) {
 			$filter = Hub::getInstance()->filters->getFilterById($filterId) ?? throw new NotFoundHttpException('Filter not found.');
 		}
 
-		$filter ??= new SavedFilter(['kind' => CheckKind::tryFrom((string)$kind) ?? throw new NotFoundHttpException('Kind not found.')]);
+		$filter ??= new SavedFilter(['kind' => CheckKind::tryFrom((string) $kind) ?? throw new NotFoundHttpException('Kind not found.')]);
 
-		return $this->renderTemplate('hub/pages/settings/filter', ['filter' => $filter]);
+		return $this->renderTemplate('hub/pages/settings/filter', [
+			'filter' => $filter,
+			'condition' => ConditionFactory::forFilter($filter),
+		]);
 	}
 
 	public function actionSave(): ?Response
 	{
 		$this->requirePostRequest();
 
-		$request = Craft::$app->getRequest();
+		$request = $this->request;
 		$filters = Hub::getInstance()->filters;
-		$id = $request->getBodyParam('filterId');
+		$id = $this->bodyInt('filterId');
 
-		if ($id) {
-			$filter = $filters->getFilterById((int)$id) ?? throw new NotFoundHttpException('Filter not found.');
+		if ($id > 0) {
+			$filter = $filters->getFilterById($id) ?? throw new NotFoundHttpException('Filter not found.');
 		} else {
-			$kind = CheckKind::tryFrom((string)$request->getBodyParam('kind')) ?? throw new BadRequestHttpException('Unknown kind.');
+			$kind = CheckKind::tryFrom($this->bodyString('kind')) ?? throw new BadRequestHttpException('Unknown kind.');
 			$filter = new SavedFilter(['kind' => $kind]);
 		}
 
-		$filter->name = (string)$request->getBodyParam('name', '');
-		$filter->enabled = (bool)$request->getBodyParam('enabled', true);
+		$filter->name = $this->bodyString('name', '');
+		$filter->enabled = $this->bodyBool('enabled', true);
 
 		if ($filter->thresholdField !== null) {
 			$threshold = $request->getBodyParam('threshold');
-			$filter->threshold = is_numeric($threshold) ? (int)$threshold : null;
+			$filter->threshold = is_numeric($threshold) ? (int) $threshold : null;
 		}
 
 		if (!$filter->isPredefined()) {
-			$filter->description = (string)$request->getBodyParam('description', '');
-			$filter->icon = (string)$request->getBodyParam('icon', '') ?: null;
+			$filter->description = $this->bodyString('description', '');
+			$filter->icon = Fill::text($this->bodyString('icon', ''));
 			$filter->condition = $this->conditionConfig($filter->kind, $request->getBodyParam('condition'));
 		}
 
@@ -127,7 +137,7 @@ class FiltersController extends BaseController
 		$this->requirePostRequest();
 
 		$filters = Hub::getInstance()->filters;
-		$filter = $filters->getFilterById((int)Craft::$app->getRequest()->getRequiredBodyParam('id')) ?? throw new NotFoundHttpException('Filter not found.');
+		$filter = $filters->getFilterById($this->requiredBodyInt('id')) ?? throw new NotFoundHttpException('Filter not found.');
 
 		if ($filter->isPredefined()) {
 			throw new BadRequestHttpException('Predefined filters can’t be deleted.');
@@ -137,11 +147,11 @@ class FiltersController extends BaseController
 
 		if ($checks !== []) {
 			return $this->asFailure(Craft::t('hub', 'The filter can’t be deleted, as checks flag its items: {checks}.', [
-				'checks' => implode(', ', array_map(fn (CheckDefinition $check) => $check->name, $checks)),
+				'checks' => implode(', ', array_map(fn(CheckDefinition $check): string => $check->name, $checks)),
 			]));
 		}
 
-		if ($filters->deleteFilterById($filter->id)) {
+		if ($filters->deleteFilterById($filter->id ?? 0)) {
 			$this->record(ActivityAction::Deleted, $filter);
 		}
 
@@ -151,12 +161,12 @@ class FiltersController extends BaseController
 	/**
 	 * Orders the filters of a kind by the JSON-encoded IDs sent by Craft's admin table.
 	 */
-	public function actionReorder(): Response
+	public function actionReorder(): ?Response
 	{
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
 
-		$ids = Json::decode((string)Craft::$app->getRequest()->getRequiredBodyParam('ids'));
+		$ids = Json::decode($this->requiredBodyString('ids'));
 		Hub::getInstance()->filters->reorderFilters(Ids::positive($ids));
 
 		return $this->asSuccess();
@@ -165,15 +175,14 @@ class FiltersController extends BaseController
 	/**
 	 * Enables or disables a filter, from the filters table.
 	 */
-	public function actionToggle(): Response
+	public function actionToggle(): ?Response
 	{
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
 
-		$request = Craft::$app->getRequest();
 		$filters = Hub::getInstance()->filters;
-		$filter = $filters->getFilterById((int)$request->getRequiredBodyParam('id')) ?? throw new NotFoundHttpException('Filter not found.');
-		$filter->enabled = (bool)$request->getRequiredBodyParam('enabled');
+		$filter = $filters->getFilterById($this->requiredBodyInt('id')) ?? throw new NotFoundHttpException('Filter not found.');
+		$filter->enabled = $this->requiredBodyBool('enabled');
 
 		if (!$filters->saveFilter($filter)) {
 			return $this->asFailure(Craft::t('hub', 'Couldn’t save the filter.'));
@@ -188,16 +197,16 @@ class FiltersController extends BaseController
 	 * Saves the filters a list shows as the user's own filter by the name, replacing those of their filter of the same name;
 	 * responds with the saved filters of the list, rendered again.
 	 */
-	public function actionSaveOwn(): Response
+	public function actionSaveOwn(): ?Response
 	{
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
 
-		$request = Craft::$app->getRequest();
+		$request = $this->request;
 		$filters = Hub::getInstance()->filters;
 		$kind = $this->ownKind();
-		$userId = (int)Craft::$app->getUser()->getId();
-		$name = trim((string)$request->getBodyParam('name', ''));
+		$userId = (int) Craft::$app->getUser()->getId();
+		$name = trim($this->bodyString('name', ''));
 		$params = $filters->normalizeParams($request->getBodyParam('params'));
 
 		$filter = $filters->getOwnFilterByName($kind, $userId, $name) ?? new SavedFilter(['kind' => $kind, 'userId' => $userId]);
@@ -205,7 +214,7 @@ class FiltersController extends BaseController
 		$filter->params = $params;
 
 		if (!$filters->saveFilter($filter)) {
-			return $this->asFailure(implode(' ', $filter->getFirstErrors()) ?: Craft::t('hub', 'Couldn’t save the filter.'));
+			return $this->asFailure(Fill::text(implode(' ', $filter->getFirstErrors())) ?? Craft::t('hub', 'Couldn’t save the filter.'));
 		}
 
 		return $this->ownResponse($kind, Craft::t('hub', 'Filter saved.'), $filter);
@@ -214,22 +223,21 @@ class FiltersController extends BaseController
 	/**
 	 * Renames one of the user's own filters.
 	 */
-	public function actionRenameOwn(): Response
+	public function actionRenameOwn(): ?Response
 	{
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
 
-		$request = Craft::$app->getRequest();
 		$filters = Hub::getInstance()->filters;
 		$kind = $this->ownKind();
-		$userId = (int)Craft::$app->getUser()->getId();
-		$filter = $filters->getOwnFilterById((int)$request->getRequiredBodyParam('id'), $userId);
+		$userId = (int) Craft::$app->getUser()->getId();
+		$filter = $filters->getOwnFilterById($this->requiredBodyInt('id'), $userId);
 
 		if ($filter === null || $filter->kind !== $kind) {
 			throw new NotFoundHttpException('Filter not found.');
 		}
 
-		$name = trim((string)$request->getBodyParam('name', ''));
+		$name = trim($this->bodyString('name', ''));
 		$other = $filters->getOwnFilterByName($kind, $userId, $name);
 
 		if ($other !== null && $other->id !== $filter->id) {
@@ -239,7 +247,7 @@ class FiltersController extends BaseController
 		$filter->name = $name;
 
 		if (!$filters->saveFilter($filter)) {
-			return $this->asFailure(implode(' ', $filter->getFirstErrors()) ?: Craft::t('hub', 'Couldn’t save the filter.'));
+			return $this->asFailure(Fill::text(implode(' ', $filter->getFirstErrors())) ?? Craft::t('hub', 'Couldn’t save the filter.'));
 		}
 
 		return $this->ownResponse($kind, Craft::t('hub', 'Filter renamed.'), $filter);
@@ -248,15 +256,15 @@ class FiltersController extends BaseController
 	/**
 	 * Deletes one of the user's own filters.
 	 */
-	public function actionDeleteOwn(): Response
+	public function actionDeleteOwn(): ?Response
 	{
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
 
 		$kind = $this->ownKind();
-		$id = (int)Craft::$app->getRequest()->getRequiredBodyParam('id');
+		$id = $this->requiredBodyInt('id');
 
-		if (!Hub::getInstance()->filters->deleteFilterById($id, (int)Craft::$app->getUser()->getId())) {
+		if (!Hub::getInstance()->filters->deleteFilterById($id, (int) Craft::$app->getUser()->getId())) {
 			throw new NotFoundHttpException('Filter not found.');
 		}
 
@@ -268,7 +276,7 @@ class FiltersController extends BaseController
 	 */
 	private function ownKind(): CheckKind
 	{
-		$kind = CheckKind::tryFrom((string)Craft::$app->getRequest()->getRequiredBodyParam('kind')) ?? throw new BadRequestHttpException('Unknown kind.');
+		$kind = CheckKind::tryFrom($this->requiredBodyString('kind')) ?? throw new BadRequestHttpException('Unknown kind.');
 
 		if (!Hub::getInstance()->access->canView($kind->page())) {
 			throw new ForbiddenHttpException('User is not authorized to perform this action.');
@@ -280,9 +288,9 @@ class FiltersController extends BaseController
 	/**
 	 * The saved filters of the list, rendered again for the page it's on, with the custom filter it applies.
 	 */
-	private function ownResponse(CheckKind $kind, string $message, ?SavedFilter $filter = null): Response
+	private function ownResponse(CheckKind $kind, string $message, ?SavedFilter $filter = null): ?Response
 	{
-		$request = Craft::$app->getRequest();
+		$request = $this->request;
 		$path = $this->postedListPath() ?? $kind->path();
 		$current = $request->getBodyParam('current');
 		$current = is_string($current) && Hub::getInstance()->filters->getCustomFilter($kind, $current) !== null ? $current : null;

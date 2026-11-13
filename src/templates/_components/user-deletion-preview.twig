@@ -10,10 +10,10 @@
 {% import '_includes/forms' as forms %}
 
 {% set noun = '{count, plural, =1{One user} other{# users}}' %}
-{% set notice = { color: 'green', icon: 'trash-arrow-up', text: '{count, plural, =1{is} other{are}} moved to the trash, from which {count, plural, =1{it} other{they}} can be restored.'|t('hub', { count: total }) } %}
-{% set empty = { title: 'Nothing to delete:'|t('hub'), text: 'None of the selected users can be deleted.'|t('hub') } %}
-{% set skippedText = '{count, plural, =1{One user is} other{# users are}} skipped, as you may not delete them, like yourself, or they no longer exist.'|t('hub', { count: skipped }) %}
-{% set totals = [{ icon: 'file-lines', value: entries, label: '{count, plural, =1{Entry authored} other{Entries authored}}'|t('hub', { count: entries }), color: 'orange' }] %}
+{% set notice = {color: 'green', icon: 'trash-arrow-up', text: '{count, plural, =1{is} other{are}} moved to the trash, from which {count, plural, =1{it} other{they}} can be restored.'|t('hub', {count: total})} %}
+{% set empty = {title: 'Nothing to delete:'|t('hub'), text: 'None of the selected users can be deleted.'|t('hub')} %}
+{% set skippedText = '{count, plural, =1{One user is} other{# users are}} skipped, as you may not delete them, like yourself, or they no longer exist.'|t('hub', {count: skipped}) %}
+{% set totals = [{icon: 'file-lines', value: entries, label: '{count, plural, =1{Entry authored} other{Entries authored}}'|t('hub', {count: entries}), color: 'orange'}] %}
 {% set itemsHeading = 'Deleted'|t('hub') %}
 {% set countIcon = 'file-lines' %}
 {% set countLabel = '{count, plural, =1{Entry authored} other{Entries authored}}' %}
@@ -25,7 +25,7 @@
 			label: 'Transfer their content to'|t('hub'),
 			instructions: 'The entries they’re an author of are transferred to this user. Otherwise, they keep them as their author.'|t('hub'),
 			name: 'inheritorId',
-			options: [{ label: 'Nobody'|t('hub'), value: '' }, ...inheritors|map(user => { label: user.name ~ ' (' ~ user.username ~ ')', value: user.id })],
+			options: [{label: 'Nobody'|t('hub'), value: ''}, ...inheritors|map(user => {label: user.name ~ ' (' ~ user.username ~ ')', value: user.id})],
 			class: 'fullwidth',
 		}) }}
 	{% endif %}

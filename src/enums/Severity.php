@@ -1,11 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\enums;
 
 use Craft;
 
 /**
  * How urgent a failed check is.
+ *
+ * @internal
  */
 enum Severity: string
 {
@@ -14,12 +18,12 @@ enum Severity: string
 	case Notice = 'notice';
 
 	/**
-	 * @return self[] the most urgent first
+	 * @return list<self> the most urgent first
 	 */
 	public static function sorted(): array
 	{
 		$cases = self::cases();
-		usort($cases, fn (self $a, self $b) => $a->rank() <=> $b->rank());
+		usort($cases, fn(self $a, self $b): int => $a->rank() <=> $b->rank());
 
 		return $cases;
 	}

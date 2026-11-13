@@ -8,9 +8,9 @@
 {% set selectedTab = 'entries' %}
 
 {% block content %}
-	{% include 'hub/_components/entry-list' with {
-		fixedFilters: [{ label: 'Author'|t('app'), value: 'Me'|t('hub'), icon: 'user' }],
+	{{ include('hub/_components/entry-list', {
+		fixedFilters: [{label: 'Author'|t('app'), value: 'Me'|t('hub'), icon: 'user'}],
 		list: list,
 		hubSite: hubSite,
-	} only %}
+	}, false) }}
 {% endblock %}

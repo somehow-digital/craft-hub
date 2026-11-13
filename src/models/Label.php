@@ -1,14 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\Model;
 use craft\enums\Color;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 
 /**
  * A label items of all lists can be labeled with, shown by its icon and color next to their names, its name and description as tooltip.
+ *
+ * @internal
  */
-class Label extends Model
+final class Label extends Model
 {
 	/** names of Craft's icons, as Craft's `iconSvg()` takes anything else for the path or markup of an SVG */
 	public const ICON_PATTERN = '/^[\da-z\-]+$/';
@@ -39,16 +44,16 @@ class Label extends Model
 
 	public function getIcon(): string
 	{
-		return $this->icon ?: 'tag';
+		return Fill::text($this->icon) ?? 'tag';
 	}
 
 	public function getColor(): string
 	{
-		return $this->color ?: Color::Gray->value;
+		return Fill::text($this->color) ?? Color::Gray->value;
 	}
 
 	/**
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	protected function defineRules(): array
 	{
@@ -57,7 +62,7 @@ class Label extends Model
 			[['name'], 'required'],
 			[['name', 'icon'], 'string', 'max' => 255],
 			[['icon'], 'match', 'pattern' => self::ICON_PATTERN],
-			[['color'], 'in', 'range' => array_map(fn (Color $color) => $color->value, Color::cases())],
+			[['color'], 'in', 'range' => array_map(fn(Color $color) => $color->value, Color::cases())],
 		];
 	}
 }

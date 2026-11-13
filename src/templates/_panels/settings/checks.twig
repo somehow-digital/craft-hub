@@ -18,7 +18,7 @@
 } only %}
 	{% block actions %}
 		<span class="hub-checks-settings__disabled hub-muted{% if not disabled %} hidden{% endif %}" data-hub-checks-disabled>
-			{{- '{count} disabled'|t('hub', { count: disabled|number }) -}}
+			{{- '{count} disabled'|t('hub', {count: disabled|number}) -}}
 		</span>
 		<span class="hub-pill" data-hub-checks-count>{{ checks|length|number }}</span>
 		<a class="btn small add icon" href="{{ url('hub/manage/settings/diagnostics/new/' ~ kind.value) }}">{{ 'New check'|t('hub') }}</a>
@@ -27,8 +27,8 @@
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		{{ hub.emptyState('list-check', 'No checks exist yet.'|t('hub'), 'Checks flag the items their filter lists, on the diagnostics tabs.'|t('hub'),
-			tag('a', { href: url('hub/manage/settings/diagnostics/new/' ~ kind.value), class: 'btn add icon', text: 'New check'|t('hub') }),
-			{ id: 'hub-checks-empty-' ~ kind.value, hidden: checks|length > 0 }) }}
+			tag('a', {href: url('hub/manage/settings/diagnostics/new/' ~ kind.value), class: 'btn add icon', text: 'New check'|t('hub')}),
+			{id: 'hub-checks-empty-' ~ kind.value, hidden: checks|length > 0}) }}
 		<div class="hub-table">
 			<table class="data fullwidth hub-checks-table{% if not checks|length %} hidden{% endif %}" id="hub-checks-table-{{ kind.value }}">
 				<thead>
@@ -77,7 +77,7 @@
 								<div class="hub-check-row__severity">
 									{{ hub.badge(severity.label(), severity.color()) }}
 									{% if check.isDefault() and severity != check.defaultSeverity %}
-										<span class="hub-muted">{{ 'Default: {severity}'|t('hub', { severity: check.defaultSeverity.label() }) }}</span>
+										<span class="hub-muted">{{ 'Default: {severity}'|t('hub', {severity: check.defaultSeverity.label()}) }}</span>
 									{% endif %}
 								</div>
 							</td>

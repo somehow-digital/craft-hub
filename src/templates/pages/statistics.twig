@@ -9,5 +9,5 @@
 {% set selectedTab = 'statistics' %}
 
 {% block content %}
-	{% include 'hub/_components/statistics' with { cards: cards } only %}
+	{{ include('hub/_components/statistics', {cards: cards}, false) }}
 {% endblock %}

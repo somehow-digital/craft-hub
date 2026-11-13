@@ -48,7 +48,7 @@
 		</div>
 		<div class="hub-work-footer">
 			{% if check.count > check.items|length %}
-				<span class="hub-muted">{{ 'Showing {shown, number} of {total, number}'|t('hub', { shown: check.items|length, total: check.count }) }}</span>
+				<span class="hub-muted">{{ 'Showing {shown, number} of {total, number}'|t('hub', {shown: check.items|length, total: check.count}) }}</span>
 			{% endif %}
 			<a class="btn small" href="{{ check.url }}">
 				<span class="hub-btn-icon" aria-hidden="true">{{ iconSvg('arrow-right') }}</span>

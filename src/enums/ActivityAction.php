@@ -1,11 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\enums;
 
 use Craft;
 
 /**
  * What was done in an activity of the activity log.
+ *
+ * @internal
  */
 enum ActivityAction: string
 {

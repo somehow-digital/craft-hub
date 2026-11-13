@@ -11,18 +11,18 @@
 
 {% set kindOptions = {} %}
 {% for kind in enum_cases('SomehowDigital\\Craft\\Hub\\enums\\DataKind') %}
-	{% set kindOptions = kindOptions|merge({ (kind.value): { label: kind.label(), icon: kind.icon(), color: kind.color() } }) %}
+	{% set kindOptions = kindOptions|merge({(kind.value): {label: kind.label(), icon: kind.icon(), color: kind.color()}}) %}
 {% endfor %}
 
 {% block content %}
-	{% embed 'hub/_components/panel' with { list: list, kindOptions: kindOptions, hubSite: hubSite, labelable: labelable } only %}
+	{% embed 'hub/_components/panel' with {list: list, kindOptions: kindOptions, hubSite: hubSite, labelable: labelable} only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			<form method="get" class="hub-filters" action="{{ url('hub/structure/fields') }}" data-hub-submit{% if list.bulkSelection.review ?? false %} hidden{% endif %}>
-				{% include 'hub/_components/saved-filters' with { savedFilters: list.savedFilters, hubSite: hubSite } only %}
+				{{ include('hub/_components/saved-filters', {savedFilters: list.savedFilters, hubSite: hubSite}, false) }}
 				{{ hub.search('Search by name or handle'|t('hub'), list.filter.search) }}
 				{{ hub.dropdown('Field Type'|t('app'), 'puzzle-piece', hub.choices('type', list.types, list.filter.types)) }}
-				{{ hub.dropdown('Relations'|t('hub'), 'link', hub.choices('owner', list.owners, list.filter.owners, { label: 'Placed in'|t('hub') })
+				{{ hub.dropdown('Relations'|t('hub'), 'link', hub.choices('owner', list.owners, list.filter.owners, {label: 'Placed in'|t('hub')})
 					~ hub.range('layouts', 'Number of layouts'|t('hub'), list.filter.layoutsMin, list.filter.layoutsMax)) }}
 				{{ hub.dropdown('Data'|t('hub'), 'database', hub.choices('kind', kindOptions, list.filter.kinds)) }}
 				{{ hub.labelFilter(list.labelOptions, list.filter.labels) }}
@@ -36,7 +36,7 @@
 			</form>
 
 			{% if list.fields|length %}
-				{% embed 'hub/_components/bulk' with { bulkList: 'fields', bulkNone: 'No fields selected'|t('hub'), list: list, labelable: labelable } only %}
+				{% embed 'hub/_components/bulk' with {bulkList: 'fields', bulkNone: 'No fields selected'|t('hub'), list: list, labelable: labelable} only %}
 					{% block table %}
 						{% import 'hub/_components/macros' as hub %}
 						<div class="hub-table">
@@ -95,11 +95,11 @@
 						</div>
 					{% endblock %}
 					{% block footer %}
-						{% include '_includes/pagination' with {
+						{{ include('_includes/pagination', {
 							pageInfo: list.pageInfo,
 							itemLabel: 'field'|t('hub'),
 							itemsLabel: 'fields'|t('hub'),
-						} only %}
+						}, false) }}
 					{% endblock %}
 				{% endembed %}
 			{% else %}

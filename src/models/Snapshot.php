@@ -1,21 +1,24 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use Closure;
+use craft\base\Model;
 use DateTime;
-use SomehowDigital\Craft\Hub\services\StatisticsService;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 
 /**
  * The statistics as they were on a day, see SnapshotService: the counts of the entries, assets and references, summed like
- * the live ones by the statistics of the snapshot, and further counts that aren't scoped to sites, like those of the users.
+ * the live ones by SnapshotService::getStatistics(), and further counts that aren't scoped to sites, like those of the users.
  *
  * Its parts are loaded once asked for, so a card only loads the parts it counts.
+ *
+ * @internal
  */
-class Snapshot
+final class Snapshot extends Model
 {
-	public readonly StatisticsService $statistics;
-
 	/** @var array<string,mixed>|null */
 	private ?array $metrics = null;
 
@@ -26,9 +29,9 @@ class Snapshot
 	public function __construct(
 		public readonly int $id,
 		public readonly DateTime $date,
-		private readonly Closure $parts,
+		public readonly Closure $parts,
 	) {
-		$this->statistics = StatisticsService::fromSnapshot($parts);
+		parent::__construct();
 	}
 
 	/**
@@ -38,7 +41,10 @@ class Snapshot
 	 */
 	public function getSections(): array
 	{
-		return $this->metric('sections');
+		/** @var array<int,array{type:string,entryTypes:int[],fields:int[]}> $result */
+		$result = $this->metric('sections');
+
+		return $result;
 	}
 
 	/**
@@ -46,7 +52,10 @@ class Snapshot
 	 */
 	public function getEntryTypes(): array
 	{
-		return $this->metric('entryTypes');
+		/** @var array<int,array{sections:int,nestedFields:int,referenceFields:int,linkFields:int,fields:array<string,int>}> $result */
+		$result = $this->metric('entryTypes');
+
+		return $result;
 	}
 
 	/**
@@ -54,7 +63,10 @@ class Snapshot
 	 */
 	public function getFields(): array
 	{
-		return $this->metric('fields');
+		/** @var array<int,array{type:string,kind:string,entryTypes:int[],owners:array<string,int>}> $result */
+		$result = $this->metric('fields');
+
+		return $result;
 	}
 
 	/**
@@ -62,7 +74,10 @@ class Snapshot
 	 */
 	public function getVolumes(): array
 	{
-		return $this->metric('volumes');
+		/** @var array<int,array{hasUrls:bool,fields:int[]}> $result */
+		$result = $this->metric('volumes');
+
+		return $result;
 	}
 
 	/**
@@ -72,29 +87,37 @@ class Snapshot
 	 */
 	public function getUserGroups(): array
 	{
-		return array_map('intval', $this->metric('userGroups'));
+		return Fill::counts($this->metric('userGroups'));
 	}
 
 	public function getUsers(): UserStatistics
 	{
 		$stats = new UserStatistics();
 
-		foreach ($this->metric('users') as $property => $value) {
-			if (property_exists($stats, $property)) {
-				$stats->$property = (int)$value;
-			}
-		}
+		$users = $this->metric('users');
+		$stats->total = Fill::int($users['total'] ?? 0);
+		$stats->active = Fill::int($users['active'] ?? 0);
+		$stats->pending = Fill::int($users['pending'] ?? 0);
+		$stats->suspended = Fill::int($users['suspended'] ?? 0);
+		$stats->locked = Fill::int($users['locked'] ?? 0);
+		$stats->inactive = Fill::int($users['inactive'] ?? 0);
+		$stats->admins = Fill::int($users['admins'] ?? 0);
+		$stats->recentLogin = Fill::int($users['recentLogin'] ?? 0);
+		$stats->idle = Fill::int($users['idle'] ?? 0);
+		$stats->twoFactor = Fill::int($users['twoFactor'] ?? 0);
+		$stats->adminsWithoutTwoFactor = Fill::int($users['adminsWithoutTwoFactor'] ?? 0);
+		$stats->unverifiedEmail = Fill::int($users['unverifiedEmail'] ?? 0);
 
 		return $stats;
 	}
 
 	/**
-	 * @return array<int|string,mixed>
+	 * @return array<mixed>
 	 */
 	private function metric(string $name): array
 	{
-		$this->metrics ??= ($this->parts)('metrics');
+		$this->metrics ??= Fill::map(($this->parts)('metrics'));
 
-		return (array)($this->metrics[$name] ?? []);
+		return Fill::list($this->metrics[$name] ?? []);
 	}
 }

@@ -35,7 +35,7 @@
 							{% set element = reference.element %}
 							{% set hubUrl = element is instance of('craft\\elements\\Entry') or element is instance of('craft\\elements\\Asset') ? hub.url(element)|trim : null %}
 							<tr>
-								<td>{{ elementChip(element, { hyperlink: true, attributes: hubUrl ? { data: { 'cp-url': hubUrl } } : {} }) }}</td>
+								<td>{{ elementChip(element, {hyperlink: true, attributes: hubUrl ? {data: {'cp-url': hubUrl}} : {}}) }}</td>
 								<td>
 									<ul class="hub-list hub-list--plain">
 										{% for path in reference.paths %}

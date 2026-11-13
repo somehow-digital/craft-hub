@@ -1,9 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\helpers;
 
 /**
  * Pre-aggregates grouped query rows, so sums by any combination of criteria are lookups instead of passes over all rows.
+ *
+ * @internal
  */
 final class Aggregator
 {
@@ -29,7 +33,7 @@ final class Aggregator
 				$criteria = [];
 
 				foreach ($columns as $i => $column) {
-					if (!($mask & (1 << $i))) {
+					if (($mask & (1 << $i)) === 0) {
 						$criteria[] = null;
 					} elseif ($row[$column] === null) {
 						continue 2;
@@ -47,11 +51,11 @@ final class Aggregator
 	}
 
 	/**
-	 * @param array<int,int|string|null> $criteria values in the order of the indexed columns, null for any value
+	 * @param array<int,mixed> $criteria values in the order of the indexed columns, null for any value
 	 */
 	public static function key(array $criteria): string
 	{
-		return implode('|', array_map(fn ($value) => $value === null ? '*' : (string)$value, $criteria));
+		return implode('|', array_map(fn(mixed $value): string => Fill::text($value) ?? '*', $criteria));
 	}
 
 	/**
@@ -64,7 +68,7 @@ final class Aggregator
 		$sum = 0;
 
 		foreach ($rows as $row) {
-			$sum += (int)$row[$column];
+			$sum += Fill::int($row[$column]);
 		}
 
 		return $sum;

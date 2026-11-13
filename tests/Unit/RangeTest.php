@@ -1,32 +1,34 @@
 <?php
 
+declare(strict_types=1);
+
 use SomehowDigital\Craft\Hub\helpers\Range;
 use yii\db\Expression;
 
-it('has no condition for open bounds', function () {
+it('has no condition for open bounds', function (): void {
 	expect(Range::condition('assets.size', null, null))->toBeNull();
 });
 
-it('includes both bounds', function () {
+it('includes both bounds', function (): void {
 	expect(Range::condition('assets.size', 1, 5))->toBe(['and', ['>=', 'assets.size', 1], ['<=', 'assets.size', 5]]);
 });
 
-it('leaves out an open bound', function () {
+it('leaves out an open bound', function (): void {
 	expect(Range::condition('assets.size', 1.5, null))->toBe(['and', ['>=', 'assets.size', 1.5], []])
 		->and(Range::condition('assets.size', null, 0))->toBe(['and', [], ['<=', 'assets.size', 0]]);
 });
 
-it('compares expressions', function () {
+it('compares expressions', function (): void {
 	$expression = new Expression('COUNT(*)');
 
-	expect(Range::condition($expression, 2, null)[1])->toBe(['>=', $expression, 2]);
+	expect(at(Range::condition($expression, 2, null), 1))->toBe(['>=', $expression, 2]);
 });
 
-it('has no date param for open bounds', function () {
+it('has no date param for open bounds', function (): void {
 	expect(Range::dateParam(null, null))->toBeNull();
 });
 
-it('includes the whole days of both bounds', function () {
+it('includes the whole days of both bounds', function (): void {
 	$from = new DateTime('2024-01-10 15:30:00', new DateTimeZone('UTC'));
 	$to = new DateTime('2024-01-20 08:00:00', new DateTimeZone('UTC'));
 
@@ -35,7 +37,7 @@ it('includes the whole days of both bounds', function () {
 		->and($to->format('d'))->toBe('20');
 });
 
-it('leaves out an open date bound', function () {
+it('leaves out an open date bound', function (): void {
 	$day = new DateTime('2024-02-29', new DateTimeZone('Europe/Vienna'));
 
 	expect(Range::dateParam($day, null))->toBe(['and', '>= 2024-02-29T00:00:00+01:00'])

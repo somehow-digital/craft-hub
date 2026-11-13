@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * The messages of Hub's translation category, which the translations of other languages are based on.
  */

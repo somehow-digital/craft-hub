@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Closure;
@@ -8,28 +10,26 @@ use craft\elements\User;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\helpers\ListSelection;
-use SomehowDigital\Craft\Hub\helpers\ListSort;
-use SomehowDigital\Craft\Hub\helpers\Paginator;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\UserGroupFilter;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use SomehowDigital\Craft\Hub\services\ListService;
-use SomehowDigital\Craft\Hub\statistics\UsersSummary;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
 /**
  * The users page, below the "Data" navigation item: its list, user groups, statistics and diagnostics, and the detail
  * pages of users and user groups.
+ *
+ * @internal
  */
-class UsersController extends BaseController
+final class UsersController extends BaseController
 {
 	protected ?Page $page = Page::Users;
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/data/users')) !== null) {
+		if (($redirect = $this->keepFilters('hub/data/users')) instanceof Response) {
 			return $redirect;
 		}
 
@@ -52,15 +52,15 @@ class UsersController extends BaseController
 			throw new NotFoundHttpException('No user groups.');
 		}
 
-		if (($redirect = $this->keepFilters($path)) !== null) {
+		if (($redirect = $this->keepFilters($path)) instanceof Response) {
 			return $redirect;
 		}
 
 		// While reviewing the selection, the filters don't apply.
-		$selection = ListSelection::fromRequest(ColumnService::LIST_USER_GROUPS, $path);
+		$selection = Hub::getInstance()->bulkActions->selectionFor(ColumnService::LIST_USER_GROUPS, $path);
 		$filter = $selection->review ? new UserGroupFilter() : $this->groupFilterFromRequest();
-		$sort = ListSort::fromRequest($lists->getUserGroupSortColumns(), ListService::SORT_NAME);
-		[$pageInfo, $groups] = Paginator::fromRequest()->items($selection->limitItems($lists->getUserGroups($all, $filter, $sort->column, $sort->direction)));
+		$sort = $this->listSort($lists->getUserGroupSortColumns(), ListService::SORT_NAME);
+		[$pageInfo, $groups] = $this->paginator()->items($selection->limitItems($lists->getUserGroups($all, $filter, $sort->column, $sort->direction)));
 
 		return $this->renderTemplate('hub/pages/users/groups', [
 			'list' => [
@@ -70,7 +70,7 @@ class UsersController extends BaseController
 				'listPath' => $path,
 				'columns' => $hub->columns->getColumns(ColumnService::LIST_USER_GROUPS),
 				...$this->labelVariables(ColumnService::LIST_USER_GROUPS, array_keys($groups)),
-				...$selection->variables($filter),
+				...Hub::getInstance()->selection->variables($selection, $filter),
 				...$sort->variables($path),
 			],
 			'extraTabs' => $this->extraTabs(),
@@ -89,12 +89,12 @@ class UsersController extends BaseController
 
 		$group = $info['group'];
 		$panel = $this->renderPanel([
-			'permissions' => fn () => ['hub/_panels/groups/permissions', ['permissions' => $hub->users->getGroupPermissions($group)]],
-			'maintains' => fn () => ['hub/_panels/groups/maintains', ['maintained' => $hub->maintainers->getMaintainedByGroup($group)]],
-			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::UserGroup->value, 'id' => $group->id]],
+			'permissions' => fn(): array => ['hub/_panels/groups/permissions', ['permissions' => $hub->users->getGroupPermissions($group)]],
+			'maintains' => fn(): array => ['hub/_panels/groups/maintains', ['maintained' => $hub->maintainers->getMaintainedByGroup($group)]],
+			'activity' => fn(): array => ['hub/_panels/activity', ['subject' => ActivitySubject::UserGroup->value, 'id' => $group->id]],
 		]);
 
-		if ($panel !== null) {
+		if ($panel instanceof Response) {
 			return $panel;
 		}
 
@@ -103,7 +103,7 @@ class UsersController extends BaseController
 			'info' => $info,
 			'selectedTab' => $tab,
 			...match ($tab) {
-				self::TAB_USERS => $this->userListVariables("hub/data/users/groups/$id/users", $info['group']),
+				self::TAB_USERS => $this->userListVariables("hub/data/users/groups/{$id}/users", $info['group']),
 				default => ['maintainedCount' => $hub->maintainers->countMaintainedByGroup($group)],
 			},
 		]);
@@ -111,7 +111,7 @@ class UsersController extends BaseController
 
 	public function actionStatistics(): Response
 	{
-		return $this->renderStatistics(CheckKind::Users, (new UsersSummary())->index(), siteScoped: false, extraTabs: $this->extraTabs());
+		return $this->renderStatistics(CheckKind::Users, Hub::getInstance()->usersSummary->index(), siteScoped: false, extraTabs: $this->extraTabs());
 	}
 
 	public function actionDiagnostics(): Response
@@ -127,17 +127,17 @@ class UsersController extends BaseController
 
 		$user = $users->getUser($id) ?? throw new NotFoundHttpException('User not found.');
 
-		if (in_array($tab, [self::TAB_ENTRIES, self::TAB_ASSETS], true) && ($redirect = $this->keepFilters("hub/data/users/$id/$tab")) !== null) {
+		if (in_array($tab, [self::TAB_ENTRIES, self::TAB_ASSETS], true) && ($redirect = $this->keepFilters("hub/data/users/{$id}/{$tab}")) instanceof Response) {
 			return $redirect;
 		}
 
-		$panel = $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn () => $hub->checks->forUser($user)) : $this->overviewPanels($user));
+		$panel = $this->renderPanel($tab === self::TAB_DIAGNOSTICS ? $this->checksPanel(fn() => $hub->checks->forUser($user)) : $this->overviewPanels($user));
 
-		if ($panel !== null) {
+		if ($panel instanceof Response) {
 			return $panel;
 		}
 
-		$twoFactor = $users->getTwoFactor([$user->id])[$user->id] ?? false;
+		$twoFactor = $users->getTwoFactor([(int) $user->id])[(int) $user->id] ?? false;
 
 		// Only the selected tab is rendered, so only its variables are computed; the checks are counted on every tab.
 		return $this->renderTemplate('hub/pages/users/view', [
@@ -149,8 +149,8 @@ class UsersController extends BaseController
 			'idleMonths' => $hub->filters->getThreshold(CheckKind::Users, 'idle'),
 			'checks' => $hub->checks->forUser($user),
 			...match ($tab) {
-				self::TAB_ENTRIES => $this->entryListVariables("hub/data/users/$id/entries", author: $user),
-				self::TAB_ASSETS => $this->fileListVariables("hub/data/users/$id/assets", uploader: $user),
+				self::TAB_ENTRIES => $this->entryListVariables("hub/data/users/{$id}/entries", author: $user),
+				self::TAB_ASSETS => $this->fileListVariables("hub/data/users/{$id}/assets", uploader: $user),
 				self::TAB_DIAGNOSTICS => [],
 				default => $this->overviewVariables($user),
 			},
@@ -184,11 +184,11 @@ class UsersController extends BaseController
 		$hub = Hub::getInstance();
 
 		return [
-			'permissions' => fn () => ['hub/_panels/users/permissions', ['user' => $user, 'permissions' => $user->admin ? [] : $hub->users->getPermissions($user)]],
-			'references' => fn () => ['hub/_panels/users/references', ['references' => $hub->references->getReferences($user)]],
-			'referenced' => fn () => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($user)]],
-			'maintains' => fn () => ['hub/_panels/users/maintains', ['maintained' => $hub->maintainers->getMaintainedBy($user)]],
-			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::User->value, 'id' => $user->id]],
+			'permissions' => fn(): array => ['hub/_panels/users/permissions', ['user' => $user, 'permissions' => $user->admin ? [] : $hub->users->getPermissions($user)]],
+			'references' => fn(): array => ['hub/_panels/users/references', ['references' => $hub->references->getReferences($user)]],
+			'referenced' => fn(): array => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($user)]],
+			'maintains' => fn(): array => ['hub/_panels/users/maintains', ['maintained' => $hub->maintainers->getMaintainedBy($user)]],
+			'activity' => fn(): array => ['hub/_panels/activity', ['subject' => ActivitySubject::User->value, 'id' => $user->id]],
 		];
 	}
 

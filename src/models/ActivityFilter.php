@@ -1,13 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use DateTime;
 
 /**
  * Filters of the activity log. Lists hold their values as they appear in the URL; empty lists and null values don't filter.
+ *
+ * @internal
  */
-class ActivityFilter
+final class ActivityFilter extends Model
 {
 	/** activities without a user, as a value of the users filter */
 	public const USER_NONE = 'none';
@@ -26,6 +31,7 @@ class ActivityFilter
 
 	/** days of the activities, both days included */
 	public ?DateTime $dateFrom = null;
+
 	public ?DateTime $dateTo = null;
 
 	/** ID of a subject, to list the activities of one item; only applies along with the single kind of subject it's of */

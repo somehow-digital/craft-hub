@@ -13,7 +13,7 @@
 
 {% set volumeOptions = {} %}
 {% for volume in list.volumes %}
-	{% set volumeOptions = volumeOptions|merge({ (volume.handle): { label: volume.name|t('site'), icon: 'folder-open', color: 'amber' } }) %}
+	{% set volumeOptions = volumeOptions|merge({(volume.handle): {label: volume.name|t('site'), icon: 'folder-open', color: 'amber'}}) %}
 {% endfor %}
 
 {% embed 'hub/_components/panel' with {
@@ -26,29 +26,29 @@
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		<form method="get" class="hub-filters" action="{{ url(list.listPath) }}" data-hub-submit{% if list.bulkSelection.review ?? false %} hidden{% endif %}>
-			{% include 'hub/_components/saved-filters' with { savedFilters: list.savedFilters, hubSite: hubSite } only %}
+			{{ include('hub/_components/saved-filters', {savedFilters: list.savedFilters, hubSite: hubSite}, false) }}
 			{{ hub.search('Search by filename or title'|t('hub'), list.filter.search) }}
 			{{ hub.fixedFilters(fixedFilters ?? []) }}
 			{% if list.listFixed != 'volume' %}
 				{{ hub.dropdown('Volume'|t('app'), 'folder-open', hub.choices('volume', volumeOptions, list.filter.volumes)) }}
 			{% endif %}
-			{{ hub.dropdown('Type'|t('app'), 'file', hub.choices('kind', list.kindOptions, list.filter.kinds, { label: 'Kind'|t('hub'), lazy: list.optionsUrls.kind })
-				~ hub.choices('extension', list.extensionOptions, list.filter.extensions, { label: 'Extension'|t('hub'), lazy: list.optionsUrls.extension })) }}
-			{{ hub.dropdown('Dimensions'|t('app'), 'ruler-combined', hub.range('width', 'Width'|t('app'), list.filter.widthMin, list.filter.widthMax, { unit: 'px' })
-				~ hub.range('height', 'Height'|t('app'), list.filter.heightMin, list.filter.heightMax, { unit: 'px' })
+			{{ hub.dropdown('Type'|t('app'), 'file', hub.choices('kind', list.kindOptions, list.filter.kinds, {label: 'Kind'|t('hub'), lazy: list.optionsUrls.kind})
+				~ hub.choices('extension', list.extensionOptions, list.filter.extensions, {label: 'Extension'|t('hub'), lazy: list.optionsUrls.extension})) }}
+			{{ hub.dropdown('Dimensions'|t('app'), 'ruler-combined', hub.range('width', 'Width'|t('app'), list.filter.widthMin, list.filter.widthMax, {unit: 'px'})
+				~ hub.range('height', 'Height'|t('app'), list.filter.heightMin, list.filter.heightMax, {unit: 'px'})
 				~ hub.choices('orientation', {
-					landscape: { label: 'Landscape'|t('hub'), icon: 'rectangle-wide' },
-					portrait: { label: 'Portrait'|t('hub'), icon: 'rectangle-vertical' },
-					square: { label: 'Square'|t('hub'), icon: 'square' },
-				}, list.filter.orientations, { label: 'Orientation'|t('hub') })) }}
-			{{ hub.dropdown('Size'|t('app'), 'weight-hanging', hub.range('size', 'Size'|t('app'), list.filter.sizeMin, list.filter.sizeMax, { unit: 'MB', step: 'any' })) }}
+					landscape: {label: 'Landscape'|t('hub'), icon: 'rectangle-wide'},
+					portrait: {label: 'Portrait'|t('hub'), icon: 'rectangle-vertical'},
+					square: {label: 'Square'|t('hub'), icon: 'square'},
+				}, list.filter.orientations, {label: 'Orientation'|t('hub')})) }}
+			{{ hub.dropdown('Size'|t('app'), 'weight-hanging', hub.range('size', 'Size'|t('app'), list.filter.sizeMin, list.filter.sizeMax, {unit: 'MB', step: 'any'})) }}
 			{{ hub.dropdown('References'|t('hub'), 'link', hub.choices('usage', {
-				used: { label: 'With references'|t('hub'), color: 'green' },
-				unused: { label: 'Without references'|t('hub'), color: 'orange' },
-			}, list.filter.usage, { multiple: false, label: 'Usage'|t('hub') })
+				used: {label: 'With references'|t('hub'), color: 'green'},
+				unused: {label: 'Without references'|t('hub'), color: 'orange'},
+			}, list.filter.usage, {multiple: false, label: 'Usage'|t('hub')})
 				~ hub.range('references', 'Number of references'|t('hub'), list.filter.referencesMin, list.filter.referencesMax)) }}
-			{{ hub.dropdown('Uploaded'|t('hub'), 'calendar', hub.range('uploaded', 'Upload date'|t('hub'), list.filter.uploadedFrom, list.filter.uploadedTo, { type: 'date' })
-				~ (list.listFixed != 'uploader' ? hub.choices('uploader', list.uploaderOptions, list.filter.uploaders, { label: 'Uploader'|t('hub'), lazy: list.optionsUrls.uploader }) : '')) }}
+			{{ hub.dropdown('Uploaded'|t('hub'), 'calendar', hub.range('uploaded', 'Upload date'|t('hub'), list.filter.uploadedFrom, list.filter.uploadedTo, {type: 'date'})
+				~ (list.listFixed != 'uploader' ? hub.choices('uploader', list.uploaderOptions, list.filter.uploaders, {label: 'Uploader'|t('hub'), lazy: list.optionsUrls.uploader}) : '')) }}
 			{{ hub.labelFilter(list.labelOptions, list.filter.labels) }}
 			{{ hub.toggle('alt', 'Missing alt text only'|t('hub'), list.filter.missingAlt) }}
 			{{ hub.toggle('oversized', 'Oversized images only'|t('hub'), list.filter.oversized) }}
@@ -60,7 +60,7 @@
 		</form>
 
 		{% if list.assets|length %}
-			{% embed 'hub/_components/bulk' with { bulkList: 'files', bulkNone: 'No files selected'|t('hub'), list: list, labelable: labelable } only %}
+			{% embed 'hub/_components/bulk' with {bulkList: 'files', bulkNone: 'No files selected'|t('hub'), list: list, labelable: labelable} only %}
 				{% block table %}
 					{% import 'hub/_components/macros' as hub %}
 					<div class="hub-table">
@@ -101,7 +101,7 @@
 												{%- elseif column.key == 'url' -%}
 													{%- if list.canDownload -%}
 														{%- set label = 'Download file'|t('hub') -%}
-														<a class="hub-visit" href="{{ actionUrl('hub/files/download', { id: asset.id }) }}" title="{{ label }}" aria-label="{{ label }}">{{ iconSvg('download') }}</a>
+														<a class="hub-visit" href="{{ actionUrl('hub/files/download', {id: asset.id}) }}" title="{{ label }}" aria-label="{{ label }}">{{ iconSvg('download') }}</a>
 													{%- endif -%}
 												{%- elseif column.key == 'edit' -%}
 													{%- if asset.canView(currentUser) -%}
@@ -118,11 +118,11 @@
 					</div>
 				{% endblock %}
 				{% block footer %}
-					{% include '_includes/pagination' with {
+					{{ include('_includes/pagination', {
 						pageInfo: list.pageInfo,
 						itemLabel: 'file'|t('hub'),
 						itemsLabel: 'files'|t('hub'),
-					} only %}
+					}, false) }}
 				{% endblock %}
 			{% endembed %}
 		{% else %}

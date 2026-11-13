@@ -1,28 +1,21 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\migrations;
 
 use craft\db\Migration;
 use craft\db\Table;
-use craft\helpers\Queue;
-use SomehowDigital\Craft\Hub\jobs\IndexReferences;
-use SomehowDigital\Craft\Hub\services\ActivityService;
-use SomehowDigital\Craft\Hub\services\DiagnosticsService;
-use SomehowDigital\Craft\Hub\services\EditService;
-use SomehowDigital\Craft\Hub\services\FilterService;
-use SomehowDigital\Craft\Hub\services\LabelService;
-use SomehowDigital\Craft\Hub\services\MaintainerService;
-use SomehowDigital\Craft\Hub\services\ReferenceService;
-use SomehowDigital\Craft\Hub\services\SnapshotService;
-use SomehowDigital\Craft\Hub\services\TrashService;
-use SomehowDigital\Craft\Hub\services\WorkService;
+use SomehowDigital\Craft\Hub\db\Tables;
 
 /**
  * Creates the tables of the labels, the items labeled with them, the maintainers of the structure, the checks of the
  * diagnostics tabs, the saved filters of the lists, the activity log, the reference tags in the content, the last edits
  * of entries, the snapshots of the statistics and the files kept of trashed assets.
+ *
+ * @internal
  */
-class Install extends Migration
+final class Install extends Migration
 {
 	public function safeUp(): bool
 	{
@@ -41,20 +34,20 @@ class Install extends Migration
 
 	public function safeDown(): bool
 	{
-		$this->dropTableIfExists(WorkService::TABLE_SNOOZES);
-		$this->dropTableIfExists(TrashService::TABLE_KEPT_FILES);
-		$this->dropTableIfExists(SnapshotService::TABLE_REFERENCES);
-		$this->dropTableIfExists(SnapshotService::TABLE_ASSETS);
-		$this->dropTableIfExists(SnapshotService::TABLE_ENTRIES);
-		$this->dropTableIfExists(SnapshotService::TABLE);
-		$this->dropTableIfExists(EditService::TABLE);
-		$this->dropTableIfExists(ReferenceService::TABLE);
-		$this->dropTableIfExists(ActivityService::TABLE);
-		$this->dropTableIfExists(FilterService::TABLE);
-		$this->dropTableIfExists(DiagnosticsService::TABLE_CHECKS);
-		$this->dropTableIfExists(MaintainerService::TABLE);
-		$this->dropTableIfExists(LabelService::TABLE_LABELED);
-		$this->dropTableIfExists(LabelService::TABLE_LABELS);
+		$this->dropTableIfExists(Tables::SNOOZES);
+		$this->dropTableIfExists(Tables::KEPT_FILES);
+		$this->dropTableIfExists(Tables::SNAPSHOT_REFERENCES);
+		$this->dropTableIfExists(Tables::SNAPSHOT_ASSETS);
+		$this->dropTableIfExists(Tables::SNAPSHOT_ENTRIES);
+		$this->dropTableIfExists(Tables::SNAPSHOTS);
+		$this->dropTableIfExists(Tables::EDITS);
+		$this->dropTableIfExists(Tables::REFERENCES);
+		$this->dropTableIfExists(Tables::ACTIVITY);
+		$this->dropTableIfExists(Tables::FILTERS);
+		$this->dropTableIfExists(Tables::CHECKS);
+		$this->dropTableIfExists(Tables::MAINTAINERS);
+		$this->dropTableIfExists(Tables::LABELED);
+		$this->dropTableIfExists(Tables::LABELS);
 
 		return true;
 	}
@@ -64,7 +57,7 @@ class Install extends Migration
 	 */
 	private function createSnoozeTable(): void
 	{
-		$this->createTable(WorkService::TABLE_SNOOZES, [
+		$this->createTable(Tables::SNOOZES, [
 			'userId' => $this->integer()->notNull(),
 			'elementId' => $this->integer()->notNull(),
 			'checkKey' => $this->string(100)->notNull(),
@@ -72,15 +65,15 @@ class Install extends Migration
 			'PRIMARY KEY([[userId]], [[elementId]], [[checkKey]])',
 		]);
 
-		$this->createIndex(null, WorkService::TABLE_SNOOZES, ['dateUntil']);
-		$this->createIndex(null, WorkService::TABLE_SNOOZES, ['elementId']);
-		$this->addForeignKey(null, WorkService::TABLE_SNOOZES, ['userId'], Table::USERS, ['id'], 'CASCADE');
-		$this->addForeignKey(null, WorkService::TABLE_SNOOZES, ['elementId'], Table::ELEMENTS, ['id'], 'CASCADE');
+		$this->createIndex(null, Tables::SNOOZES, ['dateUntil']);
+		$this->createIndex(null, Tables::SNOOZES, ['elementId']);
+		$this->addForeignKey(null, Tables::SNOOZES, ['userId'], Table::USERS, ['id'], 'CASCADE');
+		$this->addForeignKey(null, Tables::SNOOZES, ['elementId'], Table::ELEMENTS, ['id'], 'CASCADE');
 	}
 
 	private function createLabelTables(): void
 	{
-		$this->createTable(LabelService::TABLE_LABELS, [
+		$this->createTable(Tables::LABELS, [
 			'id' => $this->primaryKey(),
 			'name' => $this->string()->notNull(),
 			'description' => $this->text(),
@@ -93,7 +86,7 @@ class Install extends Migration
 		]);
 
 		// Items are those of a list (see ColumnService::LIST_*) by their ID, as they aren't all elements.
-		$this->createTable(LabelService::TABLE_LABELED, [
+		$this->createTable(Tables::LABELED, [
 			'id' => $this->primaryKey(),
 			'labelId' => $this->integer()->notNull(),
 			'list' => $this->string(32)->notNull(),
@@ -103,15 +96,15 @@ class Install extends Migration
 			'uid' => $this->uid(),
 		]);
 
-		$this->createIndex(null, LabelService::TABLE_LABELED, ['labelId', 'list', 'itemId'], true);
-		$this->createIndex(null, LabelService::TABLE_LABELED, ['list', 'itemId']);
-		$this->addForeignKey(null, LabelService::TABLE_LABELED, ['labelId'], LabelService::TABLE_LABELS, ['id'], 'CASCADE');
+		$this->createIndex(null, Tables::LABELED, ['labelId', 'list', 'itemId'], true);
+		$this->createIndex(null, Tables::LABELED, ['list', 'itemId']);
+		$this->addForeignKey(null, Tables::LABELED, ['labelId'], Tables::LABELS, ['id'], 'CASCADE');
 	}
 
 	private function createMaintainerTable(): void
 	{
 		// Items are those of a list (see ColumnService::LIST_*) by their ID, like labeled ones; each row is a user or a group.
-		$this->createTable(MaintainerService::TABLE, [
+		$this->createTable(Tables::MAINTAINERS, [
 			'id' => $this->primaryKey(),
 			'list' => $this->string(32)->notNull(),
 			'itemId' => $this->integer()->notNull(),
@@ -122,18 +115,18 @@ class Install extends Migration
 			'uid' => $this->uid(),
 		]);
 
-		$this->createIndex(null, MaintainerService::TABLE, ['list', 'itemId', 'userId'], true);
-		$this->createIndex(null, MaintainerService::TABLE, ['list', 'itemId', 'groupId'], true);
-		$this->createIndex(null, MaintainerService::TABLE, ['userId']);
-		$this->createIndex(null, MaintainerService::TABLE, ['groupId']);
-		$this->addForeignKey(null, MaintainerService::TABLE, ['userId'], Table::USERS, ['id'], 'CASCADE');
-		$this->addForeignKey(null, MaintainerService::TABLE, ['groupId'], Table::USERGROUPS, ['id'], 'CASCADE');
+		$this->createIndex(null, Tables::MAINTAINERS, ['list', 'itemId', 'userId'], true);
+		$this->createIndex(null, Tables::MAINTAINERS, ['list', 'itemId', 'groupId'], true);
+		$this->createIndex(null, Tables::MAINTAINERS, ['userId']);
+		$this->createIndex(null, Tables::MAINTAINERS, ['groupId']);
+		$this->addForeignKey(null, Tables::MAINTAINERS, ['userId'], Table::USERS, ['id'], 'CASCADE');
+		$this->addForeignKey(null, Tables::MAINTAINERS, ['groupId'], Table::USERGROUPS, ['id'], 'CASCADE');
 	}
 
 	private function createCheckTable(): void
 	{
 		// Default checks have a row once configured, by their handle; custom ones have none, but a name and their filter.
-		$this->createTable(DiagnosticsService::TABLE_CHECKS, [
+		$this->createTable(Tables::CHECKS, [
 			'id' => $this->primaryKey(),
 			'kind' => $this->string(32)->notNull(),
 			'handle' => $this->string(64),
@@ -150,14 +143,14 @@ class Install extends Migration
 			'uid' => $this->uid(),
 		]);
 
-		$this->createIndex(null, DiagnosticsService::TABLE_CHECKS, ['kind', 'handle'], true);
+		$this->createIndex(null, Tables::CHECKS, ['kind', 'handle'], true);
 	}
 
 	private function createFilterTable(): void
 	{
 		// Predefined filters have a row once configured, by their handle, with their threshold; custom ones have a condition,
 		// and users' own ones the filters of the list they were saved with, along with the user.
-		$this->createTable(FilterService::TABLE, [
+		$this->createTable(Tables::FILTERS, [
 			'id' => $this->primaryKey(),
 			'kind' => $this->string(32)->notNull(),
 			'handle' => $this->string(64),
@@ -175,16 +168,16 @@ class Install extends Migration
 			'uid' => $this->uid(),
 		]);
 
-		$this->createIndex(null, FilterService::TABLE, ['kind', 'handle'], true);
-		$this->createIndex(null, FilterService::TABLE, ['userId', 'kind']);
-		$this->addForeignKey(null, FilterService::TABLE, ['userId'], Table::USERS, ['id'], 'CASCADE');
+		$this->createIndex(null, Tables::FILTERS, ['kind', 'handle'], true);
+		$this->createIndex(null, Tables::FILTERS, ['userId', 'kind']);
+		$this->addForeignKey(null, Tables::FILTERS, ['userId'], Table::USERS, ['id'], 'CASCADE');
 	}
 
 	private function createActivityTable(): void
 	{
 		// Users and subjects are kept by their ID and name, without foreign keys, so activities outlive them. Activities of a
 		// batch, like those of a bulk action, refer to the batch's own activity.
-		$this->createTable(ActivityService::TABLE, [
+		$this->createTable(Tables::ACTIVITY, [
 			'id' => $this->primaryKey(),
 			'batchId' => $this->integer(),
 			'action' => $this->string(32)->notNull(),
@@ -201,11 +194,11 @@ class Install extends Migration
 			'uid' => $this->uid(),
 		]);
 
-		$this->createIndex(null, ActivityService::TABLE, ['dateCreated']);
-		$this->createIndex(null, ActivityService::TABLE, ['userId']);
-		$this->createIndex(null, ActivityService::TABLE, ['subject', 'subjectId']);
-		$this->createIndex(null, ActivityService::TABLE, ['action']);
-		$this->createIndex(null, ActivityService::TABLE, ['batchId']);
+		$this->createIndex(null, Tables::ACTIVITY, ['dateCreated']);
+		$this->createIndex(null, Tables::ACTIVITY, ['userId']);
+		$this->createIndex(null, Tables::ACTIVITY, ['subject', 'subjectId']);
+		$this->createIndex(null, Tables::ACTIVITY, ['action']);
+		$this->createIndex(null, Tables::ACTIVITY, ['batchId']);
 	}
 
 	/**
@@ -214,7 +207,7 @@ class Install extends Migration
 	 */
 	private function createContentTables(): void
 	{
-		$this->createTable(ReferenceService::TABLE, [
+		$this->createTable(Tables::REFERENCES, [
 			'id' => $this->primaryKey(),
 			'sourceId' => $this->integer()->notNull(),
 			'sourceSiteId' => $this->integer()->notNull(),
@@ -222,37 +215,33 @@ class Install extends Migration
 			'targetId' => $this->integer()->notNull(),
 		]);
 
-		$this->createIndex(null, ReferenceService::TABLE, ['sourceId', 'sourceSiteId', 'fieldId', 'targetId'], true);
-		$this->createIndex(null, ReferenceService::TABLE, ['targetId']);
-		$this->addForeignKey(null, ReferenceService::TABLE, ['sourceId'], Table::ELEMENTS, ['id'], 'CASCADE');
-		$this->addForeignKey(null, ReferenceService::TABLE, ['sourceSiteId'], Table::SITES, ['id'], 'CASCADE');
-		$this->addForeignKey(null, ReferenceService::TABLE, ['fieldId'], Table::FIELDS, ['id'], 'CASCADE');
-		$this->addForeignKey(null, ReferenceService::TABLE, ['targetId'], Table::ELEMENTS, ['id'], 'CASCADE');
+		$this->createIndex(null, Tables::REFERENCES, ['sourceId', 'sourceSiteId', 'fieldId', 'targetId'], true);
+		$this->createIndex(null, Tables::REFERENCES, ['targetId']);
+		$this->addForeignKey(null, Tables::REFERENCES, ['sourceId'], Table::ELEMENTS, ['id'], 'CASCADE');
+		$this->addForeignKey(null, Tables::REFERENCES, ['sourceSiteId'], Table::SITES, ['id'], 'CASCADE');
+		$this->addForeignKey(null, Tables::REFERENCES, ['fieldId'], Table::FIELDS, ['id'], 'CASCADE');
+		$this->addForeignKey(null, Tables::REFERENCES, ['targetId'], Table::ELEMENTS, ['id'], 'CASCADE');
 
-		Queue::push(new IndexReferences());
-
-		$this->createTable(EditService::TABLE, [
+		$this->createTable(Tables::EDITS, [
 			'elementId' => $this->integer()->notNull(),
 			'userId' => $this->integer(),
 			'dateEdited' => $this->dateTime()->notNull(),
 			'PRIMARY KEY([[elementId]])',
 		]);
 
-		$this->createIndex(null, EditService::TABLE, ['dateEdited']);
-		$this->createIndex(null, EditService::TABLE, ['userId']);
-		$this->addForeignKey(null, EditService::TABLE, ['elementId'], Table::ELEMENTS, ['id'], 'CASCADE');
-		$this->addForeignKey(null, EditService::TABLE, ['userId'], Table::USERS, ['id'], 'SET NULL');
-
-		(new EditService())->backfill();
+		$this->createIndex(null, Tables::EDITS, ['dateEdited']);
+		$this->createIndex(null, Tables::EDITS, ['userId']);
+		$this->addForeignKey(null, Tables::EDITS, ['elementId'], Table::ELEMENTS, ['id'], 'CASCADE');
+		$this->addForeignKey(null, Tables::EDITS, ['userId'], Table::USERS, ['id'], 'SET NULL');
 	}
 
 	/**
 	 * Creates the tables of the snapshots and their counts. Counts are kept by the IDs of what they're of, without foreign
-	 * keys, so they outlive it, and by the sets of sites their items are on (see SiteSet).
+	 * keys, so they outlive it, and by the sets of sites their items are on.
 	 */
 	private function createSnapshotTables(): void
 	{
-		$this->createTable(SnapshotService::TABLE, [
+		$this->createTable(Tables::SNAPSHOTS, [
 			'id' => $this->primaryKey(),
 			'date' => $this->date()->notNull(),
 			'metrics' => $this->text(),
@@ -261,9 +250,9 @@ class Install extends Migration
 			'uid' => $this->uid(),
 		]);
 
-		$this->createIndex(null, SnapshotService::TABLE, ['date'], true);
+		$this->createIndex(null, Tables::SNAPSHOTS, ['date'], true);
 
-		$this->createTable(SnapshotService::TABLE_ENTRIES, [
+		$this->createTable(Tables::SNAPSHOT_ENTRIES, [
 			'id' => $this->primaryKey(),
 			'snapshotId' => $this->integer()->notNull(),
 			'sectionId' => $this->integer(),
@@ -279,7 +268,7 @@ class Install extends Migration
 			'lastUpdated' => $this->dateTime(),
 		]);
 
-		$this->createTable(SnapshotService::TABLE_ASSETS, [
+		$this->createTable(Tables::SNAPSHOT_ASSETS, [
 			'id' => $this->primaryKey(),
 			'snapshotId' => $this->integer()->notNull(),
 			'volumeId' => $this->integer()->notNull(),
@@ -292,7 +281,7 @@ class Install extends Migration
 			'lastUploaded' => $this->dateTime(),
 		]);
 
-		$this->createTable(SnapshotService::TABLE_REFERENCES, [
+		$this->createTable(Tables::SNAPSHOT_REFERENCES, [
 			'id' => $this->primaryKey(),
 			'snapshotId' => $this->integer()->notNull(),
 			'fieldId' => $this->integer()->notNull(),
@@ -304,9 +293,9 @@ class Install extends Migration
 			'targets' => $this->integer()->notNull()->defaultValue(0),
 		]);
 
-		foreach ([SnapshotService::TABLE_ENTRIES, SnapshotService::TABLE_ASSETS, SnapshotService::TABLE_REFERENCES] as $table) {
+		foreach ([Tables::SNAPSHOT_ENTRIES, Tables::SNAPSHOT_ASSETS, Tables::SNAPSHOT_REFERENCES] as $table) {
 			$this->createIndex(null, $table, ['snapshotId']);
-			$this->addForeignKey(null, $table, ['snapshotId'], SnapshotService::TABLE, ['id'], 'CASCADE');
+			$this->addForeignKey(null, $table, ['snapshotId'], Tables::SNAPSHOTS, ['id'], 'CASCADE');
 		}
 	}
 
@@ -316,7 +305,7 @@ class Install extends Migration
 	 */
 	private function createKeptFilesTable(): void
 	{
-		$this->createTable(TrashService::TABLE_KEPT_FILES, [
+		$this->createTable(Tables::KEPT_FILES, [
 			'assetId' => $this->integer()->notNull(),
 			'volumeId' => $this->integer()->notNull(),
 			'path' => $this->string(1000)->notNull(),

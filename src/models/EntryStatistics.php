@@ -1,25 +1,35 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use DateTime;
 
 /**
  * Counts of a set of entries, like those of a section or an entry type.
+ *
+ * @internal
  */
-class EntryStatistics
+final class EntryStatistics extends Model
 {
 	public const ACTIVITY_RECENT = 'recent';
 	public const ACTIVITY_STALE = 'stale';
 	public const ACTIVITY_NONE = 'none';
 
 	public int $total = 0;
+
 	public int $enabled = 0;
+
 	/** enabled entries with a post date in the future */
 	public int $pending = 0;
+
 	/** enabled entries with an expiry date in the past */
 	public int $expired = 0;
+
 	public int $drafts = 0;
+
 	public ?DateTime $lastUpdated = null;
 
 	public function getDisabled(): int
@@ -36,7 +46,7 @@ class EntryStatistics
 	}
 
 	/**
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public static function getActivities(): array
 	{
@@ -49,11 +59,13 @@ class EntryStatistics
 	 */
 	public function getActivity(int $staleMonths, ?DateTime $at = null): string
 	{
-		if ($this->lastUpdated === null) {
+		if (!$this->lastUpdated instanceof DateTime) {
 			return self::ACTIVITY_NONE;
 		}
 
-		$threshold = ($at !== null ? clone $at : new DateTime())->modify(sprintf('-%d months', $staleMonths));
+		$now = $at instanceof DateTime ? clone $at : new DateTime();
+		$modified = $now->modify(sprintf('-%d months', $staleMonths));
+		$threshold = $modified instanceof DateTime ? $modified : $now;
 
 		return $this->lastUpdated < $threshold ? self::ACTIVITY_STALE : self::ACTIVITY_RECENT;
 	}
@@ -66,7 +78,7 @@ class EntryStatistics
 		$this->expired += $stats->expired;
 		$this->drafts += $stats->drafts;
 
-		if ($stats->lastUpdated !== null && ($this->lastUpdated === null || $stats->lastUpdated > $this->lastUpdated)) {
+		if ($stats->lastUpdated instanceof DateTime && (!$this->lastUpdated instanceof DateTime || $stats->lastUpdated > $this->lastUpdated)) {
 			$this->lastUpdated = $stats->lastUpdated;
 		}
 

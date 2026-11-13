@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
+use craft\base\Model;
 use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\UserGroup;
@@ -12,8 +15,10 @@ use craft\models\Volume;
 /**
  * An item of a deletion preview, with what deleting it takes along, in groups: like its nested entries, drafts and
  * references, each listing up to ELEMENT_LIMIT of what it is about.
+ *
+ * @internal
  */
-class DeletionItem
+final class DeletionItem extends Model
 {
 	/** most elements, models or names listed in a group */
 	public const ELEMENT_LIMIT = 10;
@@ -26,21 +31,22 @@ class DeletionItem
 	public function __construct(
 		public ElementInterface|Section|EntryType|FieldInterface|Volume|UserGroup $model,
 	) {
+		parent::__construct();
 	}
 
 	public function getId(): int
 	{
-		return (int)$this->model->id;
+		return (int) $this->model->id;
 	}
 
 	/**
 	 * Groups with anything in them, which deleting the item affects.
 	 *
-	 * @return array<int,array{tone:string,icon:string,label:string,count:int,items:array<int,ElementInterface|EntryReference|Section|EntryType|FieldInterface|string>,more:int}>
+	 * @return list<array{tone:string,icon:string,label:string,count:int,items:array<int,ElementInterface|EntryReference|Section|EntryType|FieldInterface|string>,more:int}>
 	 */
 	public function getAffected(): array
 	{
-		return array_values(array_filter($this->groups, fn (array $group) => $group['count'] > 0));
+		return array_values(array_filter($this->groups, fn(array $group): bool => $group['count'] > 0));
 	}
 
 	/**
@@ -49,7 +55,7 @@ class DeletionItem
 	 *
 	 * @param string $label naming the count, like “Drafts”
 	 * @param int $count how many there are, of which the items are the first
-	 * @param array<int,ElementInterface|EntryReference|Section|EntryType|FieldInterface|string> $items
+	 * @param array<ElementInterface|EntryReference|Section|EntryType|FieldInterface|string> $items
 	 */
 	public function addGroup(string $tone, string $icon, string $label, int $count, array $items = []): void
 	{

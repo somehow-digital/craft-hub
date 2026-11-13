@@ -19,7 +19,7 @@
 
 	<div class="hub-checks-settings">
 		{% for item in kinds %}
-			{% include 'hub/_panels/settings/filters' with { kind: item.kind, filters: item.filters } only %}
+			{{ include('hub/_panels/settings/filters', {kind: item.kind, filters: item.filters}, false) }}
 		{% endfor %}
 	</div>
 {% endblock %}

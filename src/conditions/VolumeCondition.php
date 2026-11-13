@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions;
 
 use SomehowDigital\Craft\Hub\conditions\rules\AssetCountConditionRule;
@@ -16,9 +18,14 @@ use SomehowDigital\Craft\Hub\conditions\rules\SizeConditionRule;
 
 /**
  * A condition on volumes, matched against what Hub knows about them, see {@see \SomehowDigital\Craft\Hub\models\VolumeInfo}.
+ *
+ * @internal
  */
-class VolumeCondition extends InfoCondition
+final class VolumeCondition extends BaseInfoCondition
 {
+	/**
+	 * @return list<array{class: string}|string>
+	 */
 	protected function selectableConditionRules(): array
 	{
 		return [

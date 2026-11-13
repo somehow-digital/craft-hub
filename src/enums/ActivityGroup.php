@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\enums;
 
 use Craft;
@@ -7,6 +9,8 @@ use Craft;
 /**
  * Generic kind of what was done in an activity, the activity log is filtered by; the type of the subject narrows it
  * down, like deleted assets rather than deleted anything. Each action belongs to one, see ActivityAction::group().
+ *
+ * @internal
  */
 enum ActivityGroup: string
 {
@@ -23,11 +27,11 @@ enum ActivityGroup: string
 	/**
 	 * The actions of the group.
 	 *
-	 * @return ActivityAction[]
+	 * @return list<ActivityAction>
 	 */
 	public function actions(): array
 	{
-		return array_values(array_filter(ActivityAction::cases(), fn (ActivityAction $action) => $action->group() === $this));
+		return array_values(array_filter(ActivityAction::cases(), fn(ActivityAction $action): bool => $action->group() === $this));
 	}
 
 	public function label(): string

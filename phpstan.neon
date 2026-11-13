@@ -1,13 +1,79 @@
 includes:
+	- vendor/phpstan/phpstan/conf/bleedingEdge.neon
 	- vendor/craftcms/phpstan/phpstan.neon
+	- vendor/pestphp/pest/extension.neon
+	- vendor/pestphp/pest/phpstan-pest-extension.neon
+	- vendor/phpstan/phpstan-strict-rules/rules.neon
+	- vendor/phpstan/phpstan-deprecation-rules/rules.neon
+	- vendor/shipmonk/phpstan-rules/rules.neon
+	- vendor/tomasvotruba/cognitive-complexity/config/extension.neon
+	- vendor/phpat/phpat/extension.neon
+
+parametersSchema:
+	architecture: structure([
+		namespace: string()
+		tests: string()
+		publicApi: listOf(string())
+		wrappedPackages: listOf(string())
+	])
 
 parameters:
-	level: 6
+	architecture:
+		namespace: SomehowDigital\Craft\Hub
+		tests: SomehowDigital\Craft\Hub\Tests
+		# Classes projects may use; everything else is @internal.
+		publicApi:
+			- SomehowDigital\Craft\Hub\Hub
+		# Wrapped packages the public API must not expose.
+		wrappedPackages: []
+
+	level: 10
+	# Analyses for the range of versions that the plugin supports, not just the one that runs the analysis.
+	phpVersion:
+		min: 80200
+		max: 80599
+	reportUnmatchedIgnoredErrors: true
+	# The defaults of 9 for a function and 40 for a class suit small plugins; this one's services and the card lists of its statistics are larger.
+	cognitive_complexity:
+		class: 100
+		function: 45
+	checkUninitializedProperties: true
+	checkTooWideReturnTypesInProtectedAndPublicMethods: true
 	ignoreErrors:
-		# Craft's queries are generic by their rows, which Hub's own code doesn't depend on.
-		- identifier: missingType.generics
+		# Pest marks the classes behind its functions as internal, though tests call their methods throughout.
+		-
+			identifier: method.internalClass
+			message: '#internal class Pest\\#'
+			path: tests
+		-
+			identifier: staticMethod.internalClass
+			message: '#internal class Pest\\TestSuite#'
+			path: tests/Pest.php
+		-
+			identifier: property.internalClass
+			message: '#internal class Pest\\TestSuite#'
+			path: tests/Pest.php
+		-
+			identifier: classConstant.internalClass
+			message: '#internal class Pest\\Mixins\\Expectation#'
+			path: tests/PHPStan/PestExpectationReturnTypeExtension.php
+		# @internal marks the public API boundary, not the tests'.
+		-
+			message: '#internal (class|interface|enum|method|static method) SomehowDigital\\Craft\\Hub\\#'
+			path: tests
 	paths:
 		- src
+		- tests
+	excludePaths:
+		# Runs within a Craft project and prints its results.
+		- tests/Integration/smoke.php
+		# Stubs describe the code analysed, they aren't analysed.
+		- tests/PHPStan/stubs
+	stubFiles:
+		# Rows of a query are arrays of columns.
+		- tests/PHPStan/stubs/Query.stub
+	bootstrapFiles:
+		- tests/PHPStan/bootstrap.php
 	earlyTerminatingMethodCalls:
 		Craft:
 			- dd
@@ -15,3 +81,144 @@ parameters:
 			- end
 		yii\base\ErrorHandler:
 			- convertExceptionToError
+	phpat:
+		show_rule_names: true
+	shipmonkRules:
+		# Debugging, insecure calls, and what Craft does for the plugin.
+		forbidCustomFunctions:
+			list:
+				'Craft::dd': 'Remove the debugging.'
+				'Craft::dump': 'Remove the debugging.'
+				'debug_backtrace': 'Remove the debugging.'
+				'debug_print_backtrace': 'Remove the debugging.'
+				'debug_zval_dump': 'Remove the debugging.'
+				'dd': 'Remove the debugging.'
+				'dump': 'Remove the debugging.'
+				'phpinfo': 'Remove the debugging.'
+				'print_r': 'Remove the debugging.'
+				'ray': 'Remove the debugging.'
+				'var_dump': 'Remove the debugging.'
+				'var_export': 'Remove the debugging.'
+				'xdebug_break': 'Remove the debugging.'
+				'xdebug_var_dump': 'Remove the debugging.'
+				'array_rand': 'It is not cryptographically secure, so use random_int().'
+				'mt_rand': 'It is not cryptographically secure, so use random_int().'
+				'rand': 'It is not cryptographically secure, so use random_int().'
+				'shuffle': 'It is not cryptographically secure, so use random_int().'
+				'str_shuffle': 'It is not cryptographically secure, so use random_int().'
+				'uniqid': 'It is predictable, so use random_bytes() or StringHelper::UUID().'
+				'md5': 'It is broken, so use hash() with a secure algorithm.'
+				'sha1': 'It is broken, so use hash() with a secure algorithm.'
+				'tempnam': 'Use the storage paths of Craft.'
+				'assert': 'Assertions are not run in production, so throw an exception.'
+				'unserialize': 'It can create any object, so decode JSON.'
+				'extract': 'It creates variables out of data.'
+				'mb_parse_str': 'It creates variables out of data.'
+				'dl': 'Extensions are not loaded at runtime.'
+				'exec': 'The plugin runs no commands.'
+				'passthru': 'The plugin runs no commands.'
+				'proc_open': 'The plugin runs no commands.'
+				'shell_exec': 'The plugin runs no commands.'
+				'system': 'The plugin runs no commands.'
+				'sleep': 'Do not block the request, so push a queue job.'
+				'usleep': 'Do not block the request, so push a queue job.'
+				'getenv': 'Read the environment through App::env().'
+				'putenv': 'The environment is configured, not changed at runtime.'
+				'header': 'Set the headers on the response of Craft.'
+				'setcookie': 'Set the cookies on the response of Craft.'
+				'session_start': 'Use the session of Craft.'
+				'yii\base\Application::end': 'Return the response of Craft.'
+				'error_log': 'Log through Craft::info(), Craft::warning() and Craft::error().'
+				'mail': 'Send emails through the mailer of Craft.'
+				'curl_init': 'Send requests through the HTTP client of Craft.'
+				'yii\di\ServiceLocator::setComponents': 'Register the components in Plugin::config(), so projects can configure them.'
+		# Craft and Yii set models, events and console options through their public properties.
+		enforceReadonlyPublicProperty:
+			enabled: false
+		# Yii declares its exceptions as checked ones, which callbacks throw throughout Craft.
+		forbidCheckedExceptionInCallable:
+			enabled: false
+
+services:
+	# Layer rules; dependencies are in deptrac.yaml.
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\ArchitectureRules
+		tags:
+			- phpat.test
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\ForbiddenConstructRule
+		tags:
+			- phpstan.rules.rule
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\PublicApiRule
+		arguments:
+			namespace: %architecture.namespace%
+			excluded: [%architecture.tests%]
+			classes: %architecture.publicApi%
+		tags:
+			- phpstan.rules.rule
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\PublicApiSignatureRule
+		arguments:
+			namespace: %architecture.namespace%
+			classes: %architecture.publicApi%
+			hidden: %architecture.wrappedPackages%
+		tags:
+			- phpstan.rules.rule
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\ServiceLocatorRule
+		arguments:
+			namespace: %architecture.namespace%
+			# Everything but the entry points, which Craft creates, so they get their dependencies passed in.
+			layers: [assets, base, bulk, conditions, db, elements, enums, handlers, helpers, models, services, statistics]
+		tags:
+			- phpstan.rules.rule
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\ServiceDependenciesCollector
+		arguments:
+			namespace: %architecture.namespace%\services
+		tags:
+			- phpstan.collector
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\ServiceCycleRule
+		tags:
+			- phpstan.rules.rule
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\StaticStateRule
+		arguments:
+			namespace: %architecture.namespace%
+			excluded: [%architecture.tests%]
+		tags:
+			- phpstan.rules.rule
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\QueueJobPropertyRule
+		arguments:
+			namespace: %architecture.namespace%
+		tags:
+			- phpstan.rules.rule
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\ControllerActionRule
+		arguments:
+			namespace: %architecture.namespace%
+		tags:
+			- phpstan.rules.rule
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\StringBackedEnumRule
+		arguments:
+			namespace: %architecture.namespace%
+		tags:
+			- phpstan.rules.rule
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\PestClosureThisExtension
+		tags:
+			- phpstan.functionParameterClosureThisExtension
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\PestExpectationReturnTypeExtension
+		arguments: [Pest\Expectation]
+		tags:
+			- phpstan.broker.dynamicMethodReturnTypeExtension
+	-
+		class: SomehowDigital\Craft\Hub\Tests\PHPStan\PestExpectationReturnTypeExtension
+		arguments: [Pest\Expectations\OppositeExpectation]
+		tags:
+			- phpstan.broker.dynamicMethodReturnTypeExtension

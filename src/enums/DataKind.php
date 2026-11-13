@@ -1,11 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\enums;
 
 use Craft;
 
 /**
  * What kind of data a field holds.
+ *
+ * @internal
  */
 enum DataKind: string
 {

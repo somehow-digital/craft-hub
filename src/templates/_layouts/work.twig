@@ -13,11 +13,11 @@
 {% set tabs = workTabs %}
 {% set docTitle = (selectedTab != 'overview' ? tabs[selectedTab].label ~ ' - ' : '') ~ title ~ ' - ' ~ 'Hub'|t('hub') %}
 {% set crumbs = [
-	{ label: 'Hub'|t('hub'), url: url('hub/manage', { hubSite: hubSite }) },
-	{ label: title, url: tabs.overview.url, current: selectedTab == 'overview' },
+	{label: 'Hub'|t('hub'), url: url('hub/manage', {hubSite: hubSite})},
+	{label: title, url: tabs.overview.url, current: selectedTab == 'overview'},
 ] %}
 {% if selectedTab != 'overview' %}
-	{% set crumbs = crumbs|merge([{ label: tabs[selectedTab].label, url: tabs[selectedTab].url, current: true }]) %}
+	{% set crumbs = crumbs|merge([{label: tabs[selectedTab].label, url: tabs[selectedTab].url, current: true}]) %}
 {% endif %}
 
 {% block actionButton %}

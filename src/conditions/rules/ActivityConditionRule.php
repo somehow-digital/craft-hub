@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
 use craft\base\conditions\BaseMultiSelectConditionRule;
+use SomehowDigital\Craft\Hub\base\InfoConditionRuleInterface;
+use SomehowDigital\Craft\Hub\base\ThresholdsProviderInterface;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
-use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\EntryStatistics;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
@@ -14,14 +17,29 @@ use SomehowDigital\Craft\Hub\models\VolumeInfo;
 
 /**
  * Matches how recently a person edited the entries of a section or entry type, see the general settings.
+ *
+ * @internal
  */
-class ActivityConditionRule extends BaseMultiSelectConditionRule implements InfoConditionRuleInterface
+final class ActivityConditionRule extends BaseMultiSelectConditionRule implements InfoConditionRuleInterface
 {
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly ThresholdsProviderInterface $filters,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
+
 	public function getLabel(): string
 	{
 		return Craft::t('hub', 'Activity');
 	}
 
+	/**
+	 * @return list<array{value: string, label: string}|string>
+	 */
 	protected function options(): array
 	{
 		return [
@@ -36,7 +54,7 @@ class ActivityConditionRule extends BaseMultiSelectConditionRule implements Info
 		$stats = $info instanceof VolumeInfo ? new EntryStatistics() : $info->stats;
 
 		// Sections and entry types are stale by the threshold of their stale filter, the entries of fields by that of entries.
-		$months = Hub::getInstance()->filters->getThreshold(match (true) {
+		$months = $this->filters->getThreshold(match (true) {
 			$info instanceof SectionInfo => CheckKind::Sections,
 			$info instanceof EntryTypeInfo => CheckKind::EntryTypes,
 			default => CheckKind::Entries,

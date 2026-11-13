@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\enums;
 
 use Craft;
@@ -10,6 +12,8 @@ use craft\elements\User;
 
 /**
  * Hub's lists and what belongs to each of them, by the list's name (see ColumnService::LIST_*).
+ *
+ * @internal
  */
 enum ListType: string
 {
@@ -71,7 +75,7 @@ enum ListType: string
 			self::Entries, self::TrashedEntries => Entry::class,
 			self::Files, self::TrashedFiles => Asset::class,
 			self::Users => User::class,
-			default => null,
+			self::Sections, self::EntryTypes, self::Fields, self::Volumes, self::UserGroups, self::Activity => null,
 		};
 	}
 
@@ -94,7 +98,7 @@ enum ListType: string
 			self::EntryTypes => 'hub/structure/entry-types',
 			self::Fields => 'hub/structure/fields',
 			self::Volumes => 'hub/structure/volumes',
-			default => null,
+			self::TrashedEntries, self::TrashedFiles, self::Activity => null,
 		};
 	}
 
@@ -112,7 +116,7 @@ enum ListType: string
 			self::EntryTypes => Craft::t('hub', 'Entry Types'),
 			self::Fields => Craft::t('app', 'Fields'),
 			self::Volumes => Craft::t('app', 'Volumes'),
-			default => null,
+			self::TrashedEntries, self::TrashedFiles, self::Activity => null,
 		};
 	}
 }

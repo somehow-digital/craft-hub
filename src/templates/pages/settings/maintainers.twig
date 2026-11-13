@@ -9,16 +9,16 @@
 {% set selectedTab = 'maintainers' %}
 
 {% block content %}
-	{% embed 'hub/_components/settings-form' with { path: 'hub/manage/settings/maintainers', readOnly: readOnly, overrides: overrides, settings: settings } only %}
+	{% embed 'hub/_components/settings-form' with {path: 'hub/manage/settings/maintainers', readOnly: readOnly, overrides: overrides, settings: settings} only %}
 		{% block fields %}
-			{% include 'hub/_components/setting' with { name: 'enableMaintainers', field: {
+			{{ include('hub/_components/setting', {name: 'enableMaintainers', field: {
 				first: true,
 				label: 'Maintainers'|t('hub'),
 				instructions: 'Whether sections, entry types, fields and volumes can have maintainers, who are shown there and on the entries and assets in them, so editors know who to ask for help. Maintainers have no permissions of their own, and are set on the pages of those items by users who may manage them.'|t('hub'),
 			},
 			overrides: overrides,
 			readOnly: readOnly,
-			settings: settings, } only %}
+			settings: settings}, false) }}
 		{% endblock %}
 	{% endembed %}
 {% endblock %}

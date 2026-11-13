@@ -10,5 +10,5 @@
 {% set siteScoped = false %}
 
 {% block content %}
-	{% include 'hub/_components/user-list' with { list: list, hubSite: hubSite } only %}
+	{{ include('hub/_components/user-list', {list: list, hubSite: hubSite}, false) }}
 {% endblock %}

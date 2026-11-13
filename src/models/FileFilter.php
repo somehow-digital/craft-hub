@@ -1,13 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use DateTime;
 
 /**
  * Filters of the files list. Lists hold their values as they appear in the URL; empty lists and null values don't filter.
+ *
+ * @internal
  */
-class FileFilter
+final class FileFilter extends Model
 {
 	public const ORIENTATION_LANDSCAPE = 'landscape';
 	public const ORIENTATION_PORTRAIT = 'portrait';
@@ -41,20 +46,26 @@ class FileFilter
 	public ?string $usage = null;
 
 	public ?int $referencesMin = null;
+
 	public ?int $referencesMax = null;
 
 	/** file size in megabytes */
 	public ?float $sizeMin = null;
+
 	public ?float $sizeMax = null;
 
 	/** image dimensions in pixels */
 	public ?int $widthMin = null;
+
 	public ?int $widthMax = null;
+
 	public ?int $heightMin = null;
+
 	public ?int $heightMax = null;
 
 	/** upload dates, both days included */
 	public ?DateTime $uploadedFrom = null;
+
 	public ?DateTime $uploadedTo = null;
 
 	/** only images without alternative text */
@@ -64,7 +75,7 @@ class FileFilter
 	public bool $oversized = false;
 
 	/**
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public static function getOrientations(): array
 	{

@@ -8,30 +8,30 @@
 {% set sectionOptions = {} %}
 {% for section in list.sections %}
 	{% set sectionType = enum('SomehowDigital\\Craft\\Hub\\enums\\SectionType').from(section.type) %}
-	{% set sectionOptions = sectionOptions|merge({ (section.handle): { label: section.name|t('site'), icon: sectionType.icon(), color: sectionType.color() } }) %}
+	{% set sectionOptions = sectionOptions|merge({(section.handle): {label: section.name|t('site'), icon: sectionType.icon(), color: sectionType.color()}}) %}
 {% endfor %}
 
 {% set fieldOptions = {} %}
 {% for info in list.nestedFields %}
-	{% set fieldOptions = fieldOptions|merge({ (info.field.handle): { label: info.field.name|t('site'), icon: info.field.getIcon() ?: 'pen-to-square', color: 'violet' } }) %}
+	{% set fieldOptions = fieldOptions|merge({(info.field.handle): {label: info.field.name|t('site'), icon: info.field.getIcon() ?: 'pen-to-square', color: 'violet'}}) %}
 {% endfor %}
 
 {% set typeOptions = {} %}
 {% for entryType in list.entryTypes %}
-	{% set typeOptions = typeOptions|merge({ (entryType.handle): { label: entryType.name|t('site'), icon: entryType.icon ?: 'shapes', color: entryType.color.value ?? 'gray' } }) %}
+	{% set typeOptions = typeOptions|merge({(entryType.handle): {label: entryType.name|t('site'), icon: entryType.icon ?: 'shapes', color: entryType.color.value ?? 'gray'}}) %}
 {% endfor %}
 
-{% embed 'hub/_components/panel' with { list: list, typeOptions: typeOptions, sectionOptions: sectionOptions, fieldOptions: fieldOptions } only %}
+{% embed 'hub/_components/panel' with {list: list, typeOptions: typeOptions, sectionOptions: sectionOptions, fieldOptions: fieldOptions} only %}
 	{% block body %}
 		{% import 'hub/_components/macros' as hub %}
 		<form method="get" class="hub-filters" action="{{ url(list.listPath) }}" data-hub-submit{% if list.bulkSelection.review ?? false %} hidden{% endif %}>
 			{{ hub.search('Search by title or slug'|t('hub'), list.filter.search) }}
 			{{ hub.dropdown('Entry Type'|t('app'), 'shapes', hub.choices('type', typeOptions, list.filter.types)) }}
 			{% if list.sections|length or list.nestedFields|length %}
-				{{ hub.dropdown('Origin'|t('hub'), 'diagram-nested', (list.sections|length ? hub.choices('section', sectionOptions, list.filter.sections, { label: 'Sections'|t('app') }) : '')
-					~ (list.nestedFields|length ? hub.choices('field', fieldOptions, list.filter.fields, { label: 'Nested entry fields'|t('hub') }) : '')) }}
+				{{ hub.dropdown('Origin'|t('hub'), 'diagram-nested', (list.sections|length ? hub.choices('section', sectionOptions, list.filter.sections, {label: 'Sections'|t('app')}) : '')
+					~ (list.nestedFields|length ? hub.choices('field', fieldOptions, list.filter.fields, {label: 'Nested entry fields'|t('hub')}) : '')) }}
 			{% endif %}
-			{{ hub.dropdown('Deleted'|t('hub'), 'calendar', hub.range('deleted', 'Deletion date'|t('hub'), list.filter.deletedFrom, list.filter.deletedTo, { type: 'date' })) }}
+			{{ hub.dropdown('Deleted'|t('hub'), 'calendar', hub.range('deleted', 'Deletion date'|t('hub'), list.filter.deletedFrom, list.filter.deletedTo, {type: 'date'})) }}
 			{{ hub.addFilter() }}
 			{{ hiddenInput('sort', list.sort) }}
 			{{ hiddenInput('dir', list.dir) }}
@@ -40,7 +40,7 @@
 		</form>
 
 		{% if list.entries|length %}
-			{% embed 'hub/_components/bulk' with { bulkList: 'trashedEntries', bulkNone: 'No entries selected'|t('hub'), list: list } only %}
+			{% embed 'hub/_components/bulk' with {bulkList: 'trashedEntries', bulkNone: 'No entries selected'|t('hub'), list: list} only %}
 				{% block table %}
 					{% import 'hub/_components/macros' as hub %}
 					<div class="hub-table">
@@ -88,11 +88,11 @@
 					</div>
 				{% endblock %}
 				{% block footer %}
-					{% include '_includes/pagination' with {
+					{{ include('_includes/pagination', {
 						pageInfo: list.pageInfo,
 						itemLabel: 'entry'|t('app'),
 						itemsLabel: 'entries'|t('app'),
-					} only %}
+					}, false) }}
 				{% endblock %}
 			{% endembed %}
 		{% elseif list.filtered or (list.bulkSelection.review ?? false) %}

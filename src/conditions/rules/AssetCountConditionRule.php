@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use Craft;
 use craft\base\conditions\BaseNumberConditionRule;
+use SomehowDigital\Craft\Hub\base\InfoConditionRuleInterface;
 use SomehowDigital\Craft\Hub\models\EntryTypeInfo;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
@@ -11,8 +14,10 @@ use SomehowDigital\Craft\Hub\models\VolumeInfo;
 
 /**
  * Matches the number of assets of a volume, on the selected sites.
+ *
+ * @internal
  */
-class AssetCountConditionRule extends BaseNumberConditionRule implements InfoConditionRuleInterface
+final class AssetCountConditionRule extends BaseNumberConditionRule implements InfoConditionRuleInterface
 {
 	public function getLabel(): string
 	{

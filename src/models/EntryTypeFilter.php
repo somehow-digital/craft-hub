@@ -1,14 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use SomehowDigital\Craft\Hub\enums\UsageKind;
 
 /**
  * Filters of the entry types list. Lists hold their values as they appear in the URL; empty lists and null values don't
  * filter.
+ *
+ * @internal
  */
-class EntryTypeFilter
+final class EntryTypeFilter extends Model
 {
 	/** matched against the name and handle */
 	public string $search = '';
@@ -23,9 +28,11 @@ class EntryTypeFilter
 	public array $kinds = [];
 
 	public ?int $entriesMin = null;
+
 	public ?int $entriesMax = null;
 
 	public ?int $relationsMin = null;
+
 	public ?int $relationsMax = null;
 
 	/** @var string[] how recently the entries were updated, see the `ACTIVITY_*` constants of {@see EntryStatistics} */

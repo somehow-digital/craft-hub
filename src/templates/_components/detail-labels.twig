@@ -11,7 +11,7 @@
 	<div class="data hub-details__labels">
 		<dt class="heading">{{ 'Labels'|t('hub') }}</dt>
 		<dd class="value" data-hub-sidebar-labels="{{ list }}" data-hub-sidebar-id="{{ id }}">
-			{% include 'hub/_components/label-editor' with labeling only %}
+			{{ include('hub/_components/label-editor', labeling, false) }}
 		</dd>
 	</div>
 {% endif %}

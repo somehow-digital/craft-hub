@@ -1,11 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
+
+use craft\base\Model;
 
 /**
  * Filters of the user groups list. Null values don't filter.
+ *
+ * @internal
  */
-class UserGroupFilter
+final class UserGroupFilter extends Model
 {
 	public const TWO_FACTOR_REQUIRED = 'required';
 	public const TWO_FACTOR_OPTIONAL = 'optional';
@@ -17,9 +23,11 @@ class UserGroupFilter
 	public array $labels = [];
 
 	public ?int $usersMin = null;
+
 	public ?int $usersMax = null;
 
 	public ?int $permissionsMin = null;
+
 	public ?int $permissionsMax = null;
 
 	/** whether the groups require two-step verification (`required` or `optional`) */

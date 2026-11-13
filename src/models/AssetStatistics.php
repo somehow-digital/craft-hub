@@ -1,13 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
+use craft\base\Model;
 use DateTime;
 
 /**
  * Counts of a set of assets, like those of a volume.
+ *
+ * @internal
  */
-class AssetStatistics
+final class AssetStatistics extends Model
 {
 	public int $total = 0;
 
@@ -21,6 +26,7 @@ class AssetStatistics
 
 	/** file size in bytes */
 	public int $size = 0;
+
 	/** file size in bytes of the assets without references */
 	public int $unusedSize = 0;
 
@@ -45,7 +51,7 @@ class AssetStatistics
 		$this->size += $stats->size;
 		$this->unusedSize += $stats->unusedSize;
 
-		if ($stats->lastUploaded !== null && ($this->lastUploaded === null || $stats->lastUploaded > $this->lastUploaded)) {
+		if ($stats->lastUploaded instanceof DateTime && (!$this->lastUploaded instanceof DateTime || $stats->lastUploaded > $this->lastUploaded)) {
 			$this->lastUploaded = $stats->lastUploaded;
 		}
 

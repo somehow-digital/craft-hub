@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\assets;
 
 use craft\web\AssetBundle;
@@ -8,8 +10,10 @@ use craft\web\View;
 
 /**
  * Styles and scripts of Hub's own pages.
+ *
+ * @internal
  */
-class HubAsset extends AssetBundle
+final class HubAsset extends AssetBundle
 {
 	public function init(): void
 	{

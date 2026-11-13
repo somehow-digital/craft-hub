@@ -1,15 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\Hub;
 use yii\web\ForbiddenHttpException;
 use yii\web\Response;
 
 /**
  * The pages of the navigation items themselves, which have no content of their own.
+ *
+ * @internal
  */
-class NavController extends BaseController
+final class NavController extends BaseController
 {
 	public function actionData(): Response
 	{
@@ -29,7 +34,7 @@ class NavController extends BaseController
 	/**
 	 * Redirects to the first page of a navigation item, keeping the selected sites, unless the user may open none.
 	 *
-	 * @param array{subnav:array<string,array{url:string}>}|null $item
+	 * @param array<string,mixed>|null $item
 	 */
 	private function redirectToFirst(?array $item): Response
 	{
@@ -37,6 +42,10 @@ class NavController extends BaseController
 			throw new ForbiddenHttpException('User is not authorized to perform this action.');
 		}
 
-		return $this->redirect($this->hubUrl(reset($item['subnav'])['url']));
+		$subnav = $item['subnav'] ?? null;
+		$first = is_array($subnav) ? reset($subnav) : null;
+		$url = is_array($first) ? Fill::text($first['url'] ?? null) : null;
+
+		return $this->redirect($this->hubUrl($url ?? throw new ForbiddenHttpException('User is not authorized to perform this action.')));
 	}
 }

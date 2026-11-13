@@ -1,8 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
+use Closure;
 use Craft;
+use craft\db\Connection;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\db\UserQuery;
@@ -10,12 +14,17 @@ use craft\elements\User;
 use craft\enums\CmsEdition;
 use craft\helpers\Db;
 use craft\models\UserGroup;
+use craft\services\Elements;
 use craft\services\ProjectConfig;
+use craft\services\UserGroups;
+use craft\services\UserPermissions;
+use craft\web\User as WebUser;
 use DateTime;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\helpers\Range;
-use SomehowDigital\Craft\Hub\helpers\Sql;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Row;
+use SomehowDigital\Craft\Hub\models\FilterParams;
 use SomehowDigital\Craft\Hub\models\UserFilter;
 use SomehowDigital\Craft\Hub\models\UserStatistics;
 use yii\base\Component;
@@ -23,8 +32,10 @@ use yii\base\Component;
 /**
  * Lists the users and their groups, and collects the details shown for a single user.
  * Users aren't site-specific, so they aren't scoped to the selected sites.
+ *
+ * @internal
  */
-class UserService extends Component
+final class UserService extends Component
 {
 	public const SORT_USER = 'user';
 	public const SORT_EMAIL = 'email';
@@ -42,10 +53,32 @@ class UserService extends Component
 	private ?array $groups = null;
 
 	/**
+	 * @param Closure(): CmsEdition $edition the edition of Craft, which can change while it runs
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly QueryService $queries,
+		private readonly LabelService $labels,
+		private readonly FilterService $filters,
+		private readonly UserGroups $craftUserGroups,
+		private readonly UserPermissions $craftPermissions,
+		private readonly Elements $craftElements,
+		private readonly ProjectConfig $projectConfig,
+		private readonly Connection $db,
+		private readonly Closure $edition,
+		private readonly ?WebUser $user = null,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
+
+	/**
 	 * Users narrowed by the given filters.
 	 *
 	 * @param string $sort one of the columns of {@see getSortColumns()}
 	 * @param int $direction `SORT_ASC` or `SORT_DESC`
+	 *
+	 * @return UserQuery<array-key,\craft\elements\User>
 	 */
 	public function getQuery(UserFilter $filter, string $sort = self::SORT_CREATED, int $direction = SORT_DESC): UserQuery
 	{
@@ -55,7 +88,7 @@ class UserService extends Component
 
 		if ($filter->search !== '') {
 			// PostgreSQL's `like` is case-sensitive, unlike MySQL's with Craft's collation.
-			$operator = Sql::likeOperator();
+			$operator = $this->queries->likeOperator();
 			$query->andWhere([
 				'or',
 				[$operator, 'users.username', $filter->search],
@@ -65,11 +98,11 @@ class UserService extends Component
 		}
 
 		if ($filter->labels !== []) {
-			$query->andWhere(Hub::getInstance()->labels->condition(ColumnService::LIST_USERS, $filter->labels));
+			$query->andWhere($this->labels->condition(ColumnService::LIST_USERS, $filter->labels));
 		}
 
 		if ($filter->savedFilter !== null) {
-			$query->andWhere(Hub::getInstance()->filters->elementCondition(CheckKind::Users, $filter->savedFilter));
+			$query->andWhere($this->filters->elementCondition(CheckKind::Users, $filter->savedFilter));
 		}
 
 		if ($filter->groups !== []) {
@@ -81,7 +114,7 @@ class UserService extends Component
 		}
 
 		if ($filter->logins !== []) {
-			$query->andWhere(['or', ...array_map(fn (string $login) => $this->loginCondition($login), $filter->logins)]);
+			$query->andWhere(['or', ...array_map($this->loginCondition(...), $filter->logins)]);
 		}
 
 		if (($login = Range::dateParam($filter->loginFrom, $filter->loginTo)) !== null) {
@@ -130,7 +163,9 @@ class UserService extends Component
 
 	public function getUser(int $id): ?User
 	{
-		return User::find()->id($id)->status(null)->one();
+		$user = User::find()->id($id)->status(null)->one();
+
+		return $user instanceof User ? $user : null;
 	}
 
 	/**
@@ -146,7 +181,10 @@ class UserService extends Component
 			return [];
 		}
 
-		return User::find()->id(array_values(array_unique($ids)))->status(null)->withCustomFields(false)->with([$this->photoPlan()])->indexBy('id')->all();
+		/** @var array<int,User> $users */
+		$users = User::find()->id(array_values(array_unique($ids)))->status(null)->withCustomFields(false)->with([$this->photoPlan()])->indexBy('id')->all();
+
+		return $users;
 	}
 
 	/**
@@ -156,7 +194,7 @@ class UserService extends Component
 	 */
 	public function photoPlan(string $path = 'photo'): array
 	{
-		return [$path, ['withTransforms' => array_map(fn (int $size) => ['width' => $size, 'height' => $size, 'mode' => 'crop'], self::PHOTO_SIZES)]];
+		return [$path, ['withTransforms' => array_map(fn(int $size): array => ['width' => $size, 'height' => $size, 'mode' => 'crop'], self::PHOTO_SIZES)]];
 	}
 
 	/**
@@ -188,13 +226,13 @@ class UserService extends Component
 			$select[$alias] = sprintf('SUM(CASE WHEN %s THEN 1 ELSE 0 END)', $this->sql($condition));
 		}
 
-		$row = $this->usersQuery()->select($select)->one() ?: [];
+		$row = $this->usersQuery()->select($select)->one() ?? [];
 
 		$stats = new UserStatistics();
-		$stats->total = (int)($row['total'] ?? 0);
+		$stats->total = Fill::int((Row::value($row, 'total') ?? 0));
 
 		foreach (array_keys($conditions) as $alias) {
-			$stats->$alias = (int)($row[$alias] ?? 0);
+			$stats->{$alias} = Fill::int(($row[$alias] ?? 0));
 		}
 
 		return $stats;
@@ -216,7 +254,7 @@ class UserService extends Component
 	 */
 	private function collectGroups(): array
 	{
-		$groups = Craft::$app->getUserGroups()->getAllGroups();
+		$groups = $this->craftUserGroups->getAllGroups();
 
 		if ($groups === []) {
 			return [];
@@ -229,19 +267,19 @@ class UserService extends Component
 			->pairs();
 
 		$required = $this->getRequired2fa();
-		$permissions = Craft::$app->getUserPermissions();
+		$permissions = $this->craftPermissions;
 		$infos = [];
 
 		foreach ($groups as $group) {
-			$infos[$group->id] = [
+			$infos[(int) $group->id] = [
 				'group' => $group,
-				'users' => (int)($counts[$group->id] ?? 0),
-				'permissions' => count($permissions->getPermissionsByGroupId($group->id)),
+				'users' => Fill::int(($counts[Fill::int($group->id)] ?? 0)),
+				'permissions' => count($permissions->getPermissionsByGroupId($group->id ?? 0)),
 				'requires2fa' => $required === 'all' || (is_array($required) && in_array($group->uid, $required, true)),
 			];
 		}
 
-		uasort($infos, fn (array $a, array $b) => strnatcasecmp((string)$a['group']->name, (string)$b['group']->name));
+		uasort($infos, fn(array $a, array $b): int => strnatcasecmp((string) $a['group']->name, (string) $b['group']->name));
 
 		return $infos;
 	}
@@ -254,16 +292,16 @@ class UserService extends Component
 	 */
 	public function getAssignableGroups(): array
 	{
-		$user = Craft::$app->getUser()->getIdentity();
+		$user = $this->user?->getIdentity();
 
-		if ($user === null || Craft::$app->edition === CmsEdition::Solo) {
+		if ($user === null || ($this->edition)() === CmsEdition::Solo) {
 			return [];
 		}
 
 		$groups = [];
 
 		foreach ($this->getGroups() as $id => $info) {
-			if ($user->admin || $user->can('assignUserGroup:' . $info['group']->uid)) {
+			if ($user->admin || $user->can('assignUserGroup:' . ($info['group']->uid ?? ''))) {
 				$groups[$id] = $info['group'];
 			}
 		}
@@ -290,7 +328,7 @@ class UserService extends Component
 			->groupBy(['groupId'])
 			->pairs();
 
-		return array_map('intval', $counts);
+		return Fill::counts($counts);
 	}
 
 	/**
@@ -298,21 +336,21 @@ class UserService extends Component
 	 * they're an admin themselves. They're left out, so they can't delete themselves along with others.
 	 *
 	 * @param int[] $ids
-	 * @return User[]
+	 * @return list<User>
 	 */
 	public function getDeletableUsers(array $ids): array
 	{
-		$current = Craft::$app->getUser()->getIdentity();
+		$current = $this->user?->getIdentity();
 
 		if ($current === null || $ids === [] || !$current->can('deleteUsers')) {
 			return [];
 		}
 
-		$service = Craft::$app->getElements();
+		$service = $this->craftElements;
 
 		return array_values(array_filter(
 			User::find()->id($ids)->status(null)->all(),
-			fn (User $user) => $user->id !== $current->id && $service->canDelete($user),
+			fn(User $user): bool => $user->id !== $current->id && $service->canDelete($user),
 		));
 	}
 
@@ -320,7 +358,7 @@ class UserService extends Component
 	 * Active users the content of deleted users can be transferred to, by name, leaving out those deleted.
 	 *
 	 * @param int[] $deletedIds
-	 * @return User[]
+	 * @return list<User>
 	 */
 	public function getInheritors(array $deletedIds): array
 	{
@@ -331,7 +369,7 @@ class UserService extends Component
 		}
 
 		$users = $query->all();
-		usort($users, fn (User $a, User $b) => strnatcasecmp((string)$a->getName(), (string)$b->getName()));
+		usort($users, fn(User $a, User $b): int => strnatcasecmp($a->getName(), $b->getName()));
 
 		return $users;
 	}
@@ -344,9 +382,13 @@ class UserService extends Component
 	 */
 	public function getRequired2fa(): string|array|null
 	{
-		$value = Craft::$app->getProjectConfig()->get(sprintf('%s.require2fa', ProjectConfig::PATH_USERS));
+		$value = $this->projectConfig->get(sprintf('%s.require2fa', ProjectConfig::PATH_USERS));
 
-		return is_string($value) || is_array($value) ? $value : null;
+		if (is_array($value)) {
+			return array_values(array_filter($value, is_string(...)));
+		}
+
+		return is_string($value) ? $value : null;
 	}
 
 	/**
@@ -354,7 +396,7 @@ class UserService extends Component
 	 */
 	public function requires2fa(User $user): bool
 	{
-		if (Craft::$app->edition === CmsEdition::Solo) {
+		if (($this->edition)() === CmsEdition::Solo) {
 			return false;
 		}
 
@@ -364,7 +406,7 @@ class UserService extends Component
 			return $required === 'all';
 		}
 
-		$uids = array_map(fn (UserGroup $group) => $group->uid, $user->getGroups());
+		$uids = array_map(fn(UserGroup $group): ?string => $group->uid, $user->getGroups());
 
 		return ($user->admin && in_array('admins', $required, true)) || array_intersect($uids, $required) !== [];
 	}
@@ -387,7 +429,7 @@ class UserService extends Component
 			->groupBy(['hubAuthors.authorId'])
 			->pairs();
 
-		return array_map('intval', $counts);
+		return Fill::counts($counts);
 	}
 
 	/**
@@ -408,7 +450,7 @@ class UserService extends Component
 			->groupBy(['hubAssets.uploaderId'])
 			->pairs();
 
-		return array_map('intval', $counts);
+		return Fill::counts($counts);
 	}
 
 	/**
@@ -428,7 +470,7 @@ class UserService extends Component
 			...(new Query())->select(['userId'])->from([Table::WEBAUTHN])->where(['userId' => $userIds])->column(),
 		];
 
-		return array_fill_keys(array_map('intval', $ids), true) + array_fill_keys(array_map('intval', $userIds), false);
+		return array_fill_keys(array_map(Fill::int(...), $ids), true) + array_fill_keys(array_map(Fill::int(...), $userIds), false);
 	}
 
 	/**
@@ -436,7 +478,7 @@ class UserService extends Component
 	 * whether they are granted to the user directly and the groups granting them. Permissions Craft no longer
 	 * knows, e.g. of uninstalled plugins, are listed last by their name.
 	 *
-	 * @return array<int,array{heading:string,permissions:array<int,array{name:string,label:string,direct:bool,groups:UserGroup[]}>}>
+	 * @return list<array{heading:string,permissions:array<int,array{name:string,label:string,direct:bool,groups:UserGroup[]}>}>
 	 */
 	public function getPermissions(User $user): array
 	{
@@ -459,14 +501,14 @@ class UserService extends Component
 	 */
 	private function permissionSources(User $user): array
 	{
-		$service = Craft::$app->getUserPermissions();
+		$service = $this->craftPermissions;
 		$sources = [];
 
 		// Craft Team grants its permissions through a group users aren't listed in.
-		$groups = Craft::$app->edition === CmsEdition::Team ? [Craft::$app->getUserGroups()->getTeamGroup()] : $user->getGroups();
+		$groups = ($this->edition)() === CmsEdition::Team ? [$this->craftUserGroups->getTeamGroup()] : $user->getGroups();
 
 		foreach ($groups as $group) {
-			foreach ($service->getPermissionsByGroupId($group->id) as $name) {
+			foreach ($service->getPermissionsByGroupId($group->id ?? 0) as $name) {
 				$sources[strtolower($name)]['groups'][] = $group;
 			}
 		}
@@ -479,7 +521,7 @@ class UserService extends Component
 			->column();
 
 		foreach ($direct as $name) {
-			$sources[strtolower((string)$name)]['direct'] = true;
+			$sources[strtolower(Fill::text($name) ?? '')]['direct'] = true;
 		}
 
 		return $sources;
@@ -488,20 +530,20 @@ class UserService extends Component
 	/**
 	 * The permissions a user group grants, under the headings Craft lists them by, like those of {@see getPermissions()}.
 	 *
-	 * @return array<int,array{heading:string,permissions:array<int,array{name:string,label:string,direct:bool,groups:UserGroup[]}>}>
+	 * @return list<array{heading:string,permissions:array<int,array{name:string,label:string,direct:bool,groups:UserGroup[]}>}>
 	 */
 	public function getGroupPermissions(UserGroup $group): array
 	{
-		$names = Craft::$app->getUserPermissions()->getPermissionsByGroupId($group->id);
+		$names = $this->craftPermissions->getPermissionsByGroupId($group->id ?? 0);
 
-		return $this->permissionHeadings(array_fill_keys(array_map('strtolower', $names), []));
+		return $this->permissionHeadings(array_fill_keys(array_map(strtolower(...), $names), []));
 	}
 
 	/**
 	 * Permissions under their headings, in the order Craft lists them, those it no longer knows last.
 	 *
 	 * @param array<string,array{direct?:bool,groups?:UserGroup[]}> $sources what grants each permission, by its lowercased name
-	 * @return array<int,array{heading:string,permissions:array<int,array{name:string,label:string,direct:bool,groups:UserGroup[]}>}>
+	 * @return list<array{heading:string,permissions:array<int,array{name:string,label:string,direct:bool,groups:UserGroup[]}>}>
 	 */
 	private function permissionHeadings(array $sources): array
 	{
@@ -509,9 +551,9 @@ class UserService extends Component
 			return [];
 		}
 
-		$service = Craft::$app->getUserPermissions();
+		$service = $this->craftPermissions;
 		$headings = [];
-		$permission = fn (string $name, string $label) => [
+		$permission = fn(string $name, string $label): array => [
 			'name' => $name,
 			'label' => $label,
 			'direct' => $sources[$name]['direct'] ?? false,
@@ -526,31 +568,33 @@ class UserService extends Component
 		}
 
 		foreach (array_keys($sources) as $name) {
-			$headings[Craft::t('hub', 'Other')][] = $permission((string)$name, (string)$name);
+			$headings[Craft::t('hub', 'Other')][] = $permission($name, $name);
 		}
 
-		return array_map(fn (string $heading, array $permissions) => ['heading' => $heading, 'permissions' => $permissions], array_keys($headings), $headings);
+		return array_map(fn(string $heading, array $permissions): array => ['heading' => $heading, 'permissions' => $permissions], array_keys($headings), $headings);
 	}
 
 	/**
 	 * Labels and headings of all permissions, by their lowercased name, in the order Craft lists them.
 	 *
-	 * @param array<int,array<string,mixed>> $groups headings with their permissions, see {@see \craft\services\UserPermissions::getAllPermissions()}
+	 * @param array<mixed> $groups headings with their permissions, see {@see \craft\services\UserPermissions::getAllPermissions()}
 	 * @return array<string,array{0:string,1:string}> name => heading and label
 	 */
 	private function flattenPermissions(array $groups): array
 	{
 		$flat = [];
 
-		$walk = function (string $heading, array $permissions) use (&$walk, &$flat) {
+		$walk = function (string $heading, array $permissions) use (&$walk, &$flat): void {
 			foreach ($permissions as $name => $permission) {
-				$flat[strtolower((string)$name)] ??= [$heading, (string)($permission['label'] ?? $name)];
-				$walk($heading, $permission['nested'] ?? []);
+				$flat[strtolower((string) $name)] ??= [$heading, Fill::text(Row::value($permission, 'label')) ?? (string) $name];
+				$nested = Row::value($permission, 'nested');
+				$walk($heading, is_array($nested) ? $nested : []);
 			}
 		};
 
 		foreach ($groups as $group) {
-			$walk((string)($group['heading'] ?? ''), $group['permissions'] ?? []);
+			$permissions = Row::value($group, 'permissions');
+			$walk(Fill::text(Row::value($group, 'heading')) ?? '', is_array($permissions) ? $permissions : []);
 		}
 
 		return $flat;
@@ -570,7 +614,7 @@ class UserService extends Component
 	 * Condition matching active users who haven't signed in within the idle threshold,
 	 * or never did since they were created before it.
 	 *
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	public function idleCondition(): array
 	{
@@ -590,7 +634,7 @@ class UserService extends Component
 	/**
 	 * Condition matching users who have set up an authenticator app or a passkey.
 	 *
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	public function twoFactorCondition(): array
 	{
@@ -609,7 +653,7 @@ class UserService extends Component
 	/**
 	 * Condition matching active admins without an authenticator app or a passkey.
 	 *
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	public function adminWithoutTwoFactorCondition(): array
 	{
@@ -621,14 +665,14 @@ class UserService extends Component
 	 */
 	public function idleDate(): DateTime
 	{
-		return (new DateTime())->modify(sprintf('-%d months', Hub::getInstance()->filters->getThreshold(CheckKind::Users, 'idle')));
+		return (new DateTime())->modify(sprintf('-%d months', $this->filters->getThreshold(CheckKind::Users, 'idle')));
 	}
 
 	/**
 	 * Condition matching active users by how recently they signed in.
 	 *
 	 * @param string $login see the `LOGIN_*` constants of {@see UserFilter}
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	private function loginCondition(string $login): array
 	{
@@ -647,8 +691,8 @@ class UserService extends Component
 	 */
 	private function groupCondition(array $handles): array|string
 	{
-		$groups = Craft::$app->getUserGroups();
-		$ids = array_values(array_filter(array_map(fn (string $handle) => $groups->getGroupByHandle($handle)?->id, $handles)));
+		$groups = $this->craftUserGroups;
+		$ids = array_values(Fill::truthy(array_map(fn(string $handle): ?int => $groups->getGroupByHandle($handle)?->id, $handles)));
 		$member = (new Query())
 			->from(['hubGroups' => Table::USERGROUPS_USERS])
 			->where('[[hubGroups.userId]] = [[elements.id]]');
@@ -668,6 +712,8 @@ class UserService extends Component
 
 	/**
 	 * Live entries the queried user is an author of.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	private function entriesQuery(): Query
 	{
@@ -676,6 +722,8 @@ class UserService extends Component
 
 	/**
 	 * Assets the queried user uploaded, that aren't deleted.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	private function assetsQuery(): Query
 	{
@@ -684,6 +732,8 @@ class UserService extends Component
 
 	/**
 	 * Assets that aren't deleted, along with their uploaders.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	private function uploadedQuery(): Query
 	{
@@ -695,6 +745,8 @@ class UserService extends Component
 
 	/**
 	 * Authors of live entries, along with the entries.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	private function authoredQuery(): Query
 	{
@@ -707,6 +759,8 @@ class UserService extends Component
 
 	/**
 	 * Users that aren't deleted, to aggregate their columns.
+	 *
+	 * @return Query<array-key,mixed>
 	 */
 	private function usersQuery(): Query
 	{
@@ -721,7 +775,7 @@ class UserService extends Component
 	 */
 	private function liveCondition(string $alias): array
 	{
-		return ["$alias.dateDeleted" => null, "$alias.draftId" => null, "$alias.revisionId" => null];
+		return ["{$alias}.dateDeleted" => null, "{$alias}.draftId" => null, "{$alias}.revisionId" => null];
 	}
 
 	/**
@@ -751,10 +805,22 @@ class UserService extends Component
 	 */
 	private function sql(array $condition): string
 	{
-		$db = Craft::$app->getDb();
+		$db = $this->db;
 		$params = [];
 		$sql = $db->getQueryBuilder()->buildCondition($condition, $params);
 
 		return $db->createCommand($sql, $params)->getRawSql();
+	}
+
+	/**
+	 * IDs of the users of a filter by users, `me` being the current user. Without one, e.g. in the console, `me` is `0`,
+	 * which matches no one, so the filter doesn't match the items of everyone instead.
+	 *
+	 * @param array<int|string> $values IDs, and `me`
+	 * @return int[]
+	 */
+	public function resolveIds(array $values): array
+	{
+		return array_map(fn(int|string $value): int => $value === FilterParams::ME ? (int) $this->user?->getId() : (int) $value, $values);
 	}
 }

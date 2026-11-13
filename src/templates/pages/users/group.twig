@@ -8,12 +8,12 @@
 {% set selectedSubnavItem = 'users' %}
 {% set checks = [] %}
 {% set diagnosticsTab = false %}
-{% set listTabs = [{ id: 'users', label: 'Users'|t('app') }] %}
+{% set listTabs = [{id: 'users', label: 'Users'|t('app')}] %}
 {% set path = 'hub/data/users/groups/' ~ group.id %}
 {% set crumbs = [
-	{ label: 'Users'|t('app'), url: url('hub/data/users', { hubSite: hubSite }) },
-	{ label: 'Groups'|t('app'), url: url('hub/data/users/groups', { hubSite: hubSite }) },
-	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+	{label: 'Users'|t('app'), url: url('hub/data/users', {hubSite: hubSite})},
+	{label: 'Groups'|t('app'), url: url('hub/data/users/groups', {hubSite: hubSite})},
+	{label: title, url: url(path, {hubSite: hubSite}), current: true},
 ] %}
 
 {% block pageTitle %}
@@ -40,7 +40,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'userGroups', id: group.id } only %}
+		{{ include('hub/_components/detail-labels', {list: 'userGroups', id: group.id}, false) }}
 		<div class="data">
 			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
 			<dd class="value"><code>{{ group.handle }}</code></dd>
@@ -74,15 +74,15 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/groups/permissions' with { count: info.permissions } only %}
+	{{ include('hub/_panels/groups/permissions', {count: info.permissions}, false) }}
 
 	{% if maintainedCount %}
-		{% include 'hub/_panels/groups/maintains' with { count: maintainedCount } only %}
+		{{ include('hub/_panels/groups/maintains', {count: maintainedCount}, false) }}
 	{% endif %}
 
-	{% include 'hub/_panels/activity' with { subject: 'userGroup', id: group.id } only %}
+	{{ include('hub/_panels/activity', {subject: 'userGroup', id: group.id}, false) }}
 {% endblock %}
 
 {% block list %}
-	{% include 'hub/_components/user-list' with { list: list, hubSite: hubSite } only %}
+	{{ include('hub/_components/user-list', {list: list, hubSite: hubSite}, false) }}
 {% endblock %}

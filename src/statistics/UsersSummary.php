@@ -1,46 +1,70 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\statistics;
 
 use Closure;
 use Craft;
 use craft\elements\User;
+use craft\services\UserGroups;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
-use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\Snapshot;
 use SomehowDigital\Craft\Hub\models\UserFilter;
 use SomehowDigital\Craft\Hub\models\UserStatistics;
+use SomehowDigital\Craft\Hub\services\FilterService;
+use SomehowDigital\Craft\Hub\services\SiteScopeService;
+use SomehowDigital\Craft\Hub\services\SnapshotService;
+use SomehowDigital\Craft\Hub\services\StatisticsService;
+use SomehowDigital\Craft\Hub\services\StructureService;
+use SomehowDigital\Craft\Hub\services\UserService;
+use SomehowDigital\Craft\Hub\services\VolumeService;
 
 /**
  * Statistics of the users list: its summary cards, linking to its filters.
+ *
+ * @internal
  */
-final class UsersSummary extends Summary
+final class UsersSummary extends BaseSummary
 {
+	public function __construct(
+		SiteScopeService $siteScope,
+		SnapshotService $snapshots,
+		StructureService $structure,
+		VolumeService $volumes,
+		StatisticsService $statistics,
+		private readonly FilterService $filters,
+		private readonly UserService $users,
+		private readonly UserGroups $craftUserGroups,
+	) {
+		parent::__construct($siteScope, $snapshots, $structure, $volumes, $statistics);
+	}
+
 	/**
 	 * Summary cards for the users list, linking to its filters.
 	 *
-	 * @return array<int,array<string,mixed>> see lazyCard()
+	 * @return list<array<string,mixed>> see lazyCard()
 	 */
 	public function index(): array
 	{
-		$users = Hub::getInstance()->users;
+		$users = $this->users;
 		$path = 'hub/data/users';
-		$months = Hub::getInstance()->filters->getThreshold(CheckKind::Users, 'idle');
+		$months = $this->filters->getThreshold(CheckKind::Users, 'idle');
 
 		$cards = [
-			$this->lazyCard(Craft::t('app', 'Users'), 'user', fn () => $this->usersCard($users->getStatistics(), $path), $this->usersHistory(fn (UserStatistics $stats) => $this->usersCard($stats, $path))),
+			$this->lazyCard(Craft::t('app', 'Users'), 'user', fn(): array => $this->usersCard($users->getStatistics(), $path), $this->usersHistory(fn(UserStatistics $stats): array => $this->usersCard($stats, $path))),
 		];
 
 		// Whether there are any groups is known without counting their users.
-		if (Craft::$app->getUserGroups()->getAllGroups() !== []) {
-			$cards[] = $this->lazyCard(Craft::t('app', 'User Groups'), 'users', function () use ($users, $path) {
+		if ($this->craftUserGroups->getAllGroups() !== []) {
+			$cards[] = $this->lazyCard(Craft::t('app', 'User Groups'), 'users', function () use ($users, $path): array {
 				$counts = [];
 				$handles = [];
 				$cells = [];
 				foreach ($users->getGroups() as $info) {
-					$name = Craft::t('site', (string)$info['group']->name);
+					$name = Craft::t('site', (string) $info['group']->name);
 					$counts[$name] = $info['users'];
-					$handles[$name] = (string)$info['group']->handle;
+					$handles[$name] = (string) $info['group']->handle;
 					$cells[$name] = [$info['permissions'], $info['requires2fa'] ? Craft::t('app', 'Yes') : Craft::t('app', 'No')];
 				}
 
@@ -53,16 +77,16 @@ final class UsersSummary extends Summary
 					],
 					$cells,
 				);
-			}, fn (Snapshot $snapshot) => $this->labeledTopHistory(
-				array_map(fn (array $info) => Craft::t('site', (string)$info['group']->name), $users->getGroups()),
+			}, fn(Snapshot $snapshot): array => $this->labeledTopHistory(
+				array_map(fn(array $info) => Craft::t('site', (string) $info['group']->name), $users->getGroups()),
 				$snapshot->getUserGroups(),
 				true,
 			));
 		}
 
-		$cards[] = $this->lazyCard(Craft::t('hub', 'Sign-ins'), 'clock', fn () => $this->signInsCard($users->getStatistics(), $path, $months), $this->usersHistory(fn (UserStatistics $stats) => $this->signInsCard($stats, $path, $months)));
+		$cards[] = $this->lazyCard(Craft::t('hub', 'Sign-ins'), 'clock', fn(): array => $this->signInsCard($users->getStatistics(), $path, $months), $this->usersHistory(fn(UserStatistics $stats): array => $this->signInsCard($stats, $path, $months)));
 
-		$cards[] = $this->lazyCard(Craft::t('hub', 'Two-step verification'), 'shield-halved', fn () => $this->twoFactorCard($users->getStatistics(), $path), $this->usersHistory(fn (UserStatistics $stats) => $this->twoFactorCard($stats, $path)));
+		$cards[] = $this->lazyCard(Craft::t('hub', 'Two-step verification'), 'shield-halved', fn(): array => $this->twoFactorCard($users->getStatistics(), $path), $this->usersHistory(fn(UserStatistics $stats): array => $this->twoFactorCard($stats, $path)));
 
 		return $cards;
 	}
@@ -146,6 +170,6 @@ final class UsersSummary extends Summary
 	 */
 	private function usersHistory(Closure $card): Closure
 	{
-		return fn (Snapshot $snapshot) => $card($snapshot->getUsers());
+		return fn(Snapshot $snapshot) => $card($snapshot->getUsers());
 	}
 }

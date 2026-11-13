@@ -1,20 +1,34 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
 use craft\elements\User;
+use craft\services\Users;
+use craft\web\User as WebUser;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\enums\Permission;
+use SomehowDigital\Craft\Hub\services\AccessService;
+use SomehowDigital\Craft\Hub\services\BulkService;
 
 /**
  * Suspends or unsuspends users, leaving out the current one, so users can't lock themselves out.
+ *
+ * @internal
  */
-class SetSuspended extends BulkAction
+final class SetSuspended extends BaseBulkAction
 {
-	public function __construct(string $list, private readonly bool $suspended)
-	{
-		parent::__construct($list);
+	public function __construct(
+		string $list,
+		AccessService $access,
+		private readonly BulkService $bulk,
+		private readonly Users $craftUsers,
+		private readonly ?WebUser $user,
+		private readonly bool $suspended,
+	) {
+		parent::__construct($list, $access);
 	}
 
 	public function definition(): array
@@ -26,15 +40,18 @@ class SetSuspended extends BulkAction
 
 	public function isAvailable(): bool
 	{
-		return $this->hub()->access->canAct(Page::Users, Hub::PERMISSION_SUSPEND_USERS) && Craft::$app->getUser()->getIdentity()?->can('moderateUsers') === true;
+		return $this->access->canAct(Page::Users, Permission::SuspendUsers->value) && $this->user?->getIdentity()?->can('moderateUsers') === true;
 	}
 
+	/**
+	 * @return list<int>
+	 */
 	public function apply(array $ids, array $params): array
 	{
-		$service = Craft::$app->getUsers();
-		$current = Craft::$app->getUser()->getIdentity();
+		$service = $this->craftUsers;
+		$current = $this->user?->getIdentity();
 
-		return $this->succeeded($this->hub()->bulk->getElementsOf($this->list, $ids, User::class), function (User $user) use ($service, $current) {
+		return $this->succeeded($this->bulk->getElementsOf($this->list, $ids, User::class), function (User $user) use ($service, $current): bool {
 			if ($current === null || $user->id === $current->id || !$service->canSuspend($current, $user)) {
 				return false;
 			}

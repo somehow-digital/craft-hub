@@ -1,10 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
+use craft\services\Users;
+use craft\web\User as WebUser;
 use SomehowDigital\Craft\Hub\enums\ListType;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use yii\base\Component;
 
 /**
@@ -12,8 +16,10 @@ use yii\base\Component;
  * The column naming each row comes first in every list and is always shown, so it isn't one of them.
  * Fixed columns, those linking to the settings, the URL or the edit page of each row, are always shown last, in their order;
  * users can't hide or reorder them.
+ *
+ * @internal
  */
-class ColumnService extends Component
+final class ColumnService extends Component
 {
 	public const LIST_SECTIONS = ListType::Sections->value;
 	public const LIST_ENTRY_TYPES = ListType::EntryTypes->value;
@@ -29,6 +35,18 @@ class ColumnService extends Component
 
 	/** user preference holding the columns of each list, as their order and the hidden ones */
 	public const PREFERENCE = 'hubColumns';
+
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly MaintainerService $maintainers,
+		private readonly Users $craftUsers,
+		private readonly ?WebUser $user = null,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
 
 	/**
 	 * Columns of a list in their default order. Sortable columns are named like the column they sort by.
@@ -158,22 +176,22 @@ class ColumnService extends Component
 	 */
 	public function getColumns(string $list, array $omit = []): array
 	{
-		if (!Craft::$app->getUser()->getIsAdmin()) {
+		if ($this->user?->getIsAdmin() !== true) {
 			$omit[] = 'settings';
 		}
 
-		if (!Hub::getInstance()->maintainers->isEnabled()) {
+		if (!$this->maintainers->isEnabled()) {
 			$omit[] = 'maintainers';
 		}
 
 		$definitions = array_diff_key($this->getDefinitions($list), array_flip($omit));
 		['order' => $order, 'hidden' => $hidden] = $this->getPreference($list);
 
-		$fixed = array_keys(array_filter($definitions, fn (array $definition) => $definition['fixed'] ?? false));
+		$fixed = array_keys(array_filter($definitions, fn(array $definition) => $definition['fixed'] ?? false));
 		$movable = array_diff(array_keys($definitions), $fixed);
 		$keys = array_unique([...array_intersect($order, $movable), ...$movable, ...$fixed]);
 
-		return array_map(fn (string $key) => [
+		return array_map(fn(string $key): array => [
 			'key' => $key,
 			'label' => $definitions[$key]['label'],
 			'title' => $definitions[$key]['title'] ?? null,
@@ -187,12 +205,12 @@ class ColumnService extends Component
 	/**
 	 * Keys of the columns the user shows; the data of hidden ones isn't loaded, until they are shown.
 	 *
-	 * @param list<array{key:string,visible:bool}> $columns columns of a list, see {@see getColumns()}
-	 * @return string[]
+	 * @param list<array{key:string,visible:bool,...}> $columns columns of a list, see {@see getColumns()}
+	 * @return list<string>
 	 */
 	public function getShownKeys(array $columns): array
 	{
-		return array_values(array_map(fn (array $column) => $column['key'], array_filter($columns, fn (array $column) => $column['visible'])));
+		return array_values(array_map(fn(array $column): string => $column['key'], array_filter($columns, fn(array $column): bool => $column['visible'])));
 	}
 
 	/**
@@ -204,7 +222,7 @@ class ColumnService extends Component
 	 */
 	public function saveColumns(string $list, array $order, array $hidden): void
 	{
-		$known = array_keys(array_filter($this->getDefinitions($list), fn (array $definition) => !($definition['fixed'] ?? false)));
+		$known = array_keys(array_filter($this->getDefinitions($list), fn(array $definition): bool => !($definition['fixed'] ?? false)));
 		$order = array_values(array_unique(array_intersect($order, $known)));
 		$hidden = array_intersect($hidden, $order);
 		$saved = $this->getPreference($list);
@@ -214,7 +232,7 @@ class ColumnService extends Component
 		$next = $order;
 		$merged = [];
 		foreach ($previous as $key) {
-			$merged[] = in_array($key, $order, true) ? array_shift($next) : $key;
+			$merged[] = in_array($key, $order, true) ? array_shift($next) ?? $key : $key;
 		}
 
 		$this->savePreference($list, [
@@ -236,13 +254,13 @@ class ColumnService extends Component
 	 */
 	private function getPreference(string $list): array
 	{
-		$userId = Craft::$app->getUser()->getId();
-		$lists = $userId !== null ? Craft::$app->getUsers()->getUserPreference((int)$userId, self::PREFERENCE, []) : [];
+		$userId = $this->user?->getId();
+		$lists = $userId !== null ? $this->craftUsers->getUserPreference((int) $userId, self::PREFERENCE, []) : [];
 		$value = is_array($lists) ? ($lists[$list] ?? []) : [];
 
 		return [
-			'order' => $this->strings($value['order'] ?? []),
-			'hidden' => $this->strings($value['hidden'] ?? []),
+			'order' => $this->strings(Row::value($value, 'order') ?? []),
+			'hidden' => $this->strings(Row::value($value, 'hidden') ?? []),
 		];
 	}
 
@@ -251,14 +269,14 @@ class ColumnService extends Component
 	 */
 	private function savePreference(string $list, ?array $value): void
 	{
-		$user = Craft::$app->getUser()->getIdentity();
+		$user = $this->user?->getIdentity();
 
 		if ($user === null) {
 			return;
 		}
 
-		$users = Craft::$app->getUsers();
-		$lists = $users->getUserPreference($user->id, self::PREFERENCE, []);
+		$users = $this->craftUsers;
+		$lists = $users->getUserPreference($user->id ?? 0, self::PREFERENCE, []);
 		$lists = is_array($lists) ? $lists : [];
 
 		if ($value !== null) {
@@ -271,10 +289,10 @@ class ColumnService extends Component
 	}
 
 	/**
-	 * @return string[]
+	 * @return list<string>
 	 */
 	private function strings(mixed $values): array
 	{
-		return is_array($values) ? array_values(array_filter($values, 'is_string')) : [];
+		return is_array($values) ? array_values(array_filter($values, is_string(...))) : [];
 	}
 }

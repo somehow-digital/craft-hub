@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions;
 
 use SomehowDigital\Craft\Hub\conditions\rules\DataKindConditionRule;
@@ -16,9 +18,14 @@ use SomehowDigital\Craft\Hub\conditions\rules\TranslationMethodConditionRule;
 
 /**
  * A condition on fields, matched against what Hub knows about them, see {@see \SomehowDigital\Craft\Hub\models\FieldInfo}.
+ *
+ * @internal
  */
-class FieldCondition extends InfoCondition
+final class FieldCondition extends BaseInfoCondition
 {
+	/**
+	 * @return list<array{class: string}|string>
+	 */
 	protected function selectableConditionRules(): array
 	{
 		return [

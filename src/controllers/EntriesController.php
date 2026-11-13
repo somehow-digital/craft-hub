@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Closure;
@@ -12,15 +14,13 @@ use DateTime;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\helpers\ListSelection;
-use SomehowDigital\Craft\Hub\helpers\ListSort;
-use SomehowDigital\Craft\Hub\helpers\Paginator;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\FieldInfo;
 use SomehowDigital\Craft\Hub\models\TrashedEntryFilter;
 use SomehowDigital\Craft\Hub\services\ColumnService;
 use SomehowDigital\Craft\Hub\services\TrashService;
-use SomehowDigital\Craft\Hub\statistics\EntriesSummary;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 use yii\web\ServerErrorHttpException;
@@ -28,14 +28,16 @@ use yii\web\ServerErrorHttpException;
 /**
  * The entries page, below the "Data" navigation item: its list, trash, statistics and diagnostics, and the detail pages
  * of entries.
+ *
+ * @internal
  */
-class EntriesController extends BaseController
+final class EntriesController extends BaseController
 {
 	protected ?Page $page = Page::Entries;
 
 	public function actionIndex(): Response
 	{
-		if (($redirect = $this->keepFilters('hub/data/entries')) !== null) {
+		if (($redirect = $this->keepFilters('hub/data/entries')) instanceof Response) {
 			return $redirect;
 		}
 
@@ -55,18 +57,18 @@ class EntriesController extends BaseController
 		$path = 'hub/data/entries/trash';
 		$entries = Craft::$app->getEntries();
 
-		if (($redirect = $this->keepFilters($path)) !== null) {
+		if (($redirect = $this->keepFilters($path)) instanceof Response) {
 			return $redirect;
 		}
 
 		// While reviewing the selection, the filters don't apply.
-		$selection = ListSelection::fromRequest(ColumnService::LIST_TRASHED_ENTRIES, $path);
+		$selection = Hub::getInstance()->bulkActions->selectionFor(ColumnService::LIST_TRASHED_ENTRIES, $path);
 		$filter = $selection->review ? new TrashedEntryFilter() : $this->trashedEntryFilterFromRequest();
-		$sort = ListSort::fromRequest($trash->getEntrySortColumns(), TrashService::SORT_DELETED);
+		$sort = $this->listSort($trash->getEntrySortColumns(), TrashService::SORT_DELETED);
 
 		$query = $trash->getEntryQuery($filter, $sort->column, $sort->direction);
 		$selection->limitQuery($query);
-		[$pageInfo, $results] = Paginator::fromRequest()->elements($query);
+		[$pageInfo, $results] = Hub::getInstance()->queries->paginate($this->paginator(), $query);
 		$columns = $hub->columns->getColumns(ColumnService::LIST_TRASHED_ENTRIES);
 
 		return $this->renderTemplate('hub/pages/entries/trash', [
@@ -74,16 +76,16 @@ class EntriesController extends BaseController
 				'entries' => $results,
 				'pageInfo' => $pageInfo,
 				'deleters' => in_array('deleter', $hub->columns->getShownKeys($columns), true)
-					? $trash->getDeleters(ActivitySubject::Entry, array_map(fn (Entry $entry) => (int)$entry->id, $results))
+					? $trash->getDeleters(ActivitySubject::Entry, array_map(fn(Entry $entry): int => (int) $entry->id, $results))
 					: [],
 				'sections' => $entries->getAllSections(),
-				'nestedFields' => array_filter($hub->structure->getFields(), fn (FieldInfo $info) => $info->isNested),
+				'nestedFields' => array_filter($hub->structure->getFields(), fn(FieldInfo $info): bool => $info->isNested),
 				'entryTypes' => $entries->getAllEntryTypes(),
 				'filter' => $filter,
-				'filtered' => $filter != new TrashedEntryFilter(),
+				'filtered' => $filter->isFiltered(),
 				'listPath' => $path,
 				'columns' => $columns,
-				...$selection->variables($filter),
+				...Hub::getInstance()->selection->variables($selection, $filter),
 				...$sort->variables($path),
 			],
 			'extraTabs' => $this->trashTabs(),
@@ -92,7 +94,7 @@ class EntriesController extends BaseController
 
 	public function actionStatistics(): Response
 	{
-		return $this->renderStatistics(CheckKind::Entries, (new EntriesSummary())->index(), extraTabs: $this->trashTabs());
+		return $this->renderStatistics(CheckKind::Entries, Hub::getInstance()->entriesSummary->index(), extraTabs: $this->trashTabs());
 	}
 
 	public function actionDiagnostics(): Response
@@ -115,17 +117,17 @@ class EntriesController extends BaseController
 		$tab = $this->detailTab($tab, $hasHistory ? [self::TAB_HISTORY] : []);
 
 		$panel = $this->renderPanel(match ($tab) {
-			self::TAB_DIAGNOSTICS => $this->checksPanel(fn () => $hub->checks->forEntry($entry)),
+			self::TAB_DIAGNOSTICS => $this->checksPanel(fn() => $hub->checks->forEntry($entry)),
 			self::TAB_HISTORY => $this->historyPanels($entry),
 			default => $this->overviewPanels($entry),
 		});
 
-		if ($panel !== null) {
+		if ($panel instanceof Response) {
 			return $panel;
 		}
 
 		$months = $hub->filters->getThreshold(CheckKind::Entries, 'stale');
-		$staleDate = (new DateTime())->modify(sprintf('-%d months', $months));
+		$staleDate = new DateTime(sprintf('-%d months', $months));
 		$lastEdit = $hub->edits->getLastEdit($entry);
 		$stale = $lastEdit['date'] !== null && $lastEdit['date'] < $staleDate;
 
@@ -163,11 +165,14 @@ class EntriesController extends BaseController
 
 		$this->requireViewable($entry);
 
-		$revision = $entries->getRevisionsQuery($entry)->id($revisionId)->with([])->one()
-			?? throw new NotFoundHttpException('Revision not found.');
+		$revision = $entries->getRevisionsQuery($entry)->id($revisionId)->with([])->one();
+
+		if (!$revision instanceof Entry) {
+			throw new NotFoundHttpException('Revision not found.');
+		}
 
 		// The first preview target of the section, like the CP's preview, falling back to the URL of the revision.
-		$url = $revision->getPreviewTargets()[0]['url'] ?? $revision->getUrl() ?? throw new NotFoundHttpException('Revision has no URL.');
+		$url = Fill::text(Row::value($revision->getPreviewTargets()[0] ?? null, 'url')) ?? $revision->getUrl() ?? throw new NotFoundHttpException('Revision has no URL.');
 
 		$token = Craft::$app->getTokens()->createPreviewToken([
 			'preview/preview', [
@@ -193,9 +198,9 @@ class EntriesController extends BaseController
 
 		$filter = new TrashedEntryFilter();
 		$filter->search = $params->search();
-		$filter->sections = $params->list('section', array_map(fn (Section $section) => $section->handle, $entries->getAllSections()));
-		$filter->fields = $params->list('field', array_map(fn (FieldInfo $info) => (string)$info->field->handle, array_filter(Hub::getInstance()->structure->getFields(), fn (FieldInfo $info) => $info->isNested)));
-		$filter->types = $params->list('type', array_map(fn (EntryType $type) => $type->handle, $entries->getAllEntryTypes()));
+		$filter->sections = $params->list('section', array_map(fn(Section $section): string => $section->handle ?? '', $entries->getAllSections()));
+		$filter->fields = $params->list('field', array_map(fn(FieldInfo $info): string => (string) $info->field->handle, array_filter(Hub::getInstance()->structure->getFields(), fn(FieldInfo $info): bool => $info->isNested)));
+		$filter->types = $params->list('type', array_map(fn(EntryType $type): string => $type->handle ?? '', $entries->getAllEntryTypes()));
 		$filter->deletedFrom = $params->date('deletedFrom');
 		$filter->deletedTo = $params->date('deletedTo');
 
@@ -212,11 +217,11 @@ class EntriesController extends BaseController
 		$hub = Hub::getInstance();
 
 		return [
-			'maintainers' => fn () => ['hub/_panels/element-maintainers', ['element' => $entry]],
-			'sites' => fn () => ['hub/_panels/entries/sites', ['sites' => $hub->entries->getSiteVariantsQuery($entry)->all()]],
-			'references' => fn () => ['hub/_panels/entries/references', ['references' => $hub->references->getReferences($entry)]],
-			'referenced' => fn () => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($entry)]],
-			'activity' => fn () => ['hub/_panels/activity', ['subject' => ActivitySubject::Entry->value, 'id' => $entry->id]],
+			'maintainers' => fn(): array => ['hub/_panels/element-maintainers', ['element' => $entry]],
+			'sites' => fn(): array => ['hub/_panels/entries/sites', ['sites' => $hub->entries->getSiteVariantsQuery($entry)->all()]],
+			'references' => fn(): array => ['hub/_panels/entries/references', ['references' => $hub->references->getReferences($entry)]],
+			'referenced' => fn(): array => ['hub/_panels/referenced', ['referenced' => $hub->references->getReferenced($entry)]],
+			'activity' => fn(): array => ['hub/_panels/activity', ['subject' => ActivitySubject::Entry->value, 'id' => $entry->id]],
 		];
 	}
 
@@ -231,9 +236,9 @@ class EntriesController extends BaseController
 		$entries = Hub::getInstance()->entries;
 
 		return [
-			'drafts' => fn () => ['hub/_panels/entries/drafts', ['entry' => $entry, 'drafts' => $entries->getDraftsQuery($entry)->all()]],
-			...($entry->hasRevisions() ? ['revisions' => function () use ($entry, $entries) {
-				[$pageInfo, $revisions] = Paginator::fromRequest()->query($entries->getRevisionsQuery($entry));
+			'drafts' => fn(): array => ['hub/_panels/entries/drafts', ['entry' => $entry, 'drafts' => $entries->getDraftsQuery($entry)->all()]],
+			...($entry->hasRevisions() ? ['revisions' => function () use ($entry, $entries): array {
+				[$pageInfo, $revisions] = Hub::getInstance()->queries->paginateQuery($this->paginator(), $entries->getRevisionsQuery($entry));
 
 				return ['hub/_panels/entries/revisions', [
 					'entry' => $entry,

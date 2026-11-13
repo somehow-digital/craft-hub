@@ -1,13 +1,15 @@
 <?php
 
-use SomehowDigital\Craft\Hub\jobs\TakeSnapshot;
-use SomehowDigital\Craft\Hub\services\SnapshotService;
+declare(strict_types=1);
 
-it('takes the snapshot of today', function () {
-	$this->mockComponent('hub.snapshots', SnapshotService::class)->shouldReceive('take')->once()->withNoArgs();
-	$job = new TakeSnapshot();
+use SomehowDigital\Craft\Hub\db\Tables;
+use SomehowDigital\Craft\Hub\jobs\TakeSnapshotJob;
+
+it('takes the snapshot of today', function (): void {
+	$job = new TakeSnapshotJob();
 
 	$job->execute(Craft::$app->getQueue());
 
-	expect($job->getDescription())->toBe('Taking a snapshot of the statistics');
+	expect($job->getDescription())->toBe('Taking a snapshot of the statistics')
+		->and($this->db()->queriesMatching(sqlInsertInto(Tables::SNAPSHOTS)))->toHaveCount(1);
 });

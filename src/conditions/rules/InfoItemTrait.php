@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\conditions\rules;
 
 use craft\base\FieldInterface;
@@ -13,8 +15,10 @@ use SomehowDigital\Craft\Hub\models\VolumeInfo;
 
 /**
  * The section, entry type, field or volume Hub knows something about.
+ *
+ * @internal
  */
-trait InfoItem
+trait InfoItemTrait
 {
 	protected function item(SectionInfo|EntryTypeInfo|FieldInfo|VolumeInfo $info): Section|EntryType|FieldInterface|Volume
 	{

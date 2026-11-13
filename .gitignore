@@ -1,2 +1,4 @@
 /vendor/
+/.deptrac.cache
 /.phpunit.cache/
+/.twig-cs-fixer.cache

@@ -19,7 +19,7 @@
 }|merge(field) %}
 
 {% if settings[name] is same as(true) or settings[name] is same as(false) %}
-	{{ forms.lightswitchField(config|merge({ on: settings[name] })) }}
+	{{ forms.lightswitchField(config|merge({on: settings[name]})) }}
 {% else %}
-	{{ forms.textField({ type: 'number', size: 5 }|merge(config)|merge({ value: settings[name] })) }}
+	{{ forms.textField({type: 'number', size: 5}|merge(config)|merge({value: settings[name]})) }}
 {% endif %}

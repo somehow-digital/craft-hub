@@ -1,17 +1,26 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use craft\base\FieldInterface;
+use craft\base\Model;
 use craft\models\EntryType;
 use craft\models\Section;
+use LogicException;
 
 /**
  * What Hub knows of a section: its entry types, the fields relating to it, and the counts of its entries.
+ *
+ * @property EntryStatistics $stats
+ * @property ReferenceStatistics $references references from Entries and Link fields into this section
+ *
+ * @internal
  */
-class SectionInfo
+final class SectionInfo extends Model
 {
-	use LazyProperties;
+	use LazyPropertiesTrait;
 
 	/** @var EntryType[] */
 	public array $entryTypes = [];
@@ -24,15 +33,45 @@ class SectionInfo
 
 	public bool $hasUrls = false;
 
-	public EntryStatistics $stats;
+	public function __construct(
+		public Section $section
+	) {
+		parent::__construct();
+		$this->setStats(new EntryStatistics());
+		$this->setReferences(new ReferenceStatistics());
+	}
 
-	/** references from Entries and Link fields into this section */
-	public ReferenceStatistics $references;
-
-	public function __construct(public Section $section)
+	public function getStats(): EntryStatistics
 	{
-		$this->stats = new EntryStatistics();
-		$this->references = new ReferenceStatistics();
+		$value = $this->getLazyValue('stats');
+		if (!$value instanceof EntryStatistics) {
+			throw new LogicException('Not EntryStatistics.');
+		}
+
+		return $value;
+	}
+
+	public function setStats(EntryStatistics $value): void
+	{
+		$this->setLazyValue('stats', $value);
+	}
+
+	/**
+	 * references from Entries and Link fields into this section
+	 */
+	public function getReferences(): ReferenceStatistics
+	{
+		$value = $this->getLazyValue('references');
+		if (!$value instanceof ReferenceStatistics) {
+			throw new LogicException('Not ReferenceStatistics.');
+		}
+
+		return $value;
+	}
+
+	public function setReferences(ReferenceStatistics $value): void
+	{
+		$this->setLazyValue('references', $value);
 	}
 
 	public function isEmpty(): bool

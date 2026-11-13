@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\controllers;
 
 use Craft;
@@ -7,7 +9,9 @@ use craft\helpers\Json;
 use SomehowDigital\Craft\Hub\enums\ActivityAction;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
+use SomehowDigital\Craft\Hub\enums\Permission;
 use SomehowDigital\Craft\Hub\enums\Severity;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 use SomehowDigital\Craft\Hub\helpers\Ids;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\CheckDefinition;
@@ -21,8 +25,10 @@ use yii\web\Response;
  * who may manage them, each flagging the items a filter of its kind matches: Hub's default checks, each of one of Hub's
  * predefined filters, can be disabled, reordered and given another severity, custom ones, of any filter of their kind,
  * created, changed and deleted too. Checks saved, toggled and deleted are recorded in the activity log.
+ *
+ * @internal
  */
-class ChecksController extends BaseController
+final class ChecksController extends BaseController
 {
 	public function beforeAction($action): bool
 	{
@@ -30,7 +36,7 @@ class ChecksController extends BaseController
 			return false;
 		}
 
-		$this->requirePermission(Hub::PERMISSION_MANAGE_DIAGNOSTICS);
+		$this->requirePermission(Permission::ManageDiagnostics->value);
 
 		return true;
 	}
@@ -47,10 +53,10 @@ class ChecksController extends BaseController
 		$panels = [];
 		foreach (CheckKind::cases() as $kind) {
 			$kinds[$kind->value] = ['kind' => $kind, 'checks' => array_values($diagnostics->getDefinitions($kind))];
-			$panels["hub-checks-$kind->value"] = fn () => ['hub/_panels/settings/checks', $kinds[$kind->value]];
+			$panels["hub-checks-{$kind->value}"] = fn(): array => ['hub/_panels/settings/checks', $kinds[$kind->value]];
 		}
 
-		if (($panel = $this->renderPanel($panels)) !== null) {
+		if (($panel = $this->renderPanel($panels)) instanceof Response) {
 			return $panel;
 		}
 
@@ -66,11 +72,11 @@ class ChecksController extends BaseController
 	 */
 	public function actionEdit(?int $checkId = null, ?string $kind = null, ?CheckDefinition $check = null): Response
 	{
-		if ($check === null && $checkId !== null) {
+		if (!$check instanceof CheckDefinition && $checkId !== null) {
 			$check = Hub::getInstance()->diagnostics->getDefinitionById($checkId) ?? throw new NotFoundHttpException('Check not found.');
 		}
 
-		$check ??= new CheckDefinition(['kind' => CheckKind::tryFrom((string)$kind) ?? throw new NotFoundHttpException('Kind not found.')]);
+		$check ??= Hub::getInstance()->diagnostics->createDefinition(['kind' => CheckKind::tryFrom((string) $kind) ?? throw new NotFoundHttpException('Kind not found.')]);
 
 		return $this->renderTemplate('hub/pages/settings/check', [
 			'check' => $check,
@@ -83,27 +89,26 @@ class ChecksController extends BaseController
 	{
 		$this->requirePostRequest();
 
-		$request = Craft::$app->getRequest();
 		$diagnostics = Hub::getInstance()->diagnostics;
-		$id = $request->getBodyParam('checkId');
+		$id = $this->bodyInt('checkId');
 
-		if ($id) {
-			$check = $diagnostics->getDefinitionById((int)$id) ?? throw new NotFoundHttpException('Check not found.');
+		if ($id > 0) {
+			$check = $diagnostics->getDefinitionById($id) ?? throw new NotFoundHttpException('Check not found.');
 		} else {
-			$kind = CheckKind::tryFrom((string)$request->getBodyParam('kind')) ?? throw new BadRequestHttpException('Unknown kind.');
-			$check = new CheckDefinition(['kind' => $kind]);
+			$kind = CheckKind::tryFrom($this->bodyString('kind')) ?? throw new BadRequestHttpException('Unknown kind.');
+			$check = Hub::getInstance()->diagnostics->createDefinition(['kind' => $kind]);
 		}
 
-		$check->enabled = (bool)$request->getBodyParam('enabled', true);
-		$check->severity = Severity::tryFrom((string)$request->getBodyParam('severity'));
+		$check->enabled = $this->bodyBool('enabled', true);
+		$check->severity = Severity::tryFrom($this->bodyString('severity'));
 
 		if (!$check->isDefault()) {
-			$check->name = (string)$request->getBodyParam('name', '');
-			$check->description = (string)$request->getBodyParam('description', '');
-			$check->passedDescription = (string)$request->getBodyParam('passedDescription', '');
-			$check->icon = (string)$request->getBodyParam('icon', '') ?: null;
+			$check->name = $this->bodyString('name', '');
+			$check->description = $this->bodyString('description', '');
+			$check->passedDescription = $this->bodyString('passedDescription', '');
+			$check->icon = Fill::text($this->bodyString('icon', ''));
 			$check->severity ??= Severity::Notice;
-			$check->filter = (string)$request->getBodyParam('filter', '');
+			$check->filter = $this->bodyString('filter', '');
 		}
 
 		$isNew = $check->id === null;
@@ -128,13 +133,13 @@ class ChecksController extends BaseController
 		$this->requirePostRequest();
 
 		$diagnostics = Hub::getInstance()->diagnostics;
-		$check = $diagnostics->getDefinitionById((int)Craft::$app->getRequest()->getRequiredBodyParam('id')) ?? throw new NotFoundHttpException('Check not found.');
+		$check = $diagnostics->getDefinitionById($this->requiredBodyInt('id')) ?? throw new NotFoundHttpException('Check not found.');
 
 		if ($check->isDefault()) {
 			throw new BadRequestHttpException('Default checks can’t be deleted.');
 		}
 
-		if ($diagnostics->deleteDefinitionById($check->id)) {
+		if ($diagnostics->deleteDefinitionById($check->id ?? 0)) {
 			$this->record(ActivityAction::Deleted, $check);
 		}
 
@@ -144,12 +149,12 @@ class ChecksController extends BaseController
 	/**
 	 * Orders the checks of a kind by the JSON-encoded IDs sent by Craft's admin table.
 	 */
-	public function actionReorder(): Response
+	public function actionReorder(): ?Response
 	{
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
 
-		$ids = Json::decode((string)Craft::$app->getRequest()->getRequiredBodyParam('ids'));
+		$ids = Json::decode($this->requiredBodyString('ids'));
 		Hub::getInstance()->diagnostics->reorderDefinitions(Ids::positive($ids));
 
 		return $this->asSuccess();
@@ -158,15 +163,14 @@ class ChecksController extends BaseController
 	/**
 	 * Enables or disables a check, from the checks table.
 	 */
-	public function actionToggle(): Response
+	public function actionToggle(): ?Response
 	{
 		$this->requirePostRequest();
 		$this->requireAcceptsJson();
 
-		$request = Craft::$app->getRequest();
 		$diagnostics = Hub::getInstance()->diagnostics;
-		$check = $diagnostics->getDefinitionById((int)$request->getRequiredBodyParam('id')) ?? throw new NotFoundHttpException('Check not found.');
-		$check->enabled = (bool)$request->getRequiredBodyParam('enabled');
+		$check = $diagnostics->getDefinitionById($this->requiredBodyInt('id')) ?? throw new NotFoundHttpException('Check not found.');
+		$check->enabled = $this->requiredBodyBool('enabled');
 
 		if (!$diagnostics->saveDefinition($check)) {
 			return $this->asFailure(Craft::t('hub', 'Couldn’t save the check.'));

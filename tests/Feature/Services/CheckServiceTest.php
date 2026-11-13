@@ -1,19 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Asset;
 use craft\elements\db\ElementQuery;
 use craft\elements\Entry;
 use craft\elements\User;
 use SomehowDigital\Craft\Hub\enums\Severity;
 use SomehowDigital\Craft\Hub\models\Check;
-use SomehowDigital\Craft\Hub\services\CheckService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 
-	$this->checks = new CheckService();
-	$this->structure = $this->hub()->structure;
 });
 
 /**
@@ -22,25 +21,25 @@ beforeEach(function () {
  */
 function byKey(array $checks): array
 {
-	return array_column(array_map(fn (Check $check) => ['key' => $check->key, 'check' => $check], $checks), 'check', 'key');
+	return array_column(array_map(fn(Check $check): array => ['key' => $check->key, 'check' => $check], $checks), 'check', 'key');
 }
 
 /**
  * The keys of the failed checks, in order.
  *
  * @param Check[] $checks
- * @return string[]
+ * @return list<string>
  */
 function failedChecks(array $checks): array
 {
-	return array_values(array_map(fn (Check $check) => (string)$check->key, array_filter($checks, fn (Check $check) => !$check->passed)));
+	return array_values(array_map(fn(Check $check): string => (string) $check->key, array_filter($checks, fn(Check $check): bool => !$check->passed)));
 }
 
-it('checks sections by their filters, counting the entries flagged by the checks of entries', function () {
-	$this->db()->respondToCounts(fn () => [['sectionId' => 1, 'typeId' => 10, 'total' => 2]]);
+it('checks sections by their filters, counting the entries flagged by the checks of entries', function (): void {
+	$this->db()->respondToCounts(fn(): array => [['sectionId' => 1, 'typeId' => 10, 'total' => 2]]);
 
-	$news = byKey($this->checks->forSection($this->structure->getSection(1)));
-	$archive = $this->checks->forSection($this->structure->getSection(4));
+	$news = byKey($this->hub()->checks->forSection(present($this->hub()->structure->getSection(1))));
+	$archive = $this->hub()->checks->forSection(present($this->hub()->structure->getSection(4)));
 
 	expect(array_keys($news))->toBe(['entries.unreferenced', 'entries.stale', 'entries.drafts', 'entries.disabled', 'sections.empty'])
 		->and($news['sections.empty']->passed)->toBeTrue()
@@ -51,22 +50,22 @@ it('checks sections by their filters, counting the entries flagged by the checks
 		->and(byKey($archive)['sections.empty']->severity)->toBe(Severity::Warning);
 });
 
-it('computes the checks of an item once', function () {
-	$info = $this->structure->getSection(1);
+it('computes the checks of an item once', function (): void {
+	$info = present($this->hub()->structure->getSection(1));
 
-	expect($this->checks->forSection($info))->toBe($this->checks->forSection($info))
+	expect($this->hub()->checks->forSection($info))->toBe($this->hub()->checks->forSection($info))
 		->and($this->db()->counts())->toHaveCount(4);
 });
 
-it('leaves out links to lists the user cannot open', function () {
+it('leaves out links to lists the user cannot open', function (): void {
 	$this->actingAs(permissions: []);
 
-	expect(byKey($this->checks->forSection($this->structure->getSection(1)))['entries.drafts']->url)->toBeNull();
+	expect(byKey($this->hub()->checks->forSection(present($this->hub()->structure->getSection(1))))['entries.drafts']->url)->toBeNull();
 });
 
-it('checks entry types, counting their entries only if they are assigned', function () {
-	$orphan = byKey($this->checks->forEntryType($this->structure->getEntryType(13)));
-	$article = byKey($this->checks->forEntryType($this->structure->getEntryType(10)));
+it('checks entry types, counting their entries only if they are assigned', function (): void {
+	$orphan = byKey($this->hub()->checks->forEntryType(present($this->hub()->structure->getEntryType(13))));
+	$article = byKey($this->hub()->checks->forEntryType(present($this->hub()->structure->getEntryType(10))));
 
 	expect(failedChecks($orphan))->toBe(['entryTypes.unused'])
 		->and($orphan)->not->toHaveKey('entries.drafts')
@@ -74,18 +73,18 @@ it('checks entry types, counting their entries only if they are assigned', funct
 		->and($article['entries.drafts']->url)->toContain('hub/structure/entry-types/10/entries');
 });
 
-it('checks fields', function () {
-	$checks = byKey($this->checks->forField($this->structure->getField(10)));
+it('checks fields', function (): void {
+	$checks = byKey($this->hub()->checks->forField(present($this->hub()->structure->getField(10))));
 
 	expect(failedChecks($checks))->toBe(['fields.unused'])
 		->and($checks['fields.unused']->severity)->toBe(Severity::Error)
 		->and($checks['fields.unused']->heading)->toBe('Usage');
 });
 
-it('checks volumes, counting the assets flagged by the checks of assets', function () {
-	$this->db()->respondToCounts(fn () => [['volumeId' => 1, 'total' => 3]]);
+it('checks volumes, counting the assets flagged by the checks of assets', function (): void {
+	$this->db()->respondToCounts(fn(): array => [['volumeId' => 1, 'total' => 3]]);
 
-	$checks = byKey($this->checks->forVolume($this->hub()->volumes->getVolume(1)));
+	$checks = byKey($this->hub()->checks->forVolume(present($this->hub()->volumes->getVolume(1))));
 
 	expect($checks['assets.unused']->count)->toBe(3)
 		->and($checks['assets.unused']->passed)->toBeFalse()
@@ -93,25 +92,25 @@ it('checks volumes, counting the assets flagged by the checks of assets', functi
 		->and($checks)->toHaveKey('volumes.empty');
 });
 
-it('checks entries by the filters matching them', function () {
-	ElementQueries::respond(Entry::class, fn (ElementQuery $query) => $query->status === ['disabled'] ? [new Entry(['id' => 1, 'siteId' => 1])] : []);
+it('checks entries by the filters matching them', function (): void {
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => $query->status === ['disabled'] ? [new Entry(['id' => 1, 'siteId' => 1])] : []);
 
-	$checks = byKey($this->checks->forEntry(new Entry(['id' => 1, 'siteId' => 1, 'sectionId' => 1])));
+	$checks = byKey($this->hub()->checks->forEntry(new Entry(['id' => 1, 'siteId' => 1, 'sectionId' => 1])));
 
 	expect(failedChecks($checks))->toBe(['entries.disabled'])
 		->and($checks['entries.disabled']->heading)->toBe('Disabled')
 		->and($checks['entries.drafts']->passedDescription)->toBe('The entry has no drafts.');
 });
 
-it('checks files and users', function () {
+it('checks files and users', function (): void {
 	ElementQueries::respond(Asset::class, []);
 	ElementQueries::respond(User::class, []);
 
-	expect(failedChecks($this->checks->forFile(new Asset(['id' => 1]))))->toBe([])
-		->and(array_keys(byKey($this->checks->forUser(new User(['id' => 1])))))->toContain('users.locked');
+	expect(failedChecks($this->hub()->checks->forFile(new Asset(['id' => 1]))))->toBe([])
+		->and(array_keys(byKey($this->hub()->checks->forUser(new User(['id' => 1])))))->toContain('users.locked');
 });
 
-it('leaves out disabled checks and checks custom ones', function () {
+it('leaves out disabled checks and checks custom ones', function (): void {
 	$this->db()->respond('FROM {{%hub_checks}}', [
 		['id' => 1, 'kind' => 'sections', 'handle' => 'empty', 'filter' => null, 'severity' => null, 'enabled' => 0, 'sortOrder' => 1, 'uid' => 'empty'],
 		[
@@ -120,7 +119,7 @@ it('leaves out disabled checks and checks custom ones', function () {
 		],
 	]);
 
-	$checks = byKey($this->checks->forSection($this->structure->getSection(3)));
+	$checks = byKey($this->hub()->checks->forSection(present($this->hub()->structure->getSection(3))));
 
 	expect($checks)->not->toHaveKey('sections.empty')
 		->and($checks['sections.public']->passed)->toBeFalse()
@@ -128,10 +127,10 @@ it('leaves out disabled checks and checks custom ones', function () {
 		->and($checks['sections.public']->passedDescription)->toBe('Not flagged by this check.');
 });
 
-it('only tells whether the entries of a section fail the checks of entries without counting them, if asked to', function () {
+it('only tells whether the entries of a section fail the checks of entries without counting them, if asked to', function (): void {
 	ElementQueries::respond(Entry::class, [new Entry(['id' => 5])]);
 
-	$checks = byKey($this->checks->forSection($this->structure->getSection(1), counted: false));
+	$checks = byKey($this->hub()->checks->forSection(present($this->hub()->structure->getSection(1)), counted: false));
 
 	expect($checks['entries.drafts']->passed)->toBeFalse()
 		->and($checks['entries.drafts']->count)->toBeNull()
@@ -139,10 +138,10 @@ it('only tells whether the entries of a section fail the checks of entries witho
 		->and($this->db()->counts())->toBe([]);
 });
 
-it('takes the counted checks of an item for whether they fail, as they tell that as well', function () {
-	$info = $this->structure->getSection(1);
-	$counted = $this->checks->forSection($info);
+it('takes the counted checks of an item for whether they fail, as they tell that as well', function (): void {
+	$info = present($this->hub()->structure->getSection(1));
+	$counted = $this->hub()->checks->forSection($info);
 
-	expect($this->checks->forSection($info, counted: false))->toBe($counted)
+	expect($this->hub()->checks->forSection($info, counted: false))->toBe($counted)
 		->and(ElementQueries::executed(Entry::class))->toBe([]);
 });

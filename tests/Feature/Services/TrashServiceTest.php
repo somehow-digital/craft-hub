@@ -1,22 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 use craft\elements\Asset;
+use craft\elements\db\ElementQuery;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\fs\Local;
+use Mockery\MockInterface;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
 use SomehowDigital\Craft\Hub\models\TrashedEntryFilter;
 use SomehowDigital\Craft\Hub\models\TrashedFileFilter;
 use SomehowDigital\Craft\Hub\services\TrashService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
 
-beforeEach(function () {
+beforeEach(function (): void {
 	$this->createContentModel();
 	$this->volume(1, 'images');
 	$this->request();
 });
 
-it('queries the trashed entries, leaving out those deleted with their owner', function () {
+it('queries the trashed entries, leaving out those deleted with their owner', function (): void {
 	$query = $this->hub()->trash->getEntryQuery(new TrashedEntryFilter());
 
 	expect($query->trashed)->toBeTrue()
@@ -26,7 +31,7 @@ it('queries the trashed entries, leaving out those deleted with their owner', fu
 		->and($query->orderBy)->toBe(['elements.dateDeleted' => SORT_DESC, 'elements.id' => SORT_DESC]);
 });
 
-it('narrows the trashed entries by their filters', function () {
+it('narrows the trashed entries by their filters', function (): void {
 	$filter = new TrashedEntryFilter();
 	$filter->search = 'hello';
 	$filter->sections = ['news'];
@@ -44,7 +49,7 @@ it('narrows the trashed entries by their filters', function () {
 		->and($query->orderBy)->toBe(['elements_sites.title' => SORT_ASC, 'elements.id' => SORT_ASC]);
 });
 
-it('queries the trashed files, leaving out those deleted with their volume', function () {
+it('queries the trashed files, leaving out those deleted with their volume', function (): void {
 	$query = $this->hub()->trash->getFileQuery(new TrashedFileFilter(), TrashService::SORT_SIZE);
 
 	expect($query->trashed)->toBeTrue()
@@ -52,7 +57,7 @@ it('queries the trashed files, leaving out those deleted with their volume', fun
 		->and($query->orderBy)->toBe(['assets.size' => SORT_DESC, 'elements.id' => SORT_DESC]);
 });
 
-it('narrows the trashed files by their filters', function (string $file, string $condition) {
+it('narrows the trashed files by their filters', function (string $file, string $condition): void {
 	$filter = new TrashedFileFilter();
 	$filter->search = 'logo';
 	$filter->volumes = ['images'];
@@ -74,14 +79,14 @@ it('narrows the trashed files by their filters', function (string $file, string 
 	'deleted' => [TrashService::FILE_DELETED, '{"assets.keptFile":null}'],
 ]);
 
-it('sorts the trashed items by their own columns', function () {
+it('sorts the trashed items by their own columns', function (): void {
 	$trash = $this->hub()->trash;
 
 	expect($trash->getEntrySortColumns())->toBe(['title' => SORT_ASC, 'deleted' => SORT_DESC])
 		->and($trash->getFileSortColumns())->toBe(['file' => SORT_ASC, 'size' => SORT_DESC, 'deleted' => SORT_DESC]);
 });
 
-it('finds who last deleted the items in the activity log', function () {
+it('finds who last deleted the items in the activity log', function (): void {
 	$editor = new User(['id' => 3, 'username' => 'editor']);
 	ElementQueries::respond(User::class, [$editor]);
 	$this->db()->respond('FROM {{%hub_activity}}', [
@@ -100,74 +105,76 @@ it('finds who last deleted the items in the activity log', function () {
 		->and($this->hub()->trash->getDeleters(ActivitySubject::Asset, []))->toBe([]);
 });
 
-describe('files kept of trashed assets', function () {
-	beforeEach(function () {
-		$this->trash = Mockery::mock(TrashService::class)->makePartial()->shouldAllowMockingProtectedMethods();
-		$this->trash->shouldReceive('keptFilesTableExists')->andReturn(true)->byDefault();
-		$this->fs = Mockery::mock(Local::class)->makePartial();
-		$this->fs->handle = 'fs-images';
-		$this->volumes[1]->setFs($this->fs);
+describe('files kept of trashed assets', function (): void {
+	beforeEach(function (): void {
+		$this->db()->tables = [Tables::KEPT_FILES];
+		/** @var Local&MockInterface $fsMock */
+		$fsMock = Mockery::mock(Local::class)->makePartial();
+		$this->fsMock = $fsMock;
+		$this->fsMock->handle = 'fs-images';
+		$this->volumes[1]->setFs($this->fsMock);
 	});
 
-	it('records and forgets the files kept', function () {
+	it('records and forgets the files kept', function (): void {
+		/** @var Asset&MockInterface $asset */
 		$asset = Mockery::mock(Asset::class)->makePartial();
 		$asset->id = 5;
 		$asset->volumeId = 1;
 		$asset->shouldReceive('getPath')->andReturn('photos/a.jpg');
 
-		$this->trash->recordKeptFile($asset);
-		$this->trash->forgetKeptFile(5);
+		$this->hub()->trash->recordKeptFile($asset);
+		$this->hub()->trash->forgetKeptFile(5);
 
 		expect($this->db()->queriesMatching('INSERT INTO {{%hub_kept_files}}')[0])->toContain("(5, 1, 'photos/a.jpg'")
 			->and($this->db()->queriesMatching('DELETE FROM {{%hub_kept_files}}')[0])->toContain('`assetId`=5');
 	});
 
-	it('deletes the files of assets deleted permanently since, unless another asset has their place', function () {
+	it('deletes the files of assets deleted permanently since, unless another asset has their place', function (): void {
 		$this->db()->respond('FROM {{%hub_kept_files}} `kept`', [
 			['assetId' => '5', 'volumeId' => '1', 'path' => 'photos/a.jpg'],
 			['assetId' => '6', 'volumeId' => '1', 'path' => 'photos/b.jpg'],
 			['assetId' => '7', 'volumeId' => '9', 'path' => 'c.jpg'],
 		]);
-		$this->db()->respond('INNER JOIN {{%volumefolders}}', fn (string $sql) => str_contains($sql, "'b.jpg'") ? [['path' => 'photos/']] : [['path' => 'other/']]);
-		$this->fs->shouldReceive('deleteFile')->once()->with('photos/a.jpg');
+		$this->db()->respond('INNER JOIN {{%volumefolders}}', fn(string $sql): array => str_contains($sql, "'b.jpg'") ? [['path' => 'photos/']] : [['path' => 'other/']]);
+		$this->fsMock->shouldReceive('deleteFile')->once()->with('photos/a.jpg');
 
-		expect($this->trash->deletePurgedFiles())->toBe(1)
+		expect($this->hub()->trash->deletePurgedFiles())->toBe(1)
 			->and($this->db()->queriesMatching('DELETE FROM {{%hub_kept_files}}'))->toHaveCount(3);
 	});
 
-	it('forgets files that can no longer be deleted', function () {
+	it('forgets files that can no longer be deleted', function (): void {
 		$this->db()->respond('FROM {{%hub_kept_files}} `kept`', [['assetId' => '5', 'volumeId' => '1', 'path' => 'a.jpg']]);
-		$this->fs->shouldReceive('deleteFile')->andThrow(new RuntimeException('Gone'));
+		$this->fsMock->shouldReceive('deleteFile')->andThrow(new RuntimeException('Gone'));
 
-		expect($this->trash->deletePurgedFiles())->toBe(0)
+		expect($this->hub()->trash->deletePurgedFiles())->toBe(0)
 			->and($this->db()->queriesMatching('DELETE FROM {{%hub_kept_files}}'))->toHaveCount(1);
 	});
 
-	it('does nothing without its table', function () {
-		$this->trash->shouldReceive('keptFilesTableExists')->andReturn(false);
+	it('does nothing without its table', function (): void {
+		$this->db()->tables = [];
 		$asset = new Asset(['id' => 5]);
 
-		$this->trash->recordKeptFile($asset);
-		$this->trash->forgetKeptFile(5);
+		$this->hub()->trash->recordKeptFile($asset);
+		$this->hub()->trash->forgetKeptFile(5);
 
-		expect($this->trash->deletePurgedFiles())->toBe(0)
+		expect($this->hub()->trash->deletePurgedFiles())->toBe(0)
 			->and($this->db()->queriesMatching('hub_kept_files'))->toBe([]);
 	});
 });
 
-it('finds the trashed elements related to trashed items, through the nested entries of either', function () {
+it('finds the trashed elements related to trashed items, through the nested entries of either', function (): void {
 	// Entry 40 is nested in the trashed entry 30, and relates to the item.
-	$this->db()->respond('FROM {{%elements_owners}}', fn (string $sql) => str_contains($sql, 'WHERE `elementId`') ? [['elementId' => 40, 'ownerId' => 30]] : []);
+	$this->db()->respond('FROM {{%elements_owners}}', fn(string $sql): array => str_contains($sql, 'WHERE `elementId`') ? [['elementId' => 40, 'ownerId' => 30]] : []);
 	$this->db()->respond('FROM {{%relations}}', [['sourceId' => 40, 'targetId' => 1]]);
-	ElementQueries::respond(Entry::class, fn ($query) => in_array(30, (array)$query->id, true) ? [new Entry(['id' => 30, 'siteId' => 1])] : []);
+	ElementQueries::respond(Entry::class, fn(ElementQuery $query): array => in_array(30, listOf($query->id), true) ? [new Entry(['id' => 30, 'siteId' => 1])] : []);
 
 	$related = $this->hub()->trash->getRelatedTrashed([1]);
 
 	expect(array_keys($related))->toBe([1])
-		->and(array_keys($related[1]))->toBe([30])
+		->and(array_keys(arrayAt($related, 1)))->toBe([30])
 		->and($this->hub()->trash->getRelatedTrashed([]))->toBe([]);
 });
 
-it('finds no trashed elements for trashed items without relations', function () {
+it('finds no trashed elements for trashed items without relations', function (): void {
 	expect($this->hub()->trash->getRelatedTrashed([1]))->toBe([]);
 });

@@ -15,14 +15,14 @@
 {% import 'hub/_components/macros' as hub %}
 
 <div class="hub-deletion">
-	{% set notice = total ? notice : { color: 'gray', icon: 'ban', title: empty.title, text: empty.text } %}
+	{% set notice = total ? notice : {color: 'gray', icon: 'ban', title: empty.title, text: empty.text} %}
 	<div class="hub-deletion__notice" data-color="{{ notice.color }}">
 		<span class="hub-deletion__notice-icon" aria-hidden="true">{{ iconSvg(notice.icon) }}</span>
 		<p>
-			<strong>{{ notice.title ?? noun|t('hub', { count: total }) }}</strong>
+			<strong>{{ notice.title ?? noun|t('hub', {count: total}) }}</strong>
 			{{ notice.text }}
 			{% if skipped %}
-				<span class="hub-deletion__skipped" title="{{ skippedText }}">{{ '{count, number} skipped'|t('hub', { count: skipped }) }}</span>
+				<span class="hub-deletion__skipped" title="{{ skippedText }}">{{ '{count, number} skipped'|t('hub', {count: skipped}) }}</span>
 			{% endif %}
 		</p>
 	</div>
@@ -64,7 +64,7 @@
 						</span>
 						{% if item.count is defined %}
 							<span class="hub-deletion__impacts">
-								{% set label = countLabel|t('hub', { count: item.count }) %}
+								{% set label = countLabel|t('hub', {count: item.count}) %}
 								<span class="hub-deletion__impact" data-color="{{ item.count ? countColor ?? 'red' : 'gray' }}"{% if not item.count %} data-empty{% endif %} title="{{ label }}">
 									<span class="hub-deletion__impact-icon" aria-hidden="true">{{ iconSvg(countIcon) }}</span>
 									{{ item.count|number }}

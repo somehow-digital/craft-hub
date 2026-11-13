@@ -8,11 +8,11 @@
 {% set selectedSubnavItem = 'fields' %}
 {% set path = 'hub/structure/fields/' ~ field.id %}
 {# Only nested entry fields have entries to list. #}
-{% set listTabs = info.isNested ? [{ id: 'entries', label: 'Entries'|t('app') }] : [] %}
+{% set listTabs = info.isNested ? [{id: 'entries', label: 'Entries'|t('app')}] : [] %}
 {% set statisticsTab = true %}
 {% set crumbs = [
-	{ label: 'Fields'|t('app'), url: url('hub/structure/fields', { hubSite: hubSite }) },
-	{ label: title, url: url(path, { hubSite: hubSite }), current: true },
+	{label: 'Fields'|t('app'), url: url('hub/structure/fields', {hubSite: hubSite})},
+	{label: title, url: url(path, {hubSite: hubSite}), current: true},
 ] %}
 
 {% block pageTitle %}
@@ -33,7 +33,7 @@
 
 {% block details %}
 	<dl class="meta read-only hub-details">
-		{% include 'hub/_components/detail-labels' with { list: 'fields', id: field.id } only %}
+		{{ include('hub/_components/detail-labels', {list: 'fields', id: field.id}, false) }}
 		<div class="data">
 			<dt class="heading">{{ 'Handle'|t('app') }}</dt>
 			<dd class="value"><code>{{ field.handle }}</code></dd>
@@ -85,29 +85,29 @@
 {% endblock %}
 
 {% block overview %}
-	{% include 'hub/_panels/maintainers' with { list: 'fields', item: field, hubSite: hubSite } only %}
+	{{ include('hub/_panels/maintainers', {list: 'fields', item: field, hubSite: hubSite}, false) }}
 
 	{% if info.isNested %}
-		{% include 'hub/_panels/fields/entry-types' with { info: info, field: field, siteIds: siteIds } only %}
+		{{ include('hub/_panels/fields/entry-types', {info: info, field: field, siteIds: siteIds}, false) }}
 	{% endif %}
 
 	{% if info.sections|length %}
-		{% include 'hub/_panels/fields/sections' with { info: info, field: field, siteIds: siteIds } only %}
+		{{ include('hub/_panels/fields/sections', {info: info, field: field, siteIds: siteIds}, false) }}
 	{% endif %}
 
 	{% if volumes|length %}
-		{% include 'hub/_panels/fields/volumes' with { volumes: volumes, field: field, siteIds: siteIds } only %}
+		{{ include('hub/_panels/fields/volumes', {volumes: volumes, field: field, siteIds: siteIds}, false) }}
 	{% endif %}
 
-	{% include 'hub/_panels/fields/relations' with { info: info } only %}
+	{{ include('hub/_panels/fields/relations', {info: info}, false) }}
 
 	{% if field is instance of('craft\\fields\\ContentBlock') %}
-		{% include 'hub/_panels/field-layout' with { layout: field.getFieldLayout() } only %}
+		{{ include('hub/_panels/field-layout', {layout: field.getFieldLayout()}, false) }}
 	{% endif %}
 
-	{% include 'hub/_panels/activity' with { subject: 'field', id: field.id } only %}
+	{{ include('hub/_panels/activity', {subject: 'field', id: field.id}, false) }}
 {% endblock %}
 
 {% block list %}
-	{% include 'hub/_components/entry-list' with { list: list, hubSite: hubSite } only %}
+	{{ include('hub/_components/entry-list', {list: list, hubSite: hubSite}, false) }}
 {% endblock %}

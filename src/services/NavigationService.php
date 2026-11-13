@@ -1,20 +1,39 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
 use craft\helpers\UrlHelper;
+use craft\web\Request as WebRequest;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\models\FilterParams;
 use yii\base\Component;
 
 /**
  * Hub's navigation items in the control panel: "Hub", "Data" and "Structure", with the pages the user may view.
  *
  * @see RegisterCpNavItemsHandler
+ *
+ * @internal
  */
-class NavigationService extends Component
+final class NavigationService extends Component
 {
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly AccessService $access,
+		private readonly WorkService $work,
+		private readonly ActivityService $activity,
+		private readonly SiteScopeService $siteScope,
+		private readonly ?WebRequest $request,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
+
 	/**
 	 * The "Data" navigation item, listing the content, with the pages the user may view. The "Hub" one is added right
 	 * before it, the "Structure" one right after it.
@@ -50,7 +69,7 @@ class NavigationService extends Component
 	{
 		$labels = [];
 		foreach ($pages as $page) {
-			if (Hub::getInstance()->access->canView($page)) {
+			if ($this->access->canView($page)) {
 				$labels[$page->segment()] = $page->label();
 			}
 		}
@@ -78,10 +97,10 @@ class NavigationService extends Component
 	public function getManageNavItem(): ?array
 	{
 		$labels = array_filter([
-			'work' => Hub::getInstance()->work->canView() ? Craft::t('hub', 'My Work') : null,
-			'activity' => Hub::getInstance()->activity->canView() ? Craft::t('hub', 'Activity') : null,
-			'settings' => Hub::getInstance()->access->canManageSettings() ? Craft::t('app', 'Settings') : null,
-		]);
+			'work' => $this->work->canView() ? Craft::t('hub', 'My Work') : null,
+			'activity' => $this->activity->canView() ? Craft::t('hub', 'Activity') : null,
+			'settings' => $this->access->canManageSettings() ? Craft::t('app', 'Settings') : null,
+		], is_string(...));
 
 		if ($labels === []) {
 			return null;
@@ -90,8 +109,8 @@ class NavigationService extends Component
 		return [
 			'label' => Craft::t('hub', 'Hub'),
 			'url' => 'hub/manage',
-			'icon' => Hub::getInstance()->getBasePath() . '/icon-mask.svg',
-			'badgeCount' => isset($labels['work']) ? Hub::getInstance()->work->getCounts()['diagnostics'] : 0,
+			'icon' => Craft::getAlias('@hub') . '/icon-mask.svg',
+			'badgeCount' => isset($labels['work']) ? $this->work->getCounts()['diagnostics'] : 0,
 			'subnav' => $this->subnav('hub/manage', $labels),
 		];
 	}
@@ -103,7 +122,7 @@ class NavigationService extends Component
 	private function subnav(string $path, array $labels): array
 	{
 		// Keep the selected sites when switching between Hub pages; from elsewhere, Hub's pages restore them from the session.
-		$params = Craft::$app->getRequest()->getSegment(1) === 'hub' ? [Hub::SITE_PARAM => Hub::getInstance()->siteScope->getSiteParam()] : [];
+		$params = $this->request?->getSegment(1) === 'hub' ? [FilterParams::SITE_PARAM => $this->siteScope->getSiteParam()] : [];
 
 		$items = [];
 		foreach ($labels as $segment => $label) {
@@ -111,8 +130,8 @@ class NavigationService extends Component
 			// link itself carries the selected sites.
 			$items[$segment] = [
 				'label' => $label,
-				'url' => "$path/$segment",
-				'linkAttributes' => ['href' => UrlHelper::cpUrl("$path/$segment", $params)],
+				'url' => "{$path}/{$segment}",
+				'linkAttributes' => ['href' => UrlHelper::cpUrl("{$path}/{$segment}", $params)],
 			];
 		}
 

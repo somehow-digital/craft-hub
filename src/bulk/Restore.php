@@ -1,38 +1,47 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\bulk;
 
 use Craft;
 use craft\base\ElementInterface;
-use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\services\ColumnService;
+use craft\services\Elements;
+use SomehowDigital\Craft\Hub\services\AccessService;
+use SomehowDigital\Craft\Hub\services\BulkService;
 
 /**
  * Restores trashed elements like Craft's restore action, as far as the user may save them. Files whose file wasn't kept
  * can't be restored, see Asset::beforeRestore().
+ *
+ * @internal
  */
-class Restore extends BulkAction
+final class Restore extends BaseRestore
 {
+	public function __construct(
+		string $list,
+		AccessService $access,
+		private readonly BulkService $bulk,
+		private readonly Elements $craftElements,
+	) {
+		parent::__construct($list, $access);
+	}
+
 	public function definition(): array
 	{
 		return ['label' => Craft::t('app', 'Restore'), 'icon' => 'trash-arrow-up', 'unless' => 'unrestorable'];
 	}
 
-	public function isAvailable(): bool
-	{
-		return $this->list === ColumnService::LIST_TRASHED_ENTRIES
-			? $this->hub()->access->canAct(Page::Entries, Hub::PERMISSION_RESTORE_ENTRIES)
-			: $this->hub()->access->canAct(Page::Assets, Hub::PERMISSION_RESTORE_ASSETS);
-	}
-
+	/**
+	 * @return list<int>
+	 */
 	public function apply(array $ids, array $params): array
 	{
-		$service = Craft::$app->getElements();
+		$service = $this->craftElements;
 
 		return $this->succeeded(
-			$this->hub()->bulk->getElements($this->list, $ids),
-			fn (ElementInterface $element) => $service->canSave($element) && $service->restoreElement($element),
+			$this->bulk->getElements($this->list, $ids),
+			fn(ElementInterface $element): bool => $service->canSave($element) && $service->restoreElement($element),
 		);
 	}
 }

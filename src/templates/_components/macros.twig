@@ -42,7 +42,7 @@
 				{{ _self.badge(kind.label, kind.color, null, kind.icon) }}
 			{%- endfor -%}
 			{%- if limit and kinds|length > limit %}
-				<span class="hub-muted">{{ '+{count, number}'|t('hub', { count: kinds|length - limit }) }}</span>
+				<span class="hub-muted">{{ '+{count, number}'|t('hub', {count: kinds|length - limit}) }}</span>
 			{%- endif -%}
 		</span>
 	{%- else -%}
@@ -75,7 +75,7 @@
 
 {# Thumbnail tile of an asset, falling back to its file type icon. #}
 {% macro thumb(asset, size) %}
-	{%- set pixels = { small: 18, large: 40 }[size] ?? 28 -%}
+	{%- set pixels = {small: 18, large: 40}[size] ?? 28 -%}
 	<span class="hub-thumb{% if size %} hub-thumb--{{ size }}{% endif %}" aria-hidden="true">
 		<img src="{{ craft.app.assets.getThumbUrl(asset, pixels * 2, pixels * 2) }}" alt="" loading="lazy" width="{{ pixels }}" height="{{ pixels }}">
 	</span>
@@ -103,7 +103,7 @@
 
 {# Photo of a user, falling back to a user icon. #}
 {% macro avatar(user, size) %}
-	{%- set pixels = { small: 18, large: 40 }[size] ?? 28 -%}
+	{%- set pixels = {small: 18, large: 40}[size] ?? 28 -%}
 	{%- set photo = user.photo -%}
 	{%- if photo -%}
 		<span class="hub-thumb hub-thumb--round{% if size %} hub-thumb--{{ size }}{% endif %}" aria-hidden="true">
@@ -129,7 +129,7 @@
 {% macro userStatus(user) %}
 	{%- set status = user.status -%}
 	<span class="hub-badges">
-		{{- _self.badge(user.statuses()[status].label ?? status, { active: 'green', pending: 'orange', suspended: 'red' }[status] ?? 'gray') -}}
+		{{- _self.badge(user.statuses()[status].label ?? status, {active: 'green', pending: 'orange', suspended: 'red'}[status] ?? 'gray') -}}
 		{%- if user.locked %}{{ _self.badge('Locked'|t('app'), 'red', null, 'lock') }}{% endif -%}
 	</span>
 {%- endmacro %}
@@ -381,9 +381,9 @@
 {% macro trend(chart) %}
 	{%- if chart.change is not null -%}
 		{%- set since = chart.since|date('short') -%}
-		<span title="{{ 'Change since {date}'|t('hub', { date: since }) }}">
+		<span title="{{ 'Change since {date}'|t('hub', {date: since}) }}">
 			{{- (chart.change > 0 ? '+' : '') ~ chart.change|number -}}
-			<span class="visually-hidden"> {{ 'since {date}'|t('hub', { date: since }) }}</span>
+			<span class="visually-hidden"> {{ 'since {date}'|t('hub', {date: since}) }}</span>
 		</span>
 	{%- endif -%}
 {%- endmacro %}
@@ -391,7 +391,7 @@
 {# Hub page of an item, or one of its tabs; nothing if the user may not open it. #}
 {% macro url(item, tab) %}
 	{%- set plugin = craft.app.plugins.getPlugin('hub') -%}
-	{%- set params = { hubSite: plugin.siteScope.getSiteParam() } -%}
+	{%- set params = {hubSite: plugin.siteScope.getSiteParam()} -%}
 	{%- if not plugin.access.canViewPageOf(item) -%}
 	{%- elseif item is instance of('craft\\models\\Section') -%}
 		{%- set path = 'hub/structure/sections/' ~ item.id -%}
@@ -427,7 +427,7 @@
 {# Chip of an element, linking entries, assets and users to their hub page instead of their edit page. #}
 {% macro element(element) %}
 	{%- set hubUrl = element is instance of('craft\\elements\\Entry') or element is instance of('craft\\elements\\Asset') or element is instance of('craft\\elements\\User') ? _self.url(element) : null -%}
-	{{- elementChip(element, { hyperlink: true, attributes: hubUrl|trim ? { data: { 'cp-url': hubUrl } } : {} }) -}}
+	{{- elementChip(element, {hyperlink: true, attributes: hubUrl|trim ? {data: {'cp-url': hubUrl}} : {}}) -}}
 {%- endmacro %}
 
 {#
@@ -558,7 +558,7 @@
 	and `lazy`, the URL of the options read from the database, loaded as the dropdown first opens; until then, `options` only holds those picked.
 #}
 {% macro choices(name, options, selected, settings) %}
-	{%- set settings = { multiple: true, label: null, site: false, lazy: null }|merge(settings ?? {}) -%}
+	{%- set settings = {multiple: true, label: null, site: false, lazy: null}|merge(settings ?? {}) -%}
 	{%- set selected = (selected is iterable ? selected : (selected is null or selected == '' ? [] : [selected]))|map(value => value ~ '') -%}
 	<fieldset class="hub-dropdown__part" data-hub-choices{% if not settings.multiple %} data-hub-single{% endif %}{% if settings.lazy %} data-hub-options="{{ settings.lazy }}"{% endif %}>
 		{%- if settings.label %}<legend class="hub-dropdown__legend">{{ settings.label }}</legend>{% endif %}
@@ -575,7 +575,7 @@
 		{% endif %}
 		<div class="hub-dropdown__options">
 			{% for value, option in options %}
-				{% set option = option is iterable ? option : { label: option } %}
+				{% set option = option is iterable ? option : {label: option} %}
 				<label class="hub-dropdown__option"{% if option.title ?? false %} title="{{ option.title }}"{% endif %}>
 					<input type="checkbox" value="{{ value }}"{% if (value ~ '') in selected %} checked{% endif %}>
 					{%- if option.user ?? false %}
@@ -600,11 +600,11 @@
 	Settings: `type` (`number` or `date`), `unit`, `step`, and `filter` and `scale` (row value per unit) for lists filtered in the browser.
 #}
 {% macro range(name, label, min, max, settings) %}
-	{%- set settings = { type: 'number', unit: null, step: 1 }|merge(settings ?? {}) -%}
+	{%- set settings = {type: 'number', unit: null, step: 1}|merge(settings ?? {}) -%}
 	{%- set date = settings.type == 'date' -%}
 	{%- set bounds = [
-		{ name: name ~ (date ? 'From' : 'Min'), value: min, label: date ? 'From'|t('hub') : 'Min'|t('hub') },
-		{ name: name ~ (date ? 'To' : 'Max'), value: max, label: date ? 'To'|t('hub') : 'Max'|t('hub') },
+		{name: name ~ (date ? 'From' : 'Min'), value: min, label: date ? 'From'|t('hub') : 'Min'|t('hub')},
+		{name: name ~ (date ? 'To' : 'Max'), value: max, label: date ? 'To'|t('hub') : 'Max'|t('hub')},
 	] -%}
 	<fieldset class="hub-dropdown__part" data-hub-range data-label="{{ label }}"{% if settings.unit %} data-unit="{{ settings.unit }}"{% endif %}>
 		<legend class="hub-dropdown__legend">{{ label }}</legend>
@@ -624,9 +624,9 @@
 {# Filters list items by how recently their entries were updated. #}
 {% macro activityFilter(selected) %}
 	{{ _self.dropdown('Activity'|t('hub'), 'clock', _self.choices('activity', {
-		recent: { label: 'Recently edited'|t('hub'), color: 'green' },
-		stale: { label: 'Stale'|t('hub'), color: 'orange' },
-		none: { label: 'No entries'|t('hub'), color: 'gray' },
+		recent: {label: 'Recently edited'|t('hub'), color: 'green'},
+		stale: {label: 'Stale'|t('hub'), color: 'orange'},
+		none: {label: 'No entries'|t('hub'), color: 'gray'},
 	}, selected)) }}
 {%- endmacro %}
 
@@ -636,9 +636,9 @@
 	{%- if sites|length > 1 -%}
 		{%- set options = {} -%}
 		{%- for option in sites -%}
-			{%- set options = options|merge({ (option.handle): option.name|t('site') }) -%}
+			{%- set options = options|merge({(option.handle): option.name|t('site')}) -%}
 		{%- endfor -%}
-		{{ _self.dropdown('Site'|t('app'), 'globe', _self.choices('hubSite', options, craft.app.plugins.getPlugin('hub').siteScope.getSites()|map(site => site.handle), { site: true })) }}
+		{{ _self.dropdown('Site'|t('app'), 'globe', _self.choices('hubSite', options, craft.app.plugins.getPlugin('hub').siteScope.getSites()|map(site => site.handle), {site: true})) }}
 	{%- endif -%}
 {%- endmacro %}
 
@@ -751,7 +751,7 @@
 {% macro previewPages(pageInfo) %}
 	{%- if pageInfo.totalPages > 1 -%}
 		<footer class="hub-deletion__pages" data-hub-preview-pages="{{ pageInfo.currentPage }}">
-			{% include '_includes/pagination' with { pageInfo: pageInfo } only %}
+			{{ include('_includes/pagination', {pageInfo: pageInfo}, false) }}
 			<p class="hub-deletion__more">{{ 'The totals above cover the items of all pages.'|t('hub') }}</p>
 		</footer>
 	{%- endif -%}
@@ -787,12 +787,12 @@
 	First cell of a row of a table in the `bulk` component, selecting the item by its ID; nothing without actions.
 	Lists keeping their selection on the server submit it from there; others submit the checkboxes by their `name`.
 	The `states` of the item leave the actions out of its context menu that are `unless` in one of them, see
-	BulkService::getActions().
+	BulkActions::getActions().
 #}
 {% macro bulkItem(actions, value, label, name, states) %}
 	{%- if actions|length -%}
 		<td class="hub-check-cell">
-			<input type="checkbox"{% if name %} name="{{ name }}"{% endif %} value="{{ value }}" aria-label="{{ 'Select {name}'|t('hub', { name: label }) }}" data-hub-bulk-item data-hub-bulk-name="{{ label }}"
+			<input type="checkbox"{% if name %} name="{{ name }}"{% endif %} value="{{ value }}" aria-label="{{ 'Select {name}'|t('hub', {name: label}) }}" data-hub-bulk-item data-hub-bulk-name="{{ label }}"
 				{%- if states ?? false %} data-hub-bulk-states="{{ states|join(' ') }}"{% endif %}>
 		</td>
 	{%- endif -%}
@@ -897,8 +897,8 @@
 								<input type="checkbox"{% if column.visible %} checked{% endif %}>
 								<span class="hub-dropdown__text">{{ column.label }}</span>
 							</label>
-							<button type="button" class="hub-columns__move" data-hub-move="-1" title="{{ 'Move up'|t('app') }}" aria-label="{{ 'Move {name} up'|t('hub', { name: column.label }) }}">{{ iconSvg('arrow-up') }}</button>
-							<button type="button" class="hub-columns__move" data-hub-move="1" title="{{ 'Move down'|t('app') }}" aria-label="{{ 'Move {name} down'|t('hub', { name: column.label }) }}">{{ iconSvg('arrow-down') }}</button>
+							<button type="button" class="hub-columns__move" data-hub-move="-1" title="{{ 'Move up'|t('app') }}" aria-label="{{ 'Move {name} up'|t('hub', {name: column.label}) }}">{{ iconSvg('arrow-up') }}</button>
+							<button type="button" class="hub-columns__move" data-hub-move="1" title="{{ 'Move down'|t('app') }}" aria-label="{{ 'Move {name} down'|t('hub', {name: column.label}) }}">{{ iconSvg('arrow-down') }}</button>
 						</li>
 					{% endfor %}
 				</ol>

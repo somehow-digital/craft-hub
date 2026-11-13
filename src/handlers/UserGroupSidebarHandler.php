@@ -1,17 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\handlers;
 
-use Craft;
 use craft\models\UserGroup;
+use craft\services\UserGroups;
 use craft\web\Controller;
 use craft\web\CpScreenResponseBehavior;
 use craft\web\Response;
+use craft\web\View;
 use SomehowDigital\Craft\Hub\assets\SidebarAsset;
 use SomehowDigital\Craft\Hub\enums\ActivitySubject;
+use SomehowDigital\Craft\Hub\enums\ListType;
 use SomehowDigital\Craft\Hub\enums\Page;
-use SomehowDigital\Craft\Hub\Hub;
-use SomehowDigital\Craft\Hub\services\ColumnService;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\services\AccessService;
+use SomehowDigital\Craft\Hub\services\ActivityFeedService;
+use SomehowDigital\Craft\Hub\services\ActivityService;
+use SomehowDigital\Craft\Hub\services\LabelService;
+use SomehowDigital\Craft\Hub\services\MaintainerService;
 use yii\base\ActionEvent;
 
 /**
@@ -19,9 +27,21 @@ use yii\base\ActionEvent;
  * what it maintains and, for users who may view the activity log, its latest activity. User groups aren't elements, so
  * they have no sidebar event; the panel is added to the screen instead. Craft Team's only group is shown on a page without
  * a sidebar, and a group yet to be created has nothing to show.
+ *
+ * @internal
  */
-class UserGroupSidebarHandler
+final readonly class UserGroupSidebarHandler
 {
+	public function __construct(
+		private AccessService $access,
+		private LabelService $labels,
+		private MaintainerService $maintainers,
+		private ActivityService $activity,
+		private ActivityFeedService $feed,
+		private View $view,
+		private UserGroups $craftUserGroups,
+	) {}
+
 	public function __invoke(ActionEvent $event): void
 	{
 		$controller = $event->action->controller;
@@ -32,34 +52,33 @@ class UserGroupSidebarHandler
 		}
 
 		$screen = $response->getBehavior(CpScreenResponseBehavior::NAME);
-		$group = $this->group($controller->actionParams);
-		$hub = Hub::getInstance();
+		$group = $this->group(Fill::map($controller->actionParams));
 
-		if (!$screen instanceof CpScreenResponseBehavior || $group === null || !$hub->access->canView(Page::Users)) {
+		if (!$screen instanceof CpScreenResponseBehavior || !$group instanceof UserGroup || !$this->access->canView(Page::Users)) {
 			return;
 		}
 
-		$view = Craft::$app->getView();
+		$view = $this->view;
 
 		$view->registerAssetBundle(SidebarAsset::class);
 
 		$html = $view->renderTemplate('hub/_sidebar/hub', [
-			...$hub->labels->getItemVariables(ColumnService::LIST_USER_GROUPS, (int)$group->id),
+			...$this->labels->getItemVariables(ListType::UserGroups->value, (int) $group->id),
 			'element' => $group,
-			'list' => ColumnService::LIST_USER_GROUPS,
+			'list' => ListType::UserGroups->value,
 			'maintainers' => [],
 			'activitySubject' => ActivitySubject::UserGroup->value,
 			'checks' => null,
 			'lastEdit' => null,
 			'references' => null,
 			'referenced' => null,
-			'maintained' => $hub->maintainers->getMaintainedByGroup($group),
-			'activities' => $hub->activity->canView() ? $hub->activity->getItemActivities(ActivitySubject::UserGroup, (int)$group->id, DefineSidebarHtmlHandler::ACTIVITY_LIMIT) : null,
+			'maintained' => $this->maintainers->getMaintainedByGroup($group),
+			'activities' => $this->activity->canView() ? $this->feed->getItemActivities(ActivitySubject::UserGroup, (int) $group->id, DefineSidebarHtmlHandler::ACTIVITY_LIMIT) : null,
 		]);
 
 		$existing = $screen->metaSidebarHtml;
 
-		$screen->metaSidebarHtml((is_callable($existing) ? $existing() : $existing) . $html);
+		$screen->metaSidebarHtml((Fill::text(is_callable($existing) ? $existing() : $existing) ?? '') . $html);
 	}
 
 	/**
@@ -72,6 +91,6 @@ class UserGroupSidebarHandler
 		$group = $params['group'] ?? null;
 		$id = $group instanceof UserGroup ? $group->id : $params['groupId'] ?? null;
 
-		return $id ? Craft::$app->getUserGroups()->getGroupById((int)$id) : null;
+		return Fill::id($id) !== null ? $this->craftUserGroups->getGroupById(Fill::int($id)) : null;
 	}
 }

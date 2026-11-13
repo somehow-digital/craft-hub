@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\Tests\Support;
 
 use craft\elements\db\ElementQuery;
@@ -11,10 +13,17 @@ use craft\elements\db\ElementQuery;
  */
 trait FakesQueryBuilding
 {
+	/**
+	 * @param array<mixed> $params
+	 * @return array<mixed>
+	 */
 	public function build($query, $params = [])
 	{
 		if ($query instanceof ElementQuery) {
-			return [$this->db->stashElementQuery($query), $params];
+			return [
+				$this->db->stashElementQuery($query),
+				$params,
+			];
 		}
 
 		return parent::build($query, $params);

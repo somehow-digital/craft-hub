@@ -1,15 +1,21 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\services;
 
 use Craft;
+use craft\base\ElementInterface;
+use craft\db\Connection;
 use craft\db\Query;
 use craft\elements\db\ElementQuery;
 use craft\helpers\StringHelper;
+use SomehowDigital\Craft\Hub\db\Tables;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Severity;
 use SomehowDigital\Craft\Hub\helpers\Aggregator;
-use SomehowDigital\Craft\Hub\Hub;
+use SomehowDigital\Craft\Hub\helpers\Fill;
+use SomehowDigital\Craft\Hub\helpers\Row;
 use SomehowDigital\Craft\Hub\models\CheckDefinition;
 use SomehowDigital\Craft\Hub\models\EntryFilter;
 use SomehowDigital\Craft\Hub\models\FileFilter;
@@ -22,11 +28,11 @@ use yii\base\Component;
  * a filter of its kind offered to everyone matches: Hub's default checks, each of one of Hub's predefined filters, which
  * can be disabled, reordered and given another severity, and custom ones, of any filter of their kind. Default checks
  * have a row once configured; until then, they are enabled, in their own order, before the custom ones.
+ *
+ * @internal
  */
-class DiagnosticsService extends Component
+final class DiagnosticsService extends Component
 {
-	public const TABLE_CHECKS = '{{%hub_checks}}';
-
 	/** columns the elements are grouped by, by alias, to count the elements failing a check for all of them at once */
 	private const GROUPS = [
 		CheckKind::Entries->value => ['sectionId' => 'entries.sectionId', 'typeId' => 'entries.typeId'],
@@ -44,6 +50,24 @@ class DiagnosticsService extends Component
 	private array $failing = [];
 
 	/**
+	 * @param array<string,mixed> $config
+	 */
+	public function __construct(
+		private readonly FilterService $filters,
+		private readonly QueryService $queries,
+		private readonly SiteScopeService $siteScope,
+		private readonly EntryService $entries,
+		private readonly FileService $files,
+		private readonly UserService $users,
+		private readonly BulkService $bulk,
+		private readonly ListFilterService $listFilters,
+		private readonly Connection $db,
+		array $config = [],
+	) {
+		parent::__construct($config);
+	}
+
+	/**
 	 * Hub's default checks of each kind, in their own order, by their handle, which is that of the predefined filter whose
 	 * items they flag. Their descriptions say what's wrong with an item and what to do about it, or why it passed.
 	 *
@@ -51,8 +75,8 @@ class DiagnosticsService extends Component
 	 */
 	public function getDefaults(): array
 	{
-		$filters = Hub::getInstance()->filters;
-		$check = fn (string $name, string $description, string $passedDescription, Severity $severity) => compact('name', 'description', 'passedDescription', 'severity');
+		$filters = $this->filters;
+		$check = fn(string $name, string $description, string $passedDescription, Severity $severity): array => ['name' => $name, 'description' => $description, 'passedDescription' => $passedDescription, 'severity' => $severity];
 		$stale = ['months' => $filters->getThreshold(CheckKind::Entries, 'stale')];
 		$size = ['size' => $filters->getThreshold(CheckKind::Assets, 'large')];
 		$pixels = ['pixels' => $filters->getThreshold(CheckKind::Assets, 'oversized')];
@@ -205,9 +229,9 @@ class DiagnosticsService extends Component
 	{
 		$this->definitions ??= $this->loadDefinitions();
 
-		return $kind === null
-			? $this->definitions
-			: array_filter($this->definitions, fn (CheckDefinition $definition) => $definition->kind === $kind);
+		return $kind instanceof CheckKind
+			? array_filter($this->definitions, fn(CheckDefinition $definition): bool => $definition->kind === $kind)
+			: $this->definitions;
 	}
 
 	/**
@@ -217,7 +241,7 @@ class DiagnosticsService extends Component
 	{
 		$rows = (new Query())
 			->select(['id', 'kind', 'handle', 'filter', 'name', 'description', 'passedDescription', 'icon', 'severity', 'enabled', 'sortOrder', 'uid'])
-			->from(self::TABLE_CHECKS)
+			->from(Tables::CHECKS)
 			->orderBy(['sortOrder' => SORT_ASC, 'id' => SORT_ASC])
 			->all();
 
@@ -228,7 +252,7 @@ class DiagnosticsService extends Component
 			$order = -count($checks);
 
 			foreach ($checks as $handle => $check) {
-				$byKind[$kind][$handle] = new CheckDefinition([
+				$byKind[$kind][$handle] = $this->createDefinition([
 					'kind' => CheckKind::from($kind),
 					'handle' => $handle,
 					'filter' => $handle,
@@ -242,28 +266,28 @@ class DiagnosticsService extends Component
 		}
 
 		foreach ($rows as $row) {
-			$kind = CheckKind::tryFrom((string)$row['kind']);
-			$handle = $row['handle'] !== null ? (string)$row['handle'] : null;
+			$kind = CheckKind::tryFrom(Row::string($row, 'kind'));
+			$handle = Row::stringOrNull($row, 'handle');
 
 			// Rows of default checks Hub no longer has are left out.
 			if ($kind === null || ($handle !== null && !isset($byKind[$kind->value][$handle]))) {
 				continue;
 			}
 
-			$definition = $handle !== null ? $byKind[$kind->value][$handle] : new CheckDefinition([
+			$definition = $handle !== null ? $byKind[$kind->value][$handle] : $this->createDefinition([
 				'kind' => $kind,
-				'filter' => (string)$row['filter'],
-				'name' => (string)$row['name'],
-				'description' => (string)$row['description'],
-				'passedDescription' => (string)$row['passedDescription'],
-				'icon' => $row['icon'] ?: null,
+				'filter' => Row::string($row, 'filter'),
+				'name' => Row::string($row, 'name'),
+				'description' => Row::string($row, 'description'),
+				'passedDescription' => Row::string($row, 'passedDescription'),
+				'icon' => Fill::text(Row::value($row, 'icon')),
 			]);
 
-			$definition->id = (int)$row['id'];
-			$definition->uid = (string)$row['uid'];
-			$definition->severity = Severity::tryFrom((string)$row['severity']);
-			$definition->enabled = (bool)$row['enabled'];
-			$definition->sortOrder = (int)$row['sortOrder'];
+			$definition->id = Row::int($row, 'id');
+			$definition->uid = Row::string($row, 'uid');
+			$definition->severity = Severity::tryFrom(Row::string($row, 'severity'));
+			$definition->enabled = Row::bool($row, 'enabled');
+			$definition->sortOrder = Row::int($row, 'sortOrder');
 
 			$byKind[$kind->value][$handle ?? $definition->uid] = $definition;
 		}
@@ -272,7 +296,7 @@ class DiagnosticsService extends Component
 
 		foreach (CheckKind::cases() as $kind) {
 			$checks = array_values($byKind[$kind->value] ?? []);
-			usort($checks, fn (CheckDefinition $a, CheckDefinition $b) => $a->sortOrder <=> $b->sortOrder);
+			usort($checks, fn(CheckDefinition $a, CheckDefinition $b): int => $a->sortOrder <=> $b->sortOrder);
 
 			foreach ($checks as $definition) {
 				$definitions[$definition->getKey()] = $definition;
@@ -301,26 +325,26 @@ class DiagnosticsService extends Component
 	/**
 	 * The enabled checks of a kind, in their order; checks of a filter that no longer exists are left out.
 	 *
-	 * @return CheckDefinition[]
+	 * @return list<CheckDefinition>
 	 */
 	public function getEnabledChecks(CheckKind $kind): array
 	{
 		return array_values(array_filter(
 			$this->getDefinitions($kind),
-			fn (CheckDefinition $definition) => $definition->enabled && $definition->getFilter() !== null,
+			fn(CheckDefinition $definition): bool => $definition->enabled && $definition->getFilter() instanceof SavedFilter,
 		));
 	}
 
 	/**
 	 * The custom checks of a filter, which it can't be deleted while they flag its items.
 	 *
-	 * @return CheckDefinition[]
+	 * @return list<CheckDefinition>
 	 */
 	public function getChecksOfFilter(SavedFilter $filter): array
 	{
 		return array_values(array_filter(
 			$this->getDefinitions($filter->kind),
-			fn (CheckDefinition $definition) => !$definition->isDefault() && $definition->filter === ($filter->handle ?? $filter->uid),
+			fn(CheckDefinition $definition): bool => !$definition->isDefault() && $definition->filter === ($filter->handle ?? $filter->uid),
 		));
 	}
 
@@ -331,18 +355,18 @@ class DiagnosticsService extends Component
 	 * @template T
 	 * @param T[] $items
 	 * @param callable(T):array{0:string,1:bool,2:Severity} $describe key, whether it passed and severity of an item
-	 * @return T[]
+	 * @return list<T>
 	 */
 	public function sort(array $items, CheckKind $kind, callable $describe): array
 	{
 		$positions = array_flip(array_keys($this->getDefinitions()));
 		$prefix = $kind->value . '.';
 
-		usort($items, function ($a, $b) use ($describe, $positions, $prefix) {
-			$order = function ($item) use ($describe, $positions, $prefix) {
+		usort($items, function (mixed $a, mixed $b) use ($describe, $positions, $prefix): int {
+			$order = function (mixed $item) use ($describe, $positions, $prefix): array {
 				[$key, $passed, $severity] = $describe($item);
 
-				return [$passed, $passed ? 0 : $severity->rank(), !str_starts_with($key, $prefix), $positions[$key] ?? PHP_INT_MAX];
+				return [(int) $passed, $passed ? 0 : $severity->rank(), (int) !str_starts_with($key, $prefix), $positions[$key] ?? PHP_INT_MAX];
 			};
 
 			return $order($a) <=> $order($b);
@@ -374,7 +398,7 @@ class DiagnosticsService extends Component
 	{
 		$query = $this->getFailingQuery($definition);
 
-		if ($query === null) {
+		if (!$query instanceof ElementQuery) {
 			$this->failing[$definition->getKey()] ??= array_flip($this->getMatchingIds($definition));
 
 			return count($this->failing[$definition->getKey()]);
@@ -384,11 +408,11 @@ class DiagnosticsService extends Component
 		$key = $this->countsKey($definition);
 
 		if (!isset($this->counts[$key])) {
-			$queries = Hub::getInstance()->queries;
-			$this->counts[$key] = Aggregator::index($queries->count($query, $groups), array_keys($groups), fn (?int $sum, array $row) => ($sum ?? 0) + (int)$row['total']);
+			$queries = $this->queries;
+			$this->counts[$key] = Aggregator::index($queries->count($query, $groups), array_keys($groups), fn(?int $sum, array $row): int => ($sum ?? 0) + Row::int($row, 'total'));
 		}
 
-		return $this->counts[$key][Aggregator::key(array_map(fn (string $alias) => $criteria[$alias] ?? null, array_keys($groups)))] ?? 0;
+		return $this->counts[$key][Aggregator::key(array_map(fn(string $alias) => $criteria[$alias] ?? null, array_keys($groups)))] ?? 0;
 	}
 
 	/**
@@ -396,7 +420,7 @@ class DiagnosticsService extends Component
 	 */
 	private function countsKey(CheckDefinition $definition): string
 	{
-		return $definition->getKey() . ':' . implode(',', Hub::getInstance()->siteScope->getSiteIds());
+		return $definition->getKey() . ':' . implode(',', $this->siteScope->getSiteIds());
 	}
 
 	/**
@@ -410,35 +434,36 @@ class DiagnosticsService extends Component
 		$query = $this->getFailingQuery($definition);
 		$columns = self::GROUPS[$definition->kind->value] ?? [];
 
-		if ($query === null || isset($this->counts[$this->countsKey($definition)])) {
+		if (!$query instanceof ElementQuery || isset($this->counts[$this->countsKey($definition)])) {
 			return $this->countFailing($definition, $criteria) > 0;
 		}
 
 		$condition = ['and'];
 
 		foreach ($criteria as $alias => $value) {
-			$condition[] = [$columns[$alias] => $value];
+			$condition[] = [($columns[$alias] ?? $alias) => $value];
 		}
 
 		// First, so the database finds the elements of the item before evaluating the check's conditions.
 		$query->where($query->where !== null && $query->where !== [] ? ['and', $condition, $query->where] : $condition);
 
-		return Hub::getInstance()->queries->exists($query);
+		return $this->queries->exists($query);
 	}
 
 	/**
 	 * Elements of entries, assets or users a check flags, as its filter narrows their list; null for the items of
 	 * structure pages, which aren't elements.
+	 *
+	 * @return ElementQuery<array-key,covariant ElementInterface>|null
 	 */
 	public function getFailingQuery(CheckDefinition $definition): ?ElementQuery
 	{
-		$hub = Hub::getInstance();
 		$filter = $this->createListFilter($definition);
 
 		$query = match (true) {
-			$filter instanceof EntryFilter => $hub->entries->getQuery($filter),
-			$filter instanceof FileFilter => $hub->files->getQuery($filter),
-			$filter instanceof UserFilter => $hub->users->getQuery($filter),
+			$filter instanceof EntryFilter => $this->entries->getQuery($filter),
+			$filter instanceof FileFilter => $this->files->getQuery($filter),
+			$filter instanceof UserFilter => $this->users->getQuery($filter),
 			default => null,
 		};
 
@@ -455,14 +480,14 @@ class DiagnosticsService extends Component
 	{
 		$filter = $this->createListFilter($definition);
 
-		return $filter !== null ? Hub::getInstance()->bulk->getMatchingIds($definition->kind->list(), $filter, $ids) : [];
+		return $filter !== null ? $this->bulk->getMatchingIds($definition->kind->list(), $filter, $ids) : [];
 	}
 
 	private function createListFilter(CheckDefinition $definition): ?object
 	{
 		$filter = $definition->getFilter();
 
-		return $filter !== null ? Hub::getInstance()->listFilters->createListFilter($definition->kind, $filter->getListParams()) : null;
+		return $filter instanceof SavedFilter ? $this->listFilters->createListFilter($definition->kind, $filter->getListParams()) : null;
 	}
 
 	/**
@@ -485,26 +510,26 @@ class DiagnosticsService extends Component
 				'filter' => $definition->filter,
 				'name' => $definition->name,
 				'description' => $definition->description,
-				'passedDescription' => $definition->passedDescription ?: null,
-				'icon' => $definition->icon ?: null,
+				'passedDescription' => Fill::text($definition->passedDescription),
+				'icon' => Fill::text($definition->icon),
 			];
 		}
 
-		$db = Craft::$app->getDb();
+		$db = $this->db;
 
 		if ($definition->id === null) {
 			$definition->uid ??= StringHelper::UUID();
-			$definition->sortOrder = (int)(new Query())->from(self::TABLE_CHECKS)->where(['kind' => $definition->kind->value])->max('[[sortOrder]]') + 1;
-			$db->createCommand()->insert(self::TABLE_CHECKS, [
+			$definition->sortOrder = Fill::int((new Query())->from(Tables::CHECKS)->where(['kind' => $definition->kind->value])->max('[[sortOrder]]')) + 1;
+			$db->createCommand()->insert(Tables::CHECKS, [
 				...$columns,
 				'kind' => $definition->kind->value,
 				'handle' => $definition->handle,
 				'sortOrder' => $definition->sortOrder,
 				'uid' => $definition->uid,
 			])->execute();
-			$definition->id = (int)$db->getLastInsertID(self::TABLE_CHECKS);
+			$definition->id = (int) $db->getLastInsertID(Tables::CHECKS);
 		} else {
-			$db->createCommand()->update(self::TABLE_CHECKS, $columns, ['id' => $definition->id])->execute();
+			$db->createCommand()->update(Tables::CHECKS, $columns, ['id' => $definition->id])->execute();
 		}
 
 		$this->definitions = null;
@@ -517,7 +542,7 @@ class DiagnosticsService extends Component
 	 */
 	public function deleteDefinitionById(int $id): bool
 	{
-		$deleted = Craft::$app->getDb()->createCommand()->delete(self::TABLE_CHECKS, ['id' => $id, 'handle' => null])->execute() > 0;
+		$deleted = $this->db->createCommand()->delete(Tables::CHECKS, ['id' => $id, 'handle' => null])->execute() > 0;
 		$this->definitions = null;
 
 		return $deleted;
@@ -530,10 +555,10 @@ class DiagnosticsService extends Component
 	 */
 	public function reorderDefinitions(array $ids): void
 	{
-		$command = Craft::$app->getDb()->createCommand();
+		$command = $this->db->createCommand();
 
 		foreach (array_values($ids) as $order => $id) {
-			$command->update(self::TABLE_CHECKS, ['sortOrder' => $order + 1], ['id' => (int)$id], updateTimestamp: false)->execute();
+			$command->update(Tables::CHECKS, ['sortOrder' => $order + 1], ['id' => $id], updateTimestamp: false)->execute();
 		}
 
 		$this->definitions = null;
@@ -541,11 +566,11 @@ class DiagnosticsService extends Component
 
 	/**
 	 * Gives the default checks without a row one and numbers the checks of each kind in their current order, so they can
-	 * be reordered and toggled by their ID. Run once Hub is installed, see Hub::afterInstall().
+	 * be reordered and toggled by their ID. Run once Hub is installed, see the plugin’s afterInstall().
 	 */
 	public function saveDefaults(): void
 	{
-		$command = Craft::$app->getDb()->createCommand();
+		$command = $this->db->createCommand();
 
 		foreach (CheckKind::cases() as $kind) {
 			$order = 0;
@@ -554,7 +579,7 @@ class DiagnosticsService extends Component
 				$order++;
 
 				if ($definition->id === null) {
-					$command->insert(self::TABLE_CHECKS, [
+					$command->insert(Tables::CHECKS, [
 						'kind' => $kind->value,
 						'handle' => $definition->handle,
 						'enabled' => $definition->enabled,
@@ -562,11 +587,24 @@ class DiagnosticsService extends Component
 						'uid' => StringHelper::UUID(),
 					])->execute();
 				} elseif ($definition->sortOrder !== $order) {
-					$command->update(self::TABLE_CHECKS, ['sortOrder' => $order], ['id' => $definition->id], updateTimestamp: false)->execute();
+					$command->update(Tables::CHECKS, ['sortOrder' => $order], ['id' => $definition->id], updateTimestamp: false)->execute();
 				}
 			}
 		}
 
 		$this->definitions = null;
+	}
+
+	/**
+	 * A check that finds the filter whose items it flags with the filters of the plugin.
+	 *
+	 * @param array<string,mixed> $config
+	 */
+	public function createDefinition(array $config): CheckDefinition
+	{
+		return new CheckDefinition([
+			...$config,
+			'filterLookup' => $this->filters->getFilter(...),
+		]);
 	}
 }

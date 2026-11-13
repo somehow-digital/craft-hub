@@ -11,21 +11,21 @@
 
 {% set typeOptions = {} %}
 {% for type in enum_cases('SomehowDigital\\Craft\\Hub\\enums\\SectionType') %}
-	{% set typeOptions = typeOptions|merge({ (type.value): { label: type.label(), icon: type.icon(), color: type.color() } }) %}
+	{% set typeOptions = typeOptions|merge({(type.value): {label: type.label(), icon: type.icon(), color: type.color()}}) %}
 {% endfor %}
 
 {% block content %}
-	{% embed 'hub/_components/panel' with { list: list, typeOptions: typeOptions, hubSite: hubSite, labelable: labelable } only %}
+	{% embed 'hub/_components/panel' with {list: list, typeOptions: typeOptions, hubSite: hubSite, labelable: labelable} only %}
 		{% block body %}
 			{% import 'hub/_components/macros' as hub %}
 			<form method="get" class="hub-filters" action="{{ url('hub/structure/sections') }}" data-hub-submit{% if list.bulkSelection.review ?? false %} hidden{% endif %}>
-				{% include 'hub/_components/saved-filters' with { savedFilters: list.savedFilters, hubSite: hubSite } only %}
+				{{ include('hub/_components/saved-filters', {savedFilters: list.savedFilters, hubSite: hubSite}, false) }}
 				{{ hub.search('Search by name or handle'|t('hub'), list.filter.search) }}
 				{{ hub.dropdown('Type'|t('app'), 'sitemap', hub.choices('type', typeOptions, list.filter.types)) }}
 				{{ hub.dropdown('URLs'|t('hub'), 'globe', hub.choices('urls', {
-					yes: { label: 'Has URLs'|t('hub') },
-					no: { label: 'No URLs'|t('hub') },
-				}, list.filter.urls, { multiple: false })) }}
+					yes: {label: 'Has URLs'|t('hub')},
+					no: {label: 'No URLs'|t('hub')},
+				}, list.filter.urls, {multiple: false})) }}
 				{{ hub.dropdown('Numbers'|t('hub'), 'hashtag', hub.range('entries', 'Entries'|t('app'), list.filter.entriesMin, list.filter.entriesMax)
 					~ hub.range('references', 'References'|t('hub'), list.filter.referencesMin, list.filter.referencesMax)) }}
 				{{ hub.activityFilter(list.filter.activities) }}
@@ -39,7 +39,7 @@
 			</form>
 
 			{% if list.sections|length %}
-				{% embed 'hub/_components/bulk' with { bulkList: 'sections', bulkNone: 'No sections selected'|t('hub'), list: list, labelable: labelable } only %}
+				{% embed 'hub/_components/bulk' with {bulkList: 'sections', bulkNone: 'No sections selected'|t('hub'), list: list, labelable: labelable} only %}
 					{% block table %}
 						{% import 'hub/_components/macros' as hub %}
 						<div class="hub-table">
@@ -90,11 +90,11 @@
 						</div>
 					{% endblock %}
 					{% block footer %}
-						{% include '_includes/pagination' with {
+						{{ include('_includes/pagination', {
 							pageInfo: list.pageInfo,
 							itemLabel: 'section'|t('hub'),
 							itemsLabel: 'sections'|t('hub'),
-						} only %}
+						}, false) }}
 					{% endblock %}
 				{% endembed %}
 			{% else %}

@@ -1,20 +1,23 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SomehowDigital\Craft\Hub\models;
 
 use Craft;
-use craft\base\conditions\BaseCondition;
-use craft\base\conditions\ConditionInterface;
 use craft\base\Model;
 use SomehowDigital\Craft\Hub\enums\CheckKind;
+use SomehowDigital\Craft\Hub\helpers\Fill;
 
 /**
  * A filter of a list, saved by its name: one of Hub's predefined filters, which can be disabled, reordered and renamed on
  * the filters tab of the settings page, some given another threshold there too, a custom one created there, whose
  * condition the items match, offered to everyone who may view the list, or a user's own, which keeps the filters of the
  * list the user saved it with.
+ *
+ * @internal
  */
-class SavedFilter extends Model
+final class SavedFilter extends Model
 {
 	public ?int $id = null;
 
@@ -79,7 +82,7 @@ class SavedFilter extends Model
 	 */
 	public function getKey(): string
 	{
-		return $this->kind->value . '.' . ($this->handle ?? $this->uid);
+		return $this->kind->value . '.' . ($this->handle ?? $this->uid ?? '');
 	}
 
 	public function getName(): string
@@ -97,7 +100,7 @@ class SavedFilter extends Model
 
 	public function getIcon(): string
 	{
-		return $this->icon ?: 'filter';
+		return Fill::text($this->icon) ?? 'filter';
 	}
 
 	/**
@@ -108,31 +111,17 @@ class SavedFilter extends Model
 	 */
 	public function getListParams(): array
 	{
-		return $this->isCustom() ? [...$this->params, 'filter' => (string)$this->uid] : $this->params;
-	}
-
-	public function getCondition(): ConditionInterface
-	{
-		$condition = $this->kind->createCondition($this->condition ?? []);
-
-		// Rendered as a builder within the filter's form, which posts its rules by the name.
-		if ($condition instanceof BaseCondition) {
-			$condition->name = 'condition';
-			$condition->id = 'condition';
-			$condition->mainTag = 'div';
-		}
-
-		return $condition;
+		return $this->isCustom() ? [...$this->params, 'filter' => (string) $this->uid] : $this->params;
 	}
 
 	/**
-	 * @return array<int,mixed>
+	 * @return list<mixed>
 	 */
 	protected function defineRules(): array
 	{
 		return [
 			[['name', 'description'], 'trim'],
-			[['name'], 'required', 'when' => fn () => !$this->isPredefined()],
+			[['name'], 'required', 'when' => fn(): bool => !$this->isPredefined()],
 			[['name', 'icon'], 'string', 'max' => 255],
 			[['icon'], 'match', 'pattern' => Label::ICON_PATTERN],
 			[['threshold'], 'integer', 'min' => 1],
