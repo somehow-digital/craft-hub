@@ -59,30 +59,22 @@ document.getElementById('content').addEventListener('hub:loaded', (event) => {
 	});
 });
 
-// Enables or disables a filter right in the table.
-document.getElementById('content').addEventListener('click', async (event) => {
-	const toggle = event.target.closest('[data-hub-filter-toggle]');
-
-	if (!toggle || toggle.disabled) {
-		return;
-	}
-
-	const enabled = !toggle.classList.contains('on');
-	const row = toggle.closest('tr');
-	toggle.disabled = true;
+// Enables or disables a filter right in the table, once Craft's lightswitch has switched, by click, key or drag.
+$('#content').on('change', '[data-hub-filter-toggle]', async function () {
+	const lightswitch = $(this).data('lightswitch');
+	const enabled = lightswitch.on;
+	const row = this.closest('tr');
 
 	try {
-		const { data } = await Craft.sendActionRequest('POST', 'hub/filters/toggle', { data: { id: toggle.dataset.hubFilterToggle, enabled: enabled ? 1 : 0 } });
-		toggle.classList.toggle('on', data.enabled);
-		toggle.setAttribute('aria-checked', data.enabled ? 'true' : 'false');
+		const { data } = await Craft.sendActionRequest('POST', 'hub/filters/toggle', { data: { id: this.dataset.hubFilterToggle, enabled: enabled ? 1 : 0 } });
 		row.classList.toggle('hub-check-row--disabled', !data.enabled);
 		row.querySelector('.hub-check-row__name .hub-icon').dataset.color = data.enabled ? row.dataset.hubColor : 'gray';
 		updateHubFiltersHeader(row.closest('.hub-panel'));
 		Craft.cp.displaySuccess(data.message);
 	} catch {
+		// Switched back silently, so it doesn't send again.
+		enabled ? lightswitch.turnOff(true) : lightswitch.turnOn(true);
 		Craft.cp.displayError(Craft.t('hub', 'Couldn’t save the filter.'));
-	} finally {
-		toggle.disabled = false;
 	}
 });
 {% endjs %}
