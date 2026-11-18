@@ -28,6 +28,7 @@ it('queries the trashed entries, leaving out those deleted with their owner', fu
 		->and($query->status)->toBeNull()
 		->and(json_encode($query->where))->toContain('elements.deletedWithOwner')
 		->and(json_encode($query->where))->toContain('hubOwners.dateDeleted')
+		->and(json_encode($query->where))->toContain('{"entries.sectionId":null},{"entries.sectionId":[1,2,3,4]}],{"entries.typeId":[12,10,11,13,14]}')
 		->and($query->orderBy)->toBe(['elements.dateDeleted' => SORT_DESC, 'elements.id' => SORT_DESC]);
 });
 

@@ -14,7 +14,9 @@ use craft\elements\db\EntryQuery;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\helpers\Db;
+use craft\models\EntryType;
 use craft\models\Volume;
+use craft\services\Entries;
 use craft\services\Volumes;
 use DateTime;
 use SomehowDigital\Craft\Hub\db\Tables;
@@ -65,6 +67,7 @@ final class TrashService extends Component
 		private readonly FileService $files,
 		private readonly UserService $users,
 		private readonly Volumes $craftVolumes,
+		private readonly Entries $craftEntries,
 		private readonly Connection $db,
 		array $config = [],
 	) {
@@ -90,6 +93,7 @@ final class TrashService extends Component
 			->trashed()
 			->andWhere($this->review->contentCondition())
 			->andWhere(['or', ['elements.deletedWithOwner' => null], ['elements.deletedWithOwner' => false]])
+			->andWhere($this->restorableEntryCondition())
 			->orderBy($this->sortOrder($sort === self::SORT_TITLE ? ['elements_sites.title'] : ['elements.dateDeleted'], $direction));
 
 		if (($viewable = $entries->viewableCondition()) !== null) {
@@ -231,6 +235,7 @@ final class TrashService extends Component
 				->status(null)
 				->trashed()
 				->andWhere(['or', ['elements.deletedWithOwner' => null], ['elements.deletedWithOwner' => false]])
+				->andWhere($this->restorableEntryCondition())
 				->all(),
 			...$this->siteScope->inSiteScope(Asset::find())
 				->id(array_keys($related))
@@ -248,6 +253,23 @@ final class TrashService extends Component
 		}
 
 		return $byItem;
+	}
+
+	/**
+	 * Leaves out trashed entries whose section or entry type was deleted, as they can't be loaded or restored on their own:
+	 * Craft restores them along with their section or entry type.
+	 *
+	 * @return list<mixed>
+	 */
+	private function restorableEntryCondition(): array
+	{
+		$entries = $this->craftEntries;
+
+		return [
+			'and',
+			['or', ['entries.sectionId' => null], ['entries.sectionId' => $entries->getAllSectionIds()]],
+			['entries.typeId' => array_map(static fn(EntryType $type): int => (int) $type->id, $entries->getAllEntryTypes())],
+		];
 	}
 
 	/**
