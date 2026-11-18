@@ -16,6 +16,8 @@ use SomehowDigital\Craft\Hub\models\EntryFilter;
 use SomehowDigital\Craft\Hub\models\SavedFilter;
 use SomehowDigital\Craft\Hub\models\SectionFilter;
 use SomehowDigital\Craft\Hub\models\SectionInfo;
+use SomehowDigital\Craft\Hub\services\WorkService;
+use yii\caching\TagDependency;
 
 beforeEach(function (): void {
 	$this->createContentModel();
@@ -159,6 +161,20 @@ it('saves only the name and whether a predefined filter is enabled', function ()
 	$update = $this->db()->queriesMatching(sqlUpdate(Tables::FILTERS))[0];
 
 	expect($update)->toContain('`name`=NULL')->toContain('`enabled`=FALSE')->not->toContain('bogus');
+});
+
+it('forgets the work counts of all users once a filter is saved or deleted, as its threshold may change them', function (): void {
+	$cache = Craft::$app->getCache() ?? throw new LogicException('No cache.');
+	$probe = fn(): bool => $cache->set('probe', 1, 0, new TagDependency(['tags' => WorkService::CACHE_TAG]));
+	$filter = $this->hub()->filters->getFilterById(1) ?? throw new LogicException('Not found.');
+
+	$probe();
+	$this->hub()->filters->saveFilter($filter);
+	$saved = $cache->get('probe');
+	$probe();
+	$this->hub()->filters->deleteFilterById(2);
+
+	expect($saved)->toBeFalse()->and($cache->get('probe'))->toBeFalse();
 });
 
 it('fails to save custom filters without a rule and own filters without filters', function (): void {

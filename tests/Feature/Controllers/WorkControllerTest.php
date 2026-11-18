@@ -73,11 +73,14 @@ it('loads the panel of a check of the diagnostics tab alone, with the first of i
 		->and(at($behavior->variables, 'snoozeDays'))->toBe(WorkService::SNOOZE_DAYS);
 });
 
-it('has no panels of checks that flag nothing', function (): void {
+it('has no panels of checks that are disabled, but those of checks no longer flagging anything', function (): void {
 	onlyChecks(['entries.stale' => null]);
 
-	$this->runAction(WorkController::class, 'index', ['tab' => 'diagnostics'], ['panel' => 'entries.stale']);
-})->throws(NotFoundHttpException::class);
+	$panel = fn(string $key): mixed => $this->runAction(WorkController::class, 'index', ['tab' => 'diagnostics'], ['panel' => $key]);
+
+	expect($panel('entries.stale'))->not->toBeNull()
+		->and(fn(): mixed => $panel('entries.drafts'))->toThrow(NotFoundHttpException::class);
+});
 
 it('leaves out the tabs of what the user has nothing of, or may not view', function (): void {
 	$this->actingAs(permissions: ['accessCp', 'accessCpWhenSystemIsOff', 'accessPlugin-hub', Permission::ViewWork->value]);

@@ -27,6 +27,8 @@ use SomehowDigital\Craft\Hub\models\FilterParams;
 use SomehowDigital\Craft\Hub\models\SavedFilter;
 use SomehowDigital\Craft\Hub\models\UserFilter;
 use yii\base\Component;
+use yii\caching\CacheInterface;
+use yii\caching\TagDependency;
 
 /**
  * The saved filters of the lists, picked from the list's filter bar: Hub's predefined filters, which can be disabled,
@@ -58,6 +60,7 @@ final class FilterService extends Component implements ThresholdsProviderInterfa
 	public function __construct(
 		private readonly SiteScopeService $siteScope,
 		private readonly Connection $db,
+		private readonly CacheInterface $cache,
 		private readonly ?WebUser $user = null,
 		array $config = [],
 	) {
@@ -479,6 +482,7 @@ final class FilterService extends Component implements ThresholdsProviderInterfa
 		}
 
 		$this->filters = null;
+		TagDependency::invalidate($this->cache, WorkService::CACHE_TAG);
 
 		return true;
 	}
@@ -491,6 +495,7 @@ final class FilterService extends Component implements ThresholdsProviderInterfa
 	{
 		$deleted = $this->db->createCommand()->delete(Tables::FILTERS, ['id' => $id, 'handle' => null, 'userId' => $userId])->execute() > 0;
 		$this->filters = null;
+		TagDependency::invalidate($this->cache, WorkService::CACHE_TAG);
 
 		return $deleted;
 	}
