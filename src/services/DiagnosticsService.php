@@ -22,6 +22,8 @@ use SomehowDigital\Craft\Hub\models\FileFilter;
 use SomehowDigital\Craft\Hub\models\SavedFilter;
 use SomehowDigital\Craft\Hub\models\UserFilter;
 use yii\base\Component;
+use yii\caching\CacheInterface;
+use yii\caching\TagDependency;
 
 /**
  * The checks of the diagnostics tabs, as configured on the diagnostics tab of the settings page, each flagging the items
@@ -62,6 +64,7 @@ final class DiagnosticsService extends Component
 		private readonly BulkService $bulk,
 		private readonly ListFilterService $listFilters,
 		private readonly Connection $db,
+		private readonly CacheInterface $cache,
 		array $config = [],
 	) {
 		parent::__construct($config);
@@ -533,6 +536,7 @@ final class DiagnosticsService extends Component
 		}
 
 		$this->definitions = null;
+		TagDependency::invalidate($this->cache, WorkService::CACHE_TAG);
 
 		return true;
 	}
@@ -544,6 +548,7 @@ final class DiagnosticsService extends Component
 	{
 		$deleted = $this->db->createCommand()->delete(Tables::CHECKS, ['id' => $id, 'handle' => null])->execute() > 0;
 		$this->definitions = null;
+		TagDependency::invalidate($this->cache, WorkService::CACHE_TAG);
 
 		return $deleted;
 	}

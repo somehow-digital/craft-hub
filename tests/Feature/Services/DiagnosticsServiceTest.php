@@ -9,7 +9,9 @@ use SomehowDigital\Craft\Hub\enums\CheckKind;
 use SomehowDigital\Craft\Hub\enums\Severity;
 use SomehowDigital\Craft\Hub\Hub;
 use SomehowDigital\Craft\Hub\models\CheckDefinition;
+use SomehowDigital\Craft\Hub\services\WorkService;
 use SomehowDigital\Craft\Hub\Tests\Support\ElementQueries;
+use yii\caching\TagDependency;
 
 beforeEach(function (): void {
 	$this->createContentModel();
@@ -188,6 +190,23 @@ it('deletes only custom checks', function (): void {
 	$this->hub()->diagnostics->deleteDefinitionById(3);
 
 	expect($this->db()->queriesMatching('DELETE FROM {{%hub_checks}}')[0])->toContain('`id`=3')->toContain('`handle` IS NULL');
+});
+
+it('forgets the work counts of all users once a check is saved or deleted', function (): void {
+	$cache = Craft::$app->getCache() ?? throw new LogicException('No cache.');
+	$probe = fn(): bool => $cache->set('probe', 1, 0, new TagDependency(['tags' => WorkService::CACHE_TAG]));
+	$this->db()->respond('FROM {{%hub_checks}}', [
+		['id' => 1, 'kind' => 'fields', 'handle' => 'unused', 'filter' => null, 'severity' => null, 'enabled' => 1, 'sortOrder' => 1, 'uid' => 'unused'],
+	]);
+	$check = $this->hub()->diagnostics->getDefinitionById(1) ?? throw new LogicException('Not found.');
+
+	$probe();
+	$this->hub()->diagnostics->saveDefinition($check);
+	$saved = $cache->get('probe');
+	$probe();
+	$this->hub()->diagnostics->deleteDefinitionById(3);
+
+	expect($saved)->toBeFalse()->and($cache->get('probe'))->toBeFalse();
 });
 
 it('gives the default checks without a row one, numbering the checks of each kind', function (): void {

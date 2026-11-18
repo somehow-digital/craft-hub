@@ -70,6 +70,21 @@ it("lists the checks flagging the user's entries and assets, the most urgent fir
 		->and($checks[1]->url)->toContain('hub/manage/work/entries');
 });
 
+it('counts the check read alone again, as the counts kept for the others may be out of date', function (): void {
+	onlyChecks(['entries.stale' => null]);
+	ElementQueries::respond(Entry::class, [new Entry(['id' => 1]), new Entry(['id' => 2])]);
+	$this->hub()->work->getDiagnostics();
+
+	ElementQueries::respond(Entry::class, []);
+	$checks = $this->hub()->work->getDiagnostics(10, 'entries.stale');
+
+	expect($this->hub()->work->getDiagnostics()[0]->count)->toBe(2)
+		->and($checks)->toHaveCount(1)
+		->and($checks[0]->count)->toBe(0)
+		->and($checks[0]->items)->toBe([])
+		->and($this->hub()->work->getDiagnostics(10, 'entries.drafts'))->toBe([]);
+});
+
 it("narrows the checks to what the user authored or uploaded and hasn't snoozed", function (): void {
 	onlyChecks(['entries.stale' => null, 'assets.large' => null]);
 

@@ -70,6 +70,9 @@ final class WorkService extends Component
 	/** seconds the counts of a user are kept for, as the navigation shows them on every page */
 	private const COUNTS_DURATION = 300;
 
+	/** cache tag of the counts of all users, forgotten once the filters or checks they're counted by change */
+	public const CACHE_TAG = 'hub:work';
+
 	/** @var array<int,array{definition:CheckDefinition,query:ElementQuery<array-key,covariant ElementInterface>}>|null memoized, as the counts and the page share them */
 	private ?array $diagnosticsQueries = null;
 
@@ -125,7 +128,7 @@ final class WorkService extends Component
 
 		$key = sprintf('hub:work:counts:%d:%s', $userId, implode(',', $this->siteScope->getSiteIds()));
 
-		return $this->cache->getOrSet($key, fn(): array => $this->countAll(), self::COUNTS_DURATION, new TagDependency(['tags' => $this->cacheTag($userId)]));
+		return $this->cache->getOrSet($key, fn(): array => $this->countAll(), self::COUNTS_DURATION, new TagDependency(['tags' => [$this->cacheTag($userId), self::CACHE_TAG]]));
 	}
 
 	/**
@@ -205,7 +208,8 @@ final class WorkService extends Component
 	/**
 	 * Checks flagging entries the current user is an author of and assets they uploaded, the most urgent first, each with
 	 * the first of the items, if any are asked for, and a link to all of them; items they snoozed for a check aren't
-	 * counted, and checks without any are left out. Their counts are those of {@see getCounts()}.
+	 * counted, and checks without any are left out. Their counts are those of {@see getCounts()}, other than that of the
+	 * check read alone, which is counted again, as its panel lists its items.
 	 *
 	 * @param int $limit items listed per check
 	 * @param string|null $key the check to read alone, see CheckDefinition::getKey()
@@ -214,12 +218,16 @@ final class WorkService extends Component
 	public function getDiagnostics(int $limit = 0, ?string $key = null): array
 	{
 		$checks = [];
-		$totals = $this->getCounts()['checks'];
+		$totals = $key === null ? $this->getCounts()['checks'] : [];
 
-		foreach ($this->diagnosticsQueries() as ['definition' => $definition, 'query' => $query]) {
-			$total = $totals[$definition->getKey()] ?? 0;
+		$queries = array_filter($this->diagnosticsQueries(), fn(array $read): bool => $key === null || $read['definition']->getKey() === $key);
 
-			if ($total > 0 && ($key === null || $definition->getKey() === $key)) {
+		foreach ($queries as ['definition' => $definition, 'query' => $query]) {
+			// The check read alone is counted again, so its panel's count matches the items it lists, and is kept even
+			// without any, as the page showed it by its cached count.
+			$total = $key === null ? $totals[$definition->getKey()] ?? 0 : $this->total($query);
+
+			if ($total > 0 || $key !== null) {
 				$check = new Check($definition->getListName(), $definition->getListDescription(), '', $definition->getSeverity(), $definition->getIcon(), false);
 				$check->key = $definition->getKey();
 				$check->count = $total;
